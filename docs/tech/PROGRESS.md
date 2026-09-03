@@ -31,7 +31,7 @@
 - [x] 2.1 Better Auth schema generation
 - [x] 2.2 Tenancy and courses tables
 - [x] 2.3 Scenario package tables
-- [ ] 2.4 Run tables and the trace
+- [x] 2.4 Run tables and the trace
 - [ ] 2.5 Scoring, review, records, and platform tables
 - [ ] 2.6 Immutability grants and the application role
 - [ ] 2.7 pg-boss schema, queues, drain, worker, ready check
