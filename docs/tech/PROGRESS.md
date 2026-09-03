@@ -32,7 +32,7 @@
 - [x] 2.2 Tenancy and courses tables
 - [x] 2.3 Scenario package tables
 - [x] 2.4 Run tables and the trace
-- [ ] 2.5 Scoring, review, records, and platform tables
+- [x] 2.5 Scoring, review, records, and platform tables
 - [ ] 2.6 Immutability grants and the application role
 - [ ] 2.7 pg-boss schema, queues, drain, worker, ready check
 - [ ] 2.8 Repository layer, tenant enforcement, pagination, Postgres rate limiter
