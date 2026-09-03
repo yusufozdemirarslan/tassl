@@ -38,6 +38,8 @@ export default defineConfig([
           stopMatching: true,
         },
         { pattern: 'src/server/modules/*/**', category: 'internal' },
+        // The fail-fast environment (05 §3) is the one server-lib file the db layer may import.
+        { pattern: 'src/server/config.ts', category: 'config' },
       ],
     },
     rules: {
@@ -102,7 +104,10 @@ export default defineConfig([
             },
             {
               from: { element: { type: 'db' } },
-              allow: [{ to: { element: { type: ['db', 'lib'] } } }],
+              allow: [
+                { to: { element: { type: ['db', 'lib'] } } },
+                { to: { element: { type: 'server-lib' }, file: { categories: ['config'] } } },
+              ],
             },
           ],
         },

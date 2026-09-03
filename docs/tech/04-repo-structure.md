@@ -192,7 +192,7 @@ Every module folder `src/server/modules/<name>/` contains at least these files (
 Enforced by `eslint-plugin-boundaries@7.2.0` in `eslint.config.mjs`. Elements are folders (`src/app`, `src/components`, `src/lib`, one element per `src/server/modules/<name>`, `src/server/db`, `src/server/llm`, and the rest of `src/server` as `server-lib`); the role of each file inside a module (`index.ts` = public, `schema.ts`, `actions.ts`, `router.ts`, `service.ts`, `repository.ts`, anything else = internal) is a file category. `checkInternals: true` makes the rule apply inside a module too, so `repository.ts` importing `service.ts` is an error. The config is verified against fixture files that must produce exactly the expected violations (repository → service, service → db, actions → repository, index → repository, app → service, app → db, server-lib → module) and no others:
 
 ```js
-// eslint.config.mjs (complete)
+// eslint.config.mjs (excerpt)
 import { defineConfig, globalIgnores } from 'eslint/config'
 import nextVitals from 'eslint-config-next/core-web-vitals'
 import nextTs from 'eslint-config-next/typescript'
