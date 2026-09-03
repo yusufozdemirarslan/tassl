@@ -35,7 +35,7 @@
 - [x] 2.5 Scoring, review, records, and platform tables
 - [x] 2.6 Immutability grants and the application role
 - [x] 2.7 pg-boss schema, queues, drain, worker, ready check
-- [ ] 2.8 Repository layer, tenant enforcement, pagination, Postgres rate limiter
+- [x] 2.8 Repository layer, tenant enforcement, pagination, Postgres rate limiter
 - [ ] 2.9 Factories, seed, reset script
 - [ ] Phase 2 exit criteria
 
