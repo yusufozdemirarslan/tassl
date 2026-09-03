@@ -24,7 +24,7 @@ function ProgressTrack({ className, ...props }: ProgressPrimitive.Track.Props) {
   return (
     <ProgressPrimitive.Track
       className={cn(
-        'bg-muted relative flex h-1 w-full items-center overflow-x-hidden rounded-full',
+        'bg-paper-sunken relative flex h-1 w-full items-center overflow-x-hidden rounded-full',
         className,
       )}
       data-slot="progress-track"
@@ -37,7 +37,7 @@ function ProgressIndicator({ className, ...props }: ProgressPrimitive.Indicator.
   return (
     <ProgressPrimitive.Indicator
       data-slot="progress-indicator"
-      className={cn('bg-primary h-full transition-all', className)}
+      className={cn('bg-primary h-full transition-[width] duration-200 ease-out', className)}
       {...props}
     />
   )
@@ -46,17 +46,18 @@ function ProgressIndicator({ className, ...props }: ProgressPrimitive.Indicator.
 function ProgressLabel({ className, ...props }: ProgressPrimitive.Label.Props) {
   return (
     <ProgressPrimitive.Label
-      className={cn('text-sm font-medium', className)}
+      className={cn('text-meta font-medium', className)}
       data-slot="progress-label"
       {...props}
     />
   )
 }
 
+// Numbers sit in Mono with tabular figures (DESIGN.md, the Tabular Clock Rule).
 function ProgressValue({ className, ...props }: ProgressPrimitive.Value.Props) {
   return (
     <ProgressPrimitive.Value
-      className={cn('text-muted-foreground ml-auto text-sm tabular-nums', className)}
+      className={cn('text-ink-muted text-mono ml-auto font-mono tabular-nums', className)}
       data-slot="progress-value"
       {...props}
     />

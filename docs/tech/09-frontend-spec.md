@@ -58,15 +58,15 @@ Self-hosted woff2 in `public/fonts`, loaded with `next/font/local` in `src/app/f
 |---|---|---|
 | `--paper` | `#F6F7F9` | page ground |
 | `--paper-raised` | `#FFFFFF` | panels, cards (never nested) |
-| `--paper-sunken` | `#ECEFF3` | inputs, timeline track |
+| `--paper-sunken` | `#ECEFF3` | disabled inputs, hover and highlight washes, tab wells, timeline track |
 | `--ink` | `#141A26` | primary text (tinted, never pure black) |
-| `--ink-muted` | `#4B5563` | secondary text (contrast on paper 7.5:1) |
+| `--ink-muted` | `#4B5563` | secondary text (contrast on paper 7.05:1) |
 | `--ink-faint` | `#8A93A3` | decorative only: gridlines, disabled outlines, hairline icons; never text (3.1:1 on paper-raised, D-153); placeholders use ink at 70 % alpha and disabled text ink at 45 % (`16 §8.7`) |
-| `--line-control` | `rgb(20 26 38 / 0.4)` | input and control boundaries (3.9:1 on paper, D-153) |
+| `--line-control` | `rgb(20 26 38 / 0.55)` | input and control boundaries (3.8:1 on paper, 3.9:1 on white; D-157 — 40 % measured 2.5:1) |
 | `--line` | `#D5DAE2` | borders |
 | `--line-strong` | `#AEB6C2` | focused borders, table rules |
 | `--primary` | `#0F6E74` | actions, links, selected stance (deep teal) |
-| `--primary-ink` | `#FFFFFF` | text on primary (7.1:1) |
+| `--primary-ink` | `#FFFFFF` | text on primary (6.0:1) |
 | `--primary-soft` | `#DDEFF0` | selected row background |
 | `--amber` | `#B7791F` | draft, uncalibrated, provisional labels and warnings as borders, icons, and chip fills only; never a text color (3.40:1 on paper, D-122); text on an amber-filled chip is `--ink` (4.78:1) |
 | `--amber-soft` | `#FBF1DC` | label background with `--ink` text |

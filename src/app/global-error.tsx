@@ -46,6 +46,7 @@ export default function GlobalError({
           tabIndex={-1}
           style={{
             width: '100%',
+            minWidth: 0,
             maxWidth: 512,
             background: '#FFFFFF',
             border: '1px solid #D5DAE2',
@@ -66,15 +67,20 @@ export default function GlobalError({
             >
               {t('error.title')}
             </h1>
-            <p style={{ color: '#4B5563', marginTop: 12 }}>{t('error.body')}</p>
+            {/* Margins are explicit because the preflight reset may not have loaded either; the
+                rhythm and colors mirror ErrorState (message in ink, reference label muted). */}
+            <p style={{ color: '#141A26', margin: '12px 0 0' }}>
+              {error.digest ? t('error.body') : t('error.bodyNoReference')}
+            </p>
             {error.digest && (
-              <p style={{ color: '#4B5563', fontSize: 13, lineHeight: '20px' }}>
+              <p style={{ color: '#4B5563', fontSize: 13, lineHeight: '20px', margin: '12px 0 0' }}>
                 {t('error.reference')}
                 {': '}
                 <code
                   style={{
                     fontFamily: 'var(--font-plex-mono, ui-monospace, monospace)',
                     color: '#141A26',
+                    overflowWrap: 'anywhere',
                   }}
                 >
                   {error.digest}
@@ -85,7 +91,7 @@ export default function GlobalError({
               type="button"
               onClick={() => reset()}
               style={{
-                marginTop: 24,
+                marginTop: 16,
                 height: 40,
                 padding: '0 16px',
                 borderRadius: 6,

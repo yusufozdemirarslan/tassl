@@ -16,7 +16,11 @@ export function PageHeader({ title, description, eyebrow, actions, className }: 
     <header className={cn('mb-6 flex flex-wrap items-end justify-between gap-4', className)}>
       <div className="min-w-0">
         {eyebrow && <div className="text-ink-muted text-meta mb-1">{eyebrow}</div>}
-        <h1 id="page-title" tabIndex={-1} className="text-h1 outline-none">
+        <h1
+          id="page-title"
+          tabIndex={-1}
+          className="text-h1 focus-visible:outline-focus rounded-sm focus-visible:outline-2 focus-visible:outline-offset-2"
+        >
           {title}
         </h1>
         {description && <p className="text-ink-muted text-body mt-2 max-w-[72ch]">{description}</p>}

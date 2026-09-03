@@ -15,6 +15,17 @@ describe('IllustrativeSample', () => {
     expect(screen.getByText('Fixture body')).toBeInTheDocument()
   })
 
+  it('renders the label at the requested heading level in the subtitle style', () => {
+    render(
+      <IllustrativeSample label="Sample debrief" headingLevel={2}>
+        <p>Fixture body</p>
+      </IllustrativeSample>,
+    )
+    const heading = screen.getByRole('heading', { level: 2, name: 'Sample debrief' })
+    expect(heading.className).toContain('text-h4')
+    expect(screen.queryByRole('heading', { level: 3 })).not.toBeInTheDocument()
+  })
+
   it('refuses to render without a label outside production', () => {
     expect(() =>
       render(

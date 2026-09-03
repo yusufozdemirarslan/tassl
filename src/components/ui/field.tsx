@@ -2,6 +2,7 @@
 
 import { useMemo } from 'react'
 import { cva, type VariantProps } from 'class-variance-authority'
+import { CircleAlertIcon } from 'lucide-react'
 
 import { cn } from '@/lib/cn'
 import { Label } from '@/components/ui/label'
@@ -30,7 +31,7 @@ function FieldLegend({
       data-slot="field-legend"
       data-variant={variant}
       className={cn(
-        'mb-1.5 font-medium data-[variant=label]:text-sm data-[variant=legend]:text-base',
+        'data-[variant=label]:text-meta data-[variant=legend]:text-body mb-2 font-medium',
         className,
       )}
       {...props}
@@ -51,12 +52,12 @@ function FieldGroup({ className, ...props }: React.ComponentProps<'div'>) {
   )
 }
 
-const fieldVariants = cva('group/field flex w-full gap-2 data-[invalid=true]:text-destructive', {
+const fieldVariants = cva('group/field flex w-full gap-2 data-[invalid=true]:text-red', {
   variants: {
     orientation: {
       vertical: 'flex-col *:w-full [&>.sr-only]:w-auto',
       horizontal:
-        'flex-row items-center has-[>[data-slot=field-content]]:items-start *:data-[slot=field-label]:flex-auto has-[>[data-slot=field-content]]:[&>[role=checkbox],[role=radio]]:mt-px',
+        'flex-row min-h-10 items-center has-[>[data-slot=field-content]]:items-start *:data-[slot=field-label]:flex-auto has-[>[data-slot=field-content]]:[&>[role=checkbox],[role=radio]]:mt-px',
       responsive:
         'flex-col *:w-full @md/field-group:flex-row @md/field-group:items-center @md/field-group:*:w-auto @md/field-group:has-[>[data-slot=field-content]]:items-start @md/field-group:*:data-[slot=field-label]:flex-auto [&>.sr-only]:w-auto @md/field-group:has-[>[data-slot=field-content]]:[&>[role=checkbox],[role=radio]]:mt-px',
     },
@@ -86,19 +87,23 @@ function FieldContent({ className, ...props }: React.ComponentProps<'div'>) {
   return (
     <div
       data-slot="field-content"
-      className={cn('group/field-content flex flex-1 flex-col gap-0.5 leading-snug', className)}
+      className={cn('group/field-content flex flex-1 flex-col gap-0.5', className)}
       {...props}
     />
   )
 }
 
+// When a FieldLabel wraps a whole Field it becomes a choice card: hairline border, 6 px radius,
+// the primary wash when its control is checked, and a primary border while the control has focus
+// (the control keeps its own outline, so focus is never shown twice).
 function FieldLabel({ className, ...props }: React.ComponentProps<typeof Label>) {
   return (
     <Label
       data-slot="field-label"
       className={cn(
-        'group/field-label peer/field-label has-data-checked:border-primary/30 has-data-checked:bg-primary/5 has-[>[data-slot=field]]:not-has-[:disabled,[data-disabled]]:hover:bg-muted/50 has-[>[data-slot=field]]:has-[:focus-visible]:border-ring has-[>[data-slot=field]]:has-[:focus-visible]:ring-ring/50 dark:has-data-checked:border-primary/20 dark:has-data-checked:bg-primary/10 flex w-fit gap-2 leading-snug group-data-[disabled=true]/field:opacity-50 has-[>[data-slot=field]]:rounded-lg has-[>[data-slot=field]]:border has-[>[data-slot=field]]:has-[:focus-visible]:ring-3 *:data-[slot=field]:p-2.5',
-        'has-[>[data-slot=field]]:w-full has-[>[data-slot=field]]:flex-col',
+        'group/field-label peer/field-label flex w-fit gap-2 group-data-[disabled=true]/field:opacity-45',
+        'has-[>[data-slot=field]]:border-line has-[>[data-slot=field]]:w-full has-[>[data-slot=field]]:flex-col has-[>[data-slot=field]]:rounded-md has-[>[data-slot=field]]:border has-[>[data-slot=field]]:transition-colors has-[>[data-slot=field]]:duration-150 has-[>[data-slot=field]]:ease-out *:data-[slot=field]:p-3',
+        'has-[>[data-slot=field]]:not-has-[:disabled,[data-disabled]]:hover:bg-paper-sunken has-[>[data-slot=field]]:has-[:focus-visible]:border-primary has-[>[data-slot=field]]:has-data-checked:border-primary has-[>[data-slot=field]]:has-data-checked:bg-primary-soft',
         className,
       )}
       {...props}
@@ -111,7 +116,7 @@ function FieldTitle({ className, ...props }: React.ComponentProps<'div'>) {
     <div
       data-slot="field-label"
       className={cn(
-        'flex w-fit items-center gap-2 text-sm font-medium group-data-[disabled=true]/field:opacity-50',
+        'text-meta flex w-fit items-center gap-2 font-medium group-data-[disabled=true]/field:opacity-45',
         className,
       )}
       {...props}
@@ -124,7 +129,7 @@ function FieldDescription({ className, ...props }: React.ComponentProps<'p'>) {
     <p
       data-slot="field-description"
       className={cn(
-        'text-muted-foreground text-left text-sm leading-normal font-normal group-has-data-horizontal/field:text-balance [[data-variant=legend]+&]:-mt-1.5',
+        'text-ink-muted text-meta text-left font-normal group-has-data-horizontal/field:text-balance [[data-variant=legend]+&]:-mt-1.5',
         'last:mt-0 nth-last-2:-mt-1',
         '[&>a:hover]:text-primary [&>a]:underline [&>a]:underline-offset-4',
         className,
@@ -146,7 +151,7 @@ function FieldSeparator({
       data-slot="field-separator"
       data-content={!!children}
       className={cn(
-        'relative -my-2 h-5 text-sm group-data-[variant=outline]/field-group:-mb-2',
+        'text-meta relative -my-2 h-5 group-data-[variant=outline]/field-group:-mb-2',
         className,
       )}
       {...props}
@@ -154,7 +159,7 @@ function FieldSeparator({
       <Separator className="absolute inset-0 top-1/2" />
       {children && (
         <span
-          className="bg-background text-muted-foreground relative mx-auto block w-fit px-2"
+          className="bg-paper text-ink-muted relative mx-auto block w-fit px-2"
           data-slot="field-separator-content"
         >
           {children}
@@ -164,6 +169,7 @@ function FieldSeparator({
   )
 }
 
+// Error: red 13/20 text beneath the control with an icon (DESIGN.md §Inputs / Fields → Error).
 function FieldError({
   className,
   children,
@@ -202,10 +208,11 @@ function FieldError({
     <div
       role="alert"
       data-slot="field-error"
-      className={cn('text-destructive text-sm font-normal', className)}
+      className={cn('text-meta text-red flex items-start gap-1.5', className)}
       {...props}
     >
-      {content}
+      <CircleAlertIcon aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
+      <div className="min-w-0 flex-1">{content}</div>
     </div>
   )
 }

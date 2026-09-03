@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
@@ -23,14 +24,19 @@ type AccountMenuProps = {
 }
 
 // Settings and sign-out live behind the account menu; the user's initials are never an image.
+// The settings route lands in Phase 3, so the link is not prefetched.
 const SETTINGS_ROUTE = '/settings' as Route
 
 export function AccountMenu({ user, onSignOut }: AccountMenuProps) {
   if (!user) {
+    // Under sm only the icon shows; the text stays in the accessibility tree exactly once.
     return (
-      <span className="text-ink-muted text-meta inline-flex items-center gap-2">
-        <CircleUserRound aria-hidden="true" className="size-5" />
-        {t('shell.notSignedIn')}
+      <span className="text-ink-muted text-meta inline-flex min-w-0 items-center gap-2 whitespace-nowrap">
+        <CircleUserRound aria-hidden="true" className="size-5 shrink-0" />
+        <span aria-hidden="true" className="hidden sm:inline">
+          {t('shell.notSignedIn')}
+        </span>
+        <span className="sr-only">{t('shell.notSignedIn')}</span>
       </span>
     )
   }
@@ -43,20 +49,25 @@ export function AccountMenu({ user, onSignOut }: AccountMenuProps) {
       >
         <CircleUserRound aria-hidden="true" className="size-5" />
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">
-        <DropdownMenuLabel>
-          <span className="text-ink text-body block font-medium">{user.name}</span>
-          <span className="text-ink-muted text-meta block">{user.email}</span>
-        </DropdownMenuLabel>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem render={<Link href={SETTINGS_ROUTE} />}>
-          <Settings aria-hidden="true" className="size-4" />
-          {t('shell.settings')}
-        </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => onSignOut?.()}>
-          <LogOut aria-hidden="true" className="size-4" />
-          {t('shell.signOut')}
-        </DropdownMenuItem>
+      <DropdownMenuContent align="end" className="w-64 max-w-[calc(100vw-2rem)]">
+        {/* Base UI only allows a GroupLabel inside a Group: the label names the items below it. */}
+        <DropdownMenuGroup aria-labelledby="account-menu-label">
+          <DropdownMenuLabel id="account-menu-label">
+            <span className="text-ink text-body block font-medium break-words">{user.name}</span>
+            <span className="text-ink-muted text-meta block truncate" title={user.email}>
+              {user.email}
+            </span>
+          </DropdownMenuLabel>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem render={<Link href={SETTINGS_ROUTE} prefetch={false} />}>
+            <Settings aria-hidden="true" className="size-4" />
+            {t('shell.settings')}
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => onSignOut?.()}>
+            <LogOut aria-hidden="true" className="size-4" />
+            {t('shell.signOut')}
+          </DropdownMenuItem>
+        </DropdownMenuGroup>
       </DropdownMenuContent>
     </DropdownMenu>
   )

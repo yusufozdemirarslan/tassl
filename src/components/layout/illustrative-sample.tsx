@@ -8,15 +8,23 @@ type IllustrativeSampleProps = {
   label: string
   children: ReactNode
   className?: string
+  /** Element for the label heading; the style stays the h4 "Subtitle" size. */
+  headingLevel?: 2 | 3 | 4
 }
 
 // Mandatory wrapper for sample data: a dashed strong-hairline panel whose header carries the amber
 // "Illustrative sample data" chip. It refuses to render unlabelled: throws in development, and in
 // production still renders the fixed chip so the data is never mistaken for a real record.
-export function IllustrativeSample({ label, children, className }: IllustrativeSampleProps) {
+export function IllustrativeSample({
+  label,
+  children,
+  className,
+  headingLevel = 3,
+}: IllustrativeSampleProps) {
   if (!label && process.env.NODE_ENV !== 'production') {
     throw new Error('IllustrativeSample requires a label (FR-254)')
   }
+  const Heading = `h${headingLevel}` as const
   return (
     <section
       data-sample="true"
@@ -27,7 +35,7 @@ export function IllustrativeSample({ label, children, className }: IllustrativeS
       )}
     >
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        {label ? <h3 className="text-h4">{label}</h3> : <span />}
+        {label ? <Heading className="text-h4">{label}</Heading> : <span />}
         <LabelChip kind="sample" />
       </div>
       {children}

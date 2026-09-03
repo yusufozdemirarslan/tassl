@@ -1,6 +1,6 @@
 'use client'
 
-import { useTheme } from 'next-themes'
+import type { CSSProperties } from 'react'
 import { Toaster as Sonner, type ToasterProps } from 'sonner'
 import {
   CircleCheckIcon,
@@ -10,13 +10,16 @@ import {
   Loader2Icon,
 } from 'lucide-react'
 
-const Toaster = ({ ...props }: ToasterProps) => {
-  const { theme = 'system' } = useTheme()
+import { t } from '@/lib/i18n/t'
 
+// One theme only (D-025): the toaster is always light and takes the product tokens. globals.css
+// gives [data-sonner-toast] the Plex face and the float shadow.
+const Toaster = ({ ...props }: ToasterProps) => {
   return (
     <Sonner
-      theme={theme as Exclude<ToasterProps['theme'], undefined>}
-      className="toaster group"
+      theme="light"
+      className="toaster group font-sans"
+      containerAriaLabel={t('toast.region')}
       icons={{
         success: <CircleCheckIcon className="size-4" />,
         info: <InfoIcon className="size-4" />,
@@ -26,15 +29,17 @@ const Toaster = ({ ...props }: ToasterProps) => {
       }}
       style={
         {
-          '--normal-bg': 'var(--popover)',
-          '--normal-text': 'var(--popover-foreground)',
-          '--normal-border': 'var(--border)',
+          '--normal-bg': 'var(--paper-raised)',
+          '--normal-text': 'var(--ink)',
+          '--normal-border': 'var(--line)',
           '--border-radius': 'var(--radius)',
-        } as React.CSSProperties
+        } as CSSProperties
       }
       toastOptions={{
         classNames: {
-          toast: 'cn-toast',
+          toast: 'font-sans text-body border-line bg-paper-raised text-ink',
+          title: 'text-ink font-medium',
+          description: 'text-ink-muted',
         },
       }}
       {...props}

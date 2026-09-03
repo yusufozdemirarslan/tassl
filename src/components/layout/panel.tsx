@@ -10,6 +10,11 @@ type PanelProps = {
   /** Padding for writing surfaces is wider (DESIGN.md §Layout). */
   padding?: 'default' | 'reading'
   id?: string
+  /**
+   * Element for the title; the style stays the h3 "Title" size (DESIGN.md §Typography). A panel
+   * directly under the page h1 is an h2 so the outline never skips a level.
+   */
+  headingLevel?: 2 | 3 | 4
 }
 
 // The one container (DESIGN.md §Components → Panels): raised paper, hairline border, no shadow,
@@ -22,7 +27,9 @@ export function Panel({
   className,
   padding = 'default',
   id,
+  headingLevel = 2,
 }: PanelProps) {
+  const Heading = `h${headingLevel}` as const
   return (
     <section
       id={id}
@@ -34,16 +41,16 @@ export function Panel({
       aria-labelledby={title && id ? `${id}-title` : undefined}
     >
       {(title || actions) && (
-        <div className="mb-3 flex items-start justify-between gap-4">
-          <div className="min-w-0">
+        <div className="mb-3 flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
+          <div className="min-w-0 flex-1 basis-48">
             {title && (
-              <h3 id={id ? `${id}-title` : undefined} className="text-h3">
+              <Heading id={id ? `${id}-title` : undefined} className="text-h3 break-words">
                 {title}
-              </h3>
+              </Heading>
             )}
             {description && <p className="text-ink-muted text-body mt-1">{description}</p>}
           </div>
-          {actions && <div className="flex shrink-0 items-center gap-2">{actions}</div>}
+          {actions && <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div>}
         </div>
       )}
       {children}

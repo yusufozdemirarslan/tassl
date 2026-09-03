@@ -7,6 +7,8 @@ export const enUS = {
   // Shared UI primitives
   'ui.close': 'Close',
   'ui.loading': 'Loading',
+  'ui.more': 'More',
+  'toast.region': 'Messages',
 
   // App shell (UI-008)
   'shell.brand': 'Tassl',
@@ -34,13 +36,14 @@ export const enUS = {
 
   // Home (UI-009)
   'home.title': 'Home',
-  'home.description': 'Your runs, reviews, and packages appear here.',
+  'home.description': 'What needs your attention, and what is coming up.',
+  'home.runsTitle': 'Your runs',
   'home.emptyTitle': 'Nothing to do yet',
   'home.emptyBody':
-    'When a course assigns you a run, or a run is waiting for your review, it appears here. Until then there is nothing to do.',
-  'home.emptyAction': 'Check again',
+    'When a course assigns you a run, or a run is waiting for your review, it appears here.',
+  'home.noMembershipsTitle': 'Waiting for an invitation',
   'home.noMemberships':
-    'You are not a member of any institution yet. Ask your instructor for an invitation.',
+    'An institution adds you by an invitation email; once you accept it, your courses and runs appear here.',
 
   // Error pages (UI-007)
   'notFound.title': 'Not found',
@@ -48,6 +51,7 @@ export const enUS = {
   'notFound.home': 'Go home',
   'error.title': 'Something went wrong',
   'error.body': 'The problem has been recorded. If it continues, quote the reference below.',
+  'error.bodyNoReference': 'The problem has been recorded. Try again, or come back in a moment.',
   'error.reference': 'Reference',
   'error.retry': 'Try again',
 

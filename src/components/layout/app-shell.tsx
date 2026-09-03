@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import type { ReactNode } from 'react'
 import { AccountMenu, type AccountUser } from '@/components/layout/account-menu'
 import { FocusOnRouteChange } from '@/components/layout/focus-on-route-change'
@@ -17,6 +18,8 @@ export type AppShellProps = {
 
 // UI-008: skip link → header (brand, institution switcher, bell, account) → rail → main.
 // Phase 3 supplies the session-derived props; until then the layout passes placeholders.
+// Both header groups can shrink (min-w-0) so a long institution name truncates instead of
+// pushing the bell and account controls off the edge.
 export function AppShell({
   rail,
   institutions,
@@ -29,27 +32,34 @@ export function AppShell({
     <div className="bg-paper text-ink flex min-h-dvh flex-col">
       <a
         href="#main"
-        className="bg-paper-raised text-primary focus:border-line focus:text-meta sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-50 focus:rounded-md focus:border focus:px-3 focus:py-2 focus:font-medium"
+        className="bg-paper-raised text-primary focus:border-line focus:text-meta sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-50 focus:inline-flex focus:h-10 focus:items-center focus:rounded-md focus:border focus:px-3 focus:font-medium"
       >
         {t('shell.skipToMain')}
       </a>
-      <header className="border-line bg-paper-raised flex h-14 items-center justify-between gap-4 border-b px-4 md:px-6">
-        <div className="flex min-w-0 items-center gap-4">
-          <span className="text-h4 font-serif font-semibold">{t('shell.brand')}</span>
-          <span aria-hidden="true" className="bg-line hidden h-6 w-px md:block" />
+      <header className="border-line bg-paper-raised flex min-h-14 items-center justify-between gap-2 border-b px-4 md:gap-4 md:px-6">
+        <div className="flex min-w-0 items-center gap-2 md:gap-4">
+          <Link
+            href="/home"
+            className="text-h4 text-ink focus-visible:outline-focus shrink-0 rounded-sm font-serif font-semibold focus-visible:outline-2 focus-visible:outline-offset-2"
+          >
+            {t('shell.brand')}
+          </Link>
+          <span aria-hidden="true" className="bg-line hidden h-6 w-px shrink-0 md:block" />
           <InstitutionSwitcher institutions={institutions} activeId={activeInstitutionId} />
         </div>
-        <div className="flex items-center gap-1">
+        <div className="flex min-w-0 items-center gap-1">
           <NotificationsBell unreadCount={unreadCount} />
           <AccountMenu user={user} />
         </div>
       </header>
       <div className="flex flex-1 md:flex-row">
         <Rail items={rail} />
+        {/* Under md the bottom padding clears the fixed bottom bar (57 px with its hairline) by the
+            page's own 24 px gutter; it equals the html scroll-padding-bottom in globals.css. */}
         <main
           id="main"
           tabIndex={-1}
-          className="min-w-0 flex-1 px-4 py-6 pb-24 outline-none md:px-6 md:pb-8"
+          className="min-w-0 flex-1 px-4 py-6 pb-20 outline-none md:px-6 md:pb-8"
         >
           <FocusOnRouteChange />
           {children}

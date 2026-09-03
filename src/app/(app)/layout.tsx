@@ -1,21 +1,18 @@
 import type { ReactNode } from 'react'
 import { AppShell } from '@/components/layout/app-shell'
-import type { RailItem } from '@/components/layout/rail'
-import { Toaster } from '@/components/ui/sonner'
+import { ToasterClient } from '@/components/layout/toaster-client'
 import { TooltipProvider } from '@/components/ui/tooltip'
-import { t } from '@/lib/i18n/t'
+import { INSTITUTIONS, RAIL, UNREAD_COUNT, USER } from './shell-data'
 
-// UI-008. Phase 3 adds requireSession(), memberships, the unread count, and the permitted rail
-// items; until then the shell renders the zero-membership state with Home only.
-const RAIL: RailItem[] = [{ href: '/home', label: t('nav.home'), icon: 'home' }]
-
+// UI-008. The shell inputs come from ./shell-data until Phase 3 derives them from the session.
+// The toaster loads client-side after hydration (D-156).
 export default function AppLayout({ children }: { children: ReactNode }) {
   return (
     <TooltipProvider>
-      <AppShell rail={RAIL} institutions={[]} unreadCount={0} user={null}>
+      <AppShell rail={RAIL} institutions={INSTITUTIONS} unreadCount={UNREAD_COUNT} user={USER}>
         {children}
       </AppShell>
-      <Toaster />
+      <ToasterClient />
     </TooltipProvider>
   )
 }

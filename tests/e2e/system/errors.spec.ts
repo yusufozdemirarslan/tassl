@@ -12,7 +12,9 @@ test.describe('error pages (UI-007)', () => {
   test('the app shell renders the home empty state with a working skip link', async ({ page }) => {
     await page.goto('/home')
     await expect(page.getByRole('heading', { level: 1, name: 'Home' })).toBeVisible()
-    await expect(page.getByText('Nothing to do yet')).toBeVisible()
+    await expect(
+      page.getByRole('heading', { level: 3, name: 'Waiting for an invitation' }),
+    ).toBeVisible()
 
     // WebKit does not put links in the Tab order by default, so focus the link directly: it must
     // be the first anchor in the document, become visible when focused, and jump to main.

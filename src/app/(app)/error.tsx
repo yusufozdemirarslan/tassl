@@ -7,7 +7,8 @@ import { Button } from '@/components/ui/button'
 import { t } from '@/lib/i18n/t'
 
 // Error boundary for pages inside the app shell (09 §1: "shell skeleton; boundary"). The shell,
-// its skip link, and focus management stay mounted; the page area shows the error state.
+// its skip link, and focus management stay mounted; the page area shows the error state. The
+// body only asks the reader to quote a reference when one exists.
 export default function AppRouteError({
   error,
   reset,
@@ -24,7 +25,7 @@ export default function AppRouteError({
       <ErrorState
         headingLevel={1}
         title={t('error.title')}
-        message={t('error.body')}
+        message={error.digest ? t('error.body') : t('error.bodyNoReference')}
         requestId={error.digest}
         action={
           <Button variant="primary" onClick={() => reset()}>

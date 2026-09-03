@@ -749,7 +749,7 @@ Rules that follow from the table:
 - Amber `#B7791F` is never a text color on paper, at any size. The draft, provisional, and uncalibrated labels (FR-150, FR-185, FR-196, FR-203) render ink text on paper with a 2 px amber left border and an amber icon (UI contrast 3.40:1), or ink text on an amber-filled chip (4.78:1). White text is never placed on amber.
 - Placeholder text uses ink at 70 percent alpha over paper (computed 8.9:1) and is never the only label.
 - Disabled controls use ink at 45 percent alpha (4.6:1 computed) with `aria-disabled` rather than `disabled` where the control must remain discoverable by keyboard (the lock button while a claim is unstanced: focusable, announces the reason).
-- Non-text contrast: control borders are ink at 40 percent alpha on paper (3.9:1); the focus ring is primary (5.59:1).
+- Non-text contrast: control borders are ink at 55 percent alpha (`--line-control`), which composites to 3.8:1 on paper and 3.9:1 on white (D-157; the 40 percent value first written here measured 2.5:1); the focus ring is primary (5.59:1).
 - Any second theme (the `next-themes` 0.4.6 dependency allows one) must ship its own version of this table and pass the same test before it is enabled; the build ships the light palette only.
 
 ## 9. Graph accessibility (FR-212, FR-136, FR-004)

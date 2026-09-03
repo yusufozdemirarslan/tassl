@@ -28,6 +28,7 @@ import {
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
@@ -71,7 +72,16 @@ import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { stances } from './fixtures'
+
+// Client-side fixture: fixtures.ts is server-only (it reads DESIGN.md), so the select's items live
+// here beside the demo that renders them.
+const stances = [
+  { value: 'accept', label: 'Accept' },
+  { value: 'verify', label: 'Verify' },
+  { value: 'challenge', label: 'Challenge' },
+  { value: 'reject', label: 'Reject' },
+  { value: 'escalate', label: 'Escalate' },
+]
 
 // Interactive demos live in one client component so the gallery page itself stays a server
 // component. Fixture text is literal on purpose (jsx-no-literals is off for src/app/dev/**).
@@ -146,14 +156,17 @@ export function OverlayDemos() {
         <TooltipContent>The clock is server time; the page only displays it.</TooltipContent>
       </Tooltip>
 
+      {/* Base UI's GroupLabel needs a Group around it; without one the menu throws on open. */}
       <DropdownMenu>
         <DropdownMenuTrigger render={<Button variant="secondary" />}>Actions</DropdownMenuTrigger>
         <DropdownMenuContent align="start">
-          <DropdownMenuLabel>Claim actions</DropdownMenuLabel>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem>Verify against the ledger</DropdownMenuItem>
-          <DropdownMenuItem>Ask a stakeholder</DropdownMenuItem>
-          <DropdownMenuItem>Escalate</DropdownMenuItem>
+          <DropdownMenuGroup aria-labelledby="demo-claim-actions-label">
+            <DropdownMenuLabel id="demo-claim-actions-label">Claim actions</DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem>Verify against the ledger</DropdownMenuItem>
+            <DropdownMenuItem>Ask a stakeholder</DropdownMenuItem>
+            <DropdownMenuItem>Escalate</DropdownMenuItem>
+          </DropdownMenuGroup>
         </DropdownMenuContent>
       </DropdownMenu>
 
@@ -205,7 +218,7 @@ export function FormDemos() {
           <Field>
             <FieldLabel htmlFor="demo-stance">Stance</FieldLabel>
             <Select defaultValue="verify" items={stances}>
-              <SelectTrigger id="demo-stance" className="w-56">
+              <SelectTrigger id="demo-stance">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -217,27 +230,34 @@ export function FormDemos() {
               </SelectContent>
             </Select>
           </Field>
+          {/* Base UI links a toggle to the FieldLabel whose htmlFor matches its id only after hydration, so
+              each toggle also names its label by id (DESIGN.md §Inputs): the accessible name is in the
+              server HTML and axe never sees an unnamed toggle. */}
           <Field orientation="horizontal">
-            <Checkbox
-              id="demo-declare"
-              defaultChecked
-              aria-label="I used an outside tool during this run"
-            />
-            <FieldLabel htmlFor="demo-declare">I used an outside tool during this run</FieldLabel>
+            <Checkbox id="demo-declare" aria-labelledby="demo-declare-label" defaultChecked />
+            <FieldLabel id="demo-declare-label" htmlFor="demo-declare">
+              I used an outside tool during this run
+            </FieldLabel>
           </Field>
           <RadioGroup defaultValue="hold" aria-label="Recommendation">
             <Field orientation="horizontal">
-              <RadioGroupItem value="hold" id="demo-hold" aria-label="Hold the price" />
-              <FieldLabel htmlFor="demo-hold">Hold the price</FieldLabel>
+              <RadioGroupItem value="hold" id="demo-hold" aria-labelledby="demo-hold-label" />
+              <FieldLabel id="demo-hold-label" htmlFor="demo-hold">
+                Hold the price
+              </FieldLabel>
             </Field>
             <Field orientation="horizontal">
-              <RadioGroupItem value="cut" id="demo-cut" aria-label="Cut by 5 %" />
-              <FieldLabel htmlFor="demo-cut">Cut by 5 %</FieldLabel>
+              <RadioGroupItem value="cut" id="demo-cut" aria-labelledby="demo-cut-label" />
+              <FieldLabel id="demo-cut-label" htmlFor="demo-cut">
+                Cut by 5 %
+              </FieldLabel>
             </Field>
           </RadioGroup>
           <Field orientation="horizontal">
-            <Switch id="demo-copies" defaultChecked aria-label="Email copies of notifications" />
-            <FieldLabel htmlFor="demo-copies">Email copies of notifications</FieldLabel>
+            <Switch id="demo-copies" aria-labelledby="demo-copies-label" defaultChecked />
+            <FieldLabel id="demo-copies-label" htmlFor="demo-copies">
+              Email copies of notifications
+            </FieldLabel>
           </Field>
         </FieldGroup>
       </FieldSet>
