@@ -1,0 +1,345 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-09-03T09:53:17.758Z",
+  "title": "Design System: Tassl",
+  "extensions": {
+    "colorMeta": {
+      "paper": {
+        "role": "neutral",
+        "displayName": "Cool Paper",
+        "canonical": "#F6F7F9"
+      },
+      "paper-raised": {
+        "role": "neutral",
+        "displayName": "Raised Paper",
+        "canonical": "#FFFFFF"
+      },
+      "paper-sunken": {
+        "role": "neutral",
+        "displayName": "Sunken Paper",
+        "canonical": "#ECEFF3"
+      },
+      "ink": {
+        "role": "neutral",
+        "displayName": "Tinted Ink",
+        "canonical": "#141A26"
+      },
+      "ink-muted": {
+        "role": "neutral",
+        "displayName": "Muted Ink",
+        "canonical": "#4B5563"
+      },
+      "ink-faint": {
+        "role": "neutral",
+        "displayName": "Faint Ink (decorative only)",
+        "canonical": "#8A93A3"
+      },
+      "line": {
+        "role": "neutral",
+        "displayName": "Hairline",
+        "canonical": "#D5DAE2"
+      },
+      "line-strong": {
+        "role": "neutral",
+        "displayName": "Strong Hairline",
+        "canonical": "#AEB6C2"
+      },
+      "line-control": {
+        "role": "neutral",
+        "displayName": "Control Boundary",
+        "canonical": "rgb(20 26 38 / 0.55)"
+      },
+      "primary": {
+        "role": "primary",
+        "displayName": "Deep Teal",
+        "canonical": "#0F6E74"
+      },
+      "primary-ink": {
+        "role": "primary",
+        "displayName": "On Teal",
+        "canonical": "#FFFFFF"
+      },
+      "primary-soft": {
+        "role": "primary",
+        "displayName": "Teal Wash",
+        "canonical": "#DDEFF0"
+      },
+      "amber": {
+        "role": "semantic",
+        "displayName": "Draft Amber",
+        "canonical": "#B7791F"
+      },
+      "amber-soft": {
+        "role": "semantic",
+        "displayName": "Amber Wash",
+        "canonical": "#FBF1DC"
+      },
+      "red": {
+        "role": "semantic",
+        "displayName": "Refusal Red",
+        "canonical": "#A23B2A"
+      },
+      "red-soft": {
+        "role": "semantic",
+        "displayName": "Red Wash",
+        "canonical": "#F8E5E1"
+      },
+      "green": {
+        "role": "semantic",
+        "displayName": "Confirmed Green",
+        "canonical": "#2E7D4F"
+      },
+      "green-soft": {
+        "role": "semantic",
+        "displayName": "Green Wash",
+        "canonical": "#E1F1E7"
+      },
+      "focus": {
+        "role": "primary",
+        "displayName": "Focus Ring",
+        "canonical": "#0F6E74"
+      },
+      "stance-accept": {
+        "role": "stance",
+        "displayName": "Stance: Accept",
+        "canonical": "#2E7D4F"
+      },
+      "stance-verify": {
+        "role": "stance",
+        "displayName": "Stance: Verify",
+        "canonical": "#0F6E74"
+      },
+      "stance-challenge": {
+        "role": "stance",
+        "displayName": "Stance: Challenge",
+        "canonical": "#B7791F"
+      },
+      "stance-reject": {
+        "role": "stance",
+        "displayName": "Stance: Reject",
+        "canonical": "#A23B2A"
+      },
+      "stance-escalate": {
+        "role": "stance",
+        "displayName": "Stance: Escalate",
+        "canonical": "#5B4B9A"
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Display / h1",
+        "purpose": "Page titles in PageHeader."
+      },
+      "headline": {
+        "displayName": "Headline / h2",
+        "purpose": "Section titles; the page-level ErrorState heading."
+      },
+      "title": {
+        "displayName": "Title / h3",
+        "purpose": "Panel titles and empty-state headings (the element follows headingLevel)."
+      },
+      "subtitle": {
+        "displayName": "Subtitle / h4",
+        "purpose": "Sub-sections inside a panel, the IllustrativeSample label, and dialog, sheet, and popover titles."
+      },
+      "lead": {
+        "displayName": "Lead",
+        "purpose": "The scenario brief's opening."
+      },
+      "reading": {
+        "displayName": "Reading",
+        "purpose": "Everything the student writes and reads at length; 72ch max."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "Default UI size."
+      },
+      "label": {
+        "displayName": "Label / meta",
+        "purpose": "Buttons, chips, table headers, metadata."
+      },
+      "mono": {
+        "displayName": "Mono",
+        "purpose": "Trace data, keys, request ids, the clock."
+      },
+      "mono-dense": {
+        "displayName": "Mono dense",
+        "purpose": "Matrix cells, timeline labels, the notification count badge."
+      }
+    },
+    "shadows": [
+      {
+        "name": "float",
+        "value": "0 8px 24px rgb(20 26 38 / 0.12)",
+        "purpose": "Dialogs, alert dialogs, popovers, dropdown and select menus, sheets, tooltips, and toasts; nothing else casts a shadow."
+      }
+    ],
+    "motion": [
+      {
+        "name": "ease-out",
+        "value": "cubic-bezier(0.2, 0, 0, 1)",
+        "purpose": "The only easing; Tailwind’s ease-out utility maps to it. No bounce or elastic."
+      },
+      {
+        "name": "dur-fast",
+        "value": "150ms",
+        "purpose": "State changes: hover, selection, chip fill, tooltip fade."
+      },
+      {
+        "name": "dur-base",
+        "value": "200ms",
+        "purpose": "Panel, sheet, dialog, and menu open/close; progress width."
+      },
+      {
+        "name": "reduced-motion",
+        "value": "0ms",
+        "purpose": "prefers-reduced-motion removes every transition and animation."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "sm",
+        "value": "640px"
+      },
+      {
+        "name": "md",
+        "value": "768px"
+      },
+      {
+        "name": "lg",
+        "value": "1024px"
+      },
+      {
+        "name": "xl",
+        "value": "1280px"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The one action the visitor is there to take; deep teal fill, white label; hover mixes 10 % ink, active 15 %.",
+      "html": "<button class=\"ds-btn-primary\">Lock decision</button>",
+      "css": ".ds-btn-primary { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 40px; padding: 0 16px; font: 500 13px/20px 'IBM Plex Sans', system-ui, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif; border: 1px solid transparent; border-radius: 6px; white-space: nowrap; cursor: default; transition: background-color 150ms cubic-bezier(0.2, 0, 0, 1), color 150ms cubic-bezier(0.2, 0, 0, 1); } .ds-btn-primary:disabled, .ds-btn-primary[aria-disabled='true'] { opacity: 0.45; pointer-events: none; } .ds-btn-primary:focus-visible { outline: 2px solid var(--focus, #0F6E74); outline-offset: 2px; } .ds-btn-primary { background: var(--primary, #0F6E74); color: var(--primary-ink, #FFFFFF); } .ds-btn-primary:hover { background: color-mix(in srgb, var(--primary, #0F6E74) 90%, var(--ink, #141A26)); } .ds-btn-primary:active { background: color-mix(in srgb, var(--primary, #0F6E74) 85%, var(--ink, #141A26)); }"
+    },
+    {
+      "name": "Secondary Button",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "Raised paper with the control-boundary border and teal text; sunken paper on hover. `outline` is its alias.",
+      "html": "<button class=\"ds-btn-secondary\">Save draft</button>",
+      "css": ".ds-btn-secondary { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 40px; padding: 0 16px; font: 500 13px/20px 'IBM Plex Sans', system-ui, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif; border: 1px solid transparent; border-radius: 6px; white-space: nowrap; cursor: default; transition: background-color 150ms cubic-bezier(0.2, 0, 0, 1), color 150ms cubic-bezier(0.2, 0, 0, 1); } .ds-btn-secondary:disabled, .ds-btn-secondary[aria-disabled='true'] { opacity: 0.45; pointer-events: none; } .ds-btn-secondary:focus-visible { outline: 2px solid var(--focus, #0F6E74); outline-offset: 2px; } .ds-btn-secondary { background: var(--paper-raised, #FFFFFF); color: var(--primary, #0F6E74); border-color: var(--line-control, rgb(20 26 38 / 0.55)); } .ds-btn-secondary:hover { background: var(--paper-sunken, #ECEFF3); }"
+    },
+    {
+      "name": "Ghost Button",
+      "kind": "button",
+      "refersTo": "button-ghost",
+      "description": "Transparent with ink text; sunken paper on hover. Icon buttons are 40 px squares of this variant.",
+      "html": "<button class=\"ds-btn-ghost\">Cancel</button>",
+      "css": ".ds-btn-ghost { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 40px; padding: 0 16px; font: 500 13px/20px 'IBM Plex Sans', system-ui, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif; border: 1px solid transparent; border-radius: 6px; white-space: nowrap; cursor: default; transition: background-color 150ms cubic-bezier(0.2, 0, 0, 1), color 150ms cubic-bezier(0.2, 0, 0, 1); } .ds-btn-ghost:disabled, .ds-btn-ghost[aria-disabled='true'] { opacity: 0.45; pointer-events: none; } .ds-btn-ghost:focus-visible { outline: 2px solid var(--focus, #0F6E74); outline-offset: 2px; } .ds-btn-ghost { background: transparent; color: var(--ink, #141A26); } .ds-btn-ghost:hover { background: var(--paper-sunken, #ECEFF3); }"
+    },
+    {
+      "name": "Text Input",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "Raised paper well with the 55 % ink boundary; the border turns teal on focus beside the ring, red when invalid, sunken and dimmed when disabled.",
+      "html": "<input class=\"ds-input\" placeholder=\"Decision in one sentence\" />",
+      "css": ".ds-input { box-sizing: border-box; width: 100%; height: 40px; padding: 8px 12px; background: var(--paper-raised, #FFFFFF); color: var(--ink, #141A26); font: 400 14px/22px 'IBM Plex Sans', system-ui, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif; border: 1px solid var(--line-control, rgb(20 26 38 / 0.55)); border-radius: 6px; transition: border-color 150ms cubic-bezier(0.2, 0, 0, 1), background-color 150ms cubic-bezier(0.2, 0, 0, 1); } .ds-input::placeholder { color: rgb(20 26 38 / 0.7); opacity: 1; } .ds-input:focus-visible { border-color: var(--primary, #0F6E74); outline: 2px solid var(--focus, #0F6E74); outline-offset: 2px; } .ds-input[aria-invalid='true'] { border-color: var(--red, #A23B2A); } .ds-input:disabled { background: var(--paper-sunken, #ECEFF3); opacity: 0.45; }"
+    },
+    {
+      "name": "Panel",
+      "kind": "card",
+      "refersTo": "panel",
+      "description": "The only container: raised paper, hairline border, no shadow, never nested. Title in the Title style on the element headingLevel picks.",
+      "html": "<section class=\"ds-panel\"><div class=\"ds-panel-head\"><h2 class=\"ds-panel-title\">Frame</h2><p class=\"ds-panel-desc\">State the decision before the assistant enters.</p></div><p>Body text sits at 14/22.</p></section>",
+      "css": ".ds-panel { background: var(--paper-raised, #FFFFFF); color: var(--ink, #141A26); font: 400 14px/22px 'IBM Plex Sans', system-ui, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif; border: 1px solid var(--line, #D5DAE2); border-radius: 6px; padding: 16px; } .ds-panel-head { margin-bottom: 12px; } .ds-panel-title { margin: 0; font: 500 24px/32px 'IBM Plex Serif', Georgia, 'Times New Roman', serif; text-wrap: balance; } .ds-panel-desc { margin: 4px 0 0; color: var(--ink-muted, #4B5563); } .ds-panel p { margin: 0; }"
+    },
+    {
+      "name": "Draft Label Chip",
+      "kind": "chip",
+      "refersTo": "chip-label",
+      "description": "Amber wash with ink text, a 2 px amber left border, and a 16 px amber icon; amber is never the text color.",
+      "html": "<span class=\"ds-chip-draft\"><svg aria-hidden=\"true\" width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M12 20h9\"/><path d=\"M16.376 3.622a1 1 0 0 1 3.002 3.002L7.368 18.635a2 2 0 0 1-.855.506l-2.872.838a.5.5 0 0 1-.62-.62l.838-2.872a2 2 0 0 1 .506-.854z\"/><path d=\"m15 5 3 3\"/></svg>Draft</span>",
+      "css": ".ds-chip-draft { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px 2px 6px; background: var(--amber-soft, #FBF1DC); color: var(--ink, #141A26); border-left: 2px solid var(--amber, #B7791F); border-radius: 2px; font: 500 13px/20px 'IBM Plex Sans', system-ui, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif; white-space: nowrap; } .ds-chip-draft svg { color: var(--amber, #B7791F); flex-shrink: 0; }"
+    },
+    {
+      "name": "Stance Chip",
+      "kind": "chip",
+      "refersTo": "chip-stance",
+      "description": "Pill radio chip specified in 09-frontend-spec.md §2.3 for the run workspace (not yet in src/components): selected state fills with the stance wash and colors the border and icon; the text stays ink.",
+      "html": "<button class=\"ds-chip-stance is-selected\" role=\"radio\" aria-checked=\"true\"><svg aria-hidden=\"true\" width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"m8 11 2 2 4-4\"/><circle cx=\"11\" cy=\"11\" r=\"8\"/><path d=\"m21 21-4.3-4.3\"/></svg>Verify</button>",
+      "css": ".ds-chip-stance { display: inline-flex; align-items: center; gap: 6px; height: 40px; padding: 6px 12px; background: var(--paper-raised, #FFFFFF); color: var(--ink, #141A26); border: 1px solid var(--line, #D5DAE2); border-radius: 999px; font: 500 13px/20px 'IBM Plex Sans', system-ui, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif; cursor: default; transition: background-color 150ms cubic-bezier(0.2, 0, 0, 1), border-color 150ms cubic-bezier(0.2, 0, 0, 1); } .ds-chip-stance:hover { background: var(--paper-sunken, #ECEFF3); } .ds-chip-stance.is-selected { background: var(--primary-soft, #DDEFF0); border-color: var(--stance-verify, #0F6E74); } .ds-chip-stance.is-selected svg { color: var(--stance-verify, #0F6E74); } .ds-chip-stance:focus-visible { outline: 2px solid var(--focus, #0F6E74); outline-offset: 2px; }"
+    },
+    {
+      "name": "Rail Item",
+      "kind": "nav",
+      "refersTo": "button-ghost",
+      "description": "40 px navigation row with a 20 px icon and a visible label; sunken paper on hover, the teal wash and teal text when current.",
+      "html": "<nav class=\"ds-rail\"><a class=\"ds-rail-item\" href=\"#\" aria-current=\"page\"><svg aria-hidden=\"true\" width=\"20\" height=\"20\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z\"/><polyline points=\"9 22 9 12 15 12 15 22\"/></svg>Home</a><a class=\"ds-rail-item\" href=\"#\"><svg aria-hidden=\"true\" width=\"20\" height=\"20\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z\"/><polyline points=\"9 22 9 12 15 12 15 22\"/></svg>Runs</a></nav>",
+      "css": ".ds-rail { display: flex; flex-direction: column; gap: 4px; width: 224px; padding: 24px 12px; background: var(--paper, #F6F7F9); border-right: 1px solid var(--line, #D5DAE2); } .ds-rail-item { display: flex; align-items: center; gap: 8px; height: 40px; padding: 0 12px; color: var(--ink, #141A26); border-radius: 6px; font: 500 13px/20px 'IBM Plex Sans', system-ui, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif; text-decoration: none; transition: background-color 150ms cubic-bezier(0.2, 0, 0, 1), color 150ms cubic-bezier(0.2, 0, 0, 1); } .ds-rail-item:hover { background: var(--paper-sunken, #ECEFF3); } .ds-rail-item[aria-current='page'] { background: var(--primary-soft, #DDEFF0); color: var(--primary, #0F6E74); } .ds-rail-item svg { flex-shrink: 0; } .ds-rail-item:focus-visible { outline: 2px solid var(--focus, #0F6E74); outline-offset: 2px; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Instrument Panel",
+    "overview": "Tassl is a simulator-style assessor, and its interface is the panel a pilot reads: calm, high-contrast, and honest about state. Nothing decorates; every mark carries information. Density follows the data: the stance matrix, the clock timeline, and the replay trace are tight and monospaced, while everything the student writes (frame, brief, defense) is set in a generous reading measure. The register is Operate on every surface; there is no marketing surface in this product.\n\nThe palette is cool paper and tinted ink with one deep-teal voice for action, three semantic colors that are used only when they mean something (amber for draft and provisional, red for refusal and error, green for confirmed and matched), and five stance colors that never appear without a text label and an icon. Depth comes from hairlines and whitespace, not shadows; dialogs and popovers are the one floating layer.",
+    "keyCharacteristics": [
+      "Cool paper ground (#F6F7F9) with tinted ink (#141A26); no pure black, no pure gray.",
+      "IBM Plex throughout: Serif for headings, Sans for the UI and writing, Mono with tabular figures for trace data and the clock.",
+      "One accent (deep teal) for actions and selection; semantic colors are rare and always redundant with a label or icon.",
+      "Hairline borders and whitespace instead of elevation; cards never nest.",
+      "Motion is short (150–200 ms), ease-out, and removed entirely under prefers-reduced-motion."
+    ],
+    "rules": [
+      {
+        "name": "The Ink-on-Wash Rule",
+        "body": "Text on --primary-soft, --amber-soft, --red-soft, or --green-soft is the matching strong color or --ink, never gray. No gray text on colored backgrounds, anywhere.",
+        "section": "colors"
+      },
+      {
+        "name": "The Amber-Is-Not-Text Rule",
+        "body": "Amber marks draft state as a 2 px left border, an icon, or a chip fill with ink text. White or gray text is never placed on amber, and amber is never a text color on paper.",
+        "section": "colors"
+      },
+      {
+        "name": "The Labelled-Stance Rule",
+        "body": "A stance color never appears without its text label and its icon (accept check, verify search-check, challenge message-square-warning, reject x-octagon, escalate arrow-up-right).",
+        "section": "colors"
+      },
+      {
+        "name": "The Tabular Clock Rule",
+        "body": "Anything that counts (the clock, word counts, confidence) uses Mono with tabular figures so digits never shift.",
+        "section": "typography"
+      },
+      {
+        "name": "The Reading Measure Rule",
+        "body": "Student writing surfaces use 16/26 Sans at a 72ch maximum; UI chrome stays at 14/22.",
+        "section": "typography"
+      },
+      {
+        "name": "The One-Layer Rule",
+        "body": "Cards are never nested inside cards. A panel contains sections, not other panels; a second level of grouping is whitespace plus a hairline or an h4.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "Do use the token variables (--paper, --ink, --primary …) and the Tailwind color names that map to them; never a raw hex in a component.",
+      "Do keep one accent per screen: teal for the action the visitor is there to take.",
+      "Do pair every stance and semantic color with a text label and an icon.",
+      "Do separate sections with whitespace and hairlines; one panel level only.",
+      "Do keep motion at 150 ms (state) and 200 ms (panels) with cubic-bezier(0.2, 0, 0, 1), and remove it under prefers-reduced-motion.",
+      "Do put numbers in Mono with tabular figures.",
+      "Do write empty states as heading, sentence, action."
+    ],
+    "donts": [
+      "Don't use Inter, Arial, or a system default as the primary face.",
+      "Don't put gray text on a colored background, or amber text anywhere.",
+      "Don't use pure black (#000) or pure gray; ink and paper are tinted.",
+      "Don't nest cards inside cards.",
+      "Don't use bounce or elastic easing.",
+      "Don't use gradients, illustrations, or raster images.",
+      "Don't rely on hover: every action is reachable by tap and keyboard."
+    ]
+  }
+}

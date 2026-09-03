@@ -130,6 +130,8 @@ const budgets: Array<{ pattern: RegExp; maxBytes: number; label: string }> = [
   { pattern: /^\/\(app\)\/review\/runs\/\[runId\]$/, maxBytes: 250_000, label: 'run route' },
   { pattern: /^\/\(app\)\/records\/\[runId\]$/, maxBytes: 250_000, label: 'run route' },
   { pattern: /^\/\(public\)\//, maxBytes: 180_000, label: 'public page' },
+  // The gallery renders every primitive at once; 300 KB here and in lighthouserc.json (D-156).
+  { pattern: /^\/dev\//, maxBytes: 300_000, label: 'dev gallery' },
   { pattern: /.*/, maxBytes: 250_000, label: 'other route' },
 ]
 
@@ -259,7 +261,7 @@ Route keys in `app-path-routes-manifest.json` keep route groups, so a run page a
 }
 ```
 
-Why these URLs: they are deterministic without a session. `/dev/components` (UI-060) renders every run-workspace component, every claim-card state, and all four graphs on fixture data, so its script size is the lab proxy for the run routes; the gallery route answers when `APP_ENV` is `local` or `test` and returns 404 in `preview` and `production` (this file's decision, §11, extending the `local`-only rule in `02-architecture.md` §4 to CI). `resource-summary:*:size` is transfer size; `next start` gzips responses (`compress: true`, the default), so the number is comparable to §3.1.
+Why these URLs: they are deterministic without a session. `/dev/components` (UI-060) renders every run-workspace component, every claim-card state, and all four graphs on fixture data, so its script size is the lab proxy for the run routes; the gallery route answers when `APP_ENV` is `local` or `test` and returns 404 in `preview` and `production` (this file's decision, §11, extending the `local`-only rule in `02-architecture.md` §4 to CI). `resource-summary:*:size` is transfer size; `next start` gzips responses (`compress: true`, the default), so the number is comparable to §3.1. The gallery entry is asserted at 300 KB of script because it renders every primitive on one page; the 250 KB run-route budget is enforced on the real routes by `scripts/bundle-budget.ts` (D-156).
 
 ## 4. API latency (NFR-008, NFR-001, NFR-014)
 
@@ -455,7 +457,7 @@ export const plexSans = localFont({
     { path: '../../public/fonts/IBMPlexSans-Medium.woff2', weight: '500', style: 'normal' },
     { path: '../../public/fonts/IBMPlexSans-SemiBold.woff2', weight: '600', style: 'normal' },
   ],
-  variable: '--font-sans',
+  variable: '--font-plex-sans',
   display: 'swap',
   preload: true,
   fallback: ['system-ui', 'Segoe UI', 'Helvetica Neue', 'Arial', 'sans-serif'],
@@ -467,12 +469,12 @@ export const plexMono = localFont({
     { path: '../../public/fonts/IBMPlexMono-Regular.woff2', weight: '400', style: 'normal' },
     { path: '../../public/fonts/IBMPlexMono-Medium.woff2', weight: '500', style: 'normal' },
   ],
-  variable: '--font-mono',
+  variable: '--font-plex-mono',
   display: 'swap',
   preload: false,
   fallback: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'Consolas', 'monospace'],
   adjustFontFallback: false,
-  declarations: [{ prop: 'font-feature-settings', value: '"tnum" 1' }],
+  declarations: [{ prop: 'font-feature-settings', value: "'tnum' 1" }], // single quotes: Turbopack's font loader cannot carry double quotes (D-153)
 })
 
 export const plexSerif = localFont({
@@ -480,7 +482,7 @@ export const plexSerif = localFont({
     { path: '../../public/fonts/IBMPlexSerif-Medium.woff2', weight: '500', style: 'normal' },
     { path: '../../public/fonts/IBMPlexSerif-SemiBold.woff2', weight: '600', style: 'normal' },
   ],
-  variable: '--font-serif',
+  variable: '--font-plex-serif',
   display: 'swap',
   preload: false,
   fallback: ['Georgia', 'Times New Roman', 'serif'],
@@ -491,10 +493,10 @@ export const plexSerif = localFont({
 `src/app/layout.tsx` sets `<html lang="en-US" className={cn(plexSans.variable, plexMono.variable, plexSerif.variable)}>`. `src/app/globals.css` maps the variables into Tailwind 4 tokens and adds the tabular-figure utility as belt and braces for any element that inherits Mono:
 
 ```css
-@theme {
-  --font-sans: var(--font-sans);
-  --font-mono: var(--font-mono);
-  --font-serif: var(--font-serif);
+@theme inline {
+  --font-sans: var(--font-plex-sans, 'IBM Plex Sans', sans-serif);
+  --font-mono: var(--font-plex-mono, 'IBM Plex Mono', monospace);
+  --font-serif: var(--font-plex-serif, 'IBM Plex Serif', serif);
 }
 .font-mono, .tabular { font-variant-numeric: tabular-nums; font-feature-settings: "tnum" 1; }
 ```
@@ -747,7 +749,7 @@ Rules that follow from the table:
 - Amber `#B7791F` is never a text color on paper, at any size. The draft, provisional, and uncalibrated labels (FR-150, FR-185, FR-196, FR-203) render ink text on paper with a 2 px amber left border and an amber icon (UI contrast 3.40:1), or ink text on an amber-filled chip (4.78:1). White text is never placed on amber.
 - Placeholder text uses ink at 70 percent alpha over paper (computed 8.9:1) and is never the only label.
 - Disabled controls use ink at 45 percent alpha (4.6:1 computed) with `aria-disabled` rather than `disabled` where the control must remain discoverable by keyboard (the lock button while a claim is unstanced: focusable, announces the reason).
-- Non-text contrast: control borders are ink at 40 percent alpha on paper (3.9:1); the focus ring is primary (5.59:1).
+- Non-text contrast: control borders are ink at 55 percent alpha (`--line-control`), which composites to 3.8:1 on paper and 3.9:1 on white (D-157; the 40 percent value first written here measured 2.5:1); the focus ring is primary (5.59:1).
 - Any second theme (the `next-themes` 0.4.6 dependency allows one) must ship its own version of this table and pass the same test before it is enabled; the build ships the light palette only.
 
 ## 9. Graph accessibility (FR-212, FR-136, FR-004)

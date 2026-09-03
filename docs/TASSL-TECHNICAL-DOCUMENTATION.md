@@ -1831,7 +1831,7 @@ The `llm` element may import `db` only for `llm_calls` logging.
     "start": "next start",
     "lint": "eslint . && prettier --check .",
     "lint:fix": "eslint . --fix && prettier --write .",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "next typegen && tsc --noEmit",
     "test": "vitest run --project unit",
     "test:watch": "vitest --project unit",
     "test:coverage": "vitest run --project unit --project integration --coverage",
@@ -1953,7 +1953,7 @@ Runtime: Node `24` (`.nvmrc`), pnpm `11.25.0`, Postgres `17`.
 | @commitlint/config-conventional | 21.2.2 |
 | pino-pretty | 13.1.3 |
 
-**CLIs used via `npx`/`pnpm dlx` (never installed as dependencies)**: `vercel@59.11.2`, `neon@4.14.0`, `shadcn@4.20.1`, `impeccable@3.6.1`, `auth@1.7.2` (Better Auth CLI), `@sentry/wizard@7.0.3` (not used; manual setup in Phase 13).
+**CLIs used via `npx`/`pnpm dlx` (never installed as dependencies)**: `vercel@59.11.2`, `neon@4.14.0`, `shadcn@4.20.1` (also pinned as a runtime dependency for its `shadcn/tailwind.css` layer, D-154), `impeccable@3.6.1`, `auth@1.7.2` (Better Auth CLI), `@sentry/wizard@7.0.3` (not used; manual setup in Phase 13).
 
 GitHub Actions: `actions/checkout@v7`, `actions/setup-node@v7`, `pnpm/action-setup@v6`, `actions/upload-artifact@v7`, `actions/download-artifact@v8`, `actions/cache@v6`, `neondatabase/create-branch-action@v6`, `neondatabase/delete-branch-action@v3`, `treosh/lighthouse-ci-action@v12`.
 
@@ -3501,14 +3501,15 @@ Self-hosted woff2 in `public/fonts`, loaded with `next/font/local` in `src/app/f
 |---|---|---|
 | `--paper` | `#F6F7F9` | page ground |
 | `--paper-raised` | `#FFFFFF` | panels, cards (never nested) |
-| `--paper-sunken` | `#ECEFF3` | inputs, timeline track |
+| `--paper-sunken` | `#ECEFF3` | disabled inputs, hover and highlight washes, tab wells, timeline track |
 | `--ink` | `#141A26` | primary text (tinted, never pure black) |
-| `--ink-muted` | `#4B5563` | secondary text (contrast on paper 7.5:1) |
-| `--ink-faint` | `#8A93A3` | placeholders, disabled (4.5:1 on paper-raised) |
+| `--ink-muted` | `#4B5563` | secondary text (contrast on paper 7.05:1) |
+| `--ink-faint` | `#8A93A3` | decorative only: gridlines, disabled outlines, hairline icons; never text (3.1:1 on paper-raised, D-153); placeholders use ink at 70 % alpha and disabled text ink at 45 % (`16 §8.7`) |
+| `--line-control` | `rgb(20 26 38 / 0.55)` | input and control boundaries (3.8:1 on paper, 3.9:1 on white; D-157 — 40 % measured 2.5:1) |
 | `--line` | `#D5DAE2` | borders |
 | `--line-strong` | `#AEB6C2` | focused borders, table rules |
 | `--primary` | `#0F6E74` | actions, links, selected stance (deep teal) |
-| `--primary-ink` | `#FFFFFF` | text on primary (7.1:1) |
+| `--primary-ink` | `#FFFFFF` | text on primary (6.0:1) |
 | `--primary-soft` | `#DDEFF0` | selected row background |
 | `--amber` | `#B7791F` | draft, uncalibrated, provisional labels and warnings as borders, icons, and chip fills only; never a text color (3.40:1 on paper, D-122); text on an amber-filled chip is `--ink` (4.78:1) |
 | `--amber-soft` | `#FBF1DC` | label background with `--ink` text |
@@ -3540,11 +3541,11 @@ No illustrations. Empty states are a single serif heading, one sentence of body 
 ### 2.6 Tailwind and shadcn wiring
 
 - Tailwind 4 with `@import "tailwindcss";` and `@theme inline { --color-paper: var(--paper); … --font-sans: var(--font-plex-sans); --font-mono: var(--font-plex-mono); --font-serif: var(--font-plex-serif); --radius-sm: 2px; --radius-md: 6px; --radius-lg: 10px; }` in `src/app/globals.css`; the CSS variables above are declared on `:root`.
-- shadcn components are generated with `pnpm dlx shadcn@4.20.1 init -t next` then `add`, and their default zinc tokens are replaced by the variables above in `globals.css` (`--background: var(--paper)`, `--foreground: var(--ink)`, `--primary: var(--primary)`, `--primary-foreground: var(--primary-ink)`, `--muted: var(--paper-sunken)`, `--muted-foreground: var(--ink-muted)`, `--border: var(--line)`, `--ring: var(--focus)`, `--destructive: var(--red)`, `--radius: 6px`). `components.json`: `style: "new-york"`, `tailwind.css: "src/app/globals.css"`, `cssVariables: true`, `baseColor: "neutral"`, `iconLibrary: "lucide"`, aliases `@/components`, `@/lib`, `@/components/ui`.
+- shadcn components are generated with `pnpm dlx shadcn@4.20.1 init -d --no-monorepo` (preset `base-nova` on Base UI, D-154) then `add`, and their default zinc tokens are replaced by the variables above in `globals.css` (`--background: var(--paper)`, `--foreground: var(--ink)`, `--primary: var(--primary)`, `--primary-foreground: var(--primary-ink)`, `--muted: var(--paper-sunken)`, `--muted-foreground: var(--ink-muted)`, `--border: var(--line)`, `--ring: var(--focus)`, `--destructive: var(--red)`, `--radius: 6px`). `components.json`: `style: "base-nova"`, `tailwind.css: "src/app/globals.css"`, `cssVariables: true`, `baseColor: "neutral"`, `iconLibrary: "lucide"`, aliases `@/components`, `@/lib`, `@/components/ui`, and `utils: "@/lib/cn"` (D-154).
 
 ## 3. Component inventory
 
-`src/components/ui` (shadcn, themed): `button` (variants primary, secondary, ghost, destructive; sizes sm, md, lg), `input`, `textarea`, `label`, `select`, `checkbox`, `radio-group`, `switch`, `dialog`, `alert-dialog`, `sheet`, `popover`, `tooltip`, `tabs`, `table`, `badge`, `separator`, `scroll-area`, `progress`, `dropdown-menu`, `sonner` (toasts), `skeleton`, `form` (react-hook-form bindings).
+`src/components/ui` (shadcn, themed): `button` (variants primary, secondary, ghost, destructive; sizes sm, md, lg), `input`, `textarea`, `label`, `select`, `checkbox`, `radio-group`, `switch`, `dialog`, `alert-dialog`, `sheet`, `popover`, `tooltip`, `tabs`, `table`, `badge`, `separator`, `scroll-area`, `progress`, `dropdown-menu`, `sonner` (toasts), `skeleton`, `field` (react-hook-form bindings; shadcn 4 replaced `form`, D-154).
 
 `src/components/layout`: `AppShell`, `Rail`, `InstitutionSwitcher`, `NotificationsBell`, `AccountMenu`, `PageHeader` (serif title, description, actions), `Panel` (bordered section; never nested), `EmptyState`, `ErrorState` (message + request id + retry), `IllustrativeSample` (mandatory label wrapper, FR-254), `Label` chips (`draft`, `confirmed`, `uncalibrated`, `walkthrough`, `provisional`, `unreviewed`).
 
@@ -3574,7 +3575,7 @@ Command names verified against Impeccable 3.6.1 (`npx impeccable@3.6.1`, skill `
 
 1. `npx impeccable@3.6.1 install --providers=claude --scope=project` (keep the design hook), then reload Claude Code.
 2. `/impeccable init`. When it asks: primary user = students in professional degree programs (3rd/4th year undergraduates and MBA, marketing and strategy) taking a Decision Run, and course instructors reviewing runs; the job = make a consequential decision with an AI assistant in the room and remain accountable for it; mechanism = controlled-reliability claims with an irreversible Decision Lock and a simulator-style trace readout; constraints = text-only runs, no artifact polish rewarded, WCAG 2.2 AA, en-US, Next.js 16 + Tailwind 4 + shadcn; voice = plain, declarative, never accusatory, never "cheating"; platform = web; stack = "delegated: Next.js 16 App Router, already scaffolded". Answer every question from `01-prd-analysis.md` §1–3 and this file; do not describe visual style during init (Impeccable forbids it).
-3. Write `DESIGN.md` from §2 of this file (tokens, typography, spacing, radius, elevation, motion, iconography, empty states) with the header `<!-- impeccable:design-schema 1 -->` if the installed version's `document` reference names one (check `.claude/skills/impeccable/reference/document.md`; otherwise plain markdown headings `# Design`, `## Typography`, `## Color`, `## Spacing`, `## Radius`, `## Elevation`, `## Motion`, `## Components`).
+3. Write `DESIGN.md` from §2 of this file in the installed skill's format (D-152): YAML frontmatter with `colors`, `typography`, `rounded`, `spacing`, and `components`, then the sections Overview, Colors (with the normative token table), Typography, Layout, Elevation & Depth, Shapes, Components, Do's and Don'ts, plus Motion; the sidecar `.impeccable/design.json` carries shadows, motion, breakpoints, and narrative.
 4. Build the app shell and the component gallery, then run `/impeccable document` to reconcile `DESIGN.md` with the built shell. When it proposes a change to a token, keep the value in §2 unless the change is required for contrast (log a `D-` row).
 5. Add the ignore block to `.gitignore`:
 
@@ -7700,7 +7701,7 @@ console.log(`sent event ${eventId}; expect it under Sentry -> Issues within one 
 
 ## 17. Secrets and variables inventory
 
-CI-only values live in GitHub (`gh secret set`, `gh variable set`); application values live in Vercel (`vercel env add`); nothing secret is ever in `.env.example` or in a workflow file. Rotation runbook: `13-observability-ops.md` §Runbook: rotate a secret; `05-environment-config.md` §6.
+CI-only values live in GitHub (`gh secret set`, `gh variable set`); application values live in Vercel (`vercel env add`); nothing secret is ever in `.env.example` or in a workflow file. Vercel *sensitive* variables never reach the runner through `vercel pull`, so the CI build steps read `BETTER_AUTH_SECRET` and `CRON_SECRET` from the GitHub secrets `BETTER_AUTH_SECRET_PREVIEW`, `CRON_SECRET_PREVIEW`, `BETTER_AUTH_SECRET_PRODUCTION`, and `CRON_SECRET_PRODUCTION`, which hold the same values as the Vercel environments (D-160). The deploy steps move `.git` aside first: with git metadata attached, Vercel blocks any deployment whose commit author is not a verified team member (`TEAM_ACCESS_REQUIRED`), and CLI 59 polls a `BLOCKED` deployment until the job times out; a failure step prints the newest deployment's `readyState` and `readyStateReason` (D-161). Rotation runbook: `13-observability-ops.md` §Runbook: rotate a secret; `05-environment-config.md` §6.
 
 | Name | Store | Secret | Obtained from | Used by |
 |---|---|---|---|---|
@@ -7856,6 +7857,8 @@ const budgets: Array<{ pattern: RegExp; maxBytes: number; label: string }> = [
   { pattern: /^\/\(app\)\/review\/runs\/\[runId\]$/, maxBytes: 250_000, label: 'run route' },
   { pattern: /^\/\(app\)\/records\/\[runId\]$/, maxBytes: 250_000, label: 'run route' },
   { pattern: /^\/\(public\)\//, maxBytes: 180_000, label: 'public page' },
+  // The gallery renders every primitive at once; 300 KB here and in lighthouserc.json (D-156).
+  { pattern: /^\/dev\//, maxBytes: 300_000, label: 'dev gallery' },
   { pattern: /.*/, maxBytes: 250_000, label: 'other route' },
 ]
 
@@ -7985,7 +7988,7 @@ Route keys in `app-path-routes-manifest.json` keep route groups, so a run page a
 }
 ```
 
-Why these URLs: they are deterministic without a session. `/dev/components` (UI-060) renders every run-workspace component, every claim-card state, and all four graphs on fixture data, so its script size is the lab proxy for the run routes; the gallery route answers when `APP_ENV` is `local` or `test` and returns 404 in `preview` and `production` (this file's decision, §11, extending the `local`-only rule in `02-architecture.md` §4 to CI). `resource-summary:*:size` is transfer size; `next start` gzips responses (`compress: true`, the default), so the number is comparable to §3.1.
+Why these URLs: they are deterministic without a session. `/dev/components` (UI-060) renders every run-workspace component, every claim-card state, and all four graphs on fixture data, so its script size is the lab proxy for the run routes; the gallery route answers when `APP_ENV` is `local` or `test` and returns 404 in `preview` and `production` (this file's decision, §11, extending the `local`-only rule in `02-architecture.md` §4 to CI). `resource-summary:*:size` is transfer size; `next start` gzips responses (`compress: true`, the default), so the number is comparable to §3.1. The gallery entry is asserted at 300 KB of script because it renders every primitive on one page; the 250 KB run-route budget is enforced on the real routes by `scripts/bundle-budget.ts` (D-156).
 
 ## 4. API latency (NFR-008, NFR-001, NFR-014)
 
@@ -8181,7 +8184,7 @@ export const plexSans = localFont({
     { path: '../../public/fonts/IBMPlexSans-Medium.woff2', weight: '500', style: 'normal' },
     { path: '../../public/fonts/IBMPlexSans-SemiBold.woff2', weight: '600', style: 'normal' },
   ],
-  variable: '--font-sans',
+  variable: '--font-plex-sans',
   display: 'swap',
   preload: true,
   fallback: ['system-ui', 'Segoe UI', 'Helvetica Neue', 'Arial', 'sans-serif'],
@@ -8193,12 +8196,12 @@ export const plexMono = localFont({
     { path: '../../public/fonts/IBMPlexMono-Regular.woff2', weight: '400', style: 'normal' },
     { path: '../../public/fonts/IBMPlexMono-Medium.woff2', weight: '500', style: 'normal' },
   ],
-  variable: '--font-mono',
+  variable: '--font-plex-mono',
   display: 'swap',
   preload: false,
   fallback: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'Consolas', 'monospace'],
   adjustFontFallback: false,
-  declarations: [{ prop: 'font-feature-settings', value: '"tnum" 1' }],
+  declarations: [{ prop: 'font-feature-settings', value: "'tnum' 1" }], // single quotes: Turbopack's font loader cannot carry double quotes (D-153)
 })
 
 export const plexSerif = localFont({
@@ -8206,7 +8209,7 @@ export const plexSerif = localFont({
     { path: '../../public/fonts/IBMPlexSerif-Medium.woff2', weight: '500', style: 'normal' },
     { path: '../../public/fonts/IBMPlexSerif-SemiBold.woff2', weight: '600', style: 'normal' },
   ],
-  variable: '--font-serif',
+  variable: '--font-plex-serif',
   display: 'swap',
   preload: false,
   fallback: ['Georgia', 'Times New Roman', 'serif'],
@@ -8217,10 +8220,10 @@ export const plexSerif = localFont({
 `src/app/layout.tsx` sets `<html lang="en-US" className={cn(plexSans.variable, plexMono.variable, plexSerif.variable)}>`. `src/app/globals.css` maps the variables into Tailwind 4 tokens and adds the tabular-figure utility as belt and braces for any element that inherits Mono:
 
 ```css
-@theme {
-  --font-sans: var(--font-sans);
-  --font-mono: var(--font-mono);
-  --font-serif: var(--font-serif);
+@theme inline {
+  --font-sans: var(--font-plex-sans, 'IBM Plex Sans', sans-serif);
+  --font-mono: var(--font-plex-mono, 'IBM Plex Mono', monospace);
+  --font-serif: var(--font-plex-serif, 'IBM Plex Serif', serif);
 }
 .font-mono, .tabular { font-variant-numeric: tabular-nums; font-feature-settings: "tnum" 1; }
 ```
@@ -8473,7 +8476,7 @@ Rules that follow from the table:
 - Amber `#B7791F` is never a text color on paper, at any size. The draft, provisional, and uncalibrated labels (FR-150, FR-185, FR-196, FR-203) render ink text on paper with a 2 px amber left border and an amber icon (UI contrast 3.40:1), or ink text on an amber-filled chip (4.78:1). White text is never placed on amber.
 - Placeholder text uses ink at 70 percent alpha over paper (computed 8.9:1) and is never the only label.
 - Disabled controls use ink at 45 percent alpha (4.6:1 computed) with `aria-disabled` rather than `disabled` where the control must remain discoverable by keyboard (the lock button while a claim is unstanced: focusable, announces the reason).
-- Non-text contrast: control borders are ink at 40 percent alpha on paper (3.9:1); the focus ring is primary (5.59:1).
+- Non-text contrast: control borders are ink at 55 percent alpha (`--line-control`), which composites to 3.8:1 on paper and 3.9:1 on white (D-157; the 40 percent value first written here measured 2.5:1); the focus ring is primary (5.59:1).
 - Any second theme (the `next-themes` 0.4.6 dependency allows one) must ship its own version of this table and pass the same test before it is enabled; the build ships the light palette only.
 
 ## 9. Graph accessibility (FR-212, FR-136, FR-004)
@@ -9984,8 +9987,8 @@ pnpm test -- tests/unit/design && pnpm build && ls public/fonts | grep -c woff2 
 **Covers:** UI-008, NFR-006
 **Prerequisites:** Step 1.2 complete
 **Files to create / modify:**
-- `components.json` — created by the CLI; then set `style`, `tailwind.css`, `cssVariables`, `baseColor`, `iconLibrary`, `aliases` per `09-frontend-spec.md` §2.6
-- `src/components/ui/*.tsx` — created by the CLI for: button, input, textarea, label, select, checkbox, radio-group, switch, dialog, alert-dialog, sheet, popover, tooltip, dropdown-menu, tabs, table, badge, separator, scroll-area, progress, skeleton, form, sonner
+- `components.json` — created by the CLI (`base-nova` preset, D-154); then set `aliases.utils` to `@/lib/cn` per `09-frontend-spec.md` §2.6
+- `src/components/ui/*.tsx` — created by the CLI for: button, input, textarea, label, select, checkbox, radio-group, switch, dialog, alert-dialog, sheet, popover, tooltip, dropdown-menu, tabs, table, badge, separator, scroll-area, progress, skeleton, field, sonner
 - `src/app/globals.css` — modify; map shadcn variables to the tokens (`09-frontend-spec.md` §2.6)
 - `src/lib/cn.ts` — verify the CLI did not create a duplicate `src/lib/utils.ts`; if it did, re-export `cn` from `cn.ts` and delete `utils.ts`
 **Commands (in order, from repo root):**
@@ -12222,6 +12225,16 @@ Requirement IDs now fully implemented: every build-slice ID in `COVERAGE.md`; th
 ---
 
 | D-151 | Neon history retention below the 7 days of D-069 | Verified at Step 0.10: the Neon API rejects `history_retention_seconds` above 21600 (6 hours) on the Free plan of the "Tassl" organization (`org-mute-art-29143459`, project `tassl` = `red-smoke-66780807`) | Retention is set to the plan maximum, 21600 seconds; point-in-time restore therefore covers the last 6 hours, and the nightly encrypted `pg_dump` backups of `13-observability-ops.md` (`backup.yml`, `BACKUP_ENCRYPTION_KEY`) remain the recovery path beyond that window. Raise to 604800 when the organization moves to a paid Neon plan (Phase 15 launch checklist) | The plan limit, not the design, sets the ceiling; backups already exist for longer windows | Upgrade the Neon plan and re-run the PATCH in 15 §11.3 |
+| D-152 | Impeccable skill version and DESIGN.md format | Verified at Step 1.1: `npx impeccable@3.6.1 install` downloads the current skill (4.1.3), whose `document` reference defines DESIGN.md as YAML frontmatter (colors, typography, rounded, spacing, components) plus the sections Overview, Colors, Typography, Layout, Elevation & Depth, Shapes, Components, Do's and Don'ts, with a sidecar `.impeccable/design.json`; the `init` reference wants an interview through the question tool | `DESIGN.md` uses the skill's format with the 09 §2 values verbatim (the Colors table stays normative and `tests/unit/design/tokens.test.ts` checks it against `globals.css`); `.impeccable/design.json` carries shadows, motion, breakpoints, and narrative; `PRODUCT.md` is written from the answers 09 §4 item 2 records, so `init` asks no questions (the build rule that no human decides). The installer's hook settings (`.claude/settings.local.json`, paths via `CLAUDE_PROJECT_DIR`) and `.claude/skills`, `.claude/agents` are tracked and excluded from Prettier so they stay byte-identical to the installer | One design authority that both the detector and the documented workflow read | Re-run `/impeccable document` in scan mode if a later skill version changes the format |
+| D-153 | Font variables, faint ink, control borders | Verified at Step 1.2: `16 §6.3` named the `next/font` variables `--font-sans/mono/serif`, which would alias Tailwind's own theme names, while phase 1 and 09 §2.6 use `--font-plex-*`; `--ink-faint` (`#8A93A3`) measures 3.1:1 on white and 2.9:1 on paper, so the 09 §2.2 claim of 4.5:1 was wrong; 16 §8.7 sets control borders at ink 40 % alpha but no token carried it | `src/app/fonts.ts` exports `--font-plex-sans`, `--font-plex-mono`, `--font-plex-serif` and `@theme inline` maps them to `--font-sans/mono/serif`; `--ink-faint` is decorative only (gridlines, disabled outlines, hairline icons) and never text, with placeholders at ink 70 % and disabled text at ink 45 % per 16 §8.7; a new `--line-control: rgb(20 26 38 / 0.4)` token is the input and control boundary; `tests/unit/design/contrast.test.ts` recomputes every documented pairing | The palette (D-025) is unchanged; only the claims and the variable names are corrected | Darken `--ink-faint` to a 4.5:1 value if a text use case appears |
+| D-154 | shadcn 4 preset and primitives | Verified at Step 1.3: `shadcn@4.20.1` has no `new-york` style; `init -d` writes the `base-nova` preset on `@base-ui/react` 1.7.0, adds `shadcn` itself as a runtime dependency (its `shadcn/tailwind.css` layer), writes oklch zinc variables plus a `.dark` block, injects a Geist font, and the `form` component no longer exists (react-hook-form binds through `field`) | Keep the CLI default: `style: "base-nova"` (Base UI, the current shadcn standard); `components.json` aliases `utils` to `@/lib/cn` so no `utils.ts` exists; `field` replaces `form` in the inventory; `scripts`-free theming maps every shadcn variable to a token in `globals.css` (`--background: var(--paper)`, `--primary` stays `#0F6E74`, `--destructive: var(--red)`, `--input: var(--line-control)`, `--ring: var(--focus)`, charts = stance colors, `--radius: 6px`), the Geist import is removed, and the `.dark` block is deleted because a second theme must ship its own contrast table first (16 §8.7); `shadcn@4.20.1` and `@base-ui/react@1.7.0` are pinned exactly | Standard current primitives with one design authority | Re-run `init` with `-b radix` and re-theme if Base UI blocks a component |
+| D-155 | Typed routes before tsc | Verified at Step 1.4: with typedRoutes on, the Route type and Link href literals are validated against .next/types, which only next build or next typegen writes; a fresh checkout (CI typecheck job) and any new route fail tsc until then | The typecheck script is next typegen && tsc --noEmit (04 §7); routes that do not exist yet are referenced through an explicit as Route cast in one constant per component and replaced by the literal when the route lands | Keeps typed routes honest in CI without building first | Drop typedRoutes |
+| D-156 | Provider placement and the gallery script budget | Verified at Step 1.5 with Lighthouse: mounting the sonner Toaster and the Base UI TooltipProvider in the root layout put `/` at 210 KB of gzip script against the 180 KB public-page budget (B5), and the component gallery, which renders every overlay, menu, select, tab, and form primitive at once, measures 282 KB against the 250 KB run-route proxy (16 §3.5) | The root layout carries fonts and `FlagsProvider` only; `(app)`, `(public)` (from Phase 3, when its forms need toasts), and `dev` layouts mount `TooltipProvider` and `Toaster`. The gallery is asserted at 300 KB in both `lighthouserc.json` and `scripts/bundle-budget.ts` (pattern `/dev/`) because it deliberately loads more than any single run route, while run routes keep the 250 KB ceiling and public pages 180 KB. Measured in Phase 1: the `(app)` shell alone loads 246 KB (Base UI menus, tooltip, sonner), so Phase 13 `optimize` must bring the shell under 200 KB before the run routes are budgeted | Keeps the public budget honest without penalising the review surface for being complete | Lower the gallery assertion once run routes exist and measure smaller |
+| D-157 | Step 1.6 corrections from the Impeccable loop | Measured on the built shell and gallery (critique A/B, audit, harden): ink at 40 % alpha composites to 2.5:1, not the 3.9:1 that 16 §8.7 claimed; the shadcn base-nova primitives kept their own recipe (32 px inputs, 10 px radii on menus and inputs, 3 px half-alpha focus glow with `outline: none`, 100 ms overlays, `text-sm`/`text-xs` sizes, raw black scrims, system-font toasts); `DropdownMenuLabel` outside `DropdownMenuGroup` throws Base UI error #31 and unmounts the route; Panel, EmptyState, and IllustrativeSample hard-code `h3`, so every page skipped h2; the px type scale ignored text-only zoom | `--line-control` is ink at 55 % alpha (3.8:1 on paper, 3.9:1 on white; the palette hexes are unchanged) and `tests/unit/design/contrast.test.ts` composites alpha tokens. Every `src/components/ui` primitive follows DESIGN.md: 40 px controls, 6 px radius on inputs, menus, popovers and tabs, 10 px only on dialogs (sheets are edge-anchored and square), the 2 px solid `--focus` outline everywhere, `--shadow-float` and `bg-ink/10` scrims, 200 ms `--ease-out` for the floating layer, the text-meta/text-body scale, and the Plex face in toasts. `DropdownMenuLabel` is group-safe. Panel, EmptyState, ErrorState, and IllustrativeSample take `headingLevel` (DESIGN.md "Title / h3" names the style, not the element). The type scale is declared in rem with pixel-identical defaults. Under `md` the rail stacks icon over label. The gallery lists the source path of each demo and the hex of each token | The specimens must agree with the rules the confirmation workspace asks editors to enforce | Re-run `/impeccable audit /dev/components` after any primitive change |
+| D-158 | `outline-none` never shares an element with the focus recipe | The polish pass measured every Button with no visible keyboard focus: Tailwind 4.3 compiles `outline-none` to `--tw-outline-style: none; outline-style: none` and `focus-visible:outline-2` to `outline-style: var(--tw-outline-style)`, so the reset feeds `none` back into the ring (WCAG 2.4.7) | The focus recipe stands alone; `outline-none` is allowed only on containers that receive programmatic focus without a recipe (`main`, dialog and menu popups). `button.tsx` and `dropdown-menu.tsx` drop the reset; DESIGN.md §Components records the rule and `/impeccable audit` rechecks computed outlines | A ring that computes to `none` passes every static grep | Add a unit test that fails when a class string contains both `outline-none` and `focus-visible:outline` |
+| D-159 | Empty-state headings and the rest outline color | The critique re-score found two Title-style serif headings 68 px apart in one panel ("Your runs" over "No institution yet"), the same fact stated three times in one viewport, and focus rings cross-fading from the shadcn rest color (`outline-ring/50`, 2.2:1) because `transition-colors` animates `outline-color` | An empty state beneath a panel title renders its heading in the Subtitle style (`text-h4`; the Title style only when it is the panel's only heading); the zero-membership state reads "Waiting for an invitation" with one role-neutral sentence; the base layer rests every outline on `--focus` so the ring never fades in; sheets are edge-anchored and square (DESIGN.md corrected). Toast overrides in `globals.css` out-rank sonner's `[data-styled]` rules | Fewest moving parts: a class choice and a base-layer color instead of new props | Re-run `/impeccable critique` on the home page once Phase 3 wires real memberships |
+| D-160 | CI builds read `BETTER_AUTH_SECRET` and `CRON_SECRET` from GitHub secrets | The preview deploy failed on every Phase 1 push: `vercel pull` does not deliver Vercel *sensitive* variables to the runner, and since 1.4 the root layout evaluates `src/server/config.ts` during page-data collection, so `vercel build` saw an empty `BETTER_AUTH_SECRET` (`>=32 characters`). Production would have failed the same way on its next deploy | The Build steps in `pr.yml` and `production.yml` receive `BETTER_AUTH_SECRET` and `CRON_SECRET` from the GitHub secrets `BETTER_AUTH_SECRET_PREVIEW` / `CRON_SECRET_PREVIEW` and `BETTER_AUTH_SECRET_PRODUCTION` / `CRON_SECRET_PRODUCTION` (the same values as the Vercel environments, stored with `gh secret set` from `~/.config/tassl/*.txt`); deployments keep using the Vercel values at runtime. 15 §11 records the rule | Production safety first; the alternative (making the Vercel variables non-sensitive) weakens the posture 12 §4 chose | Rotate the GitHub copies together with the Vercel values (15 §12) |
+| D-161 | CI deploys without git metadata and explains blocked deployments | Every Vercel deployment since 2026-09-03 07:26 UTC (the last production deploy and every preview) sits in `readyState: BLOCKED` with `readyStateReason` "the commit author doesn't have permission to create deployments for this project" (`seatBlock.blockCode: TEAM_ACCESS_REQUIRED`). The runner's checkout attaches git metadata and Vercel checks the commit author against the team's verified members; the commits since then carry a plain Gmail author address instead of the GitHub noreply address the earlier commits used. CLI 59 does not know the state, prints `Building…`, and polls until the 30-minute job timeout; the production alias kept serving the 06:24 UTC build | Both workflows move `.git` aside before `vercel deploy --prebuilt`, so no commit author is attached and no seat check runs; the deploy steps time out after 10 minutes and a failure step prints the newest deployment's state and reason from the API. The repo-local git identity is the GitHub noreply address (`git config user.email 109478543+yusufozdemirarslan@users.noreply.github.com`). Linking the GitHub login to the Vercel account (Vercel → Settings → Login Connections) restores commit links in the dashboard | Production safety and reversibility: the platform check is outside the repo's control and the alternative (a Pro seat) is a billing decision | Once the GitHub login is linked, drop the "Detach git metadata" steps to get commit links back |
 # DECISIONS — Every gap, resolved
 
 **Purpose / Read this when:** a spec or build step depends on something the PRD does not say, or you are about to make a new choice. Apply the Decision Policy below, add a row, continue. No row is ever "pending".

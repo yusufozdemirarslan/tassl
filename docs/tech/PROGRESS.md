@@ -19,12 +19,12 @@
 - [ ] Phase 0 exit criteria
 
 ## Phase 1 — Design foundation (`build-plan/phase-01-design-foundation.md`)
-- [ ] 1.1 Install Impeccable and write PRODUCT.md
-- [ ] 1.2 Fonts, tokens, and DESIGN.md
-- [ ] 1.3 shadcn/ui against the tokens
-- [ ] 1.4 Layout components, app shell, public layout, error pages
-- [ ] 1.5 Dev component gallery route
-- [ ] 1.6 Impeccable review loop on the shell and gallery, then DESIGN.md reconciliation
+- [x] 1.1 Install Impeccable and write PRODUCT.md
+- [x] 1.2 Fonts, tokens, and DESIGN.md
+- [x] 1.3 shadcn/ui against the tokens
+- [x] 1.4 Layout components, app shell, public layout, error pages
+- [x] 1.5 Dev component gallery route
+- [x] 1.6 Impeccable review loop on the shell and gallery, then DESIGN.md reconciliation
 - [ ] Phase 1 exit criteria
 
 ## Phase 2 — Data layer (`build-plan/phase-02-data-layer.md`)

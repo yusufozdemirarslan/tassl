@@ -1054,7 +1054,7 @@ console.log(`sent event ${eventId}; expect it under Sentry -> Issues within one 
 
 ## 17. Secrets and variables inventory
 
-CI-only values live in GitHub (`gh secret set`, `gh variable set`); application values live in Vercel (`vercel env add`); nothing secret is ever in `.env.example` or in a workflow file. Rotation runbook: `13-observability-ops.md` §Runbook: rotate a secret; `05-environment-config.md` §6.
+CI-only values live in GitHub (`gh secret set`, `gh variable set`); application values live in Vercel (`vercel env add`); nothing secret is ever in `.env.example` or in a workflow file. Vercel *sensitive* variables never reach the runner through `vercel pull`, so the CI build steps read `BETTER_AUTH_SECRET` and `CRON_SECRET` from the GitHub secrets `BETTER_AUTH_SECRET_PREVIEW`, `CRON_SECRET_PREVIEW`, `BETTER_AUTH_SECRET_PRODUCTION`, and `CRON_SECRET_PRODUCTION`, which hold the same values as the Vercel environments (D-160). The deploy steps move `.git` aside first: with git metadata attached, Vercel blocks any deployment whose commit author is not a verified team member (`TEAM_ACCESS_REQUIRED`), and CLI 59 polls a `BLOCKED` deployment until the job times out; a failure step prints the newest deployment's `readyState` and `readyStateReason` (D-161). Rotation runbook: `13-observability-ops.md` §Runbook: rotate a secret; `05-environment-config.md` §6.
 
 | Name | Store | Secret | Obtained from | Used by |
 |---|---|---|---|---|

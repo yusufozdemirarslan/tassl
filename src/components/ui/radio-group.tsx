@@ -1,0 +1,39 @@
+'use client'
+
+import { Radio as RadioPrimitive } from '@base-ui/react/radio'
+import { RadioGroup as RadioGroupPrimitive } from '@base-ui/react/radio-group'
+
+import { cn } from '@/lib/cn'
+
+function RadioGroup({ className, ...props }: RadioGroupPrimitive.Props) {
+  return (
+    <RadioGroupPrimitive
+      data-slot="radio-group"
+      className={cn('grid w-full gap-2', className)}
+      {...props}
+    />
+  )
+}
+
+// 16 px circle, line-control border; the ::after pseudo widens the hit area to 40 px.
+function RadioGroupItem({ className, ...props }: RadioPrimitive.Root.Props) {
+  return (
+    <RadioPrimitive.Root
+      data-slot="radio-group-item"
+      className={cn(
+        'group/radio-group-item peer border-line-control bg-paper-raised data-checked:border-primary data-checked:bg-primary focus-visible:outline-focus aria-invalid:border-red aria-invalid:aria-checked:border-primary relative flex aspect-square size-4 shrink-0 rounded-full border transition-colors duration-150 ease-out after:absolute after:-inset-x-3 after:-inset-y-3 focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-45',
+        className,
+      )}
+      {...props}
+    >
+      <RadioPrimitive.Indicator
+        data-slot="radio-group-indicator"
+        className="flex size-4 items-center justify-center"
+      >
+        <span className="bg-primary-ink absolute top-1/2 left-1/2 size-2 -translate-x-1/2 -translate-y-1/2 rounded-full" />
+      </RadioPrimitive.Indicator>
+    </RadioPrimitive.Root>
+  )
+}
+
+export { RadioGroup, RadioGroupItem }

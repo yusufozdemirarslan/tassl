@@ -58,14 +58,15 @@ Self-hosted woff2 in `public/fonts`, loaded with `next/font/local` in `src/app/f
 |---|---|---|
 | `--paper` | `#F6F7F9` | page ground |
 | `--paper-raised` | `#FFFFFF` | panels, cards (never nested) |
-| `--paper-sunken` | `#ECEFF3` | inputs, timeline track |
+| `--paper-sunken` | `#ECEFF3` | disabled inputs, hover and highlight washes, tab wells, timeline track |
 | `--ink` | `#141A26` | primary text (tinted, never pure black) |
-| `--ink-muted` | `#4B5563` | secondary text (contrast on paper 7.5:1) |
-| `--ink-faint` | `#8A93A3` | placeholders, disabled (4.5:1 on paper-raised) |
+| `--ink-muted` | `#4B5563` | secondary text (contrast on paper 7.05:1) |
+| `--ink-faint` | `#8A93A3` | decorative only: gridlines, disabled outlines, hairline icons; never text (3.1:1 on paper-raised, D-153); placeholders use ink at 70 % alpha and disabled text ink at 45 % (`16 §8.7`) |
+| `--line-control` | `rgb(20 26 38 / 0.55)` | input and control boundaries (3.8:1 on paper, 3.9:1 on white; D-157 — 40 % measured 2.5:1) |
 | `--line` | `#D5DAE2` | borders |
 | `--line-strong` | `#AEB6C2` | focused borders, table rules |
 | `--primary` | `#0F6E74` | actions, links, selected stance (deep teal) |
-| `--primary-ink` | `#FFFFFF` | text on primary (7.1:1) |
+| `--primary-ink` | `#FFFFFF` | text on primary (6.0:1) |
 | `--primary-soft` | `#DDEFF0` | selected row background |
 | `--amber` | `#B7791F` | draft, uncalibrated, provisional labels and warnings as borders, icons, and chip fills only; never a text color (3.40:1 on paper, D-122); text on an amber-filled chip is `--ink` (4.78:1) |
 | `--amber-soft` | `#FBF1DC` | label background with `--ink` text |
@@ -97,11 +98,11 @@ No illustrations. Empty states are a single serif heading, one sentence of body 
 ### 2.6 Tailwind and shadcn wiring
 
 - Tailwind 4 with `@import "tailwindcss";` and `@theme inline { --color-paper: var(--paper); … --font-sans: var(--font-plex-sans); --font-mono: var(--font-plex-mono); --font-serif: var(--font-plex-serif); --radius-sm: 2px; --radius-md: 6px; --radius-lg: 10px; }` in `src/app/globals.css`; the CSS variables above are declared on `:root`.
-- shadcn components are generated with `pnpm dlx shadcn@4.20.1 init -t next` then `add`, and their default zinc tokens are replaced by the variables above in `globals.css` (`--background: var(--paper)`, `--foreground: var(--ink)`, `--primary: var(--primary)`, `--primary-foreground: var(--primary-ink)`, `--muted: var(--paper-sunken)`, `--muted-foreground: var(--ink-muted)`, `--border: var(--line)`, `--ring: var(--focus)`, `--destructive: var(--red)`, `--radius: 6px`). `components.json`: `style: "new-york"`, `tailwind.css: "src/app/globals.css"`, `cssVariables: true`, `baseColor: "neutral"`, `iconLibrary: "lucide"`, aliases `@/components`, `@/lib`, `@/components/ui`.
+- shadcn components are generated with `pnpm dlx shadcn@4.20.1 init -d --no-monorepo` (preset `base-nova` on Base UI, D-154) then `add`, and their default zinc tokens are replaced by the variables above in `globals.css` (`--background: var(--paper)`, `--foreground: var(--ink)`, `--primary: var(--primary)`, `--primary-foreground: var(--primary-ink)`, `--muted: var(--paper-sunken)`, `--muted-foreground: var(--ink-muted)`, `--border: var(--line)`, `--ring: var(--focus)`, `--destructive: var(--red)`, `--radius: 6px`). `components.json`: `style: "base-nova"`, `tailwind.css: "src/app/globals.css"`, `cssVariables: true`, `baseColor: "neutral"`, `iconLibrary: "lucide"`, aliases `@/components`, `@/lib`, `@/components/ui`, and `utils: "@/lib/cn"` (D-154).
 
 ## 3. Component inventory
 
-`src/components/ui` (shadcn, themed): `button` (variants primary, secondary, ghost, destructive; sizes sm, md, lg), `input`, `textarea`, `label`, `select`, `checkbox`, `radio-group`, `switch`, `dialog`, `alert-dialog`, `sheet`, `popover`, `tooltip`, `tabs`, `table`, `badge`, `separator`, `scroll-area`, `progress`, `dropdown-menu`, `sonner` (toasts), `skeleton`, `form` (react-hook-form bindings).
+`src/components/ui` (shadcn, themed): `button` (variants primary, secondary, ghost, destructive; sizes sm, md, lg), `input`, `textarea`, `label`, `select`, `checkbox`, `radio-group`, `switch`, `dialog`, `alert-dialog`, `sheet`, `popover`, `tooltip`, `tabs`, `table`, `badge`, `separator`, `scroll-area`, `progress`, `dropdown-menu`, `sonner` (toasts), `skeleton`, `field` (react-hook-form bindings; shadcn 4 replaced `form`, D-154).
 
 `src/components/layout`: `AppShell`, `Rail`, `InstitutionSwitcher`, `NotificationsBell`, `AccountMenu`, `PageHeader` (serif title, description, actions), `Panel` (bordered section; never nested), `EmptyState`, `ErrorState` (message + request id + retry), `IllustrativeSample` (mandatory label wrapper, FR-254), `Label` chips (`draft`, `confirmed`, `uncalibrated`, `walkthrough`, `provisional`, `unreviewed`).
 
@@ -131,7 +132,7 @@ Command names verified against Impeccable 3.6.1 (`npx impeccable@3.6.1`, skill `
 
 1. `npx impeccable@3.6.1 install --providers=claude --scope=project` (keep the design hook), then reload Claude Code.
 2. `/impeccable init`. When it asks: primary user = students in professional degree programs (3rd/4th year undergraduates and MBA, marketing and strategy) taking a Decision Run, and course instructors reviewing runs; the job = make a consequential decision with an AI assistant in the room and remain accountable for it; mechanism = controlled-reliability claims with an irreversible Decision Lock and a simulator-style trace readout; constraints = text-only runs, no artifact polish rewarded, WCAG 2.2 AA, en-US, Next.js 16 + Tailwind 4 + shadcn; voice = plain, declarative, never accusatory, never "cheating"; platform = web; stack = "delegated: Next.js 16 App Router, already scaffolded". Answer every question from `01-prd-analysis.md` §1–3 and this file; do not describe visual style during init (Impeccable forbids it).
-3. Write `DESIGN.md` from §2 of this file (tokens, typography, spacing, radius, elevation, motion, iconography, empty states) with the header `<!-- impeccable:design-schema 1 -->` if the installed version's `document` reference names one (check `.claude/skills/impeccable/reference/document.md`; otherwise plain markdown headings `# Design`, `## Typography`, `## Color`, `## Spacing`, `## Radius`, `## Elevation`, `## Motion`, `## Components`).
+3. Write `DESIGN.md` from §2 of this file in the installed skill's format (D-152): YAML frontmatter with `colors`, `typography`, `rounded`, `spacing`, and `components`, then the sections Overview, Colors (with the normative token table), Typography, Layout, Elevation & Depth, Shapes, Components, Do's and Don'ts, plus Motion; the sidecar `.impeccable/design.json` carries shadows, motion, breakpoints, and narrative.
 4. Build the app shell and the component gallery, then run `/impeccable document` to reconcile `DESIGN.md` with the built shell. When it proposes a change to a token, keep the value in §2 unless the change is required for contrast (log a `D-` row).
 5. Add the ignore block to `.gitignore`:
 
