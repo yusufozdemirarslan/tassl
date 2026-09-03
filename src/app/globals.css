@@ -1,5 +1,5 @@
-@import "tailwindcss";
-@import "tw-animate-css";
+@import 'tailwindcss';
+@import 'tw-animate-css';
 
 /* Design tokens (docs/tech/09-frontend-spec.md §2, DECISIONS D-025, D-122). Phase 1 records the same values in DESIGN.md. */
 :root {
@@ -73,9 +73,9 @@
   --color-stance-escalate: var(--stance-escalate);
 
   /* The three font variables are set on <html> by next/font in Phase 1 (src/app/fonts.ts). */
-  --font-sans: var(--font-plex-sans, "IBM Plex Sans", sans-serif);
-  --font-mono: var(--font-plex-mono, "IBM Plex Mono", monospace);
-  --font-serif: var(--font-plex-serif, "IBM Plex Serif", serif);
+  --font-sans: var(--font-plex-sans, 'IBM Plex Sans', sans-serif);
+  --font-mono: var(--font-plex-mono, 'IBM Plex Mono', monospace);
+  --font-serif: var(--font-plex-serif, 'IBM Plex Serif', serif);
 
   --radius-sm: 2px;
   --radius-md: 6px;
@@ -88,7 +88,7 @@
 body {
   background: var(--paper);
   color: var(--ink);
-  font-family: var(--font-plex-sans, "IBM Plex Sans", sans-serif);
+  font-family: var(--font-plex-sans, 'IBM Plex Sans', sans-serif);
   font-size: 14px;
   line-height: 22px;
 }
@@ -99,7 +99,7 @@ body {
 }
 
 .tabular {
-  font-feature-settings: "tnum" 1;
+  font-feature-settings: 'tnum' 1;
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -91,7 +91,7 @@ pnpm typecheck && pnpm build && (pnpm start & sleep 6; curl -fsS http://localhos
 - `.prettierignore` — create; `.next`, `drizzle`, `pnpm-lock.yaml`, `docs/TASSL-TECHNICAL-DOCUMENTATION.md`, `impeccable-report.json` (one per line)
 **Commands (in order, from repo root):**
 ```bash
-pnpm add -D eslint@10.9.1 eslint-config-next@16.3.4 typescript-eslint@8.69.0 eslint-plugin-boundaries@7.2.0 eslint-config-prettier@10.1.8 prettier@3.9.6 prettier-plugin-tailwindcss@0.8.1 husky@9.1.7 lint-staged@17.4.1 @commitlint/cli@21.2.2 @commitlint/config-conventional@21.2.2
+pnpm add -D eslint@9.39.5 eslint-config-next@16.3.4 typescript-eslint@8.69.0 eslint-plugin-boundaries@7.2.0 eslint-config-prettier@10.1.8 prettier@3.9.6 prettier-plugin-tailwindcss@0.8.1 husky@9.1.7 lint-staged@17.4.1 @commitlint/cli@21.2.2 @commitlint/config-conventional@21.2.2
 pnpm exec husky init
 printf 'pnpm exec lint-staged\n' > .husky/pre-commit
 printf 'pnpm exec commitlint --edit "$1"\n' > .husky/commit-msg

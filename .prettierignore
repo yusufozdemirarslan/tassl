@@ -1,0 +1,8 @@
+.next
+drizzle
+pnpm-lock.yaml
+impeccable-report.json
+# Hand-formatted documentation and the PRD (D-141): prettier would rewrap prose and tables.
+docs
+Tassl PRD.md
+CLAUDE.md

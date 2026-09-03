@@ -189,15 +189,20 @@ Every module folder `src/server/modules/<name>/` contains at least these files (
 - `src/components` may import from `src/lib`, other components, and module `schema.ts` types and `actions.ts`; never from `service.ts` or `repository.ts`.
 - `src/server/llm` is imported only by `assistant`, `scoring`, and `authoring` services and by `evals/`.
 
-Enforced by `eslint-plugin-boundaries@7.2.0` in `eslint.config.mjs`:
+Enforced by `eslint-plugin-boundaries@7.2.0` in `eslint.config.mjs`. Elements are folders (`src/app`, `src/components`, `src/lib`, one element per `src/server/modules/<name>`, `src/server/db`, `src/server/llm`, and the rest of `src/server` as `server-lib`); the role of each file inside a module (`index.ts` = public, `schema.ts`, `actions.ts`, `router.ts`, `service.ts`, `repository.ts`, anything else = internal) is a file category. `checkInternals: true` makes the rule apply inside a module too, so `repository.ts` importing `service.ts` is an error. The config is verified against fixture files that must produce exactly the expected violations (repository → service, service → db, actions → repository, index → repository, app → service, app → db, server-lib → module) and no others:
 
 ```js
-// eslint.config.mjs (excerpt)
+// eslint.config.mjs (complete)
 import { defineConfig, globalIgnores } from 'eslint/config'
 import nextVitals from 'eslint-config-next/core-web-vitals'
 import nextTs from 'eslint-config-next/typescript'
 import prettier from 'eslint-config-prettier/flat'
 import boundaries from 'eslint-plugin-boundaries'
+
+// Layering rules: docs/tech/04-repo-structure.md §2.
+// Elements are folders; the per-file roles inside a module (schema/actions/router/service/
+// repository/index) are file categories. Anything not explicitly allowed is an error.
+const moduleFile = (categories) => ({ element: { type: 'module' }, file: { categories } })
 
 export default defineConfig([
   ...nextVitals,
@@ -207,44 +212,116 @@ export default defineConfig([
     plugins: { boundaries },
     settings: {
       'boundaries/elements': [
-        { type: 'app', pattern: 'src/app/**' },
-        { type: 'components', pattern: 'src/components/**' },
-        { type: 'lib', pattern: 'src/lib/**' },
-        { type: 'module-public', pattern: 'src/server/modules/*/index.ts', mode: 'file' },
-        { type: 'module-schema', pattern: 'src/server/modules/*/schema.ts', mode: 'file' },
-        { type: 'module-actions', pattern: 'src/server/modules/*/actions.ts', mode: 'file' },
-        { type: 'module-router', pattern: 'src/server/modules/*/router.ts', mode: 'file' },
-        { type: 'module-service', pattern: 'src/server/modules/*/service.ts', mode: 'file' },
-        { type: 'module-repository', pattern: 'src/server/modules/*/repository.ts', mode: 'file' },
-        { type: 'module-internal', pattern: 'src/server/modules/*/**' },
-        { type: 'db', pattern: 'src/server/db/**' },
-        { type: 'llm', pattern: 'src/server/llm/**' },
-        { type: 'server-lib', pattern: ['src/server/http/**', 'src/server/logging/**', 'src/server/rate-limit/**', 'src/server/jobs/**', 'src/server/email/**', 'src/server/analytics/**', 'src/server/auth/**', 'src/server/config.ts'] },
+        { type: 'app', pattern: 'src/app', partialMatch: false },
+        { type: 'components', pattern: 'src/components', partialMatch: false },
+        { type: 'lib', pattern: 'src/lib', partialMatch: false },
+        { type: 'module', pattern: 'src/server/modules/*', capture: ['name'], partialMatch: false },
+        { type: 'db', pattern: 'src/server/db', partialMatch: false },
+        { type: 'llm', pattern: 'src/server/llm', partialMatch: false },
+        { type: 'server-lib', pattern: 'src/server', partialMatch: false },
+      ],
+      // Each module file gets exactly one category (stopMatching); everything else is internal.
+      'boundaries/files': [
+        { pattern: 'src/server/modules/*/index.ts', category: 'public', stopMatching: true },
+        { pattern: 'src/server/modules/*/schema.ts', category: 'schema', stopMatching: true },
+        { pattern: 'src/server/modules/*/actions.ts', category: 'actions', stopMatching: true },
+        { pattern: 'src/server/modules/*/router.ts', category: 'router', stopMatching: true },
+        { pattern: 'src/server/modules/*/service.ts', category: 'service', stopMatching: true },
+        {
+          pattern: 'src/server/modules/*/repository.ts',
+          category: 'repository',
+          stopMatching: true,
+        },
+        { pattern: 'src/server/modules/*/**', category: 'internal' },
       ],
     },
     rules: {
-      'boundaries/element-types': ['error', {
-        default: 'disallow',
-        rules: [
-          { from: 'app', allow: ['components', 'lib', 'module-public', 'module-schema', 'module-actions', 'module-router', 'server-lib'] },
-          { from: 'components', allow: ['components', 'lib', 'module-schema', 'module-actions'] },
-          { from: 'lib', allow: ['lib'] },
-          { from: 'module-actions', allow: ['module-service', 'module-schema', 'server-lib', 'lib'] },
-          { from: 'module-router', allow: ['module-service', 'module-schema', 'server-lib', 'lib'] },
-          { from: 'module-service', allow: ['module-repository', 'module-schema', 'module-internal', 'module-public', 'server-lib', 'lib', 'llm'] },
-          { from: 'module-repository', allow: ['db', 'module-schema', 'lib'] },
-          { from: 'module-internal', allow: ['module-internal', 'module-schema', 'lib', 'server-lib', 'llm'] },
-          { from: 'module-public', allow: ['module-service', 'module-schema'] },
-          { from: 'server-lib', allow: ['server-lib', 'lib', 'db'] },
-          { from: 'llm', allow: ['llm', 'lib', 'server-lib', 'db'] },
-          { from: 'db', allow: ['db', 'lib'] },
-        ],
-      }],
-      'react/jsx-no-literals': ['error', { noStrings: true, ignoreProps: true, allowedStrings: ['·', '—', '(', ')', ':', '/'] }],
+      'boundaries/dependencies': [
+        'error',
+        {
+          default: 'disallow',
+          // Files inside one module are the same element; still check them (service → repository …).
+          checkInternals: true,
+          policies: [
+            {
+              from: { element: { type: 'app' } },
+              allow: [
+                { to: { element: { type: ['app', 'components', 'lib', 'server-lib'] } } },
+                { to: moduleFile(['public', 'schema', 'actions', 'router']) },
+              ],
+            },
+            {
+              from: { element: { type: 'components' } },
+              allow: [
+                { to: { element: { type: ['components', 'lib'] } } },
+                { to: moduleFile(['schema', 'actions']) },
+              ],
+            },
+            { from: { element: { type: 'lib' } }, allow: [{ to: { element: { type: 'lib' } } }] },
+            {
+              from: { element: { type: 'module' }, file: { categories: ['actions', 'router'] } },
+              allow: [
+                { to: { element: { type: ['server-lib', 'lib'] } } },
+                { to: moduleFile(['service', 'schema']) },
+              ],
+            },
+            {
+              from: { element: { type: 'module' }, file: { categories: ['service'] } },
+              allow: [
+                { to: { element: { type: ['server-lib', 'lib', 'llm'] } } },
+                { to: moduleFile(['repository', 'schema', 'internal', 'public']) },
+              ],
+            },
+            {
+              from: { element: { type: 'module' }, file: { categories: ['repository'] } },
+              allow: [{ to: { element: { type: ['db', 'lib'] } } }, { to: moduleFile(['schema']) }],
+            },
+            {
+              from: { element: { type: 'module' }, file: { categories: ['public'] } },
+              allow: [{ to: moduleFile(['service', 'schema']) }],
+            },
+            {
+              from: { element: { type: 'module' }, file: { categories: ['internal'] } },
+              allow: [
+                { to: { element: { type: ['lib', 'server-lib', 'llm'] } } },
+                { to: moduleFile(['internal', 'schema']) },
+              ],
+            },
+            {
+              from: { element: { type: 'server-lib' } },
+              allow: [{ to: { element: { type: ['server-lib', 'lib', 'db'] } } }],
+            },
+            {
+              from: { element: { type: 'llm' } },
+              allow: [{ to: { element: { type: ['llm', 'lib', 'server-lib', 'db'] } } }],
+            },
+            {
+              from: { element: { type: 'db' } },
+              allow: [{ to: { element: { type: ['db', 'lib'] } } }],
+            },
+          ],
+        },
+      ],
+      'react/jsx-no-literals': [
+        'error',
+        { noStrings: true, ignoreProps: true, allowedStrings: ['·', '—', '(', ')', ':', '/'] },
+      ],
     },
   },
-  { files: ['src/lib/i18n/**', 'src/app/dev/**', 'tests/**', 'evals/**'], rules: { 'react/jsx-no-literals': 'off' } },
-  globalIgnores(['.next/**', 'out/**', 'build/**', 'next-env.d.ts', 'drizzle/**', 'coverage/**', 'playwright-report/**']),
+  {
+    files: ['src/lib/i18n/**', 'src/app/dev/**', 'tests/**', 'evals/**'],
+    rules: { 'react/jsx-no-literals': 'off' },
+  },
+  globalIgnores([
+    '.next/**',
+    'out/**',
+    'build/**',
+    'next-env.d.ts',
+    'drizzle/**',
+    'coverage/**',
+    'playwright-report/**',
+    'test-results/**',
+  ]),
 ])
 ```
 
@@ -418,7 +495,7 @@ Runtime: Node `24` (`.nvmrc`), pnpm `11.25.0`, Postgres `17`.
 | msw | 2.15.0 |
 | @lhci/cli | 0.15.1 |
 | @faker-js/faker | 10.6.0 |
-| eslint | 10.9.1 |
+| eslint | 9.39.5 (latest 9.x; 10.x crashes with `eslint-config-next@16.3.4`, D-142) |
 | eslint-config-next | 16.3.4 |
 | typescript-eslint | 8.69.0 |
 | eslint-plugin-boundaries | 7.2.0 |
