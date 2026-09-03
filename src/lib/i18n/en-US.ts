@@ -3,6 +3,9 @@
 export const enUS = {
   'landing.title': 'Tassl',
   'landing.tagline': 'Make the call.',
+
+  // Shared UI primitives
+  'ui.close': 'Close',
 } as const
 
 export type MessageKey = keyof typeof enUS

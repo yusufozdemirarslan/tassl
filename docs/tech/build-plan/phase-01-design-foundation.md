@@ -69,8 +69,8 @@ pnpm test -- tests/unit/design && pnpm build && ls public/fonts | grep -c woff2 
 **Covers:** UI-008, NFR-006
 **Prerequisites:** Step 1.2 complete
 **Files to create / modify:**
-- `components.json` — created by the CLI; then set `style`, `tailwind.css`, `cssVariables`, `baseColor`, `iconLibrary`, `aliases` per `09-frontend-spec.md` §2.6
-- `src/components/ui/*.tsx` — created by the CLI for: button, input, textarea, label, select, checkbox, radio-group, switch, dialog, alert-dialog, sheet, popover, tooltip, dropdown-menu, tabs, table, badge, separator, scroll-area, progress, skeleton, form, sonner
+- `components.json` — created by the CLI (`base-nova` preset, D-154); then set `aliases.utils` to `@/lib/cn` per `09-frontend-spec.md` §2.6
+- `src/components/ui/*.tsx` — created by the CLI for: button, input, textarea, label, select, checkbox, radio-group, switch, dialog, alert-dialog, sheet, popover, tooltip, dropdown-menu, tabs, table, badge, separator, scroll-area, progress, skeleton, field, sonner
 - `src/app/globals.css` — modify; map shadcn variables to the tokens (`09-frontend-spec.md` §2.6)
 - `src/lib/cn.ts` — verify the CLI did not create a duplicate `src/lib/utils.ts`; if it did, re-export `cn` from `cn.ts` and delete `utils.ts`
 **Commands (in order, from repo root):**

@@ -513,7 +513,7 @@ Runtime: Node `24` (`.nvmrc`), pnpm `11.25.0`, Postgres `17`.
 | @commitlint/config-conventional | 21.2.2 |
 | pino-pretty | 13.1.3 |
 
-**CLIs used via `npx`/`pnpm dlx` (never installed as dependencies)**: `vercel@59.11.2`, `neon@4.14.0`, `shadcn@4.20.1`, `impeccable@3.6.1`, `auth@1.7.2` (Better Auth CLI), `@sentry/wizard@7.0.3` (not used; manual setup in Phase 13).
+**CLIs used via `npx`/`pnpm dlx` (never installed as dependencies)**: `vercel@59.11.2`, `neon@4.14.0`, `shadcn@4.20.1` (also pinned as a runtime dependency for its `shadcn/tailwind.css` layer, D-154), `impeccable@3.6.1`, `auth@1.7.2` (Better Auth CLI), `@sentry/wizard@7.0.3` (not used; manual setup in Phase 13).
 
 GitHub Actions: `actions/checkout@v7`, `actions/setup-node@v7`, `pnpm/action-setup@v6`, `actions/upload-artifact@v7`, `actions/download-artifact@v8`, `actions/cache@v6`, `neondatabase/create-branch-action@v6`, `neondatabase/delete-branch-action@v3`, `treosh/lighthouse-ci-action@v12`.
 

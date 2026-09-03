@@ -12,7 +12,10 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="en-US" className={cn(plexSans.variable, plexMono.variable, plexSerif.variable)}>
+    <html
+      lang="en-US"
+      className={cn(plexSans.variable, plexMono.variable, plexSerif.variable, 'font-sans')}
+    >
       <body>{children}</body>
     </html>
   )
