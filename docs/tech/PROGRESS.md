@@ -21,7 +21,7 @@
 ## Phase 1 — Design foundation (`build-plan/phase-01-design-foundation.md`)
 - [x] 1.1 Install Impeccable and write PRODUCT.md
 - [x] 1.2 Fonts, tokens, and DESIGN.md
-- [ ] 1.3 shadcn/ui against the tokens
+- [x] 1.3 shadcn/ui against the tokens
 - [ ] 1.4 Layout components, app shell, public layout, error pages
 - [ ] 1.5 Dev component gallery route
 - [ ] 1.6 Impeccable review loop on the shell and gallery, then DESIGN.md reconciliation
