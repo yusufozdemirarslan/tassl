@@ -1,0 +1,85 @@
+name: pr
+
+on:
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: pr-${{ github.event.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  checks:
+    uses: ./.github/workflows/checks.yml
+    permissions:
+      contents: read
+      pull-requests: read
+
+  preview-deploy:
+    name: preview-deploy
+    needs: checks
+    if: ${{ vars.DEPLOY_ENABLED == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+      PR_NUMBER: ${{ github.event.number }}
+      PREVIEW_ALIAS: tassl-pr-${{ github.event.number }}.vercel.app
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup
+
+      # D-071: one Neon branch per PR, created (or reused) before the deployment exists.
+      - name: Create the Neon preview branch
+        id: neon
+        uses: neondatabase/create-branch-action@v6
+        with:
+          project_id: ${{ vars.NEON_PROJECT_ID }}
+          parent_branch: main
+          branch_name: preview/pr-${{ github.event.number }}
+          api_key: ${{ secrets.NEON_API_KEY }}
+
+      - name: Assert branch outputs
+        run: |
+          test -n "${{ steps.neon.outputs.db_url }}"
+          test -n "${{ steps.neon.outputs.db_url_pooled }}"
+
+      # D-070: migrate before serving. Migrations use the unpooled string.
+      - name: Migrate the preview branch
+        env:
+          DATABASE_URL: ${{ steps.neon.outputs.db_url }}
+          DATABASE_URL_UNPOOLED: ${{ steps.neon.outputs.db_url }}
+        run: pnpm db:migrate
+
+      - name: Pull preview project settings
+        run: npx vercel@59.11.2 pull --yes --environment=preview --token "$VERCEL_TOKEN"
+
+      - name: Build
+        env:
+          APP_ENV: preview
+          NEXT_PUBLIC_APP_URL: https://${{ env.PREVIEW_ALIAS }}
+          DATABASE_URL: ${{ steps.neon.outputs.db_url_pooled }}
+          DATABASE_URL_UNPOOLED: ${{ steps.neon.outputs.db_url }}
+        run: npx vercel@59.11.2 build --token "$VERCEL_TOKEN"
+
+      - name: Deploy and alias
+        run: |
+          npx vercel@59.11.2 deploy --prebuilt --token "$VERCEL_TOKEN" \
+            --env DATABASE_URL="${{ steps.neon.outputs.db_url_pooled }}" \
+            --env DATABASE_URL_UNPOOLED="${{ steps.neon.outputs.db_url }}" \
+            --env APP_ENV=preview \
+            --env NEXT_PUBLIC_APP_URL="https://$PREVIEW_ALIAS" \
+            > deployment-url.txt
+          npx vercel@59.11.2 alias set "$(cat deployment-url.txt)" "$PREVIEW_ALIAS" --token "$VERCEL_TOKEN"
+
+      - name: Comment the preview URL on the PR
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh pr comment "$PR_NUMBER" --edit-last --create-if-none --body "$(printf 'Preview: https://%s\nDeployment: %s\nNeon branch: preview/pr-%s\n(Vercel Authentication is on for previews, D-101)' "$PREVIEW_ALIAS" "$(cat deployment-url.txt)" "$PR_NUMBER")"

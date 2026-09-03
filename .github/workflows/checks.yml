@@ -1,0 +1,230 @@
+name: checks
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+  pull-requests: read
+
+# Non-secret defaults from 05-environment-config.md. One service database serves
+# DATABASE_URL, DATABASE_URL_UNPOOLED and TEST_DATABASE_URL in CI.
+env:
+  APP_ENV: test
+  NEXT_PUBLIC_APP_URL: http://localhost:3000
+  APP_DOMAIN: ''
+  LOG_LEVEL: info
+  DATABASE_URL: postgres://tassl:tassl@localhost:5432/tassl_test
+  DATABASE_URL_UNPOOLED: postgres://tassl:tassl@localhost:5432/tassl_test
+  TEST_DATABASE_URL: postgres://tassl:tassl@localhost:5432/tassl_test
+  BETTER_AUTH_SECRET: local-dev-secret-do-not-use-in-prod-0123456789
+  GOOGLE_CLIENT_ID: ''
+  GOOGLE_CLIENT_SECRET: ''
+  EMAIL_TRANSPORT: console
+  RESEND_API_KEY: ''
+  EMAIL_FROM: 'Tassl <no-reply@tassl.local>'
+  NOTIFY_EMAIL_COPIES: 'true'
+  FEATURE_AI: 'false'
+  FEATURE_SAMPLE_DATA: 'true'
+  FEATURE_TEST_CONTROLS: 'true'
+  LLM_PROVIDER: mock
+  LLM_BASE_URL: https://api.xiaomimimo.com/v1
+  LLM_MODEL: mimo-v2.5-pro
+  LLM_API_KEY: ''
+  LLM_TIMEOUT_MS: '60000'
+  LLM_MAX_OUTPUT_TOKENS: '4096'
+  LLM_REASONING: 'off'
+  LLM_FALLBACK_PROVIDER: none
+  LLM_FALLBACK_MODEL: claude-sonnet-5
+  ANTHROPIC_API_KEY: ''
+  LLM_INPUT_USD_PER_MTOK: '0.61'
+  LLM_OUTPUT_USD_PER_MTOK: '0.61'
+  LLM_USER_DAILY_TOKEN_BUDGET: '200000'
+  LLM_GLOBAL_MONTHLY_TOKEN_BUDGET: '20000000'
+  TRIGGER_MATCHING: deterministic_first
+  ASSISTANT_NUMERIC_GUARD: flag
+  NEXT_PUBLIC_POSTHOG_KEY: ''
+  NEXT_PUBLIC_POSTHOG_HOST: https://us.i.posthog.com
+  NEXT_PUBLIC_SENTRY_DSN: ''
+  SENTRY_AUTH_TOKEN: ''
+  SENTRY_ORG: ''
+  SENTRY_PROJECT: tassl
+  SENTRY_TRACES_SAMPLE_RATE: '1.0'
+  CRON_SECRET: local-cron-secret
+  JOBS_DRAIN_ON_ENQUEUE: 'true'
+  SEED_PASSWORD: Walkthrough-Pass-2026
+  PLAYWRIGHT_BASE_URL: http://localhost:3000
+
+jobs:
+  lint:
+    name: lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup
+      - run: pnpm lint
+
+  typecheck:
+    name: typecheck
+    needs: lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup
+      - run: pnpm typecheck
+
+  unit:
+    name: unit
+    needs: typecheck
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup
+      - run: pnpm test
+
+  integration:
+    name: integration
+    needs: unit
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: tassl
+          POSTGRES_PASSWORD: tassl
+          POSTGRES_DB: tassl_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U tassl -d tassl_test"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup
+      - run: pnpm db:migrate
+      - run: pnpm test:integration
+
+  build:
+    name: build
+    needs: integration
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup
+      - run: pnpm build
+      - run: pnpm exec tsx scripts/bundle-budget.ts
+
+  e2e:
+    name: e2e
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: tassl
+          POSTGRES_PASSWORD: tassl
+          POSTGRES_DB: tassl_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U tassl -d tassl_test"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup
+      - run: pnpm exec playwright install --with-deps chromium
+      # playwright.config.ts webServer runs: pnpm db:reset && pnpm build && pnpm start (D-073).
+      # CI installs chromium only; firefox and webkit run in the Phase 15 release check (§16).
+      - run: pnpm test:e2e --project=chromium
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 14
+          if-no-files-found: ignore
+
+  impeccable:
+    name: impeccable
+    needs: e2e
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup
+      - name: Detect
+        run: npx impeccable@3.6.1 detect --json . > impeccable-report.json || echo "detect exited $? (the gate below decides)"
+      - name: Fail on findings not waived in .impeccable/config.json
+        run: node scripts/impeccable-gate.mjs impeccable-report.json .impeccable/config.json
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: impeccable-report
+          path: impeccable-report.json
+          retention-days: 14
+
+  lhci:
+    name: lhci
+    needs: impeccable
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: tassl
+          POSTGRES_PASSWORD: tassl
+          POSTGRES_DB: tassl_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U tassl -d tassl_test"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup
+      - run: pnpm db:reset
+      - run: pnpm build
+      # URLs and budgets live in lighthouserc.json (16-performance-a11y-budgets.md).
+      - uses: treosh/lighthouse-ci-action@v12
+        with:
+          configPath: ./lighthouserc.json
+          uploadArtifacts: true
+          temporaryPublicStorage: true
+
+  openapi-check:
+    name: openapi-check
+    needs: lhci
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup
+      - run: pnpm openapi:check
+
+  security:
+    name: security
+    needs: openapi-check
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: ./.github/actions/setup
+      - run: pnpm audit --audit-level=high
+      # Free for repositories owned by a personal account (D-039 creates the repo under the
+      # builder's account); an organization-owned repository would need GITLEAKS_LICENSE.
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

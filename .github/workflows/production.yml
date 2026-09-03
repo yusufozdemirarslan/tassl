@@ -1,0 +1,89 @@
+name: production
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    uses: ./.github/workflows/checks.yml
+    permissions:
+      contents: read
+      pull-requests: read
+
+  deploy:
+    name: deploy
+    needs: checks
+    if: ${{ vars.DEPLOY_ENABLED == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+      SENTRY_ENABLED: ${{ secrets.SENTRY_AUTH_TOKEN != '' }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: ./.github/actions/setup
+
+      - name: Pull production project settings
+        run: npx vercel@59.11.2 pull --yes --environment=production --token "$VERCEL_TOKEN"
+
+      # SENTRY_AUTH_TOKEN enables source-map upload in next.config.ts (withSentryConfig);
+      # SENTRY_RELEASE is read by @sentry/nextjs and must equal the release created below.
+      - name: Build
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: ${{ vars.SENTRY_ORG }}
+          SENTRY_PROJECT: tassl
+          SENTRY_RELEASE: ${{ github.sha }}
+        run: npx vercel@59.11.2 build --prod --token "$VERCEL_TOKEN"
+
+      # D-070: expand/contract migrations run against the unpooled production string before the deploy.
+      - name: Migrate production
+        env:
+          DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL_UNPOOLED }}
+          DATABASE_URL_UNPOOLED: ${{ secrets.PRODUCTION_DATABASE_URL_UNPOOLED }}
+        run: pnpm db:migrate
+
+      - name: Deploy
+        run: npx vercel@59.11.2 deploy --prebuilt --prod --token "$VERCEL_TOKEN" > deployment-url.txt
+
+      # The production domain is the value of NEXT_PUBLIC_APP_URL pulled above; the raw deployment
+      # URL is protected by Vercel Authentication (Standard Protection), so smoke hits the domain.
+      - name: Resolve the production URL
+        id: url
+        run: |
+          PROD_URL="$(grep '^NEXT_PUBLIC_APP_URL=' .vercel/.env.production.local | cut -d= -f2- | tr -d '"')"
+          test -n "$PROD_URL"
+          echo "prod_url=$PROD_URL" >> "$GITHUB_OUTPUT"
+
+      - name: Smoke
+        run: pnpm smoke "${{ steps.url.outputs.prod_url }}"
+
+      - name: Sentry release
+        if: env.SENTRY_ENABLED == 'true'
+        uses: getsentry/action-release@v3
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: ${{ vars.SENTRY_ORG }}
+          SENTRY_PROJECT: tassl
+        with:
+          environment: production
+          release: ${{ github.sha }}
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: production-deployment-${{ github.sha }}
+          path: deployment-url.txt
+          retention-days: 90

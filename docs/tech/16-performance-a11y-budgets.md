@@ -110,12 +110,18 @@ export { GraphFrame } from './graph-frame'
 
 ### 3.4 `scripts/bundle-budget.ts`
 
-Runs in the `build` job after `pnpm build` (`pnpm exec tsx scripts/bundle-budget.ts`). It reads the two manifests Next.js writes for the App Router and sums gzip sizes per route.
+Runs in the `build` job after `pnpm build` (`pnpm exec tsx scripts/bundle-budget.ts`). It reads the manifests Turbopack writes for the App Router (`.next/build-manifest.json` for the shared runtime chunks, each route's `page_client-reference-manifest.js` for the chunks of its layouts, page, and client components; D-148) and sums gzip sizes per route.
 
 ```ts
-// scripts/bundle-budget.ts
-import { readFileSync } from 'node:fs'
+// scripts/bundle-budget.ts — docs/tech/16-performance-a11y-budgets.md §3.4 (B4, B5).
+// Runs in the CI build job after `pnpm build`; sums gzip bytes of the JS each route loads.
+// Turbopack (Next 16) writes no root app-build-manifest.json (D-148): the shared runtime chunks
+// are `rootMainFiles` in .next/build-manifest.json and each route's client chunks (layouts above
+// it, the page, its client components) are `entryJSFiles` in the route's
+// .next/server/app/<route>/page_client-reference-manifest.js.
+import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
+import vm from 'node:vm'
 import { gzipSync } from 'node:zlib'
 
 const NEXT = join(process.cwd(), '.next')
@@ -127,9 +133,11 @@ const budgets: Array<{ pattern: RegExp; maxBytes: number; label: string }> = [
   { pattern: /.*/, maxBytes: 250_000, label: 'other route' },
 ]
 
-const appManifest = JSON.parse(readFileSync(join(NEXT, 'app-build-manifest.json'), 'utf8')) as {
-  pages: Record<string, string[]>
-}
+type RscManifest = Record<string, { entryJSFiles?: Record<string, string[]> }>
+
+const routes = JSON.parse(
+  readFileSync(join(NEXT, 'app-path-routes-manifest.json'), 'utf8'),
+) as Record<string, string>
 const buildManifest = JSON.parse(readFileSync(join(NEXT, 'build-manifest.json'), 'utf8')) as {
   rootMainFiles?: string[]
 }
@@ -143,22 +151,46 @@ const gzipBytes = (file: string): number => {
   return bytes
 }
 
+/** Client chunks of one route from its client-reference manifest (a JS file assigning globalThis.__RSC_MANIFEST). */
+function routeEntryFiles(pageKey: string): string[] | undefined {
+  const segments = pageKey.split('/').filter(Boolean)
+  const file = join(
+    NEXT,
+    'server',
+    'app',
+    ...segments.slice(0, -1),
+    'page_client-reference-manifest.js',
+  )
+  if (!existsSync(file)) return undefined
+  const sandbox: Record<string, unknown> = {}
+  sandbox.globalThis = sandbox
+  vm.runInNewContext(readFileSync(file, 'utf8'), sandbox)
+  const manifest = sandbox.__RSC_MANIFEST as RscManifest | undefined
+  const entry = manifest?.[pageKey] ?? Object.values(manifest ?? {})[0]
+  return Object.values(entry?.entryJSFiles ?? {}).flat()
+}
+
 let failed = false
-for (const pageKey of Object.keys(appManifest.pages).filter((k) => k.endsWith('/page')).sort()) {
+for (const pageKey of Object.keys(routes)
+  .filter((k) => k.endsWith('/page'))
+  .sort()) {
   const route = pageKey.slice(0, -'/page'.length) || '/'
-  const files = new Set<string>(buildManifest.rootMainFiles ?? [])
-  const segments = route.split('/').filter(Boolean)
-  for (let i = 0; i <= segments.length; i++) {
-    const layoutKey = '/' + [...segments.slice(0, i), 'layout'].join('/')
-    for (const f of appManifest.pages[layoutKey] ?? []) files.add(f)
+  const entryFiles = routeEntryFiles(pageKey)
+  if (!entryFiles) {
+    if (route.startsWith('/_')) continue // Next's built-in error routes have no manifest of their own
+    console.error(`no client-reference manifest for ${route}`)
+    failed = true
+    continue
   }
-  for (const f of appManifest.pages[pageKey] ?? []) files.add(f)
+  const files = new Set<string>([...(buildManifest.rootMainFiles ?? []), ...entryFiles])
   const js = [...files].filter((f) => f.endsWith('.js') && !f.includes('polyfills'))
   const bytes = js.reduce((sum, f) => sum + gzipBytes(f), 0)
   const budget = budgets.find((b) => b.pattern.test(route))!
   const ok = bytes <= budget.maxBytes
   if (!ok) failed = true
-  console.log(`${ok ? 'ok  ' : 'FAIL'} ${String(bytes).padStart(7)} / ${budget.maxBytes} ${budget.label.padEnd(12)} ${route}`)
+  console.log(
+    `${ok ? 'ok  ' : 'FAIL'} ${String(bytes).padStart(7)} / ${budget.maxBytes} ${budget.label.padEnd(12)} ${route}`,
+  )
 }
 if (failed) {
   console.error('bundle budget exceeded (docs/tech/16-performance-a11y-budgets.md §3)')
@@ -166,7 +198,7 @@ if (failed) {
 }
 ```
 
-Route keys in `app-build-manifest.json` keep route groups, so a run page appears as `/(app)/runs/[runId]/work/page` and its ancestors as `/layout`, `/(app)/layout`, `/(app)/runs/layout` (absent, skipped), `/(app)/runs/[runId]/layout`. The script's output table is pasted into the job summary (`$GITHUB_STEP_SUMMARY`) by the workflow step.
+Route keys in `app-path-routes-manifest.json` keep route groups, so a run page appears as `/(app)/runs/[runId]/work/page`; its client-reference manifest lists the chunks of every layout above it and of the page itself, so no ancestor walk is needed. The script's output table is pasted into the job summary (`$GITHUB_STEP_SUMMARY`) by the workflow step.
 
 ### 3.5 `lighthouserc.json` (verbatim)
 
