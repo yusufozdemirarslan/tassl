@@ -177,7 +177,7 @@ Columns: what an attacker does, which asset is at stake, where they get in, the 
 | A05 | Previews are not public | Vercel Authentication on preview deployments (D-101) | Launch checklist (15 §Launch checklist) |
 | A05 | Error pages carry no internals | `src/app/error.tsx`, `global-error.tsx`, `not-found.tsx` (D-105) | E2E error page spec |
 | A06 Vulnerable and Outdated Components | Pinned versions; frozen lockfile | 04 §8; `pnpm install --frozen-lockfile` in every workflow | `security` job (§5.1) |
-| A06 | Dependency audit | `pnpm audit --audit-level=high` | `security` job |
+| A06 | Dependency audit | `pnpm audit --audit-level=high`; overrides and `auditConfig.ignoreGhsas` waivers in `pnpm-workspace.yaml`, each recorded in `DECISIONS.md` (D-149) | `security` job |
 | A06 | Update cadence | `.github/dependabot.yml` weekly (§5.3) | Dependabot PRs pass the full gate |
 | A07 Identification and Authentication Failures | Verified email before first sign-in; enumeration-safe reset; rate limits 10/min per IP on sign-in, sign-up, reset, resend | `src/server/auth/auth.ts` `emailAndPassword`, `emailVerification`, `rateLimit.customRules` (08 §1) | `tests/integration/auth/flows.test.ts` |
 | A07 | Session lifetime and revocation | `expiresIn` 30 d, `updateAge` 1 d, `revokeSessionsOnPasswordReset`, `revokeOtherSessions` on password change, `revokeSessions` on role change; `freshAge` 10 min required for password change and account deletion | `tests/integration/auth/sessions.test.ts` |

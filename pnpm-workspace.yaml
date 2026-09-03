@@ -4,3 +4,11 @@
 allowBuilds:
   esbuild: false
   msw: false
+
+# Dependency audit (12 §3 A06, D-149). `tmp` is forced to its patched line; the extract-zip
+# advisory has no patched version and only affects @lhci/cli's browser-download path in CI.
+overrides:
+  tmp: '>=0.2.6'
+auditConfig:
+  ignoreGhsas:
+    - GHSA-jmr9-qjv8-65gv

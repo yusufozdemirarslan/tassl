@@ -1,0 +1,14 @@
+title = "Tassl gitleaks configuration"
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Documented non-secret defaults from docs/tech/05-environment-config.md"
+paths = ['''\.env\.example$''']
+regexes = [
+  '''local-dev-secret-do-not-use-in-prod-0123456789''',
+  '''local-cron-secret''',
+  '''Walkthrough-Pass-2026''',
+  '''postgres://tassl:tassl@localhost:5432/tassl(_test)?''',
+]
