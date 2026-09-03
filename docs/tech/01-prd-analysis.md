@@ -489,7 +489,7 @@ Conventions: `Priority` is MoSCoW for the build: **M** must, **S** should, **C**
 | INT-004 | INT | Google OAuth via Better Auth | Decision policy | M | | |
 | INT-005 | INT | PostHog product analytics (client and server) | Fixed input | M | `17-analytics-events.md` | |
 | INT-006 | INT | Sentry errors and tracing with release tagging | Fixed input | M | | |
-| INT-007 | INT | Xiaomi MiMo-V2.5-Pro via OpenAI-compatible chat completions (`https://api.xiaomimimo.com/v1`) | Fixed input | M | `11-llm-integration.md` | Last build phase before release |
+| INT-007 | INT | Xiaomi MiMo-V2.5-Pro via OpenAI-compatible chat completions (`https://token-plan-sgp.xiaomimimo.com/v1`) | Fixed input | M | `11-llm-integration.md` | Last build phase before release |
 | INT-008 | INT | Anthropic as the fallback LLM provider | Fixed input §8 | M | | |
 | INT-009 | INT | GitHub (repository, Actions, branch protection) via `gh` | Fixed input | M | | |
 | INT-010 | INT | pg-boss job queue on Postgres | Decision policy | M | | |

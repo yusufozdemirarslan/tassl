@@ -579,7 +579,7 @@ Conventions: `Priority` is MoSCoW for the build: **M** must, **S** should, **C**
 | INT-004 | INT | Google OAuth via Better Auth | Decision policy | M | | |
 | INT-005 | INT | PostHog product analytics (client and server) | Fixed input | M | `17-analytics-events.md` | |
 | INT-006 | INT | Sentry errors and tracing with release tagging | Fixed input | M | | |
-| INT-007 | INT | Xiaomi MiMo-V2.5-Pro via OpenAI-compatible chat completions (`https://api.xiaomimimo.com/v1`) | Fixed input | M | `11-llm-integration.md` | Last build phase before release |
+| INT-007 | INT | Xiaomi MiMo-V2.5-Pro via OpenAI-compatible chat completions (`https://token-plan-sgp.xiaomimimo.com/v1`) | Fixed input | M | `11-llm-integration.md` | Last build phase before release |
 | INT-008 | INT | Anthropic as the fallback LLM provider | Fixed input §8 | M | | |
 | INT-009 | INT | GitHub (repository, Actions, branch protection) via `gh` | Fixed input | M | | |
 | INT-010 | INT | pg-boss job queue on Postgres | Decision policy | M | | |
@@ -2190,7 +2190,7 @@ test-results/
 | `FEATURE_SAMPLE_DATA` | Show illustrative sample data views | `true` | none | no | `src/lib/flags.ts` | — |
 | `FEATURE_TEST_CONTROLS` | Build-phase test controls (forced assistant failure) | `true` | none | no | `src/lib/flags.ts` | — |
 | `LLM_PROVIDER` | `mock`, `openai-compatible`, `anthropic` | `mock` | none | no | `src/server/llm/registry.ts` | — |
-| `LLM_BASE_URL` | OpenAI-compatible base URL | `https://api.xiaomimimo.com/v1` | none | no | `src/server/llm/providers/openai-compatible/index.ts` | — |
+| `LLM_BASE_URL` | OpenAI-compatible base URL | `https://token-plan-sgp.xiaomimimo.com/v1` | none | no | `src/server/llm/providers/openai-compatible/index.ts` | — |
 | `LLM_MODEL` | Model id | `mimo-v2.5-pro` | none | no | same | — |
 | `LLM_API_KEY` | Provider key (sent as `api-key` and `Authorization: Bearer`) | empty (mock stays active) | R when `LLM_PROVIDER=openai-compatible` | yes | same | https://platform.xiaomimimo.com/#/console/api-keys → Create API Key |
 | `LLM_TIMEOUT_MS` | Per-call timeout | `60000` | none | no | `src/server/llm/provider.ts` | — |
@@ -2253,7 +2253,7 @@ FEATURE_TEST_CONTROLS=true
 
 # ---- LLM (mock by default; FEATURE_AI=false forces mock regardless) ----
 LLM_PROVIDER=mock
-LLM_BASE_URL=https://api.xiaomimimo.com/v1
+LLM_BASE_URL=https://token-plan-sgp.xiaomimimo.com/v1
 LLM_MODEL=mimo-v2.5-pro
 LLM_API_KEY=
 LLM_TIMEOUT_MS=60000
@@ -2322,7 +2322,7 @@ const ServerEnvSchema = z.object({
   FEATURE_SAMPLE_DATA: bool.default(true),
   FEATURE_TEST_CONTROLS: bool.default(true),
   LLM_PROVIDER: z.enum(['mock', 'openai-compatible', 'anthropic']).default('mock'),
-  LLM_BASE_URL: z.string().url().default('https://api.xiaomimimo.com/v1'),
+  LLM_BASE_URL: z.string().url().default('https://token-plan-sgp.xiaomimimo.com/v1'),
   LLM_MODEL: z.string().default('mimo-v2.5-pro'),
   LLM_API_KEY: z.string().default(''),
   LLM_TIMEOUT_MS: z.coerce.number().int().positive().default(60000),
@@ -4655,7 +4655,7 @@ Facts verified on 2026-09-02 from Xiaomi's documentation (`https://mimo.mi.com/d
 
 | Item | Value |
 |---|---|
-| Base URL | `https://api.xiaomimimo.com/v1` (chat completions at `/chat/completions`) |
+| Base URL | `https://token-plan-sgp.xiaomimimo.com/v1` (chat completions at `/chat/completions`) |
 | Model id | `mimo-v2.5-pro` |
 | Auth header | `api-key: <key>` in the official examples; the OpenAI SDK's `Authorization: Bearer <key>` also works. The adapter sends both |
 | Streaming | `stream: true` supported |
@@ -5013,7 +5013,7 @@ Columns: what an attacker does, which asset is at stake, where they get in, the 
 | A07 | Session lifetime and revocation | `expiresIn` 30 d, `updateAge` 1 d, `revokeSessionsOnPasswordReset`, `revokeOtherSessions` on password change, `revokeSessions` on role change; `freshAge` 10 min required for password change and account deletion | `tests/integration/auth/sessions.test.ts` |
 | A07 | Per-account sign-in limit | Application limit 10/min per email in `src/server/rate-limit/limits.ts` (D-021) | `tests/integration/auth/rate-limit.test.ts` |
 | A08 Software and Data Integrity Failures | Reproducible build shipped from CI | `vercel build` then `vercel deploy --prebuilt` in `.github/workflows/production.yml`; `SENTRY_AUTH_TOKEN` scoped to `project:releases`, `org:read` | Production workflow |
-| A08 | No dependency lifecycle scripts | pnpm 11 default; `allowBuilds: { esbuild: false, msw: false }` in `pnpm-workspace.yaml` (D-146) | Review |
+| A08 | No dependency lifecycle scripts | pnpm 11 default; `allowBuilds: { esbuild: false, msw: false, unrs-resolver: false }` (the only three packages in the tree that declare install scripts; `unrs-resolver` surfaced on the Ubuntu runner) in `pnpm-workspace.yaml` (D-146) | Review |
 | A08 | Model output is data | Every structured call validated by Zod with one repair retry (ADR-013); text output rendered as text | `evals/**` |
 | A08 | Append-only trace and frozen versions | NFR-004, NFR-005 | Immutability tests |
 | A09 Security Logging and Monitoring Failures | Audit log of sensitive actions | `admin.audit()` in `src/server/modules/admin/service.ts`; table `audit_logs` (§7) | `tests/integration/admin/audit.test.ts` |
@@ -6741,7 +6741,7 @@ env:
   FEATURE_SAMPLE_DATA: 'true'
   FEATURE_TEST_CONTROLS: 'true'
   LLM_PROVIDER: mock
-  LLM_BASE_URL: https://api.xiaomimimo.com/v1
+  LLM_BASE_URL: https://token-plan-sgp.xiaomimimo.com/v1
   LLM_MODEL: mimo-v2.5-pro
   LLM_API_KEY: ''
   LLM_TIMEOUT_MS: '60000'
@@ -12272,7 +12272,7 @@ Tie-breaker: the option a senior engineer would choose for a two-person team shi
 | D-025 | Brand and design (PRD has no brand cues beyond "calm, high-contrast" implied by §5 and the simulator framing) | Pre-made rule | Concrete tokens recorded in `09-frontend-spec.md` §Design system: IBM Plex Sans (UI), IBM Plex Mono (trace data, numbers), IBM Plex Serif (headings); cool paper ground `#F6F7F9`, tinted ink `#141A26`, primary deep teal `#0F6E74`, amber `#B7791F` for draft/uncalibrated labels, oxide red `#A23B2A` for refusals, green `#2E7D4F` for confirmations; 4 px spacing scale; radii 2/6/10 px; 150–200 ms ease-out motion; no bounce; no gradients | Instrument-panel register for a simulator-style assessor; avoids the Impeccable-flagged clichés (Inter, cream-and-terracotta, pure black) | Edit DESIGN.md tokens and `globals.css` |
 | D-026 | Rate limiting | Pre-made rule + run write frequency | Postgres sliding window in the service layer: 60 writes/min and 600 reads/min per user; 10/min for auth endpoints and LLM calls; a separate 300/min bucket for run trace writes (document open/close, stance set) so a fast reader is not throttled | Trace writes are legitimately bursty | Tune constants in `src/server/rate-limit/limits.ts` |
 | D-027 | Observability | Pre-made rule | Sentry (`@sentry/nextjs` 10.73.0) errors + tracing + release tags; pino JSON to stdout; `/api/health`, `/api/ready` | Rule as given | — |
-| D-028 | MiMo endpoint facts (verified 2026-09-02 at mimo.mi.com docs) | Prompt §8 | Base URL `https://api.xiaomimimo.com/v1`; model `mimo-v2.5-pro`; auth header `api-key: <key>` (the OpenAI SDK's `Authorization: Bearer` also works; the adapter sends both); streaming supported; tool calling exists but is never required; `response_format: {type:'json_object'}` supported without schema enforcement, so structured output = prompt + Zod + one repair retry; `thinking: {type:'disabled'}` on structured calls, `LLM_REASONING=on` re-enables; keys at `https://platform.xiaomimimo.com/#/console/api-keys`. OpenRouter (`https://openrouter.ai/api/v1`, `xiaomi/mimo-v2.5-pro`) is the documented alternative base URL | Official documentation verified; no guessing | Change `LLM_BASE_URL` / `LLM_MODEL` |
+| D-028 | MiMo endpoint facts (verified 2026-09-02 at mimo.mi.com docs) | Prompt §8 | Base URL `https://token-plan-sgp.xiaomimimo.com/v1`; model `mimo-v2.5-pro`; auth header `api-key: <key>` (the OpenAI SDK's `Authorization: Bearer` also works; the adapter sends both); streaming supported; tool calling exists but is never required; `response_format: {type:'json_object'}` supported without schema enforcement, so structured output = prompt + Zod + one repair retry; `thinking: {type:'disabled'}` on structured calls, `LLM_REASONING=on` re-enables; keys at `https://platform.xiaomimimo.com/#/console/api-keys`. OpenRouter (`https://openrouter.ai/api/v1`, `xiaomi/mimo-v2.5-pro`) is the documented alternative base URL | Official documentation verified; no guessing | Change `LLM_BASE_URL` / `LLM_MODEL` |
 | D-029 | What `FEATURE_AI=false` means when the product's core loop is an AI assistant | Prompt §8 | `FEATURE_AI=false` forces `LLM_PROVIDER=mock` for every LLM call regardless of `LLM_PROVIDER`; the assistant, band reads, and generation all run against the deterministic mock. The app is fully usable | Satisfies "every AI feature behind FEATURE_AI" and "fully functional with mock" at once | — |
 | D-030 | How a delegation "matches a trigger" | Rule 1, rule 5 | Deterministic first: each claim carries authored `trigger_phrases[]`; a request matches when its normalized text contains any phrase (case-folded, punctuation stripped) or all tokens of a phrase in any order. Only when nothing matches and `FEATURE_AI` is on, AI-004 classifies the request against the claims' `trigger_descriptions` | Walkthrough must work on mock; deterministic matching is testable | Make AI-004 primary by config `TRIGGER_MATCHING=llm_first` |
 | D-031 | Follow-up trigger "names no source, number, or reason" | Rule 5 | Deterministic: the answer has no digit, no token sequence matching a document title (≥ 2 tokens), and none of the reason markers `because`, `since`, `so that`, `given`, `as the`; plus the verbatim-brief rule (FR-125) | Transparent, testable, no model dependence in the defense (PRD §7.12 forbids AI assistance there) | Replace with an AI-003-style read if the pilot shows misses |
@@ -12390,10 +12390,11 @@ Tie-breaker: the option a senior engineer would choose for a two-person team shi
 | D-143 | `server-only` marker on server modules loaded outside Next | Verified at Step 0.5: `server-only` throws under plain Node, so a module carrying it cannot be loaded by tsx scripts (jobs worker, seed, generators) or by Vitest | Only `src/server/auth/session.ts` (uses `next/headers`, Phase 3) carries `import 'server-only'`. Config, logging, ops-events, analytics, rate limit, and the http kit omit it; the client/server boundary is the ESLint boundaries rule (`src/lib` and `src/components` cannot import `src/server`) plus `env.public.ts` for the browser | Scripts and unit tests must load these modules; the lint rule already fails the build on a client import | Add a Vitest alias and a tsx loader stub for `server-only`, then restore the marker |
 | D-144 | Phase-gated smoke and Lighthouse targets | Verified at Step 0.7: `scripts/smoke.sh` (15 §9) and `lighthouserc.json` (16 §3.5) check routes that exist only from Phases 1, 3, 13, and 14, so their final forms cannot pass the Step 0.7 verify | Both files start with the routes that exist (`/api/health`, `/api/ready`, `/`) and are extended by the step that ships each route: `/privacy`, `/terms`, `/dev/components` (Phase 1); `/sign-in`, `/sign-up`, the `/home` redirect (Phase 3); `strict-transport-security` and `content-security-policy` (Phase 13); `/api/v1/openapi.yaml` (Phase 14). The 15 §9 and 16 §3.5 listings stay the final form | Every verify block must pass on the code that exists at its step | Ship the final files at Step 0.7 and accept failing smoke and LHCI runs until Phase 14 |
 | D-145 | What `pnpm openapi:generate` writes | Rule 4: `docs/tech/openapi.yaml` is both the design target (90 paths written before code) and, per `00-README.md`, "generated from Zod; committed"; a generator that emits only the implemented routes would erase the target at Step 0.7 | The generator merges: it re-serializes the committed document, replaces the operations whose `operationId` is implemented in `src/app/api/**/route.ts` (and the component schemas those operations emit), sorts paths, methods, component names, and response codes, and leaves every other path and component untouched. `openapi:check` compares that merged output with the file, so a PR that implements a route shows the diff between design and implementation | One document stays the design target and the implementation record; reviewers see drift in the PR | Split into `openapi.target.yaml` and a purely generated `openapi.yaml` once every route exists (Phase 14) |
-| D-146 | Dependencies that request install scripts | Verified at Step 0.7: pnpm 11 fails `pnpm install` (and therefore every `pnpm` script) while `esbuild` and `msw` request build scripts that are neither approved nor ignored | `pnpm-workspace.yaml` sets `allowBuilds: { esbuild: false, msw: false }`; no lifecycle script runs (12 §3 A08). esbuild loads its binary from the platform package and msw's postinstall only prints a notice, so neither is needed. A dependency that genuinely needs a build script is added to the ignored list only after review | Reproducible installs without executing third-party install scripts | Approve the scripts with `pnpm approve-builds` |
+| D-146 | Dependencies that request install scripts | Verified at Step 0.7: pnpm 11 fails `pnpm install` (and therefore every `pnpm` script) while `esbuild` and `msw` request build scripts that are neither approved nor ignored | `pnpm-workspace.yaml` sets `allowBuilds: { esbuild: false, msw: false, unrs-resolver: false }` (the only three packages in the tree that declare install scripts; `unrs-resolver` surfaced on the Ubuntu runner); no lifecycle script runs (12 §3 A08). esbuild loads its binary from the platform package and msw's postinstall only prints a notice, so neither is needed. A dependency that genuinely needs a build script is added to the ignored list only after review | Reproducible installs without executing third-party install scripts | Approve the scripts with `pnpm approve-builds` |
 | D-147 | Lighthouse CI on the Windows build machine | Verified at Step 0.7: `lhci autorun` fails with `EPERM` when chrome-launcher deletes its temporary profile on Windows (old and new headless modes); CI on Ubuntu is unaffected | `scripts/lhci-local.sh` runs Lighthouse 12.6.1 (the copy pinned by `@lhci/cli`) against a Chromium started from Playwright's install on a debugging port and evaluates `lighthouserc.json` with `lhci assert`; on Windows every verify block that says `pnpm lhci` runs it instead. CI keeps `lhci autorun` through `treosh/lighthouse-ci-action` | Same assertions and config; nothing is uploaded to public storage from a developer machine | Delete the script when chrome-launcher fixes the Windows cleanup |
 | D-148 | Bundle budget manifests under Turbopack | Verified at Step 0.8: `next build` (Turbopack, Next 16) writes no root `app-build-manifest.json`, the file 16 §3.4 read | `scripts/bundle-budget.ts` sums gzip bytes of `rootMainFiles` from `.next/build-manifest.json` plus every chunk in `entryJSFiles` of the route's `.next/server/app/<route>/page_client-reference-manifest.js`, iterating the page routes of `.next/app-path-routes-manifest.json`; budgets and labels are unchanged | The same measure (JS the route loads, gzip) from the manifests Turbopack does write | Build with `next build --webpack` and read the original manifest |
 | D-149 | `pnpm audit --audit-level=high` findings in dev-only tooling | Verified at Step 0.8: `@lhci/cli@0.15.1` pulls `tmp` (< 0.2.6, GHSA-ph9p-34f9-6g65, patched) and `extract-zip` 2.0.1 (GHSA-jmr9-qjv8-65gv, no patched version) through lighthouse and puppeteer-core; both are devDependencies never shipped or executed in production | `pnpm-workspace.yaml` sets `overrides.tmp: ">=0.2.6"` and `auditConfig.ignoreGhsas: [GHSA-jmr9-qjv8-65gv]`. A waiver is only added for an advisory with no patched version whose package is not in the production dependency graph, and every waiver is re-checked at the Phase 15 launch checklist and whenever Dependabot bumps `@lhci/cli` | Keeps the `security` gate meaningful for shipped code without blocking on an unfixable dev tool | Drop the waiver when a patched `extract-zip` reaches lighthouse |
+| D-150 | MiMo API base URL | The builder's MiMo access is a token plan served from `https://token-plan-sgp.xiaomimimo.com/v1`, not the pay-as-you-go host `https://api.xiaomimimo.com/v1` (set by the builder in `.env.example` at Step 0.10) | `LLM_BASE_URL` defaults to `https://token-plan-sgp.xiaomimimo.com/v1` in `src/server/config.ts`, `.env.example`, `05-environment-config.md`, and the CI env; the OpenAI-compatible adapter is unchanged (same paths and headers, `11-llm-integration.md`) | The default must match the key the builder will set in Phase 14 | Set `LLM_BASE_URL` per environment; the adapter reads it from the environment only |
 
 
 ---
