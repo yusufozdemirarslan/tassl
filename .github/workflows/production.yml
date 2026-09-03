@@ -51,6 +51,8 @@ jobs:
           # from GitHub secrets and the deployment uses the Vercel production values.
           BETTER_AUTH_SECRET: ${{ secrets.BETTER_AUTH_SECRET_PRODUCTION }}
           CRON_SECRET: ${{ secrets.CRON_SECRET_PRODUCTION }}
+          APP_ENV: production
+          SEED_PASSWORD: ${{ secrets.SEED_PASSWORD }}
         run: npx vercel@59.11.2 build --prod --token "$VERCEL_TOKEN"
 
       # D-070: expand/contract migrations run against the unpooled production string before the deploy.
