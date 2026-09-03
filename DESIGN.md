@@ -257,7 +257,7 @@ All faces are self-hosted woff2 in `public/fonts/` and loaded through `next/font
 
 ## Layout
 
-- Spacing scale: 4, 8, 12, 16, 24, 32, 48, 64 px (`--space-1` … `--space-8`; Tailwind `p-1` … `p-8` map to the same steps). Page gutter 24 px; panel padding 16 px; dense table cells 8 px.
+- Spacing scale: 4, 8, 12, 16, 24, 32, 48, 64 px (`--space-1` … `--space-8`). In Tailwind classes these are `p-1`, `p-2`, `p-3`, `p-4`, `p-6`, `p-8`, `p-12`, `p-16` on the default 4 px scale, which is never remapped. Page gutter 24 px; panel padding 16 px; dense table cells 8 px.
 - Breakpoints: `sm` 640, `md` 768, `lg` 1024, `xl` 1280. The app shell is a left rail plus `main` at `md` and above; under `md` the rail becomes a bottom bar. The run workspace is three columns at `lg` (Evidence Room | assistant and claims | brief and log), two at `md` with tabs, one under `md` with a bottom tab bar.
 - Density: matrix and timeline at 12/18 Mono with 8 px cells and a sticky first column when scrolling horizontally; writing surfaces at 16/26 with 24 px padding.
 - Minimum touch target 40 px; nothing requires hover; every action is reachable by keyboard and tap.
@@ -307,6 +307,7 @@ Every component takes its strings from `t()`, is keyboard operable, and shows th
 - **Style:** `--paper-raised` fill, 1 px `--line-control` border, 6 px radius, 40 px tall, 14/22 ink text; textareas for writing use 16/26.
 - **Focus:** border becomes `--primary` and the focus ring shows; no glow. **Error:** border `--red`, message in `--red` 13/20 beneath with an icon. **Disabled:** ink at 45 % alpha, `--paper-sunken` fill.
 - **Placeholder:** ink at 70 % alpha, never the only label.
+- **Toggles (checkbox, radio, switch):** Base UI renders the role on a `span`, so a label's `htmlFor` does not name it; every toggle carries `aria-labelledby` pointing at its `FieldLabel` id (or `aria-label`), and the label stays visible.
 
 ### Navigation
 

@@ -6,6 +6,59 @@ export const enUS = {
 
   // Shared UI primitives
   'ui.close': 'Close',
+  'ui.loading': 'Loading',
+
+  // App shell (UI-008)
+  'shell.brand': 'Tassl',
+  'shell.titleTemplate': '%s · Tassl',
+  'shell.skipToMain': 'Skip to main content',
+  'shell.primaryNav': 'Primary',
+  'shell.institution': 'Institution',
+  'shell.switchInstitution': 'Switch institution',
+  'shell.noInstitution': 'No institution yet',
+  'shell.notifications': 'Notifications',
+  'shell.notificationsUnread': '{count} unread',
+  'shell.notificationsNone': 'No unread notifications',
+  'shell.notificationsLabel': '{title}: {status}',
+  'shell.notificationsOverflow': '{max}+',
+  'shell.account': 'Account',
+  'shell.settings': 'Settings',
+  'shell.signOut': 'Sign out',
+  'shell.notSignedIn': 'Not signed in',
+  'nav.home': 'Home',
+  'nav.runs': 'Runs',
+  'nav.courses': 'Courses',
+  'nav.review': 'Review',
+  'nav.packages': 'Packages',
+  'nav.admin': 'Admin',
+
+  // Home (UI-009)
+  'home.title': 'Home',
+  'home.description': 'Your runs, reviews, and packages appear here.',
+  'home.emptyTitle': 'Nothing to do yet',
+  'home.emptyBody':
+    'When a course assigns you a run, or a run is waiting for your review, it appears here. Until then there is nothing to do.',
+  'home.emptyAction': 'Check again',
+  'home.noMemberships':
+    'You are not a member of any institution yet. Ask your instructor for an invitation.',
+
+  // Error pages (UI-007)
+  'notFound.title': 'Not found',
+  'notFound.body': 'There is nothing at this address. It may have moved, or the link may be wrong.',
+  'notFound.home': 'Go home',
+  'error.title': 'Something went wrong',
+  'error.body': 'The problem has been recorded. If it continues, quote the reference below.',
+  'error.reference': 'Reference',
+  'error.retry': 'Try again',
+
+  // Label chips and sample data (FR-254)
+  'label.draft': 'Draft',
+  'label.confirmed': 'Confirmed',
+  'label.uncalibrated': 'Uncalibrated',
+  'label.walkthrough': 'Walkthrough',
+  'label.provisional': 'Provisional',
+  'label.unreviewed': 'Unreviewed',
+  'sample.label': 'Illustrative sample data',
 } as const
 
 export type MessageKey = keyof typeof enUS

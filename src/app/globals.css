@@ -4,7 +4,7 @@
 
 @custom-variant dark (&:is(.dark *));
 
-/* Design tokens (docs/tech/09-frontend-spec.md §2, DECISIONS D-025, D-122). Phase 1 records the same values in DESIGN.md. */
+/* Design tokens (docs/tech/09-frontend-spec.md §2, DECISIONS D-025, D-122). DESIGN.md records the same values. */
 :root {
   --paper: #f6f7f9;
   --paper-raised: #ffffff;
@@ -30,6 +30,8 @@
   --stance-reject: #a23b2a;
   --stance-escalate: #5b4b9a;
 
+  /* Spacing tokens (09 §2.3). They map onto Tailwind's 4 px scale: p-1 = 4, p-2 = 8, p-3 = 12,
+     p-4 = 16, p-6 = 24, p-8 = 32, p-12 = 48, p-16 = 64; the numeric utilities are never remapped. */
   --space-1: 4px;
   --space-2: 8px;
   --space-3: 12px;
@@ -117,6 +119,7 @@
   --font-sans: var(--font-plex-sans, 'IBM Plex Sans', sans-serif);
   --font-mono: var(--font-plex-mono, 'IBM Plex Mono', monospace);
   --font-serif: var(--font-plex-serif, 'IBM Plex Serif', serif);
+  --font-heading: var(--font-serif);
 
   /* Type scale (09 §2.1): text-meta … text-h1 utilities carry size and line-height together. */
   --text-meta: 13px;
@@ -143,18 +146,14 @@
   --radius-sm: 2px;
   --radius-md: 6px;
   --radius-lg: 10px;
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
 
   --shadow-float: var(--shadow-float);
   --ease-out: var(--ease-out);
-  --spacing-1: var(--space-1);
-  --spacing-2: var(--space-2);
-  --spacing-3: var(--space-3);
-  --spacing-4: var(--space-4);
-  --spacing-5: var(--space-5);
-  --spacing-6: var(--space-6);
-  --spacing-7: var(--space-7);
-  --spacing-8: var(--space-8);
-  --font-heading: var(--font-serif);
+
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -186,94 +185,94 @@
   --color-card: var(--card);
   --color-foreground: var(--foreground);
   --color-background: var(--background);
-  --radius-xl: calc(var(--radius) * 1.4);
-  --radius-2xl: calc(var(--radius) * 1.8);
-  --radius-3xl: calc(var(--radius) * 2.2);
-  --radius-4xl: calc(var(--radius) * 2.6);
 }
 
-body {
-  background: var(--paper);
-  color: var(--ink);
-  font-family: var(--font-plex-sans, 'IBM Plex Sans', sans-serif);
-  font-size: 14px;
-  line-height: 22px;
-}
-
-/* Headings are serif (09 §2.1). Components may override size with the text-h* utilities. */
-h1,
-h2,
-h3,
-h4 {
-  font-family: var(--font-plex-serif, 'IBM Plex Serif', serif);
-  font-weight: 500;
-  color: var(--ink);
-}
-h1 {
-  font-size: 36px;
-  line-height: 44px;
-  font-weight: 600;
-}
-h2 {
-  font-size: 30px;
-  line-height: 38px;
-}
-h3 {
-  font-size: 24px;
-  line-height: 32px;
-}
-h4 {
-  font-size: 20px;
-  line-height: 28px;
-}
-
-/* No italic faces ship: emphasis is weight, never a synthesized oblique (16 §6.2). */
-em {
-  font-style: normal;
-  font-weight: 500;
-}
-strong {
-  font-weight: 600;
-}
-
-a {
-  color: var(--primary);
-  text-underline-offset: 2px;
-}
-
-:focus-visible {
-  outline: 2px solid var(--focus);
-  outline-offset: 2px;
-}
-
-.font-mono,
-.tabular {
-  font-variant-numeric: tabular-nums;
-  font-feature-settings: 'tnum' 1;
-}
-
-::placeholder {
-  color: rgb(20 26 38 / 0.7);
-  opacity: 1;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
-    transition-duration: 0s !important;
-    animation-duration: 0s !important;
-  }
-}
-
+/* Element defaults live in the base layer so every Tailwind utility can override them. */
 @layer base {
   * {
     @apply border-border outline-ring/50;
   }
-  body {
-    @apply bg-background text-foreground;
-  }
   html {
     @apply font-sans;
+  }
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--font-plex-sans, 'IBM Plex Sans', sans-serif);
+    font-size: 14px;
+    line-height: 22px;
+  }
+
+  /* Headings are serif (09 §2.1); the text-h* utilities override size when a component needs to. */
+  h1,
+  h2,
+  h3,
+  h4 {
+    font-family: var(--font-plex-serif, 'IBM Plex Serif', serif);
+    font-weight: 500;
+    color: var(--ink);
+  }
+  h1 {
+    font-size: 36px;
+    line-height: 44px;
+    font-weight: 600;
+  }
+  h2 {
+    font-size: 30px;
+    line-height: 38px;
+  }
+  h3 {
+    font-size: 24px;
+    line-height: 32px;
+  }
+  h4 {
+    font-size: 20px;
+    line-height: 28px;
+  }
+
+  /* No italic faces ship: emphasis is weight, never a synthesized oblique (16 §6.2). */
+  em {
+    font-style: normal;
+    font-weight: 500;
+  }
+  strong {
+    font-weight: 600;
+  }
+
+  a {
+    color: var(--primary);
+    text-underline-offset: 2px;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
+  }
+
+  .font-mono,
+  .tabular {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: 'tnum' 1;
+  }
+
+  ::placeholder {
+    color: rgb(20 26 38 / 0.7);
+    opacity: 1;
+  }
+
+  /* The rail is a fixed bottom bar under md; keep focused elements above it (WCAG 2.4.11). */
+  @media (max-width: 767px) {
+    html {
+      scroll-padding-bottom: 4rem;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      transition-duration: 0s !important;
+      animation-duration: 0s !important;
+    }
   }
 }
