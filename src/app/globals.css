@@ -1,0 +1,112 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+/* Design tokens (docs/tech/09-frontend-spec.md §2, DECISIONS D-025, D-122). Phase 1 records the same values in DESIGN.md. */
+:root {
+  --paper: #f6f7f9;
+  --paper-raised: #ffffff;
+  --paper-sunken: #eceff3;
+  --ink: #141a26;
+  --ink-muted: #4b5563;
+  --ink-faint: #8a93a3;
+  --line: #d5dae2;
+  --line-strong: #aeb6c2;
+  --primary: #0f6e74;
+  --primary-ink: #ffffff;
+  --primary-soft: #ddeff0;
+  --amber: #b7791f;
+  --amber-soft: #fbf1dc;
+  --red: #a23b2a;
+  --red-soft: #f8e5e1;
+  --green: #2e7d4f;
+  --green-soft: #e1f1e7;
+  --focus: #0f6e74;
+  --stance-accept: #2e7d4f;
+  --stance-verify: #0f6e74;
+  --stance-challenge: #b7791f;
+  --stance-reject: #a23b2a;
+  --stance-escalate: #5b4b9a;
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+  --space-8: 64px;
+
+  --radius-sm: 2px;
+  --radius-md: 6px;
+  --radius-lg: 10px;
+
+  --shadow-float: 0 8px 24px rgb(20 26 38 / 0.12);
+
+  --ease-out: cubic-bezier(0.2, 0, 0, 1);
+  --dur-fast: 150ms;
+  --dur-base: 200ms;
+}
+
+@theme inline {
+  --color-paper: var(--paper);
+  --color-paper-raised: var(--paper-raised);
+  --color-paper-sunken: var(--paper-sunken);
+  --color-ink: var(--ink);
+  --color-ink-muted: var(--ink-muted);
+  --color-ink-faint: var(--ink-faint);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-primary: var(--primary);
+  --color-primary-ink: var(--primary-ink);
+  --color-primary-soft: var(--primary-soft);
+  --color-amber: var(--amber);
+  --color-amber-soft: var(--amber-soft);
+  --color-red: var(--red);
+  --color-red-soft: var(--red-soft);
+  --color-green: var(--green);
+  --color-green-soft: var(--green-soft);
+  --color-focus: var(--focus);
+  --color-stance-accept: var(--stance-accept);
+  --color-stance-verify: var(--stance-verify);
+  --color-stance-challenge: var(--stance-challenge);
+  --color-stance-reject: var(--stance-reject);
+  --color-stance-escalate: var(--stance-escalate);
+
+  /* The three font variables are set on <html> by next/font in Phase 1 (src/app/fonts.ts). */
+  --font-sans: var(--font-plex-sans, "IBM Plex Sans", sans-serif);
+  --font-mono: var(--font-plex-mono, "IBM Plex Mono", monospace);
+  --font-serif: var(--font-plex-serif, "IBM Plex Serif", serif);
+
+  --radius-sm: 2px;
+  --radius-md: 6px;
+  --radius-lg: 10px;
+
+  --shadow-float: var(--shadow-float);
+  --ease-out: var(--ease-out);
+}
+
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-plex-sans, "IBM Plex Sans", sans-serif);
+  font-size: 14px;
+  line-height: 22px;
+}
+
+:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.tabular {
+  font-feature-settings: "tnum" 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0s !important;
+    animation-duration: 0s !important;
+  }
+}
