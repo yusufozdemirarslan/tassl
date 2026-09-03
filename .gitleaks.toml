@@ -3,9 +3,15 @@ title = "Tassl gitleaks configuration"
 [extend]
 useDefault = true
 
+# Two allowlists on purpose: paths and regexes in one entry are combined with AND by gitleaks, so
+# the documented defaults must be allowed wherever they appear (config defaults, the seed, tests).
 [[allowlists]]
-description = "Documented non-secret defaults from docs/tech/05-environment-config.md"
+description = "The example environment file only carries documented non-secret defaults (05 §1)"
 paths = ['''\.env\.example$''']
+
+[[allowlists]]
+description = "Documented non-secret defaults from docs/tech/05-environment-config.md, wherever they appear"
+regexTarget = "match"
 regexes = [
   '''local-dev-secret-do-not-use-in-prod-0123456789''',
   '''local-cron-secret''',
