@@ -1,1 +1,15 @@
-{ "detector": { "ignoreRules": [], "ignoreFiles": [], "ignoreValues": [] } }
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "side-tab",
+        "value": "*",
+        "files": ["src/components/layout/label-chip.tsx"],
+        "createdAt": "2026-09-03T07:52:48.928Z",
+        "reason": "Specified, not generated: docs/tech/16-performance-a11y-budgets.md §8.7 and DESIGN.md §Shapes require the draft/provisional/uncalibrated chip to be ink text with a 2 px amber left border and an amber icon (D-122); it is a 20 px chip, not a card"
+      }
+    ]
+  }
+}
