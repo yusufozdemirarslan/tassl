@@ -97,7 +97,7 @@ Legend: **PK** primary key, **FK** foreign key, **T** tenant-scoped (has `organi
 | deleted_at | timestamptz | null | soft delete; purge after 30 days |
 | created_at, updated_at | timestamptz | NN | |
 
-Indexes: `user_email_idx` unique on `(email)` (sign-in); `user_deleted_at_idx` on `(deleted_at) where deleted_at is not null` (purge job).
+Indexes: `user_email_idx` unique on `(email)` (sign-in); `user_deleted_at_idx` on `(deleted_at) where deleted_at is not null` (purge job). The generator emits `timestamp` (without time zone) for every Better Auth table and only the single-column indexes it knows about; `user_deleted_at_idx`, the unique `(organization_id, user_id)` on `member`, and `(organization_id, status)` on `invitation` are created by the hand-written migration `extensions_and_triggers` (D-162).
 
 **`session`** (DATA-002): id, expires_at, token (unique), created_at, updated_at, ip_address, user_agent, user_id FK user, active_organization_id text null. Index `session_user_id_idx` (list sessions), `session_token_idx` unique.
 

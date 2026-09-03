@@ -4,12 +4,13 @@ import { sql } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/postgres-js'
 import postgres from 'postgres'
 import { env } from '@/server/config'
+import * as schema from '@/server/db/schema'
 
 // prepare: false is required for Neon's pooled connection string; max 5 per serverless instance.
 export const client = postgres(env.DATABASE_URL, { max: 5, prepare: false })
 
-// Phase 2 passes the schema: drizzle({ client, schema }).
-export const db = drizzle({ client })
+// The schema object gives the query builder every table and relation (06-data-model.md §1).
+export const db = drizzle({ client, schema })
 
 export { sql }
 
