@@ -36,7 +36,7 @@
 - [x] 2.6 Immutability grants and the application role
 - [x] 2.7 pg-boss schema, queues, drain, worker, ready check
 - [x] 2.8 Repository layer, tenant enforcement, pagination, Postgres rate limiter
-- [ ] 2.9 Factories, seed, reset script
+- [x] 2.9 Factories, seed, reset script
 - [ ] Phase 2 exit criteria
 
 ## Phase 3 — Authentication, tenancy, roles (`build-plan/phase-03-auth.md`)
