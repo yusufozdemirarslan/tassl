@@ -1,0 +1,6 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "nextjs",
+  "git": { "deploymentEnabled": false },
+  "crons": [{ "path": "/api/internal/jobs/drain", "schedule": "0 4 * * *" }]
+}
