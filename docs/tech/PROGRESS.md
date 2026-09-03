@@ -24,7 +24,7 @@
 - [x] 1.3 shadcn/ui against the tokens
 - [x] 1.4 Layout components, app shell, public layout, error pages
 - [x] 1.5 Dev component gallery route
-- [ ] 1.6 Impeccable review loop on the shell and gallery, then DESIGN.md reconciliation
+- [x] 1.6 Impeccable review loop on the shell and gallery, then DESIGN.md reconciliation
 - [ ] Phase 1 exit criteria
 
 ## Phase 2 — Data layer (`build-plan/phase-02-data-layer.md`)
