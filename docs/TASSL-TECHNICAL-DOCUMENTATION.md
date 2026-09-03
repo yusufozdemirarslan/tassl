@@ -12221,6 +12221,7 @@ Requirement IDs now fully implemented: every build-slice ID in `COVERAGE.md`; th
 
 ---
 
+| D-151 | Neon history retention below the 7 days of D-069 | Verified at Step 0.10: the Neon API rejects `history_retention_seconds` above 21600 (6 hours) on the Free plan of the "Tassl" organization (`org-mute-art-29143459`, project `tassl` = `red-smoke-66780807`) | Retention is set to the plan maximum, 21600 seconds; point-in-time restore therefore covers the last 6 hours, and the nightly encrypted `pg_dump` backups of `13-observability-ops.md` (`backup.yml`, `BACKUP_ENCRYPTION_KEY`) remain the recovery path beyond that window. Raise to 604800 when the organization moves to a paid Neon plan (Phase 15 launch checklist) | The plan limit, not the design, sets the ceiling; backups already exist for longer windows | Upgrade the Neon plan and re-run the PATCH in 15 §11.3 |
 # DECISIONS — Every gap, resolved
 
 **Purpose / Read this when:** a spec or build step depends on something the PRD does not say, or you are about to make a new choice. Apply the Decision Policy below, add a row, continue. No row is ever "pending".
