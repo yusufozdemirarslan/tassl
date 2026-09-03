@@ -12,6 +12,12 @@ process.env.LOG_LEVEL ??= 'warn'
 export const TEST_DATABASE_URL =
   process.env.TEST_DATABASE_URL ?? 'postgres://tassl:tassl@localhost:5432/tassl_test'
 
+// The application client (src/server/db/client.ts) reads DATABASE_URL when src/server/config loads;
+// pointing it at the test database here, before any test file imports server code, keeps every
+// integration suite (seed, repositories, rate limiter) on the same database as testSql.
+process.env.DATABASE_URL = TEST_DATABASE_URL
+process.env.DATABASE_URL_UNPOOLED = TEST_DATABASE_URL
+
 if (!/test/.test(TEST_DATABASE_URL)) {
   throw new Error('TEST_DATABASE_URL must point at a database whose name contains "test"')
 }
