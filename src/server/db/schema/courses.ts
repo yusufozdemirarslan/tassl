@@ -126,8 +126,8 @@ export const assignments = pgTable(
       .notNull()
       .references(() => scenarioPackageVersions.id),
     /**
-     * FK to `scenario_variants.id` and the `assignments_variant_matches_version` trigger are added
-     * by Step 2.3 (D-163).
+     * FK to `scenario_variants.id` and the `assignments_variant_matches_version` trigger were added
+     * in Step 2.3, once the package tables existed (D-163).
      */
     variantId: uuid('variant_id')
       .notNull()
