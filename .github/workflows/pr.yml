@@ -103,4 +103,4 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh pr comment "$PR_NUMBER" --edit-last --create-if-none --body "$(printf 'Preview: https://%s\nDeployment: %s\nNeon branch: preview/pr-%s\n(Vercel Authentication is on for previews, D-101)' "$PREVIEW_ALIAS" "$(cat deployment-url.txt)" "$PR_NUMBER")"
+          gh pr comment "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --edit-last --create-if-none --body "$(printf 'Preview: https://%s\nDeployment: %s\nNeon branch: preview/pr-%s\n(Vercel Authentication is on for previews, D-101)' "$PREVIEW_ALIAS" "$(cat deployment-url.txt)" "$PR_NUMBER")"
