@@ -29,7 +29,7 @@
 
 ## Phase 2 — Data layer (`build-plan/phase-02-data-layer.md`)
 - [x] 2.1 Better Auth schema generation
-- [ ] 2.2 Tenancy and courses tables
+- [x] 2.2 Tenancy and courses tables
 - [ ] 2.3 Scenario package tables
 - [ ] 2.4 Run tables and the trace
 - [ ] 2.5 Scoring, review, records, and platform tables
