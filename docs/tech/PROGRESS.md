@@ -11,8 +11,8 @@
 - [x] 0.4 Local Postgres, environment file, and fail-fast configuration
 - [x] 0.5 Logging, request context, error model, route and action wrappers, analytics helper
 - [x] 0.6 Database client, health and readiness endpoints, request proxy
-- [ ] 0.7 Test tooling, OpenAPI generator, docs build, smoke script
-- [ ] 0.8 CI workflows
+- [x] 0.7 Test tooling, OpenAPI generator, docs build, smoke script
+- [x] 0.8 CI workflows
 - [ ] 0.9 GitHub repository and branch protection
 - [ ] 0.10 Vercel project, Neon project, environment variables, CI secrets
 - [ ] 0.11 First production deploy of the "hello" build
