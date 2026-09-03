@@ -111,9 +111,10 @@ pnpm lint && pnpm typecheck && git add -A && git commit -m "test: hook check" --
 ### Step 0.4 — Local Postgres, environment file, and fail-fast configuration
 **Goal:** Docker Compose Postgres 17 runs; `.env.example` has working defaults; the server refuses to start on invalid configuration.
 **Covers:** SYS-013, SYS-023, INT-001
-**Prerequisites:** Step 0.3 complete; Docker running
+**Prerequisites:** Step 0.3 complete; Docker running (or the portable Postgres of D-139 on a machine without Docker)
 **Files to create / modify:**
 - `compose.yaml`, `scripts/init-test-db.sql` — create; `04-repo-structure.md` §9
+- `scripts/pg-local.sh` — create; D-139 wrapper (`start|stop|restart|status`) for the portable PostgreSQL 17 install used where Docker is unavailable; same role, password, port, and databases as `compose.yaml`
 - `.env.example` — create; verbatim from `05-environment-config.md` §2
 - `src/server/config.ts` — create; `05-environment-config.md` §3 (starts with `import 'dotenv/config'`, D-131)
 - `src/lib/env.public.ts` — create; `05-environment-config.md` §3
@@ -122,6 +123,7 @@ pnpm lint && pnpm typecheck && git add -A && git commit -m "test: hook check" --
 ```bash
 cp .env.example .env
 docker compose up -d --wait
+# Without Docker (D-139): bash scripts/pg-local.sh start
 ```
 **Implementation notes:** `superRefine` rules for deployed environments per `05-environment-config.md` §3. `effectiveLlmProvider()` returns `mock` when `FEATURE_AI` is false (D-029).
 **Secrets (if any):** none (all defaults are non-secret).
@@ -129,6 +131,7 @@ docker compose up -d --wait
 **Verify (all must pass):**
 ```bash
 docker compose exec -T postgres pg_isready -U tassl -d tassl && docker compose exec -T postgres psql -U tassl -d tassl_test -c 'select 1' -tA | grep -qx 1
+# Without Docker (D-139): bash scripts/pg-local.sh status && PGPASSWORD=tassl psql -h localhost -U tassl -d tassl_test -c 'select 1' -tA | grep -qx 1
 pnpm exec tsx -e "import('./src/server/config').then(m => console.log(m.env.APP_ENV, m.effectiveLlmProvider()))" | grep -q 'local mock'
 APP_ENV=production pnpm exec tsx -e "import('./src/server/config').then(() => { console.log('NOT REFUSED'); process.exit(1) }).catch(e => { console.log('refused:', e.message); process.exit(0) })" | grep -q 'refused: INVALID_SERVER_ENV'
 ```

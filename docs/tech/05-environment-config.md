@@ -156,10 +156,10 @@ const ServerEnvSchema = z.object({
   EMAIL_TRANSPORT: z.enum(['console', 'resend']).default('console'),
   RESEND_API_KEY: z.string().default(''),
   EMAIL_FROM: z.string().default('Tassl <no-reply@tassl.local>'),
-  NOTIFY_EMAIL_COPIES: bool.default('true'),
-  FEATURE_AI: bool.default('false'),
-  FEATURE_SAMPLE_DATA: bool.default('true'),
-  FEATURE_TEST_CONTROLS: bool.default('true'),
+  NOTIFY_EMAIL_COPIES: bool.default(true),
+  FEATURE_AI: bool.default(false),
+  FEATURE_SAMPLE_DATA: bool.default(true),
+  FEATURE_TEST_CONTROLS: bool.default(true),
   LLM_PROVIDER: z.enum(['mock', 'openai-compatible', 'anthropic']).default('mock'),
   LLM_BASE_URL: z.string().url().default('https://api.xiaomimimo.com/v1'),
   LLM_MODEL: z.string().default('mimo-v2.5-pro'),
@@ -181,7 +181,7 @@ const ServerEnvSchema = z.object({
   NEXT_PUBLIC_SENTRY_DSN: z.string().default(''),
   SENTRY_TRACES_SAMPLE_RATE: z.coerce.number().min(0).max(1).default(1),
   CRON_SECRET: z.string().min(8).default('local-cron-secret'),
-  JOBS_DRAIN_ON_ENQUEUE: bool.default('true'),
+  JOBS_DRAIN_ON_ENQUEUE: bool.default(true),
   SEED_PASSWORD: z.string().min(12).default('Walkthrough-Pass-2026'),
 }).superRefine((env, ctx) => {
   const deployed = env.APP_ENV === 'production' || env.APP_ENV === 'preview'
