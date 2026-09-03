@@ -1,0 +1,1736 @@
+openapi: 3.1.0
+info:
+  title: Tassl API
+  version: 1.0.0
+  description: >-
+    REST API for Tassl, the AI decision simulator for higher education. Generated from the Zod
+    schemas in src/server/modules/*/schema.ts by `pnpm openapi:generate`. Every response carries an
+    `x-request-id` header. Errors use the envelope in `#/components/schemas/ErrorEnvelope`.
+servers:
+  - url: /api/v1
+    description: Same-origin, version 1
+tags:
+  - { name: system }
+  - { name: me }
+  - { name: tenancy }
+  - { name: courses }
+  - { name: packages }
+  - { name: runs }
+  - { name: review }
+  - { name: notifications }
+  - { name: admin }
+security:
+  - cookieAuth: []
+  - bearerAuth: []
+components:
+  securitySchemes:
+    cookieAuth: { type: apiKey, in: cookie, name: better-auth.session_token }
+    bearerAuth: { type: http, scheme: bearer }
+    cronAuth: { type: http, scheme: bearer, description: CRON_SECRET }
+  parameters:
+    cursor: { name: cursor, in: query, required: false, schema: { type: string } }
+    limit: { name: limit, in: query, required: false, schema: { type: integer, minimum: 1, maximum: 100, default: 20 } }
+    orgId: { name: orgId, in: path, required: true, schema: { type: string } }
+    courseId: { name: courseId, in: path, required: true, schema: { type: string, format: uuid } }
+    sectionId: { name: sectionId, in: path, required: true, schema: { type: string, format: uuid } }
+    assignmentId: { name: assignmentId, in: path, required: true, schema: { type: string, format: uuid } }
+    runId: { name: runId, in: path, required: true, schema: { type: string, format: uuid } }
+    claimId: { name: claimId, in: path, required: true, schema: { type: string, format: uuid } }
+    packageId: { name: packageId, in: path, required: true, schema: { type: string, format: uuid } }
+    versionId: { name: versionId, in: path, required: true, schema: { type: string, format: uuid } }
+    elementType: { name: elementType, in: path, required: true, schema: { $ref: '#/components/schemas/ElementType' } }
+    elementId: { name: elementId, in: path, required: true, schema: { type: string } }
+    dimension: { name: dimension, in: path, required: true, schema: { $ref: '#/components/schemas/Dimension' } }
+    requestedWith: { name: X-Requested-With, in: header, required: false, schema: { type: string, enum: [tassl] }, description: Required on non-GET cookie-authenticated requests }
+    idempotencyKey: { name: Idempotency-Key, in: header, required: false, schema: { type: string, maxLength: 128 } }
+  responses:
+    BadRequest: { description: Validation error, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } } }
+    Unauthenticated: { description: No session, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } } }
+    Forbidden: { description: Not permitted, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } } }
+    NotFound: { description: Missing or cross-tenant, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } } }
+    Conflict: { description: State conflict; code names the rule, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } } }
+    RateLimited: { description: Rate limited, headers: { Retry-After: { schema: { type: integer } } }, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } } }
+    NoContent: { description: Done }
+  schemas:
+    ErrorEnvelope:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message, requestId]
+          properties:
+            code: { type: string, pattern: '^[A-Z0-9_]+$' }
+            message: { type: string }
+            details: {}
+            requestId: { type: string }
+    Page:
+      type: object
+      required: [items, nextCursor]
+      properties:
+        items: { type: array, items: {} }
+        nextCursor: { type: [string, 'null'] }
+    Band: { type: string, enum: [novice, developing, proficient, professional] }
+    Dimension: { type: string, enum: [framing, delegation, verification, calibration, decision_quality, adaptation, ownership] }
+    Stance: { type: string, enum: [accept, verify, challenge, reject, escalate] }
+    ActionType: { type: string, enum: [source_trace, replication_check, decomposition_check, stakeholder_interview] }
+    RunState: { type: string, enum: [assigned, readiness, framing, working, paused, decision_locked, turn_open, turn_locked, defense_pending, defense_complete, scored, confirmed, recorded, voided, abandoned, defense_missed, under_appeal, expired] }
+    TurnResponseKind: { type: string, enum: [hold, revise, reverse] }
+    ElementType: { type: string, enum: [brief, document, stakeholder, answer_space_position, named_field, claim, variant_claim_state, probe, turn, defense_question, readiness_item, counterfactual, general_escalation_reply, clock_and_difficulty, seed_reskin] }
+    Mapping:
+      type: object
+      required: [novice, developing, proficient, professional]
+      properties:
+        novice: { type: number, exclusiveMinimum: 0 }
+        developing: { type: number, exclusiveMinimum: 0 }
+        proficient: { type: number, exclusiveMinimum: 0 }
+        professional: { type: number, exclusiveMinimum: 0 }
+    Membership:
+      type: object
+      required: [organizationId, name, role]
+      properties:
+        organizationId: { type: string }
+        name: { type: string }
+        role: { type: string, enum: [student, instructor, teaching_assistant, scenario_author, program_lead] }
+    MeView:
+      type: object
+      required: [id, name, email, platformRole, memberships, activeOrganizationId]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        email: { type: string, format: email }
+        platformRole: { type: string, enum: [none, tassl_scenario_editor, admin] }
+        memberships: { type: array, items: { $ref: '#/components/schemas/Membership' } }
+        activeOrganizationId: { type: [string, 'null'] }
+    Institution:
+      type: object
+      required: [id, name, slug]
+      properties: { id: { type: string }, name: { type: string }, slug: { type: string } }
+    InstitutionView:
+      allOf:
+        - $ref: '#/components/schemas/Institution'
+        - type: object
+          required: [settings]
+          properties:
+            settings:
+              type: object
+              required: [plan, defaultMapping]
+              properties:
+                plan: { type: string, enum: [pilot, course_license, department, institution, practice_pass] }
+                defaultMapping: { $ref: '#/components/schemas/Mapping' }
+    DataAgreementInput:
+      type: object
+      required: [counterparty, permittedPlatformRoles, purposes, retentionDays, documentReference, signedAt]
+      properties:
+        counterparty: { type: string, minLength: 1 }
+        permittedPlatformRoles: { type: array, items: { type: string, enum: [tassl_scenario_editor] } }
+        purposes: { type: array, minItems: 1, items: { type: string, enum: [scoring_audit, scenario_calibration, drift_review] } }
+        recordTypesCovered: { type: array, items: { type: string } }
+        recordTypesExcluded: { type: array, items: { type: string } }
+        retentionDays: { type: integer, minimum: 1 }
+        documentReference: { type: string }
+        signedAt: { type: string, format: date-time }
+        endsAt: { type: [string, 'null'], format: date-time }
+    DataAgreement:
+      allOf:
+        - $ref: '#/components/schemas/DataAgreementInput'
+        - type: object
+          required: [id, organizationId]
+          properties: { id: { type: string, format: uuid }, organizationId: { type: string } }
+    CreateCourse:
+      type: object
+      required: [name, term]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 200 }
+        term: { type: string, minLength: 1 }
+        outsideAiPolicy: { type: string, enum: [open, declared, in_environment_only], default: declared }
+        mapping: { $ref: '#/components/schemas/Mapping' }
+        defaultRunWeight: { type: number, minimum: 0, default: 2.5 }
+        taughtConcepts: { type: array, items: { type: string } }
+    UpdateCoursePolicy:
+      type: object
+      properties:
+        outsideAiPolicy: { type: string, enum: [open, declared, in_environment_only] }
+        defaultRunWeight: { type: number, minimum: 0 }
+        critiqueWeightFactor: { type: number, minimum: 0 }
+        taughtConcepts: { type: array, items: { type: string } }
+    Course:
+      type: object
+      required: [id, organizationId, name, term, outsideAiPolicy, mapping, defaultRunWeight, critiqueWeightFactor, taughtConcepts]
+      properties:
+        id: { type: string, format: uuid }
+        organizationId: { type: string }
+        name: { type: string }
+        term: { type: string }
+        outsideAiPolicy: { type: string, enum: [open, declared, in_environment_only] }
+        mapping: { $ref: '#/components/schemas/Mapping' }
+        defaultRunWeight: { type: number }
+        critiqueWeightFactor: { type: number }
+        taughtConcepts: { type: array, items: { type: string } }
+    Section:
+      type: object
+      required: [id, courseId, name]
+      properties: { id: { type: string, format: uuid }, courseId: { type: string, format: uuid }, name: { type: string } }
+    CourseView:
+      allOf:
+        - $ref: '#/components/schemas/Course'
+        - type: object
+          required: [sections, assignments]
+          properties:
+            sections: { type: array, items: { $ref: '#/components/schemas/Section' } }
+            assignments: { type: array, items: { $ref: '#/components/schemas/Assignment' } }
+    MappingChangePreview:
+      type: object
+      required: [affected]
+      properties:
+        affected:
+          type: array
+          items:
+            type: object
+            required: [runId, pointsNow, pointsAfter]
+            properties: { runId: { type: string, format: uuid }, pointsNow: { type: [number, 'null'] }, pointsAfter: { type: [number, 'null'] } }
+    SectionMember:
+      type: object
+      required: [userId, name, email, role]
+      properties:
+        userId: { type: string }
+        name: { type: string }
+        email: { type: string }
+        role: { type: string, enum: [student, instructor, ta] }
+    CreateAssignment:
+      type: object
+      required: [label, packageVersionId, variantId]
+      properties:
+        label: { type: string, minLength: 1, maxLength: 200 }
+        packageVersionId: { type: string, format: uuid }
+        variantId: { type: string, format: uuid }
+        workingClockSeconds: { type: integer, minimum: 60 }
+        weight: { type: number, minimum: 0 }
+        isWalkthrough: { type: boolean, default: false }
+        opensAt: { type: string, format: date-time }
+    UpdateAssignment:
+      type: object
+      properties:
+        label: { type: string }
+        packageVersionId: { type: string, format: uuid }
+        variantId: { type: string, format: uuid }
+        workingClockSeconds: { type: integer, minimum: 60 }
+        weight: { type: number, minimum: 0 }
+        isWalkthrough: { type: boolean }
+        opensAt: { type: [string, 'null'], format: date-time }
+    Assignment:
+      type: object
+      required: [id, sectionId, label, runType, packageVersionId, variantId, isWalkthrough]
+      properties:
+        id: { type: string, format: uuid }
+        sectionId: { type: string, format: uuid }
+        label: { type: string }
+        runType: { type: string, enum: [decision, critique] }
+        packageVersionId: { type: string, format: uuid }
+        variantId: { type: string, format: uuid }
+        workingClockSeconds: { type: [integer, 'null'] }
+        weight: { type: [number, 'null'] }
+        isWalkthrough: { type: boolean }
+        opensAt: { type: [string, 'null'], format: date-time }
+    AssignmentView:
+      allOf:
+        - $ref: '#/components/schemas/Assignment'
+        - type: object
+          required: [packageTitle, packageVersion, variantKey, effectiveWorkingClockSeconds, effectiveWeight]
+          properties:
+            packageTitle: { type: string }
+            packageVersion: { type: integer }
+            variantKey: { type: string, enum: [defective, sound] }
+            effectiveWorkingClockSeconds: { type: integer }
+            effectiveWeight: { type: number }
+    PolicyDisplay:
+      type: object
+      required: [outsideAiPolicy, weight, mapping, runType, workingClockSeconds, uncalibrated, countsStatement]
+      properties:
+        outsideAiPolicy: { type: string, enum: [open, declared, in_environment_only] }
+        weight: { type: number }
+        mapping: { $ref: '#/components/schemas/Mapping' }
+        runType: { type: string, enum: [decision, critique] }
+        workingClockSeconds: { type: integer }
+        uncalibrated: { type: boolean, const: true }
+        countsStatement: { type: boolean, const: true }
+    StudentAssignment:
+      type: object
+      required: [assignmentId, label, isWalkthrough, latestRun]
+      properties:
+        assignmentId: { type: string, format: uuid }
+        label: { type: string }
+        isWalkthrough: { type: boolean }
+        latestRun: { oneOf: [{ $ref: '#/components/schemas/RunSummary' }, { type: 'null' }] }
+    SeedInput:
+      type: object
+      required: [caseTitle, publisher, licenseTerms, licensePermitsAdaptation, seedText]
+      properties:
+        caseTitle: { type: string, minLength: 1 }
+        publisher: { type: string, minLength: 1 }
+        licenseTerms: { type: string, minLength: 1 }
+        licensePermitsAdaptation: { type: boolean, const: true }
+        seedText: { type: string, minLength: 200, maxLength: 200000 }
+    CreatePackageFromSeed:
+      type: object
+      required: [title, familyKey, conceptSet, seed]
+      properties:
+        title: { type: string, minLength: 1, maxLength: 200 }
+        familyKey: { type: string, pattern: '^[a-z0-9-]{3,60}$' }
+        conceptSet: { type: array, minItems: 4, items: { type: string, minLength: 2 } }
+        seed: { $ref: '#/components/schemas/SeedInput' }
+    PackageSummary:
+      type: object
+      required: [id, title, familyKey, latestVersion, warnings]
+      properties:
+        id: { type: string, format: uuid }
+        title: { type: string }
+        familyKey: { type: string }
+        latestVersion:
+          type: object
+          required: [id, version, status, calibrationStatus]
+          properties:
+            id: { type: string, format: uuid }
+            version: { type: integer }
+            status: { type: string, enum: [draft, confirmed, retired] }
+            calibrationStatus: { type: string, enum: [uncalibrated, calibrated] }
+        warnings: { type: array, items: { type: string } }
+    PackageView:
+      type: object
+      required: [id, title, familyKey, versions]
+      properties:
+        id: { type: string, format: uuid }
+        title: { type: string }
+        familyKey: { type: string }
+        versions: { type: array, items: { type: object, required: [id, version, status], properties: { id: { type: string, format: uuid }, version: { type: integer }, status: { type: string } } } }
+    ElementConfirmation:
+      type: object
+      required: [elementType, elementId, revision, decision, decidedBy, decidedAt, openedAt]
+      properties:
+        elementType: { $ref: '#/components/schemas/ElementType' }
+        elementId: { type: [string, 'null'] }
+        revision: { type: integer }
+        decision: { type: string, enum: [confirmed, edited, rejected] }
+        note: { type: string }
+        decidedBy: { type: string }
+        decidedAt: { type: string, format: date-time }
+        openedAt: { type: string, format: date-time }
+    AuthoringMeasures:
+      type: object
+      required: [seedToConfirmedMs, editRate, rejectedShare, generationPasses, reviewMsPerElement]
+      properties:
+        seedToConfirmedMs: { type: [integer, 'null'] }
+        editRate: { type: number }
+        rejectedShare: { type: number }
+        generationPasses: { type: integer }
+        reviewMsPerElement: { type: [number, 'null'] }
+    PackageVersionView:
+      type: object
+      required: [id, packageId, version, status, calibrationStatus, conceptSet, brief, workingClockSeconds, turnDelaySeconds, difficultyProfile, counts, confirmationRecord, authoringRecord, measures, warnings]
+      properties:
+        id: { type: string, format: uuid }
+        packageId: { type: string, format: uuid }
+        version: { type: integer }
+        status: { type: string, enum: [draft, confirmed, retired] }
+        calibrationStatus: { type: string, enum: [uncalibrated, calibrated] }
+        conceptSet: { type: array, items: { type: string } }
+        brief: { type: string }
+        workingClockSeconds: { type: integer }
+        turnDelaySeconds: { type: integer }
+        difficultyProfile: { type: object, additionalProperties: true }
+        counts: { type: object, additionalProperties: { type: integer } }
+        confirmationRecord: { type: array, items: { $ref: '#/components/schemas/ElementConfirmation' } }
+        authoringRecord:
+          type: object
+          properties:
+            generationModel: { type: [string, 'null'] }
+            generatedAt: { type: [string, 'null'], format: date-time }
+            confirmedBy: { type: [string, 'null'] }
+            confirmedAt: { type: [string, 'null'], format: date-time }
+            seed: { type: [object, 'null'], additionalProperties: true, description: Present only for authors, reviewers, editors, admins }
+        measures: { $ref: '#/components/schemas/AuthoringMeasures' }
+        warnings: { type: array, items: { type: string } }
+    VariantClaimState:
+      type: object
+      required: [variantKey, evidenceStatus, warrantedStance, planted, verificationPaths]
+      properties:
+        variantKey: { type: string, enum: [defective, sound] }
+        evidenceStatus: { type: string, enum: [sound, defective] }
+        failureFamily: { type: [string, 'null'], enum: [near_neighbor, unstated_assumption, stale_evidence, uncomputed_number, extrapolation, reversal_to_agree, omitted_alternative, misapplied_method, misattributed_source, unacceptable_route, null] }
+        warrantedStance: { $ref: '#/components/schemas/Stance' }
+        planted: { type: boolean }
+        verificationPaths: { type: object, additionalProperties: true }
+    ClaimObjectView:
+      type: object
+      required: [id, key, text, sourceKind, importance, consequenceLevel, verificationCost, conceptKey, triggerPhrases, escalatable, rationale, states]
+      properties:
+        id: { type: string, format: uuid }
+        key: { type: string }
+        text: { type: string }
+        sourceKind: { type: string, enum: [assistant, document] }
+        source: { type: [object, 'null'], properties: { documentId: { type: string }, title: { type: string }, datedOn: { type: string, format: date }, author: { type: string }, passage: { type: string } } }
+        importance: { type: string, enum: [load_bearing, supporting] }
+        consequenceLevel: { type: string, enum: [low, medium, high] }
+        verificationCost: { type: string, enum: [cheap, moderate, expensive] }
+        weaklySourced: { type: boolean }
+        volatile: { type: boolean }
+        conceptKey: { type: string }
+        carriedValues: { type: array, items: { type: object, additionalProperties: true } }
+        triggerPhrases: { type: array, items: { type: string } }
+        escalatable: { type: boolean }
+        escalationReply: { type: [string, 'null'] }
+        rationale: { type: string }
+        states: { type: array, items: { $ref: '#/components/schemas/VariantClaimState' } }
+        confirmation: { oneOf: [{ $ref: '#/components/schemas/ElementConfirmation' }, { type: 'null' }] }
+    ElementDecision:
+      type: object
+      required: [decision, openedAt]
+      properties:
+        decision: { type: string, enum: [confirmed, rejected] }
+        note: { type: string, maxLength: 1000 }
+        openedAt: { type: string, format: date-time }
+    GenerationStatus:
+      type: object
+      required: [steps, validation]
+      properties:
+        steps:
+          type: array
+          items:
+            type: object
+            required: [step, status, passNumber]
+            properties:
+              step: { type: string, enum: [reskin_brief_stakeholders, documents, answer_space_fields, claims_and_states, turn_and_probe, question_bank_and_counterfactual, readiness_items] }
+              status: { type: string, enum: [queued, running, succeeded, failed] }
+              passNumber: { type: integer }
+              inputTokens: { type: integer }
+              outputTokens: { type: integer }
+              costEstimateUsd: { type: number }
+              failedRules: { type: array, items: { type: string } }
+              error: { type: [string, 'null'] }
+        validation:
+          type: object
+          required: [ok, failures]
+          properties: { ok: { type: boolean }, failures: { type: array, items: { type: string } } }
+    PackageExport:
+      type: object
+      description: The package snapshot format; element arrays keyed by `key`. Full shape in 10-backend-spec-modules.md §4.
+      required: [package, version, brief, conceptSet, documents, stakeholders, answerSpace, namedFields, claims, variants, turn, defenseQuestions, readinessItems, counterfactual, generalEscalationReply]
+      additionalProperties: true
+    Clock:
+      type: object
+      required: [remainingMs, paused, creditedMs, chargedMs]
+      properties:
+        remainingMs: { type: integer }
+        paused: { type: boolean }
+        creditedMs: { type: integer }
+        chargedMs: { type: integer }
+    RunSummary:
+      type: object
+      required: [id, assignmentId, attemptNo, state, mode, variantKey, isWalkthrough, clock, turn, scoringStatus, timestamps, links]
+      properties:
+        id: { type: string, format: uuid }
+        assignmentId: { type: string, format: uuid }
+        attemptNo: { type: integer }
+        state: { $ref: '#/components/schemas/RunState' }
+        mode: { type: string, enum: [guided, standard, open] }
+        variantKey: { type: string, enum: [defective, sound] }
+        isWalkthrough: { type: boolean }
+        clock: { oneOf: [{ $ref: '#/components/schemas/Clock' }, { type: 'null' }] }
+        turn: { type: [object, 'null'], properties: { dueAt: { type: string, format: date-time }, windowEndsAt: { type: [string, 'null'], format: date-time } } }
+        scoringStatus: { type: string, enum: [idle, queued, running, held, done] }
+        timestamps: { type: object, additionalProperties: { type: [string, 'null'], format: date-time } }
+        links: { type: object, required: [next], properties: { next: { type: string } } }
+    RunReviewSummary:
+      allOf:
+        - $ref: '#/components/schemas/RunSummary'
+        - type: object
+          required: [studentId, decisionsMade, latestExportVersion]
+          properties:
+            studentId: { type: string }
+            decisionsMade: { type: integer }
+            latestExportVersion: { type: [integer, 'null'] }
+    ReadinessView:
+      type: object
+      required: [expiresAt, items]
+      properties:
+        expiresAt: { type: string, format: date-time }
+        items:
+          type: array
+          items:
+            type: object
+            required: [id, position, category, stem, options, answerKey]
+            properties:
+              id: { type: string, format: uuid }
+              position: { type: integer }
+              category: { type: string, enum: [foundation, defect_concept, ai_behavior] }
+              stem: { type: string }
+              options: { type: array, items: { type: object, required: [key, text], properties: { key: { type: string }, text: { type: string } } } }
+              answerKey: { type: [string, 'null'] }
+    ReadinessResult:
+      type: object
+      required: [concepts, skipped]
+      properties:
+        skipped: { type: boolean }
+        concepts: { type: array, items: { type: object, required: [conceptKey, status], properties: { conceptKey: { type: string }, status: { type: string, enum: [held, not_held, unknown] } } } }
+    DocumentSummary:
+      type: object
+      required: [id, key, title, author, datedOn]
+      properties: { id: { type: string, format: uuid }, key: { type: string }, title: { type: string }, author: { type: string }, datedOn: { type: string, format: date } }
+    Document:
+      allOf:
+        - $ref: '#/components/schemas/DocumentSummary'
+        - type: object
+          required: [body]
+          properties: { body: { type: string } }
+    Frame:
+      type: object
+      required: [decision, assumptions, position, confidence]
+      properties:
+        decision: { type: string }
+        assumptions: { type: array, minItems: 3, maxItems: 3, items: { type: string } }
+        position: { type: string }
+        confidence: { type: integer, minimum: 0, maximum: 100 }
+    ActionResult:
+      type: object
+      required: [actionId, type, clockCostMs, result, inTurnWindow]
+      properties:
+        actionId: { type: string, format: uuid }
+        type: { $ref: '#/components/schemas/ActionType' }
+        clockCostMs: { type: integer }
+        result: { type: object, additionalProperties: true }
+        inTurnWindow: { type: boolean }
+    EscalationResult:
+      type: object
+      description: Student form. responseId and countsAgainstLimit are visible only in the replay bundle (D-116).
+      required: [responseText, clockCostMs, remainingEscalations]
+      properties:
+        responseText: { type: string }
+        clockCostMs: { type: integer }
+        remainingEscalations: { type: integer, minimum: 0, maximum: 2 }
+    ClaimView:
+      type: object
+      required: [id, key, text, surfacedBy, surfacedAt, inTurnWindow, stance, previousStance, actions, availableActions, escalatable, escalation, usedMarked, reliedOn]
+      properties:
+        id: { type: string, format: uuid }
+        key: { type: string }
+        text: { type: string }
+        surfacedBy: { type: string, enum: [delegation, document, turn, student] }
+        surfacedAt: { type: string, format: date-time }
+        inTurnWindow: { type: boolean }
+        stance: { oneOf: [{ $ref: '#/components/schemas/Stance' }, { type: 'null' }] }
+        previousStance: { oneOf: [{ $ref: '#/components/schemas/Stance' }, { type: 'null' }] }
+        stanceSetAt: { type: [string, 'null'], format: date-time }
+        actions: { type: array, items: { $ref: '#/components/schemas/ActionResult' } }
+        availableActions: { type: array, items: { $ref: '#/components/schemas/ActionType' } }
+        escalatable: { type: boolean }
+        escalation: { oneOf: [{ $ref: '#/components/schemas/EscalationResult' }, { type: 'null' }] }
+        usedMarked: { type: boolean }
+        reliedOn: { type: boolean }
+    DelegationView:
+      type: object
+      required: [id, seq, requestText, responseText, claims, why, flags, inTurnWindow, failed, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        seq: { type: integer }
+        requestText: { type: string }
+        responseText: { type: string }
+        claims: { type: array, items: { $ref: '#/components/schemas/ClaimView' } }
+        why: { type: [string, 'null'] }
+        flags: { type: array, items: { type: string } }
+        unverifiedNumbers: { type: array, items: { type: object, properties: { value: { type: string }, context: { type: string } } } }
+        inTurnWindow: { type: boolean }
+        failed: { type: boolean }
+        createdAt: { type: string, format: date-time }
+    BriefDraft:
+      type: object
+      properties:
+        recommendation: { type: string }
+        rationale: { type: string }
+        assumptions: { type: array, minItems: 3, maxItems: 3, items: { type: string } }
+        changeMyMind: { type: string }
+        confidence: { type: [integer, 'null'], minimum: 0, maximum: 100 }
+        namedValues: { type: object, additionalProperties: { type: number } }
+    Brief:
+      type: object
+      required: [recommendation, rationale, assumptions, changeMyMind, confidence, namedValues]
+      properties:
+        recommendation: { type: string }
+        rationale: { type: string }
+        assumptions: { type: array, minItems: 3, maxItems: 3, items: { type: string } }
+        changeMyMind: { type: string }
+        confidence: { type: integer, minimum: 0, maximum: 100 }
+        namedValues: { type: object, additionalProperties: { type: number } }
+    BriefSignal:
+      oneOf:
+        - { type: object, required: [opened], properties: { opened: { type: boolean, const: true } } }
+        - { type: object, required: [closed, durationMs], properties: { closed: { type: boolean, const: true }, durationMs: { type: integer, minimum: 0 } } }
+    TurnView:
+      type: object
+      required: [text, voice, windowEndsAt, windowClaims, frozen]
+      properties:
+        text: { type: string }
+        voice: { type: string, enum: [stakeholder_message, corrected_number, supplier_notice, competitor_move, retracted_source, regulatory_note] }
+        windowEndsAt: { type: string, format: date-time }
+        windowClaims: { type: array, items: { $ref: '#/components/schemas/ClaimView' } }
+        frozen: { type: object, required: [frame, brief], properties: { frame: { $ref: '#/components/schemas/Frame' }, brief: { $ref: '#/components/schemas/Brief' } } }
+    TurnResponse:
+      type: object
+      required: [response, justification, confidence]
+      properties:
+        response: { $ref: '#/components/schemas/TurnResponseKind' }
+        justification: { type: string }
+        confidence: { type: integer, minimum: 0, maximum: 100 }
+    DefenseQuestion:
+      type: object
+      required: [runQuestionId, seq, kind, text, answered, followUpOf]
+      properties:
+        runQuestionId: { type: string, format: uuid }
+        seq: { type: integer }
+        kind: { type: string, enum: [provenance, figure_provenance, verification, assumption, confidence, frame_vs_response, counterfactual, default] }
+        text: { type: string }
+        answered: { type: boolean }
+        followUpOf: { type: [string, 'null'], format: uuid }
+    DefenseView:
+      type: object
+      required: [questions, artifacts]
+      properties:
+        questions: { type: array, items: { $ref: '#/components/schemas/DefenseQuestion' } }
+        artifacts:
+          type: object
+          required: [frame, brief, turnResponse]
+          properties:
+            frame: { $ref: '#/components/schemas/Frame' }
+            brief: { $ref: '#/components/schemas/Brief' }
+            turnResponse: { type: object, properties: { response: { $ref: '#/components/schemas/TurnResponseKind' }, justification: { type: [string, 'null'] }, confidence: { type: [integer, 'null'] }, implicit: { type: boolean } } }
+    DefenseAnswer:
+      type: object
+      required: [text, durationMs]
+      properties: { text: { type: string, maxLength: 5000 }, durationMs: { type: integer, minimum: 0 } }
+    Graph:
+      type: object
+      required: [key, available, dataTable, description]
+      properties:
+        key: { type: string, enum: [confidence_line, clock_timeline, stance_matrix, frame_beside_decision] }
+        available: { type: boolean }
+        missingEventTypes: { type: array, items: { type: string } }
+        dataTable: { type: object, required: [columns, rows], properties: { columns: { type: array, items: { type: string } }, rows: { type: array, items: { type: array, items: {} } } } }
+        description: { type: string }
+      additionalProperties: true
+    Graphs:
+      type: object
+      required: [confidence_line, clock_timeline, stance_matrix, frame_beside_decision]
+      properties:
+        confidence_line: { $ref: '#/components/schemas/Graph' }
+        clock_timeline: { $ref: '#/components/schemas/Graph' }
+        stance_matrix: { $ref: '#/components/schemas/Graph' }
+        frame_beside_decision: { $ref: '#/components/schemas/Graph' }
+    BandView:
+      type: object
+      required: [dimension, draft, decision, effectiveBand, correction]
+      properties:
+        dimension: { $ref: '#/components/schemas/Dimension' }
+        draft:
+          type: object
+          required: [band, status, reason, basis, provisional, graphKeys, evidenceEventSeqs, quotes, rationale]
+          properties:
+            band: { oneOf: [{ $ref: '#/components/schemas/Band' }, { type: 'null' }] }
+            status: { type: string, enum: [drafted, unassessed] }
+            reason: { type: string }
+            basis: { type: string, enum: [trace, defense_only, categorical_only, none] }
+            provisional: { type: boolean }
+            graphKeys: { type: array, items: { type: string } }
+            evidenceEventSeqs: { type: array, items: { type: integer } }
+            quotes: { type: array, items: { type: object, properties: { eventSeq: { type: integer }, text: { type: string } } } }
+            rationale: { type: string }
+        decision:
+          type: [object, 'null']
+          properties:
+            decision: { type: string, enum: [confirmed, overridden, unassessed] }
+            band: { oneOf: [{ $ref: '#/components/schemas/Band' }, { type: 'null' }] }
+            note: { type: [string, 'null'] }
+            decidedBy: { type: string }
+            decidedAt: { type: string, format: date-time }
+        effectiveBand: { oneOf: [{ $ref: '#/components/schemas/Band' }, { type: string, enum: [unassessed] }, { type: 'null' }] }
+        correction: { type: [object, 'null'], properties: { before: { $ref: '#/components/schemas/Band' }, after: { $ref: '#/components/schemas/Band' } } }
+    DebriefView:
+      type: object
+      required: [run, sections, bands, points, questions, doneWell, labels]
+      properties:
+        run: { $ref: '#/components/schemas/RunSummary' }
+        sections: { type: array, items: { type: object, required: [key, available], properties: { key: { type: string }, available: { type: boolean }, reason: { type: string }, data: {} } } }
+        bands: { type: array, items: { $ref: '#/components/schemas/BandView' } }
+        points: { type: object, required: [mapping, weight, draft, confirmed], properties: { mapping: { $ref: '#/components/schemas/Mapping' }, weight: { type: number }, draft: { type: [number, 'null'] }, confirmed: { type: [number, 'null'] } } }
+        questions: { type: object, required: [answered], properties: { answered: { type: boolean }, stanceToChange: { type: [string, 'null'] }, doDifferently: { type: [string, 'null'] } } }
+        doneWell: { type: string }
+        labels: { type: object, required: [uncalibrated, draft], properties: { uncalibrated: { type: boolean }, draft: { type: boolean } } }
+    DebriefAnswers:
+      type: object
+      required: [stanceToChange, doDifferently]
+      properties: { stanceToChange: { type: string, minLength: 1 }, doDifferently: { type: string, minLength: 1 } }
+    TraceEvent:
+      type: object
+      required: [seq, type, occurredAt, clockRemainingMs, payload]
+      properties:
+        seq: { type: integer }
+        type: { type: string }
+        occurredAt: { type: string, format: date-time }
+        clockRemainingMs: { type: [integer, 'null'] }
+        actorId: { type: [string, 'null'] }
+        payload: { type: object, additionalProperties: true }
+    TraceExport:
+      type: object
+      required: [header, events, claims, computed]
+      properties:
+        header: { type: object, additionalProperties: true }
+        events: { type: array, items: { $ref: '#/components/schemas/TraceEvent' } }
+        claims: { type: array, items: { type: object, additionalProperties: true } }
+        computed:
+          type: object
+          description: The trace file is a snake_case artefact (D-136).
+          required: [confidence, false_challenge_rate, rubric_version, exported_at, export_version]
+          properties:
+            confidence: { type: object, properties: { frame: { type: [integer, 'null'] }, lock: { type: [integer, 'null'] }, turn: { type: [integer, 'null'] } } }
+            false_challenge_rate: { type: [number, 'null'] }
+            points: { type: [number, 'null'], description: Course form only }
+            weight: { type: number, description: Course form only }
+            mapping: { $ref: '#/components/schemas/Mapping', description: Course form only }
+            rubric_version: { type: string }
+            exported_at: { type: string, format: date-time }
+            export_version: { type: integer }
+    RecordView:
+      type: object
+      required: [run, graphs, bands, mode, variantKey, trace, labels]
+      properties:
+        run: { $ref: '#/components/schemas/RunSummary' }
+        graphs: { $ref: '#/components/schemas/Graphs' }
+        bands: { type: array, items: { $ref: '#/components/schemas/BandView' } }
+        mode: { type: string }
+        variantKey: { type: string }
+        trace: { $ref: '#/components/schemas/TraceExport' }
+        labels: { type: object, additionalProperties: { type: boolean } }
+    ReplayBundle:
+      type: object
+      required: [run, events, graphs, defense, bands, readiness, package, claims, declarations, unverifiedNumbers, labels, capabilities]
+      properties:
+        run: { $ref: '#/components/schemas/RunReviewSummary' }
+        events: { type: array, items: { $ref: '#/components/schemas/TraceEvent' } }
+        graphs: { $ref: '#/components/schemas/Graphs' }
+        defense: { type: array, items: { type: object, additionalProperties: true } }
+        bands: { type: array, items: { $ref: '#/components/schemas/BandView' } }
+        readiness: { type: array, items: { type: object, properties: { conceptKey: { type: string }, status: { type: string } } } }
+        package: { $ref: '#/components/schemas/PackageVersionView' }
+        claims: { type: array, items: { $ref: '#/components/schemas/ClaimObjectView' } }
+        declarations: { type: array, items: { type: object, properties: { purpose: { type: string }, at: { type: string }, coursePolicy: { type: string } } } }
+        unverifiedNumbers: { type: array, items: { type: object, additionalProperties: true } }
+        labels: { type: object, additionalProperties: { type: boolean } }
+        capabilities: { type: object, additionalProperties: { type: boolean } }
+    BandDecision:
+      type: object
+      required: [decision]
+      properties:
+        decision: { type: string, enum: [confirmed, overridden, unassessed] }
+        band: { $ref: '#/components/schemas/Band' }
+        note: { type: string, maxLength: 1000 }
+    ManualBands:
+      type: object
+      required: [bands]
+      properties:
+        bands: { type: object, additionalProperties: { oneOf: [{ $ref: '#/components/schemas/Band' }, { type: string, enum: [unassessed] }] } }
+    VoidRequest:
+      type: object
+      required: [reason, reoffer]
+      properties:
+        reason: { type: string, enum: [unscoreable, scoring_held, walkthrough, other] }
+        note: { type: string, maxLength: 500 }
+        reoffer: { type: boolean }
+        variantId: { type: string, format: uuid }
+    Neutralize:
+      type: object
+      required: [reason, creditChallenge, note]
+      properties:
+        reason: { type: string, enum: [unintended_defect, wrong_verification_result, misbehaving_material, adaptation_failed, record_lost, other] }
+        creditChallenge: { type: boolean }
+        note: { type: string, maxLength: 1000 }
+    RecomputeResult:
+      type: object
+      required: [dimensions, bandsBefore, bandsAfter, pointsBefore, pointsAfter, pointsEffective]
+      properties:
+        dimensions: { type: array, items: { $ref: '#/components/schemas/Dimension' } }
+        bandsBefore: { type: object, additionalProperties: { type: string } }
+        bandsAfter: { type: object, additionalProperties: { type: string } }
+        pointsBefore: { type: [number, 'null'] }
+        pointsAfter: { type: [number, 'null'] }
+        pointsEffective: { type: [number, 'null'] }
+    ExportSummary:
+      type: object
+      required: [runId, version, reason, createdAt]
+      properties:
+        runId: { type: string, format: uuid }
+        version: { type: integer }
+        reason: { type: string, enum: [initial, override, neutralization, mapping_change, unassessed] }
+        createdAt: { type: string, format: date-time }
+    Notification:
+      type: object
+      required: [id, type, title, body, link, readAt, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        type: { type: string, enum: [generation_complete, generation_failed, run_scored, run_held, bands_confirmed, invitation, export_ready] }
+        title: { type: string }
+        body: { type: string }
+        link: { type: [string, 'null'] }
+        readAt: { type: [string, 'null'], format: date-time }
+        createdAt: { type: string, format: date-time }
+    AdminUser:
+      type: object
+      required: [id, name, email, platformRole, deletedAt, createdAt]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        email: { type: string }
+        platformRole: { type: string, enum: [none, tassl_scenario_editor, admin] }
+        deletedAt: { type: [string, 'null'], format: date-time }
+        createdAt: { type: string, format: date-time }
+    AuditEntry:
+      type: object
+      required: [id, action, targetType, targetId, actorId, organizationId, requestId, createdAt, metadata]
+      properties:
+        id: { type: string, format: uuid }
+        action: { type: string }
+        targetType: { type: string }
+        targetId: { type: string }
+        actorId: { type: [string, 'null'] }
+        organizationId: { type: [string, 'null'] }
+        requestId: { type: string }
+        metadata: { type: object, additionalProperties: true }
+        createdAt: { type: string, format: date-time }
+paths:
+  /../health:
+    get:
+      tags: [system]
+      operationId: getHealth
+      summary: Liveness
+      security: []
+      servers: [{ url: /api }]
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { type: object, required: [status, version], properties: { status: { type: string, const: ok }, version: { type: string } } } } } }
+  /../ready:
+    get:
+      tags: [system]
+      operationId: getReady
+      summary: Readiness (database and jobs schema)
+      security: []
+      servers: [{ url: /api }]
+      responses:
+        '200': { description: Ready, content: { application/json: { schema: { type: object, required: [status, checks], properties: { status: { type: string, const: ready }, checks: { type: object, additionalProperties: { type: string } } } } } } }
+        '503': { description: Not ready, content: { application/json: { schema: { type: object, additionalProperties: true } } } }
+  /../internal/jobs/drain:
+    get:
+      tags: [system]
+      operationId: drainJobsCron
+      summary: Drain job queues and run daily maintenance (Vercel Cron)
+      security: [{ cronAuth: [] }]
+      servers: [{ url: /api }]
+      responses:
+        '200': { description: Drained, content: { application/json: { schema: { type: object, required: [processed, durationMs], properties: { processed: { type: object, additionalProperties: { type: integer } }, durationMs: { type: integer } } } } } }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+    post:
+      tags: [system]
+      operationId: drainJobs
+      summary: Drain job queues and run daily maintenance (manual)
+      security: [{ cronAuth: [] }]
+      servers: [{ url: /api }]
+      responses:
+        '200': { description: Drained, content: { application/json: { schema: { type: object, required: [processed, durationMs], properties: { processed: { type: object, additionalProperties: { type: integer } }, durationMs: { type: integer } } } } } }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+  /openapi.yaml:
+    get:
+      tags: [system]
+      operationId: getOpenApi
+      summary: This document
+      security: []
+      responses:
+        '200': { description: YAML, content: { text/yaml: { schema: { type: string } } } }
+  /me:
+    get:
+      tags: [me]
+      operationId: getMe
+      summary: Current user
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/MeView' } } } }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+    patch:
+      tags: [me]
+      operationId: updateMe
+      summary: Update profile
+      parameters: [{ $ref: '#/components/parameters/requestedWith' }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [name], properties: { name: { type: string, minLength: 1, maxLength: 120 } } } } } }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/MeView' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+    delete:
+      tags: [me]
+      operationId: deleteMe
+      summary: Soft-delete the account (purged after 30 days)
+      parameters: [{ $ref: '#/components/parameters/requestedWith' }]
+      responses:
+        '204': { $ref: '#/components/responses/NoContent' }
+  /me/export:
+    post:
+      tags: [me]
+      operationId: exportMe
+      summary: Export my data as JSON
+      parameters: [{ $ref: '#/components/parameters/requestedWith' }]
+      responses:
+        '200': { description: File, content: { application/json: { schema: { type: object, additionalProperties: true } } } }
+        '429': { $ref: '#/components/responses/RateLimited' }
+  /me/assignments:
+    get:
+      tags: [me]
+      operationId: listMyAssignments
+      summary: My assignments with latest run
+      parameters: [{ $ref: '#/components/parameters/cursor' }, { $ref: '#/components/parameters/limit' }]
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { allOf: [{ $ref: '#/components/schemas/Page' }, { type: object, properties: { items: { type: array, items: { $ref: '#/components/schemas/StudentAssignment' } } } }] } } } }
+  /me/runs:
+    get:
+      tags: [me]
+      operationId: listMyRuns
+      summary: My runs
+      parameters: [{ $ref: '#/components/parameters/cursor' }, { $ref: '#/components/parameters/limit' }, { name: state, in: query, schema: { $ref: '#/components/schemas/RunState' } }]
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { allOf: [{ $ref: '#/components/schemas/Page' }, { type: object, properties: { items: { type: array, items: { $ref: '#/components/schemas/RunSummary' } } } }] } } } }
+  /institutions:
+    get:
+      tags: [tenancy]
+      operationId: listInstitutions
+      summary: Institutions I belong to
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/Institution' } } } } }
+    post:
+      tags: [tenancy]
+      operationId: createInstitution
+      summary: Create an institution (admin)
+      parameters: [{ $ref: '#/components/parameters/requestedWith' }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [name, slug, programLeadEmail], properties: { name: { type: string }, slug: { type: string, pattern: '^[a-z0-9-]{3,60}$' }, programLeadEmail: { type: string, format: email } } } } } }
+      responses:
+        '201': { description: Created, content: { application/json: { schema: { $ref: '#/components/schemas/Institution' } } } }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /institutions/{orgId}:
+    get:
+      tags: [tenancy]
+      operationId: getInstitution
+      summary: Institution with settings
+      parameters: [{ $ref: '#/components/parameters/orgId' }]
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/InstitutionView' } } } }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /institutions/{orgId}/settings:
+    patch:
+      tags: [tenancy]
+      operationId: updateInstitutionSettings
+      summary: Plan label and default mapping
+      parameters: [{ $ref: '#/components/parameters/orgId' }, { $ref: '#/components/parameters/requestedWith' }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, properties: { plan: { type: string, enum: [pilot, course_license, department, institution, practice_pass] }, defaultMapping: { $ref: '#/components/schemas/Mapping' } } } } } }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/InstitutionView' } } } }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /institutions/{orgId}/invitations:
+    post:
+      tags: [tenancy]
+      operationId: inviteMember
+      summary: Invite a member by email
+      parameters: [{ $ref: '#/components/parameters/orgId' }, { $ref: '#/components/parameters/requestedWith' }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [email, role], properties: { email: { type: string, format: email }, role: { type: string, enum: [student, instructor, teaching_assistant, scenario_author, program_lead] } } } } } }
+      responses:
+        '201': { description: Created, content: { application/json: { schema: { type: object, required: [id, email, role, status, expiresAt], properties: { id: { type: string }, email: { type: string }, role: { type: string }, status: { type: string }, expiresAt: { type: string, format: date-time } } } } } }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /invitations/{invitationId}/accept:
+    post:
+      tags: [tenancy]
+      operationId: acceptInvitation
+      summary: Accept an invitation
+      parameters: [{ name: invitationId, in: path, required: true, schema: { type: string } }, { $ref: '#/components/parameters/requestedWith' }]
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/Membership' } } } }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /institutions/{orgId}/agreements:
+    get:
+      tags: [tenancy]
+      operationId: listAgreements
+      summary: Data agreements
+      parameters: [{ $ref: '#/components/parameters/orgId' }]
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/DataAgreement' } } } } }
+    post:
+      tags: [tenancy]
+      operationId: createAgreement
+      summary: Create a data agreement
+      parameters: [{ $ref: '#/components/parameters/orgId' }, { $ref: '#/components/parameters/requestedWith' }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/DataAgreementInput' } } } }
+      responses:
+        '201': { description: Created, content: { application/json: { schema: { $ref: '#/components/schemas/DataAgreement' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+  /agreements/{agreementId}:
+    patch:
+      tags: [tenancy]
+      operationId: updateAgreement
+      summary: Update or end a data agreement
+      parameters: [{ name: agreementId, in: path, required: true, schema: { type: string, format: uuid } }, { $ref: '#/components/parameters/requestedWith' }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/DataAgreementInput' } } } }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/DataAgreement' } } } }
+  /institutions/{orgId}/courses:
+    get:
+      tags: [courses]
+      operationId: listCourses
+      summary: Courses in an institution
+      parameters: [{ $ref: '#/components/parameters/orgId' }, { $ref: '#/components/parameters/cursor' }, { $ref: '#/components/parameters/limit' }]
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { allOf: [{ $ref: '#/components/schemas/Page' }, { type: object, properties: { items: { type: array, items: { $ref: '#/components/schemas/Course' } } } }] } } } }
+    post:
+      tags: [courses]
+      operationId: createCourse
+      summary: Create a course
+      parameters: [{ $ref: '#/components/parameters/orgId' }, { $ref: '#/components/parameters/requestedWith' }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/CreateCourse' } } } }
+      responses:
+        '201': { description: Created, content: { application/json: { schema: { $ref: '#/components/schemas/Course' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+  /courses/{courseId}:
+    get:
+      tags: [courses]
+      operationId: getCourse
+      summary: Course detail
+      parameters: [{ $ref: '#/components/parameters/courseId' }]
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/CourseView' } } } }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      tags: [courses]
+      operationId: updateCoursePolicy
+      summary: Update policy, weights, taught concepts
+      parameters: [{ $ref: '#/components/parameters/courseId' }, { $ref: '#/components/parameters/requestedWith' }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/UpdateCoursePolicy' } } } }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/Course' } } } }
+  /courses/{courseId}/mapping/preview:
+    post:
+      tags: [courses]
+      operationId: previewMappingChange
+      summary: Preview points changes for a new mapping
+      parameters: [{ $ref: '#/components/parameters/courseId' }, { $ref: '#/components/parameters/requestedWith' }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [mapping], properties: { mapping: { $ref: '#/components/schemas/Mapping' } } } } } }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/MappingChangePreview' } } } }
+  /courses/{courseId}/mapping:
+    post:
+      tags: [courses]
+      operationId: changeMapping
+      summary: Apply a mapping change and recompute exports
+      parameters: [{ $ref: '#/components/parameters/courseId' }, { $ref: '#/components/parameters/requestedWith' }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [mapping, confirm], properties: { mapping: { $ref: '#/components/schemas/Mapping' }, confirm: { type: boolean, const: true } } } } } }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/Course' } } } }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /courses/{courseId}/sections:
+    post:
+      tags: [courses]
+      operationId: createSection
+      summary: Create a section
+      parameters: [{ $ref: '#/components/parameters/courseId' }, { $ref: '#/components/parameters/requestedWith' }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [name], properties: { name: { type: string, minLength: 1 } } } } } }
+      responses:
+        '201': { description: Created, content: { application/json: { schema: { $ref: '#/components/schemas/Section' } } } }
+  /sections/{sectionId}/members:
+    get:
+      tags: [courses]
+      operationId: listSectionMembers
+      summary: Roster
+      parameters: [{ $ref: '#/components/parameters/sectionId' }, { $ref: '#/components/parameters/cursor' }, { $ref: '#/components/parameters/limit' }]
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { allOf: [{ $ref: '#/components/schemas/Page' }, { type: object, properties: { items: { type: array, items: { $ref: '#/components/schemas/SectionMember' } } } }] } } } }
+    post:
+      tags: [courses]
+      operationId: addSectionMember
+      summary: Add an institution member to the section
+      parameters: [{ $ref: '#/components/parameters/sectionId' }, { $ref: '#/components/parameters/requestedWith' }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [email, role], properties: { email: { type: string, format: email }, role: { type: string, enum: [student, instructor, ta] } } } } } }
+      responses:
+        '201': { description: Created, content: { application/json: { schema: { $ref: '#/components/schemas/SectionMember' } } } }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /sections/{sectionId}/members/{userId}:
+    delete:
+      tags: [courses]
+      operationId: removeSectionMember
+      summary: Remove a member
+      parameters: [{ $ref: '#/components/parameters/sectionId' }, { name: userId, in: path, required: true, schema: { type: string } }, { $ref: '#/components/parameters/requestedWith' }]
+      responses:
+        '204': { $ref: '#/components/responses/NoContent' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /sections/{sectionId}/assignments:
+    post:
+      tags: [courses]
+      operationId: createAssignment
+      summary: Create an assignment
+      parameters: [{ $ref: '#/components/parameters/sectionId' }, { $ref: '#/components/parameters/requestedWith' }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/CreateAssignment' } } } }
+      responses:
+        '201': { description: Created, content: { application/json: { schema: { $ref: '#/components/schemas/Assignment' } } } }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /assignments/{assignmentId}:
+    get:
+      tags: [courses]
+      operationId: getAssignment
+      summary: Assignment with package and variant
+      parameters: [{ $ref: '#/components/parameters/assignmentId' }]
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/AssignmentView' } } } }
+    patch:
+      tags: [courses]
+      operationId: updateAssignment
+      summary: Update configuration
+      parameters: [{ $ref: '#/components/parameters/assignmentId' }, { $ref: '#/components/parameters/requestedWith' }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/UpdateAssignment' } } } }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/Assignment' } } } }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /assignments/{assignmentId}/policy-display:
+    get:
+      tags: [courses]
+      operationId: getPolicyDisplay
+      summary: Policy display values shown at run start
+      parameters: [{ $ref: '#/components/parameters/assignmentId' }]
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/PolicyDisplay' } } } }
+  /assignments/{assignmentId}/runs:
+    get:
+      tags: [courses]
+      operationId: listAssignmentRuns
+      summary: Runs on an assignment (reviewers)
+      parameters: [{ $ref: '#/components/parameters/assignmentId' }, { $ref: '#/components/parameters/cursor' }, { $ref: '#/components/parameters/limit' }]
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { allOf: [{ $ref: '#/components/schemas/Page' }, { type: object, properties: { items: { type: array, items: { $ref: '#/components/schemas/RunReviewSummary' } } } }] } } } }
+    post:
+      tags: [runs]
+      operationId: startRun
+      summary: Start a run
+      parameters: [{ $ref: '#/components/parameters/assignmentId' }, { $ref: '#/components/parameters/requestedWith' }, { $ref: '#/components/parameters/idempotencyKey' }]
+      responses:
+        '201': { description: Created, content: { application/json: { schema: { $ref: '#/components/schemas/RunSummary' } } } }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /assignments/{assignmentId}/exports:
+    get:
+      tags: [review]
+      operationId: listAssignmentExports
+      summary: Export history for an assignment
+      parameters: [{ $ref: '#/components/parameters/assignmentId' }, { $ref: '#/components/parameters/cursor' }, { $ref: '#/components/parameters/limit' }]
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { allOf: [{ $ref: '#/components/schemas/Page' }, { type: object, properties: { items: { type: array, items: { $ref: '#/components/schemas/ExportSummary' } } } }] } } } }
+  /institutions/{orgId}/packages:
+    get:
+      tags: [packages]
+      operationId: listPackages
+      summary: Scenario packages
+      parameters: [{ $ref: '#/components/parameters/orgId' }, { $ref: '#/components/parameters/cursor' }, { $ref: '#/components/parameters/limit' }]
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { allOf: [{ $ref: '#/components/schemas/Page' }, { type: object, properties: { items: { type: array, items: { $ref: '#/components/schemas/PackageSummary' } } } }] } } } }
+    post:
+      tags: [packages]
+      operationId: createPackageFromSeed
+      summary: Create a package (version 1 draft) from a seed case
+      parameters: [{ $ref: '#/components/parameters/orgId' }, { $ref: '#/components/parameters/requestedWith' }, { $ref: '#/components/parameters/idempotencyKey' }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/CreatePackageFromSeed' } } } }
+      responses:
+        '201': { description: Created, content: { application/json: { schema: { type: object, required: [packageId, versionId], properties: { packageId: { type: string, format: uuid }, versionId: { type: string, format: uuid } } } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /institutions/{orgId}/packages/import:
+    post:
+      tags: [packages]
+      operationId: importPackage
+      summary: Import a package JSON
+      parameters: [{ $ref: '#/components/parameters/orgId' }, { $ref: '#/components/parameters/requestedWith' }]
+      requestBody: { required: true, content: { application/json: { schema: { allOf: [{ $ref: '#/components/schemas/PackageExport' }, { type: object, properties: { confirmOnImport: { type: boolean, default: false } } }] } } } }
+      responses:
+        '201': { description: Created, content: { application/json: { schema: { type: object, required: [packageId, versionId, validation], properties: { packageId: { type: string, format: uuid }, versionId: { type: string, format: uuid }, validation: { type: object, additionalProperties: true } } } } } }
+        '422': { description: Package invalid, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } } }
+  /packages/{packageId}:
+    get:
+      tags: [packages]
+      operationId: getPackage
+      summary: Package with versions
+      parameters: [{ $ref: '#/components/parameters/packageId' }]
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/PackageView' } } } }
+  /package-versions/{versionId}:
+    get:
+      tags: [packages]
+      operationId: getPackageVersion
+      summary: Package version view (confirmation record, authoring record, measures)
+      parameters: [{ $ref: '#/components/parameters/versionId' }]
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/PackageVersionView' } } } }
+  /package-versions/{versionId}/export:
+    get:
+      tags: [packages]
+      operationId: exportPackageVersion
+      summary: Package JSON
+      parameters: [{ $ref: '#/components/parameters/versionId' }]
+      responses:
+        '200': { description: File, content: { application/json: { schema: { $ref: '#/components/schemas/PackageExport' } } } }
+  /package-versions/{versionId}/claims/{claimId}:
+    get:
+      tags: [packages]
+      operationId: getClaimObject
+      summary: Claim object view
+      parameters: [{ $ref: '#/components/parameters/versionId' }, { $ref: '#/components/parameters/claimId' }, { name: variantId, in: query, schema: { type: string, format: uuid } }]
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/ClaimObjectView' } } } }
+  /package-versions/{versionId}/elements/{elementType}/{elementId}:
+    patch:
+      tags: [packages]
+      operationId: updateElement
+      summary: Edit a draft element
+      parameters: [{ $ref: '#/components/parameters/versionId' }, { $ref: '#/components/parameters/elementType' }, { $ref: '#/components/parameters/elementId' }, { $ref: '#/components/parameters/requestedWith' }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, additionalProperties: true } } } }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { type: object, additionalProperties: true } } } }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /package-versions/{versionId}/elements/{elementType}/{elementId}/decision:
+    post:
+      tags: [packages]
+      operationId: decideElement
+      summary: Confirm or reject an element
+      parameters: [{ $ref: '#/components/parameters/versionId' }, { $ref: '#/components/parameters/elementType' }, { $ref: '#/components/parameters/elementId' }, { $ref: '#/components/parameters/requestedWith' }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/ElementDecision' } } } }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/ElementConfirmation' } } } }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /package-versions/{versionId}/elements/{elementType}/{elementId}/regenerate:
+    post:
+      tags: [packages]
+      operationId: regenerateElement
+      summary: Regenerate an element or element set
+      parameters: [{ $ref: '#/components/parameters/versionId' }, { $ref: '#/components/parameters/elementType' }, { $ref: '#/components/parameters/elementId' }, { $ref: '#/components/parameters/requestedWith' }]
+      requestBody: { required: false, content: { application/json: { schema: { type: object, properties: { restatedRule: { type: string } } } } } }
+      responses:
+        '202': { description: Queued, content: { application/json: { schema: { type: object, required: [jobId], properties: { jobId: { type: string } } } } } }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /package-versions/{versionId}/confirm:
+    post:
+      tags: [packages]
+      operationId: confirmPackageVersion
+      summary: Confirm and freeze the version
+      parameters: [{ $ref: '#/components/parameters/versionId' }, { $ref: '#/components/parameters/requestedWith' }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [teachingNoteChecked], properties: { teachingNoteChecked: { type: boolean, const: true } } } } } }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/PackageVersionView' } } } }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { description: Package invalid, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } } }
+  /package-versions/{versionId}/regenerate:
+    post:
+      tags: [packages]
+      operationId: regeneratePackageVersion
+      summary: Create the next draft version from this one
+      parameters: [{ $ref: '#/components/parameters/versionId' }, { $ref: '#/components/parameters/requestedWith' }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [reason], properties: { reason: { type: string, minLength: 1 } } } } } }
+      responses:
+        '201': { description: Created, content: { application/json: { schema: { type: object, required: [versionId], properties: { versionId: { type: string, format: uuid } } } } } }
+  /package-versions/{versionId}/generation:
+    post:
+      tags: [packages]
+      operationId: startGeneration
+      summary: Start AI-assisted generation
+      parameters: [{ $ref: '#/components/parameters/versionId' }, { $ref: '#/components/parameters/requestedWith' }, { $ref: '#/components/parameters/idempotencyKey' }]
+      responses:
+        '202': { description: Started, content: { application/json: { schema: { type: object, required: [started], properties: { started: { type: boolean } } } } } }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+    get:
+      tags: [packages]
+      operationId: getGenerationStatus
+      summary: Generation status
+      parameters: [{ $ref: '#/components/parameters/versionId' }]
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/GenerationStatus' } } } }
+  /runs/{runId}:
+    get:
+      tags: [runs]
+      operationId: getRun
+      summary: Run status, clock, and timers
+      parameters: [{ $ref: '#/components/parameters/runId' }]
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/RunSummary' } } } }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      tags: [courses]
+      operationId: deleteWalkthroughRun
+      summary: Delete a walkthrough run (instructor)
+      parameters: [{ $ref: '#/components/parameters/runId' }, { $ref: '#/components/parameters/requestedWith' }]
+      responses:
+        '204': { $ref: '#/components/responses/NoContent' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /runs/{runId}/policy-ack:
+    post:
+      tags: [runs]
+      operationId: acknowledgePolicy
+      summary: Acknowledge the policy display and open the Readiness Check
+      parameters: [{ $ref: '#/components/parameters/runId' }, { $ref: '#/components/parameters/requestedWith' }]
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/RunSummary' } } } }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /runs/{runId}/readiness:
+    get:
+      tags: [runs]
+      operationId: getReadiness
+      summary: Readiness items and remaining time
+      parameters: [{ $ref: '#/components/parameters/runId' }]
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/ReadinessView' } } } }
+  /runs/{runId}/readiness/answers/{itemId}:
+    put:
+      tags: [runs]
+      operationId: answerReadinessItem
+      summary: Answer an item
+      parameters: [{ $ref: '#/components/parameters/runId' }, { name: itemId, in: path, required: true, schema: { type: string, format: uuid } }, { $ref: '#/components/parameters/requestedWith' }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [answerKey], properties: { answerKey: { type: string } } } } } }
+      responses:
+        '204': { $ref: '#/components/responses/NoContent' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /runs/{runId}/readiness/submit:
+    post:
+      tags: [runs]
+      operationId: submitReadiness
+      summary: Submit the Readiness Check
+      parameters: [{ $ref: '#/components/parameters/runId' }, { $ref: '#/components/parameters/requestedWith' }]
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/ReadinessResult' } } } }
+  /runs/{runId}/readiness/skip:
+    post:
+      tags: [runs]
+      operationId: skipReadiness
+      summary: Skip after a failure to complete
+      parameters: [{ $ref: '#/components/parameters/runId' }, { $ref: '#/components/parameters/requestedWith' }]
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/ReadinessResult' } } } }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /runs/{runId}/workspace:
+    get:
+      tags: [runs]
+      operationId: getRunWorkspace
+      summary: Student workspace view
+      parameters: [{ $ref: '#/components/parameters/runId' }]
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { type: object, additionalProperties: true, required: [run, brief, documents, claims, delegations] } } } }
+  /runs/{runId}/documents/{documentId}/open:
+    post:
+      tags: [runs]
+      operationId: openDocument
+      summary: Open an Evidence Room document
+      parameters: [{ $ref: '#/components/parameters/runId' }, { name: documentId, in: path, required: true, schema: { type: string, format: uuid } }, { $ref: '#/components/parameters/requestedWith' }]
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { type: object, required: [openId, document], properties: { openId: { type: string, format: uuid }, document: { $ref: '#/components/schemas/Document' } } } } } }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /runs/{runId}/document-opens/{openId}/close:
+    post:
+      tags: [runs]
+      operationId: closeDocument
+      summary: Close a document
+      parameters: [{ $ref: '#/components/parameters/runId' }, { name: openId, in: path, required: true, schema: { type: string, format: uuid } }, { $ref: '#/components/parameters/requestedWith' }]
+      responses:
+        '204': { $ref: '#/components/responses/NoContent' }
+  /runs/{runId}/frame:
+    post:
+      tags: [runs]
+      operationId: lockFrame
+      summary: Lock the frame (irreversible)
+      parameters: [{ $ref: '#/components/parameters/runId' }, { $ref: '#/components/parameters/requestedWith' }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/Frame' } } } }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/RunSummary' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /runs/{runId}/delegations:
+    get:
+      tags: [runs]
+      operationId: listDelegations
+      summary: Delegation Log
+      parameters: [{ $ref: '#/components/parameters/runId' }]
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/DelegationView' } } } } }
+    post:
+      tags: [runs]
+      operationId: delegate
+      summary: Delegate to the assistant (streamed)
+      parameters: [{ $ref: '#/components/parameters/runId' }, { $ref: '#/components/parameters/requestedWith' }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [request], properties: { request: { type: string, minLength: 1, maxLength: 2000 } } } } } }
+      responses:
+        '200': { description: Server-sent events `segment` and `done`, content: { text/event-stream: { schema: { type: string } } } }
+        '402': { description: Budget exceeded, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } } }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+        '503': { description: Assistant unavailable; run paused, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } } }
+  /runs/{runId}/delegations/{delegationId}:
+    patch:
+      tags: [runs]
+      operationId: updateDelegation
+      summary: Why line and used marks
+      parameters: [{ $ref: '#/components/parameters/runId' }, { name: delegationId, in: path, required: true, schema: { type: string, format: uuid } }, { $ref: '#/components/parameters/requestedWith' }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, properties: { why: { type: string, maxLength: 200 }, usedClaimIds: { type: array, items: { type: string, format: uuid } } } } } } }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/DelegationView' } } } }
+  /runs/{runId}/outside-tool-declaration:
+    post:
+      tags: [runs]
+      operationId: declareOutsideTool
+      summary: Declare outside-tool use (no scoring effect)
+      parameters: [{ $ref: '#/components/parameters/runId' }, { $ref: '#/components/parameters/requestedWith' }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [purpose], properties: { purpose: { type: string, minLength: 1, maxLength: 500 } } } } } }
+      responses:
+        '204': { $ref: '#/components/responses/NoContent' }
+  /runs/{runId}/claims:
+    get:
+      tags: [runs]
+      operationId: listRunClaims
+      summary: Claims with stances and actions (student view)
+      parameters: [{ $ref: '#/components/parameters/runId' }]
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/ClaimView' } } } } }
+  /runs/{runId}/claims/{claimId}/stance:
+    put:
+      tags: [runs]
+      operationId: setStance
+      summary: Set a stance
+      parameters: [{ $ref: '#/components/parameters/runId' }, { $ref: '#/components/parameters/claimId' }, { $ref: '#/components/parameters/requestedWith' }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [stance], properties: { stance: { $ref: '#/components/schemas/Stance' } } } } } }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/ClaimView' } } } }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /runs/{runId}/claims/{claimId}/actions:
+    post:
+      tags: [runs]
+      operationId: runAction
+      summary: Run an interrogation action
+      parameters: [{ $ref: '#/components/parameters/runId' }, { $ref: '#/components/parameters/claimId' }, { $ref: '#/components/parameters/requestedWith' }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [type], properties: { type: { $ref: '#/components/schemas/ActionType' } } } } } }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/ActionResult' } } } }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /runs/{runId}/claims/{claimId}/escalation:
+    post:
+      tags: [runs]
+      operationId: escalate
+      summary: Escalate a claim
+      parameters: [{ $ref: '#/components/parameters/runId' }, { $ref: '#/components/parameters/claimId' }, { $ref: '#/components/parameters/requestedWith' }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [statement], properties: { statement: { type: string, minLength: 1, maxLength: 280 } } } } } }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/EscalationResult' } } } }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /runs/{runId}/brief:
+    put:
+      tags: [runs]
+      operationId: saveBriefDraft
+      summary: Save the brief draft
+      parameters: [{ $ref: '#/components/parameters/runId' }, { $ref: '#/components/parameters/requestedWith' }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/BriefDraft' } } } }
+      responses:
+        '204': { $ref: '#/components/responses/NoContent' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /runs/{runId}/brief/signals:
+    post:
+      tags: [runs]
+      operationId: briefSignal
+      summary: Brief opened or closed timing signal
+      parameters: [{ $ref: '#/components/parameters/runId' }, { $ref: '#/components/parameters/requestedWith' }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/BriefSignal' } } } }
+      responses:
+        '204': { $ref: '#/components/responses/NoContent' }
+  /runs/{runId}/lock:
+    post:
+      tags: [runs]
+      operationId: lockDecision
+      summary: Decision Lock (irreversible)
+      parameters: [{ $ref: '#/components/parameters/runId' }, { $ref: '#/components/parameters/requestedWith' }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/Brief' } } } }
+      responses:
+        '200': { description: Locked, content: { application/json: { schema: { $ref: '#/components/schemas/RunSummary' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '409': { description: LOCK_REFUSED_UNSTANCED_CLAIM with details.claimId and details.claimText, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } } }
+  /runs/{runId}/addendum:
+    post:
+      tags: [runs]
+      operationId: addAddendum
+      summary: Add the 50-word addendum
+      parameters: [{ $ref: '#/components/parameters/runId' }, { $ref: '#/components/parameters/requestedWith' }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [text], properties: { text: { type: string, minLength: 1 } } } } } }
+      responses:
+        '204': { $ref: '#/components/responses/NoContent' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /runs/{runId}/resume:
+    post:
+      tags: [runs]
+      operationId: resumeRun
+      summary: Resume from Paused (clock credited)
+      parameters: [{ $ref: '#/components/parameters/runId' }, { $ref: '#/components/parameters/requestedWith' }]
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/RunSummary' } } } }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /runs/{runId}/turn:
+    get:
+      tags: [runs]
+      operationId: getTurn
+      summary: Turn message and window
+      parameters: [{ $ref: '#/components/parameters/runId' }]
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/TurnView' } } } }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /runs/{runId}/turn/response:
+    post:
+      tags: [runs]
+      operationId: respondToTurn
+      summary: Hold, revise, or reverse
+      parameters: [{ $ref: '#/components/parameters/runId' }, { $ref: '#/components/parameters/requestedWith' }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/TurnResponse' } } } }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/RunSummary' } } } }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /runs/{runId}/defense:
+    get:
+      tags: [runs]
+      operationId: getDefense
+      summary: Open or resume the defense
+      parameters: [{ $ref: '#/components/parameters/runId' }]
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/DefenseView' } } } }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /runs/{runId}/defense/questions/{runQuestionId}/answer:
+    post:
+      tags: [runs]
+      operationId: answerDefenseQuestion
+      summary: Answer a question (may add a follow-up)
+      parameters: [{ $ref: '#/components/parameters/runId' }, { name: runQuestionId, in: path, required: true, schema: { type: string, format: uuid } }, { $ref: '#/components/parameters/requestedWith' }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/DefenseAnswer' } } } }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { type: object, required: [next, followUp], properties: { next: { oneOf: [{ $ref: '#/components/schemas/DefenseQuestion' }, { type: 'null' }] }, followUp: { oneOf: [{ $ref: '#/components/schemas/DefenseQuestion' }, { type: 'null' }] } } } } } }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /runs/{runId}/defense/complete:
+    post:
+      tags: [runs]
+      operationId: completeDefense
+      summary: Complete the defense and queue scoring
+      parameters: [{ $ref: '#/components/parameters/runId' }, { $ref: '#/components/parameters/requestedWith' }]
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/RunSummary' } } } }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /runs/{runId}/debrief:
+    get:
+      tags: [runs]
+      operationId: getDebrief
+      summary: Run Debrief
+      parameters: [{ $ref: '#/components/parameters/runId' }]
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/DebriefView' } } } }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /runs/{runId}/debrief/answers:
+    post:
+      tags: [runs]
+      operationId: answerDebrief
+      summary: Answer the two debrief questions
+      parameters: [{ $ref: '#/components/parameters/runId' }, { $ref: '#/components/parameters/requestedWith' }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/DebriefAnswers' } } } }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/RunSummary' } } } }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /runs/{runId}/trace:
+    get:
+      tags: [runs]
+      operationId: getTrace
+      summary: Events in order
+      parameters: [{ $ref: '#/components/parameters/runId' }]
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/TraceEvent' } } } } }
+  /runs/{runId}/record:
+    get:
+      tags: [runs]
+      operationId: getRecord
+      summary: Judgment Record (single run)
+      parameters: [{ $ref: '#/components/parameters/runId' }]
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/RecordView' } } } }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /runs/{runId}/record/export:
+    get:
+      tags: [runs]
+      operationId: exportRecord
+      summary: Record-form trace file
+      parameters: [{ $ref: '#/components/parameters/runId' }]
+      responses:
+        '200': { description: File, content: { application/json: { schema: { $ref: '#/components/schemas/TraceExport' } } } }
+  /runs/{runId}/exports:
+    get:
+      tags: [review]
+      operationId: listRunExports
+      summary: Course export versions for a run
+      parameters: [{ $ref: '#/components/parameters/runId' }]
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/ExportSummary' } } } } }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /runs/{runId}/exports/{version}:
+    get:
+      tags: [review]
+      operationId: getRunExport
+      summary: Download a course export (`latest` allowed)
+      parameters: [{ $ref: '#/components/parameters/runId' }, { name: version, in: path, required: true, schema: { type: string } }]
+      responses:
+        '200': { description: File, content: { application/json: { schema: { $ref: '#/components/schemas/TraceExport' } } } }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /review/queue:
+    get:
+      tags: [review]
+      operationId: getReviewQueue
+      summary: Illustrative queue plus real scored runs
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { type: object, required: [illustrative, runs], properties: { illustrative: { type: array, items: { type: object, additionalProperties: true } }, runs: { type: array, items: { $ref: '#/components/schemas/RunReviewSummary' } } } } } } }
+  /review/sections/{sectionId}/runs:
+    get:
+      tags: [review]
+      operationId: listSectionRunsForReview
+      summary: Runs in a section
+      parameters: [{ $ref: '#/components/parameters/sectionId' }, { $ref: '#/components/parameters/cursor' }, { $ref: '#/components/parameters/limit' }, { name: state, in: query, schema: { $ref: '#/components/schemas/RunState' } }]
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { allOf: [{ $ref: '#/components/schemas/Page' }, { type: object, properties: { items: { type: array, items: { $ref: '#/components/schemas/RunReviewSummary' } } } }] } } } }
+  /review/runs/{runId}:
+    get:
+      tags: [review]
+      operationId: getReplay
+      summary: Faculty replay bundle
+      parameters: [{ $ref: '#/components/parameters/runId' }]
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/ReplayBundle' } } } }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /review/runs/{runId}/bands/{dimension}:
+    put:
+      tags: [review]
+      operationId: decideBand
+      summary: Confirm, override, or set unassessed
+      parameters: [{ $ref: '#/components/parameters/runId' }, { $ref: '#/components/parameters/dimension' }, { $ref: '#/components/parameters/requestedWith' }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/BandDecision' } } } }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { type: object, required: [band, run], properties: { band: { $ref: '#/components/schemas/BandView' }, run: { $ref: '#/components/schemas/RunSummary' } } } } } }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /review/runs/{runId}/confirm-remaining:
+    post:
+      tags: [review]
+      operationId: confirmRemainingBands
+      summary: Confirm every undecided dimension with its draft
+      parameters: [{ $ref: '#/components/parameters/runId' }, { $ref: '#/components/parameters/requestedWith' }]
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/RunSummary' } } } }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /review/runs/{runId}/manual-bands:
+    post:
+      tags: [review]
+      operationId: bandHeldRunManually
+      summary: Band a held run manually
+      parameters: [{ $ref: '#/components/parameters/runId' }, { $ref: '#/components/parameters/requestedWith' }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/ManualBands' } } } }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/RunSummary' } } } }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /review/runs/{runId}/void:
+    post:
+      tags: [review]
+      operationId: voidRun
+      summary: Void and optionally re-offer
+      parameters: [{ $ref: '#/components/parameters/runId' }, { $ref: '#/components/parameters/requestedWith' }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/VoidRequest' } } } }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { type: object, required: [voided, reoffered], properties: { voided: { $ref: '#/components/schemas/RunSummary' }, reoffered: { oneOf: [{ $ref: '#/components/schemas/RunSummary' }, { type: 'null' }] } } } } } }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /review/runs/{runId}/claims/{claimId}/neutralize:
+    post:
+      tags: [review]
+      operationId: neutralizeClaim
+      summary: Neutralize a claim in both directions and recompute
+      parameters: [{ $ref: '#/components/parameters/runId' }, { $ref: '#/components/parameters/claimId' }, { $ref: '#/components/parameters/requestedWith' }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/Neutralize' } } } }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { type: object, required: [recompute, run], properties: { recompute: { $ref: '#/components/schemas/RecomputeResult' }, run: { $ref: '#/components/schemas/RunSummary' } } } } } }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /review/runs/{runId}/test-controls/force-assistant-failure:
+    post:
+      tags: [review]
+      operationId: forceAssistantFailure
+      summary: Arm the build-phase forced assistant failure
+      parameters: [{ $ref: '#/components/parameters/runId' }, { $ref: '#/components/parameters/requestedWith' }]
+      responses:
+        '200': { description: Armed, content: { application/json: { schema: { type: object, required: [armed], properties: { armed: { type: boolean, const: true } } } } } }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /review/runs/{runId}/delegations/{delegationId}/flag:
+    post:
+      tags: [review]
+      operationId: flagDelegation
+      summary: Flag out-of-scenario content
+      parameters: [{ $ref: '#/components/parameters/runId' }, { name: delegationId, in: path, required: true, schema: { type: string, format: uuid } }, { $ref: '#/components/parameters/requestedWith' }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [flag], properties: { flag: { type: string, enum: [out_of_scenario] } } } } } }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/DelegationView' } } } }
+  /notifications:
+    get:
+      tags: [notifications]
+      operationId: listNotifications
+      summary: My notifications
+      parameters: [{ $ref: '#/components/parameters/cursor' }, { $ref: '#/components/parameters/limit' }, { name: unread, in: query, schema: { type: boolean } }]
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { allOf: [{ $ref: '#/components/schemas/Page' }, { type: object, properties: { items: { type: array, items: { $ref: '#/components/schemas/Notification' } } } }] } } } }
+  /notifications/{id}/read:
+    post:
+      tags: [notifications]
+      operationId: markNotificationRead
+      summary: Mark read
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }, { $ref: '#/components/parameters/requestedWith' }]
+      responses:
+        '204': { $ref: '#/components/responses/NoContent' }
+  /notifications/read-all:
+    post:
+      tags: [notifications]
+      operationId: markAllNotificationsRead
+      summary: Mark all read
+      parameters: [{ $ref: '#/components/parameters/requestedWith' }]
+      responses:
+        '204': { $ref: '#/components/responses/NoContent' }
+  /admin/users:
+    get:
+      tags: [admin]
+      operationId: adminListUsers
+      summary: Users
+      parameters: [{ $ref: '#/components/parameters/cursor' }, { $ref: '#/components/parameters/limit' }, { name: q, in: query, schema: { type: string } }]
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { allOf: [{ $ref: '#/components/schemas/Page' }, { type: object, properties: { items: { type: array, items: { $ref: '#/components/schemas/AdminUser' } } } }] } } } }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /admin/users/{userId}/platform-role:
+    put:
+      tags: [admin]
+      operationId: adminSetPlatformRole
+      summary: Set a platform role
+      parameters: [{ name: userId, in: path, required: true, schema: { type: string } }, { $ref: '#/components/parameters/requestedWith' }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [role], properties: { role: { type: string, enum: [none, tassl_scenario_editor, admin] } } } } } }
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/AdminUser' } } } }
+  /admin/flags:
+    get:
+      tags: [admin]
+      operationId: adminGetFlags
+      summary: Feature flags and effective LLM provider
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { type: object, required: [ai, sampleData, testControls, effectiveLlmProvider], properties: { ai: { type: boolean }, sampleData: { type: boolean }, testControls: { type: boolean }, effectiveLlmProvider: { type: string } } } } } }
+  /admin/audit-log:
+    get:
+      tags: [admin]
+      operationId: adminListAuditLog
+      summary: Audit log
+      parameters: [{ $ref: '#/components/parameters/cursor' }, { $ref: '#/components/parameters/limit' }, { name: orgId, in: query, schema: { type: string } }]
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { allOf: [{ $ref: '#/components/schemas/Page' }, { type: object, properties: { items: { type: array, items: { $ref: '#/components/schemas/AuditEntry' } } } }] } } } }
