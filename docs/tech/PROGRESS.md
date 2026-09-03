@@ -22,8 +22,8 @@
 - [x] 1.1 Install Impeccable and write PRODUCT.md
 - [x] 1.2 Fonts, tokens, and DESIGN.md
 - [x] 1.3 shadcn/ui against the tokens
-- [ ] 1.4 Layout components, app shell, public layout, error pages
-- [ ] 1.5 Dev component gallery route
+- [x] 1.4 Layout components, app shell, public layout, error pages
+- [x] 1.5 Dev component gallery route
 - [ ] 1.6 Impeccable review loop on the shell and gallery, then DESIGN.md reconciliation
 - [ ] Phase 1 exit criteria
 
