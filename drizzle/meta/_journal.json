@@ -36,6 +36,20 @@
       "when": 1788451210195,
       "tag": "0004_package_frozen",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1788451274289,
+      "tag": "0005_runs_and_trace",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1788451275673,
+      "tag": "0006_run_briefs_locked",
+      "breakpoints": true
     }
   ]
 }
