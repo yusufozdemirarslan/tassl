@@ -183,7 +183,7 @@ Columns: what an attacker does, which asset is at stake, where they get in, the 
 | A07 | Session lifetime and revocation | `expiresIn` 30 d, `updateAge` 1 d, `revokeSessionsOnPasswordReset`, `revokeOtherSessions` on password change, `revokeSessions` on role change; `freshAge` 10 min required for password change and account deletion | `tests/integration/auth/sessions.test.ts` |
 | A07 | Per-account sign-in limit | Application limit 10/min per email in `src/server/rate-limit/limits.ts` (D-021) | `tests/integration/auth/rate-limit.test.ts` |
 | A08 Software and Data Integrity Failures | Reproducible build shipped from CI | `vercel build` then `vercel deploy --prebuilt` in `.github/workflows/production.yml`; `SENTRY_AUTH_TOKEN` scoped to `project:releases`, `org:read` | Production workflow |
-| A08 | No dependency lifecycle scripts | pnpm 11 default; `allowBuilds: { esbuild: false, msw: false }` in `pnpm-workspace.yaml` (D-146) | Review |
+| A08 | No dependency lifecycle scripts | pnpm 11 default; `allowBuilds: { esbuild: false, msw: false, unrs-resolver: false }` (the only three packages in the tree that declare install scripts; `unrs-resolver` surfaced on the Ubuntu runner) in `pnpm-workspace.yaml` (D-146) | Review |
 | A08 | Model output is data | Every structured call validated by Zod with one repair retry (ADR-013); text output rendered as text | `evals/**` |
 | A08 | Append-only trace and frozen versions | NFR-004, NFR-005 | Immutability tests |
 | A09 Security Logging and Monitoring Failures | Audit log of sensitive actions | `admin.audit()` in `src/server/modules/admin/service.ts`; table `audit_logs` (§7) | `tests/integration/admin/audit.test.ts` |

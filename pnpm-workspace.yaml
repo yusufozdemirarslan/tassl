@@ -1,9 +1,11 @@
 # pnpm settings (single package; no workspace members).
-# No dependency lifecycle script runs (docs/tech/12-security.md §3 A08, D-146): esbuild works
-# through its platform package and msw's postinstall only prints a notice.
+# No dependency lifecycle script runs (docs/tech/12-security.md §3 A08, D-146). These are the only
+# packages in the tree that declare install scripts: esbuild loads its binary from the platform
+# package, msw's postinstall only prints a notice, unrs-resolver's only checks its native binding.
 allowBuilds:
   esbuild: false
   msw: false
+  unrs-resolver: false
 
 # Dependency audit (12 §3 A06, D-149). `tmp` is forced to its patched line; the extract-zip
 # advisory has no patched version and only affects @lhci/cli's browser-download path in CI.

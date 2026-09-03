@@ -5007,7 +5007,7 @@ Columns: what an attacker does, which asset is at stake, where they get in, the 
 | A05 | Previews are not public | Vercel Authentication on preview deployments (D-101) | Launch checklist (15 §Launch checklist) |
 | A05 | Error pages carry no internals | `src/app/error.tsx`, `global-error.tsx`, `not-found.tsx` (D-105) | E2E error page spec |
 | A06 Vulnerable and Outdated Components | Pinned versions; frozen lockfile | 04 §8; `pnpm install --frozen-lockfile` in every workflow | `security` job (§5.1) |
-| A06 | Dependency audit | `pnpm audit --audit-level=high` | `security` job |
+| A06 | Dependency audit | `pnpm audit --audit-level=high`; overrides and `auditConfig.ignoreGhsas` waivers in `pnpm-workspace.yaml`, each recorded in `DECISIONS.md` (D-149) | `security` job |
 | A06 | Update cadence | `.github/dependabot.yml` weekly (§5.3) | Dependabot PRs pass the full gate |
 | A07 Identification and Authentication Failures | Verified email before first sign-in; enumeration-safe reset; rate limits 10/min per IP on sign-in, sign-up, reset, resend | `src/server/auth/auth.ts` `emailAndPassword`, `emailVerification`, `rateLimit.customRules` (08 §1) | `tests/integration/auth/flows.test.ts` |
 | A07 | Session lifetime and revocation | `expiresIn` 30 d, `updateAge` 1 d, `revokeSessionsOnPasswordReset`, `revokeOtherSessions` on password change, `revokeSessions` on role change; `freshAge` 10 min required for password change and account deletion | `tests/integration/auth/sessions.test.ts` |
@@ -7836,12 +7836,18 @@ export { GraphFrame } from './graph-frame'
 
 ### 3.4 `scripts/bundle-budget.ts`
 
-Runs in the `build` job after `pnpm build` (`pnpm exec tsx scripts/bundle-budget.ts`). It reads the two manifests Next.js writes for the App Router and sums gzip sizes per route.
+Runs in the `build` job after `pnpm build` (`pnpm exec tsx scripts/bundle-budget.ts`). It reads the manifests Turbopack writes for the App Router (`.next/build-manifest.json` for the shared runtime chunks, each route's `page_client-reference-manifest.js` for the chunks of its layouts, page, and client components; D-148) and sums gzip sizes per route.
 
 ```ts
-// scripts/bundle-budget.ts
-import { readFileSync } from 'node:fs'
+// scripts/bundle-budget.ts — docs/tech/16-performance-a11y-budgets.md §3.4 (B4, B5).
+// Runs in the CI build job after `pnpm build`; sums gzip bytes of the JS each route loads.
+// Turbopack (Next 16) writes no root app-build-manifest.json (D-148): the shared runtime chunks
+// are `rootMainFiles` in .next/build-manifest.json and each route's client chunks (layouts above
+// it, the page, its client components) are `entryJSFiles` in the route's
+// .next/server/app/<route>/page_client-reference-manifest.js.
+import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
+import vm from 'node:vm'
 import { gzipSync } from 'node:zlib'
 
 const NEXT = join(process.cwd(), '.next')
@@ -7853,9 +7859,11 @@ const budgets: Array<{ pattern: RegExp; maxBytes: number; label: string }> = [
   { pattern: /.*/, maxBytes: 250_000, label: 'other route' },
 ]
 
-const appManifest = JSON.parse(readFileSync(join(NEXT, 'app-build-manifest.json'), 'utf8')) as {
-  pages: Record<string, string[]>
-}
+type RscManifest = Record<string, { entryJSFiles?: Record<string, string[]> }>
+
+const routes = JSON.parse(
+  readFileSync(join(NEXT, 'app-path-routes-manifest.json'), 'utf8'),
+) as Record<string, string>
 const buildManifest = JSON.parse(readFileSync(join(NEXT, 'build-manifest.json'), 'utf8')) as {
   rootMainFiles?: string[]
 }
@@ -7869,22 +7877,46 @@ const gzipBytes = (file: string): number => {
   return bytes
 }
 
+/** Client chunks of one route from its client-reference manifest (a JS file assigning globalThis.__RSC_MANIFEST). */
+function routeEntryFiles(pageKey: string): string[] | undefined {
+  const segments = pageKey.split('/').filter(Boolean)
+  const file = join(
+    NEXT,
+    'server',
+    'app',
+    ...segments.slice(0, -1),
+    'page_client-reference-manifest.js',
+  )
+  if (!existsSync(file)) return undefined
+  const sandbox: Record<string, unknown> = {}
+  sandbox.globalThis = sandbox
+  vm.runInNewContext(readFileSync(file, 'utf8'), sandbox)
+  const manifest = sandbox.__RSC_MANIFEST as RscManifest | undefined
+  const entry = manifest?.[pageKey] ?? Object.values(manifest ?? {})[0]
+  return Object.values(entry?.entryJSFiles ?? {}).flat()
+}
+
 let failed = false
-for (const pageKey of Object.keys(appManifest.pages).filter((k) => k.endsWith('/page')).sort()) {
+for (const pageKey of Object.keys(routes)
+  .filter((k) => k.endsWith('/page'))
+  .sort()) {
   const route = pageKey.slice(0, -'/page'.length) || '/'
-  const files = new Set<string>(buildManifest.rootMainFiles ?? [])
-  const segments = route.split('/').filter(Boolean)
-  for (let i = 0; i <= segments.length; i++) {
-    const layoutKey = '/' + [...segments.slice(0, i), 'layout'].join('/')
-    for (const f of appManifest.pages[layoutKey] ?? []) files.add(f)
+  const entryFiles = routeEntryFiles(pageKey)
+  if (!entryFiles) {
+    if (route.startsWith('/_')) continue // Next's built-in error routes have no manifest of their own
+    console.error(`no client-reference manifest for ${route}`)
+    failed = true
+    continue
   }
-  for (const f of appManifest.pages[pageKey] ?? []) files.add(f)
+  const files = new Set<string>([...(buildManifest.rootMainFiles ?? []), ...entryFiles])
   const js = [...files].filter((f) => f.endsWith('.js') && !f.includes('polyfills'))
   const bytes = js.reduce((sum, f) => sum + gzipBytes(f), 0)
   const budget = budgets.find((b) => b.pattern.test(route))!
   const ok = bytes <= budget.maxBytes
   if (!ok) failed = true
-  console.log(`${ok ? 'ok  ' : 'FAIL'} ${String(bytes).padStart(7)} / ${budget.maxBytes} ${budget.label.padEnd(12)} ${route}`)
+  console.log(
+    `${ok ? 'ok  ' : 'FAIL'} ${String(bytes).padStart(7)} / ${budget.maxBytes} ${budget.label.padEnd(12)} ${route}`,
+  )
 }
 if (failed) {
   console.error('bundle budget exceeded (docs/tech/16-performance-a11y-budgets.md §3)')
@@ -7892,7 +7924,7 @@ if (failed) {
 }
 ```
 
-Route keys in `app-build-manifest.json` keep route groups, so a run page appears as `/(app)/runs/[runId]/work/page` and its ancestors as `/layout`, `/(app)/layout`, `/(app)/runs/layout` (absent, skipped), `/(app)/runs/[runId]/layout`. The script's output table is pasted into the job summary (`$GITHUB_STEP_SUMMARY`) by the workflow step.
+Route keys in `app-path-routes-manifest.json` keep route groups, so a run page appears as `/(app)/runs/[runId]/work/page`; its client-reference manifest lists the chunks of every layout above it and of the page itself, so no ancestor walk is needed. The script's output table is pasted into the job summary (`$GITHUB_STEP_SUMMARY`) by the workflow step.
 
 ### 3.5 `lighthouserc.json` (verbatim)
 
@@ -9764,6 +9796,7 @@ chmod +x scripts/docs-build.sh scripts/smoke.sh
 pnpm db:migrate && pnpm test && pnpm test:integration && pnpm test:e2e -- tests/e2e/system && pnpm openapi:generate && pnpm openapi:check && pnpm docs:build
 pnpm build && (pnpm start & sleep 6; bash scripts/smoke.sh http://localhost:3000; s=$?; kill %1; exit $s)
 pnpm lhci
+# Windows (D-147): bash scripts/lhci-local.sh
 ```
 (`pnpm lhci` starts the server itself per `lighthouserc.json`; it must pass the accessibility and best-practices assertions on `/`.)
 **Commit:** `test(tooling): vitest, playwright, axe, msw, lighthouse ci, openapi generator, migration journal`
@@ -12358,6 +12391,9 @@ Tie-breaker: the option a senior engineer would choose for a two-person team shi
 | D-144 | Phase-gated smoke and Lighthouse targets | Verified at Step 0.7: `scripts/smoke.sh` (15 §9) and `lighthouserc.json` (16 §3.5) check routes that exist only from Phases 1, 3, 13, and 14, so their final forms cannot pass the Step 0.7 verify | Both files start with the routes that exist (`/api/health`, `/api/ready`, `/`) and are extended by the step that ships each route: `/privacy`, `/terms`, `/dev/components` (Phase 1); `/sign-in`, `/sign-up`, the `/home` redirect (Phase 3); `strict-transport-security` and `content-security-policy` (Phase 13); `/api/v1/openapi.yaml` (Phase 14). The 15 §9 and 16 §3.5 listings stay the final form | Every verify block must pass on the code that exists at its step | Ship the final files at Step 0.7 and accept failing smoke and LHCI runs until Phase 14 |
 | D-145 | What `pnpm openapi:generate` writes | Rule 4: `docs/tech/openapi.yaml` is both the design target (90 paths written before code) and, per `00-README.md`, "generated from Zod; committed"; a generator that emits only the implemented routes would erase the target at Step 0.7 | The generator merges: it re-serializes the committed document, replaces the operations whose `operationId` is implemented in `src/app/api/**/route.ts` (and the component schemas those operations emit), sorts paths, methods, component names, and response codes, and leaves every other path and component untouched. `openapi:check` compares that merged output with the file, so a PR that implements a route shows the diff between design and implementation | One document stays the design target and the implementation record; reviewers see drift in the PR | Split into `openapi.target.yaml` and a purely generated `openapi.yaml` once every route exists (Phase 14) |
 | D-146 | Dependencies that request install scripts | Verified at Step 0.7: pnpm 11 fails `pnpm install` (and therefore every `pnpm` script) while `esbuild` and `msw` request build scripts that are neither approved nor ignored | `pnpm-workspace.yaml` sets `allowBuilds: { esbuild: false, msw: false }`; no lifecycle script runs (12 §3 A08). esbuild loads its binary from the platform package and msw's postinstall only prints a notice, so neither is needed. A dependency that genuinely needs a build script is added to the ignored list only after review | Reproducible installs without executing third-party install scripts | Approve the scripts with `pnpm approve-builds` |
+| D-147 | Lighthouse CI on the Windows build machine | Verified at Step 0.7: `lhci autorun` fails with `EPERM` when chrome-launcher deletes its temporary profile on Windows (old and new headless modes); CI on Ubuntu is unaffected | `scripts/lhci-local.sh` runs Lighthouse 12.6.1 (the copy pinned by `@lhci/cli`) against a Chromium started from Playwright's install on a debugging port and evaluates `lighthouserc.json` with `lhci assert`; on Windows every verify block that says `pnpm lhci` runs it instead. CI keeps `lhci autorun` through `treosh/lighthouse-ci-action` | Same assertions and config; nothing is uploaded to public storage from a developer machine | Delete the script when chrome-launcher fixes the Windows cleanup |
+| D-148 | Bundle budget manifests under Turbopack | Verified at Step 0.8: `next build` (Turbopack, Next 16) writes no root `app-build-manifest.json`, the file 16 §3.4 read | `scripts/bundle-budget.ts` sums gzip bytes of `rootMainFiles` from `.next/build-manifest.json` plus every chunk in `entryJSFiles` of the route's `.next/server/app/<route>/page_client-reference-manifest.js`, iterating the page routes of `.next/app-path-routes-manifest.json`; budgets and labels are unchanged | The same measure (JS the route loads, gzip) from the manifests Turbopack does write | Build with `next build --webpack` and read the original manifest |
+| D-149 | `pnpm audit --audit-level=high` findings in dev-only tooling | Verified at Step 0.8: `@lhci/cli@0.15.1` pulls `tmp` (< 0.2.6, GHSA-ph9p-34f9-6g65, patched) and `extract-zip` 2.0.1 (GHSA-jmr9-qjv8-65gv, no patched version) through lighthouse and puppeteer-core; both are devDependencies never shipped or executed in production | `pnpm-workspace.yaml` sets `overrides.tmp: ">=0.2.6"` and `auditConfig.ignoreGhsas: [GHSA-jmr9-qjv8-65gv]`. A waiver is only added for an advisory with no patched version whose package is not in the production dependency graph, and every waiver is re-checked at the Phase 15 launch checklist and whenever Dependabot bumps `@lhci/cli` | Keeps the `security` gate meaningful for shipped code without blocking on an unfixable dev tool | Drop the waiver when a patched `extract-zip` reaches lighthouse |
 
 
 ---
