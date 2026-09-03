@@ -53,6 +53,10 @@ jobs:
           CRON_SECRET: ${{ secrets.CRON_SECRET_PRODUCTION }}
           APP_ENV: production
           SEED_PASSWORD: ${{ secrets.SEED_PASSWORD }}
+          # vercel pull writes sensitive variables as the literal "[SENSITIVE]"; the build evaluates the
+          # database client while collecting page data, so it needs a real connection string (D-160).
+          DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL_UNPOOLED }}
+          DATABASE_URL_UNPOOLED: ${{ secrets.PRODUCTION_DATABASE_URL_UNPOOLED }}
         run: npx vercel@59.11.2 build --prod --token "$VERCEL_TOKEN"
 
       # D-070: expand/contract migrations run against the unpooled production string before the deploy.
