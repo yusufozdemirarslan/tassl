@@ -47,7 +47,7 @@ beforeAll(async () => {
   // Step 2.6 (D-085): the immutability migration creates tassl_app NOLOGIN; the grants test signs in
   // with this throwaway password. Local and CI databases only.
   await testSql.unsafe(
-    "do $ begin if exists (select 1 from pg_roles where rolname = 'tassl_app') then alter role tassl_app login password 'test'; end if; end $",
+    "do $$ begin if exists (select 1 from pg_roles where rolname = 'tassl_app') then alter role tassl_app login password 'test'; end if; end $$",
   )
 })
 
