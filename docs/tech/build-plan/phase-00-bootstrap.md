@@ -228,6 +228,7 @@ chmod +x scripts/docs-build.sh scripts/smoke.sh
 pnpm db:migrate && pnpm test && pnpm test:integration && pnpm test:e2e -- tests/e2e/system && pnpm openapi:generate && pnpm openapi:check && pnpm docs:build
 pnpm build && (pnpm start & sleep 6; bash scripts/smoke.sh http://localhost:3000; s=$?; kill %1; exit $s)
 pnpm lhci
+# Windows (D-147): bash scripts/lhci-local.sh
 ```
 (`pnpm lhci` starts the server itself per `lighthouserc.json`; it must pass the accessibility and best-practices assertions on `/`.)
 **Commit:** `test(tooling): vitest, playwright, axe, msw, lighthouse ci, openapi generator, migration journal`

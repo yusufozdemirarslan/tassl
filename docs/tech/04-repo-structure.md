@@ -192,7 +192,7 @@ Every module folder `src/server/modules/<name>/` contains at least these files (
 Enforced by `eslint-plugin-boundaries@7.2.0` in `eslint.config.mjs`. Elements are folders (`src/app`, `src/components`, `src/lib`, one element per `src/server/modules/<name>`, `src/server/db`, `src/server/llm`, and the rest of `src/server` as `server-lib`); the role of each file inside a module (`index.ts` = public, `schema.ts`, `actions.ts`, `router.ts`, `service.ts`, `repository.ts`, anything else = internal) is a file category. `checkInternals: true` makes the rule apply inside a module too, so `repository.ts` importing `service.ts` is an error. The config is verified against fixture files that must produce exactly the expected violations (repository → service, service → db, actions → repository, index → repository, app → service, app → db, server-lib → module) and no others:
 
 ```js
-// eslint.config.mjs (excerpt)
+// eslint.config.mjs (complete)
 import { defineConfig, globalIgnores } from 'eslint/config'
 import nextVitals from 'eslint-config-next/core-web-vitals'
 import nextTs from 'eslint-config-next/typescript'
@@ -233,6 +233,8 @@ export default defineConfig([
           stopMatching: true,
         },
         { pattern: 'src/server/modules/*/**', category: 'internal' },
+        // The fail-fast environment (05 §3) is the one server-lib file the db layer may import.
+        { pattern: 'src/server/config.ts', category: 'config' },
       ],
     },
     rules: {
@@ -297,7 +299,10 @@ export default defineConfig([
             },
             {
               from: { element: { type: 'db' } },
-              allow: [{ to: { element: { type: ['db', 'lib'] } } }],
+              allow: [
+                { to: { element: { type: ['db', 'lib'] } } },
+                { to: { element: { type: 'server-lib' }, file: { categories: ['config'] } } },
+              ],
             },
           ],
         },

@@ -1,0 +1,6 @@
+# pnpm settings (single package; no workspace members).
+# No dependency lifecycle script runs (docs/tech/12-security.md §3 A08, D-146): esbuild works
+# through its platform package and msw's postinstall only prints a notice.
+allowBuilds:
+  esbuild: false
+  msw: false

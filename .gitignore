@@ -26,3 +26,7 @@ impeccable-report.json
 *.tsbuildinfo
 *.log
 .DS_Store
+.lighthouseci/
+
+# Impeccable editor hook cache (the tracked file is .impeccable/config.json)
+.impeccable/hook.cache.json

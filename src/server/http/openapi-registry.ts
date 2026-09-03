@@ -12,10 +12,14 @@ export type RegisteredRoute = {
   operationId: string
   summary: string
   tags: string[]
+  /** Success status; its response description defaults to "OK". */
   status: number
+  description?: string
   auth: RouteAuth
   input?: RouteInputSchemas
   output: ZodType
+  /** Additional documented responses by status code (e.g. 503 for readiness). */
+  responses?: Record<string, { description: string; schema: ZodType }>
   rateLimit?: RateLimitBucket
 }
 

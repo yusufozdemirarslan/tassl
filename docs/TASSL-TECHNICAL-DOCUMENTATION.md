@@ -1221,7 +1221,7 @@ Format: Context → Options considered → Decision → Consequences → Require
 
 **Options considered.** (1) Take every `latest` tag as-is. (2) Take `latest` except where a peer-dependency range in the toolchain excludes it. (3) Pin to an older "known good" set.
 
-**Decision.** Option 2. Versions: `next@16.3.4`, `react@19.2.8`, `react-dom@19.2.8`, `typescript@6.0.3` (see ADR-014), `tailwindcss@4.3.3`, `@tailwindcss/postcss@4.3.3`, `postcss@8.5.26`, `zod@4.5.4`, `react-hook-form@7.87.0`, `@hookform/resolvers@5.9.1`, `drizzle-orm@0.45.2`, `drizzle-kit@0.31.10`, `postgres@3.4.9`, `better-auth@1.7.2`, `@better-auth/drizzle-adapter@1.7.2`, `resend@6.25.0`, `react-email@6.9.3`, `@react-email/components@1.0.12`, `@react-email/render@2.1.0`, `posthog-js@1.425.1`, `posthog-node@5.51.6`, `ai@7.0.91`, `@ai-sdk/openai-compatible@3.0.43`, `@ai-sdk/anthropic@4.0.49`, `@ai-sdk/react@4.0.94`, `@sentry/nextjs@10.73.0`, `pino@10.3.1`, `pino-pretty@13.1.3`, `vitest@4.1.11`, `@vitest/coverage-v8@4.1.11`, `vite@8.2.2`, `@vitejs/plugin-react@6.1.1`, `vite-tsconfig-paths@6.1.1`, `@testing-library/react@16.3.3`, `@testing-library/dom@10.4.1`, `@testing-library/jest-dom@7.0.1`, `@testing-library/user-event@14.6.7`, `jsdom@30.0.1`, `@playwright/test@1.62.1`, `@axe-core/playwright@4.13.0`, `msw@2.15.0`, `@lhci/cli@0.15.1`, `eslint@10.9.1`, `eslint-config-next@16.3.4`, `typescript-eslint@8.69.0`, `eslint-plugin-boundaries@7.2.0`, `eslint-config-prettier@10.1.8`, `prettier@3.9.6`, `prettier-plugin-tailwindcss@0.8.1`, `zod-openapi@6.0.2`, `pg-boss@12.29.0`, `shadcn@4.20.1` (CLI), `class-variance-authority@0.7.1`, `clsx@2.1.1`, `tailwind-merge@3.6.0`, `lucide-react@1.39.0`, `tw-animate-css@1.4.0`, `next-themes@0.4.6`, `sonner@2.0.8`, `recharts@3.10.1`, `tsx@4.23.13`, `dotenv@17.4.2`, `yaml@2.9.0`, `husky@9.1.7`, `lint-staged@17.4.1`, `@commitlint/cli@21.2.2`, `@commitlint/config-conventional@21.2.2`, `@faker-js/faker@10.6.0`, `date-fns@4.4.0`, `server-only@0.0.1`, `@types/node@26.4.1`, `@types/react@19.2.18`, `@types/react-dom@19.2.5`, `vercel@59.11.2` (CLI), `neon@4.14.0` (CLI), `impeccable@3.6.1` (CLI), `@sentry/wizard@7.0.3`, `auth@1.7.2` (Better Auth CLI). Node 24 LTS, pnpm 11.25.0, Postgres 17.
+**Decision.** Option 2. Versions: `next@16.3.4`, `react@19.2.8`, `react-dom@19.2.8`, `typescript@6.0.3` (see ADR-014), `tailwindcss@4.3.3`, `@tailwindcss/postcss@4.3.3`, `postcss@8.5.26`, `zod@4.5.4`, `react-hook-form@7.87.0`, `@hookform/resolvers@5.9.1`, `drizzle-orm@0.45.2`, `drizzle-kit@0.31.10`, `postgres@3.4.9`, `better-auth@1.7.2`, `@better-auth/drizzle-adapter@1.7.2`, `resend@6.25.0`, `react-email@6.9.3`, `@react-email/components@1.0.12`, `@react-email/render@2.1.0`, `posthog-js@1.425.1`, `posthog-node@5.51.6`, `ai@7.0.91`, `@ai-sdk/openai-compatible@3.0.43`, `@ai-sdk/anthropic@4.0.49`, `@ai-sdk/react@4.0.94`, `@sentry/nextjs@10.73.0`, `pino@10.3.1`, `pino-pretty@13.1.3`, `vitest@4.1.11`, `@vitest/coverage-v8@4.1.11`, `vite@8.2.2`, `@vitejs/plugin-react@6.1.1`, `vite-tsconfig-paths@6.1.1`, `@testing-library/react@16.3.3`, `@testing-library/dom@10.4.1`, `@testing-library/jest-dom@7.0.1`, `@testing-library/user-event@14.6.7`, `jsdom@30.0.1`, `@playwright/test@1.62.1`, `@axe-core/playwright@4.13.0`, `msw@2.15.0`, `@lhci/cli@0.15.1`, `eslint@9.39.5` (the 10.x line crashes with `eslint-config-next@16.3.4`'s react plugin, D-142), `eslint-config-next@16.3.4`, `typescript-eslint@8.69.0`, `eslint-plugin-boundaries@7.2.0`, `eslint-config-prettier@10.1.8`, `prettier@3.9.6`, `prettier-plugin-tailwindcss@0.8.1`, `zod-openapi@6.0.2`, `pg-boss@12.29.0`, `shadcn@4.20.1` (CLI), `class-variance-authority@0.7.1`, `clsx@2.1.1`, `tailwind-merge@3.6.0`, `lucide-react@1.39.0`, `tw-animate-css@1.4.0`, `next-themes@0.4.6`, `sonner@2.0.8`, `recharts@3.10.1`, `tsx@4.23.13`, `dotenv@17.4.2`, `yaml@2.9.0`, `husky@9.1.7`, `lint-staged@17.4.1`, `@commitlint/cli@21.2.2`, `@commitlint/config-conventional@21.2.2`, `@faker-js/faker@10.6.0`, `date-fns@4.4.0`, `server-only@0.0.1`, `@types/node@26.4.1`, `@types/react@19.2.18`, `@types/react-dom@19.2.5`, `vercel@59.11.2` (CLI), `neon@4.14.0` (CLI), `impeccable@3.6.1` (CLI), `@sentry/wizard@7.0.3`, `auth@1.7.2` (Better Auth CLI). Node 24 LTS, pnpm 11.25.0, Postgres 17.
 
 **Consequences.** Next 16 means `proxy.ts` (not `middleware.ts`), no `next lint` (ESLint CLI), `after()` stable, Node runtime by default. AI SDK 7 means `generateText` with `Output.object` for structured output. Better Auth 1.7 means the Drizzle adapter is the separate package `@better-auth/drizzle-adapter` and the CLI is `npx auth`.
 
@@ -1629,15 +1629,20 @@ Every module folder `src/server/modules/<name>/` contains at least these files (
 - `src/components` may import from `src/lib`, other components, and module `schema.ts` types and `actions.ts`; never from `service.ts` or `repository.ts`.
 - `src/server/llm` is imported only by `assistant`, `scoring`, and `authoring` services and by `evals/`.
 
-Enforced by `eslint-plugin-boundaries@7.2.0` in `eslint.config.mjs`:
+Enforced by `eslint-plugin-boundaries@7.2.0` in `eslint.config.mjs`. Elements are folders (`src/app`, `src/components`, `src/lib`, one element per `src/server/modules/<name>`, `src/server/db`, `src/server/llm`, and the rest of `src/server` as `server-lib`); the role of each file inside a module (`index.ts` = public, `schema.ts`, `actions.ts`, `router.ts`, `service.ts`, `repository.ts`, anything else = internal) is a file category. `checkInternals: true` makes the rule apply inside a module too, so `repository.ts` importing `service.ts` is an error. The config is verified against fixture files that must produce exactly the expected violations (repository → service, service → db, actions → repository, index → repository, app → service, app → db, server-lib → module) and no others:
 
 ```js
-// eslint.config.mjs (excerpt)
+// eslint.config.mjs (complete)
 import { defineConfig, globalIgnores } from 'eslint/config'
 import nextVitals from 'eslint-config-next/core-web-vitals'
 import nextTs from 'eslint-config-next/typescript'
 import prettier from 'eslint-config-prettier/flat'
 import boundaries from 'eslint-plugin-boundaries'
+
+// Layering rules: docs/tech/04-repo-structure.md §2.
+// Elements are folders; the per-file roles inside a module (schema/actions/router/service/
+// repository/index) are file categories. Anything not explicitly allowed is an error.
+const moduleFile = (categories) => ({ element: { type: 'module' }, file: { categories } })
 
 export default defineConfig([
   ...nextVitals,
@@ -1647,44 +1652,121 @@ export default defineConfig([
     plugins: { boundaries },
     settings: {
       'boundaries/elements': [
-        { type: 'app', pattern: 'src/app/**' },
-        { type: 'components', pattern: 'src/components/**' },
-        { type: 'lib', pattern: 'src/lib/**' },
-        { type: 'module-public', pattern: 'src/server/modules/*/index.ts', mode: 'file' },
-        { type: 'module-schema', pattern: 'src/server/modules/*/schema.ts', mode: 'file' },
-        { type: 'module-actions', pattern: 'src/server/modules/*/actions.ts', mode: 'file' },
-        { type: 'module-router', pattern: 'src/server/modules/*/router.ts', mode: 'file' },
-        { type: 'module-service', pattern: 'src/server/modules/*/service.ts', mode: 'file' },
-        { type: 'module-repository', pattern: 'src/server/modules/*/repository.ts', mode: 'file' },
-        { type: 'module-internal', pattern: 'src/server/modules/*/**' },
-        { type: 'db', pattern: 'src/server/db/**' },
-        { type: 'llm', pattern: 'src/server/llm/**' },
-        { type: 'server-lib', pattern: ['src/server/http/**', 'src/server/logging/**', 'src/server/rate-limit/**', 'src/server/jobs/**', 'src/server/email/**', 'src/server/analytics/**', 'src/server/auth/**', 'src/server/config.ts'] },
+        { type: 'app', pattern: 'src/app', partialMatch: false },
+        { type: 'components', pattern: 'src/components', partialMatch: false },
+        { type: 'lib', pattern: 'src/lib', partialMatch: false },
+        { type: 'module', pattern: 'src/server/modules/*', capture: ['name'], partialMatch: false },
+        { type: 'db', pattern: 'src/server/db', partialMatch: false },
+        { type: 'llm', pattern: 'src/server/llm', partialMatch: false },
+        { type: 'server-lib', pattern: 'src/server', partialMatch: false },
+      ],
+      // Each module file gets exactly one category (stopMatching); everything else is internal.
+      'boundaries/files': [
+        { pattern: 'src/server/modules/*/index.ts', category: 'public', stopMatching: true },
+        { pattern: 'src/server/modules/*/schema.ts', category: 'schema', stopMatching: true },
+        { pattern: 'src/server/modules/*/actions.ts', category: 'actions', stopMatching: true },
+        { pattern: 'src/server/modules/*/router.ts', category: 'router', stopMatching: true },
+        { pattern: 'src/server/modules/*/service.ts', category: 'service', stopMatching: true },
+        {
+          pattern: 'src/server/modules/*/repository.ts',
+          category: 'repository',
+          stopMatching: true,
+        },
+        { pattern: 'src/server/modules/*/**', category: 'internal' },
+        // The fail-fast environment (05 §3) is the one server-lib file the db layer may import.
+        { pattern: 'src/server/config.ts', category: 'config' },
       ],
     },
     rules: {
-      'boundaries/element-types': ['error', {
-        default: 'disallow',
-        rules: [
-          { from: 'app', allow: ['components', 'lib', 'module-public', 'module-schema', 'module-actions', 'module-router', 'server-lib'] },
-          { from: 'components', allow: ['components', 'lib', 'module-schema', 'module-actions'] },
-          { from: 'lib', allow: ['lib'] },
-          { from: 'module-actions', allow: ['module-service', 'module-schema', 'server-lib', 'lib'] },
-          { from: 'module-router', allow: ['module-service', 'module-schema', 'server-lib', 'lib'] },
-          { from: 'module-service', allow: ['module-repository', 'module-schema', 'module-internal', 'module-public', 'server-lib', 'lib', 'llm'] },
-          { from: 'module-repository', allow: ['db', 'module-schema', 'lib'] },
-          { from: 'module-internal', allow: ['module-internal', 'module-schema', 'lib', 'server-lib', 'llm'] },
-          { from: 'module-public', allow: ['module-service', 'module-schema'] },
-          { from: 'server-lib', allow: ['server-lib', 'lib', 'db'] },
-          { from: 'llm', allow: ['llm', 'lib', 'server-lib', 'db'] },
-          { from: 'db', allow: ['db', 'lib'] },
-        ],
-      }],
-      'react/jsx-no-literals': ['error', { noStrings: true, ignoreProps: true, allowedStrings: ['·', '—', '(', ')', ':', '/'] }],
+      'boundaries/dependencies': [
+        'error',
+        {
+          default: 'disallow',
+          // Files inside one module are the same element; still check them (service → repository …).
+          checkInternals: true,
+          policies: [
+            {
+              from: { element: { type: 'app' } },
+              allow: [
+                { to: { element: { type: ['app', 'components', 'lib', 'server-lib'] } } },
+                { to: moduleFile(['public', 'schema', 'actions', 'router']) },
+              ],
+            },
+            {
+              from: { element: { type: 'components' } },
+              allow: [
+                { to: { element: { type: ['components', 'lib'] } } },
+                { to: moduleFile(['schema', 'actions']) },
+              ],
+            },
+            { from: { element: { type: 'lib' } }, allow: [{ to: { element: { type: 'lib' } } }] },
+            {
+              from: { element: { type: 'module' }, file: { categories: ['actions', 'router'] } },
+              allow: [
+                { to: { element: { type: ['server-lib', 'lib'] } } },
+                { to: moduleFile(['service', 'schema']) },
+              ],
+            },
+            {
+              from: { element: { type: 'module' }, file: { categories: ['service'] } },
+              allow: [
+                { to: { element: { type: ['server-lib', 'lib', 'llm'] } } },
+                { to: moduleFile(['repository', 'schema', 'internal', 'public']) },
+              ],
+            },
+            {
+              from: { element: { type: 'module' }, file: { categories: ['repository'] } },
+              allow: [{ to: { element: { type: ['db', 'lib'] } } }, { to: moduleFile(['schema']) }],
+            },
+            {
+              from: { element: { type: 'module' }, file: { categories: ['public'] } },
+              allow: [{ to: moduleFile(['service', 'schema']) }],
+            },
+            {
+              from: { element: { type: 'module' }, file: { categories: ['internal'] } },
+              allow: [
+                { to: { element: { type: ['lib', 'server-lib', 'llm'] } } },
+                { to: moduleFile(['internal', 'schema']) },
+              ],
+            },
+            {
+              from: { element: { type: 'server-lib' } },
+              allow: [{ to: { element: { type: ['server-lib', 'lib', 'db'] } } }],
+            },
+            {
+              from: { element: { type: 'llm' } },
+              allow: [{ to: { element: { type: ['llm', 'lib', 'server-lib', 'db'] } } }],
+            },
+            {
+              from: { element: { type: 'db' } },
+              allow: [
+                { to: { element: { type: ['db', 'lib'] } } },
+                { to: { element: { type: 'server-lib' }, file: { categories: ['config'] } } },
+              ],
+            },
+          ],
+        },
+      ],
+      'react/jsx-no-literals': [
+        'error',
+        { noStrings: true, ignoreProps: true, allowedStrings: ['·', '—', '(', ')', ':', '/'] },
+      ],
     },
   },
-  { files: ['src/lib/i18n/**', 'src/app/dev/**', 'tests/**', 'evals/**'], rules: { 'react/jsx-no-literals': 'off' } },
-  globalIgnores(['.next/**', 'out/**', 'build/**', 'next-env.d.ts', 'drizzle/**', 'coverage/**', 'playwright-report/**']),
+  {
+    files: ['src/lib/i18n/**', 'src/app/dev/**', 'tests/**', 'evals/**'],
+    rules: { 'react/jsx-no-literals': 'off' },
+  },
+  globalIgnores([
+    '.next/**',
+    'out/**',
+    'build/**',
+    'next-env.d.ts',
+    'drizzle/**',
+    'coverage/**',
+    'playwright-report/**',
+    'test-results/**',
+  ]),
 ])
 ```
 
@@ -1858,7 +1940,7 @@ Runtime: Node `24` (`.nvmrc`), pnpm `11.25.0`, Postgres `17`.
 | msw | 2.15.0 |
 | @lhci/cli | 0.15.1 |
 | @faker-js/faker | 10.6.0 |
-| eslint | 10.9.1 |
+| eslint | 9.39.5 (latest 9.x; 10.x crashes with `eslint-config-next@16.3.4`, D-142) |
 | eslint-config-next | 16.3.4 |
 | typescript-eslint | 8.69.0 |
 | eslint-plugin-boundaries | 7.2.0 |
@@ -2235,10 +2317,10 @@ const ServerEnvSchema = z.object({
   EMAIL_TRANSPORT: z.enum(['console', 'resend']).default('console'),
   RESEND_API_KEY: z.string().default(''),
   EMAIL_FROM: z.string().default('Tassl <no-reply@tassl.local>'),
-  NOTIFY_EMAIL_COPIES: bool.default('true'),
-  FEATURE_AI: bool.default('false'),
-  FEATURE_SAMPLE_DATA: bool.default('true'),
-  FEATURE_TEST_CONTROLS: bool.default('true'),
+  NOTIFY_EMAIL_COPIES: bool.default(true),
+  FEATURE_AI: bool.default(false),
+  FEATURE_SAMPLE_DATA: bool.default(true),
+  FEATURE_TEST_CONTROLS: bool.default(true),
   LLM_PROVIDER: z.enum(['mock', 'openai-compatible', 'anthropic']).default('mock'),
   LLM_BASE_URL: z.string().url().default('https://api.xiaomimimo.com/v1'),
   LLM_MODEL: z.string().default('mimo-v2.5-pro'),
@@ -2260,7 +2342,7 @@ const ServerEnvSchema = z.object({
   NEXT_PUBLIC_SENTRY_DSN: z.string().default(''),
   SENTRY_TRACES_SAMPLE_RATE: z.coerce.number().min(0).max(1).default(1),
   CRON_SECRET: z.string().min(8).default('local-cron-secret'),
-  JOBS_DRAIN_ON_ENQUEUE: bool.default('true'),
+  JOBS_DRAIN_ON_ENQUEUE: bool.default(true),
   SEED_PASSWORD: z.string().min(12).default('Walkthrough-Pass-2026'),
 }).superRefine((env, ctx) => {
   const deployed = env.APP_ENV === 'production' || env.APP_ENV === 'preview'
@@ -4910,7 +4992,7 @@ Columns: what an attacker does, which asset is at stake, where they get in, the 
 | A02 Cryptographic Failures | TLS everywhere: Vercel-terminated HTTPS, HSTS (§4), Neon `sslmode=require` in `DATABASE_URL` | `next.config.ts` headers; connection strings from the Neon integration | `tests/e2e/security/headers.spec.ts` |
 | A02 | Password hashing (scrypt), 12 to 128 characters; secret length | Better Auth config `src/server/auth/auth.ts`; `BETTER_AUTH_SECRET` `min(32)` in `src/server/config.ts` | Config boot test `tests/unit/config/env.test.ts` |
 | A02 | Backups encrypted at rest | `scripts/backup.sh`: `openssl enc -aes-256-cbc -pbkdf2 -k "$BACKUP_ENCRYPTION_KEY"` (06 §6) | Weekly restore drill (13 §Runbook: restore from Neon backup) |
-| A02 | No secret reaches the browser | `import 'server-only'` at the top of `src/server/config.ts`; only `NEXT_PUBLIC_*` in `src/lib/env.public.ts` | Build fails on a client import |
+| A02 | No secret reaches the browser | ESLint boundaries rule keeps `src/server/**` out of `src/components` and `src/lib`; `src/server/auth/session.ts` starts with `import 'server-only'` (D-143); only `NEXT_PUBLIC_*` in `src/lib/env.public.ts` | Build fails on a client import |
 | A03 Injection | Parameterized queries only | Drizzle query builder in repositories; `sql` template with bound values only; no string-built SQL | ESLint `no-restricted-syntax` rule on template literals passed to `db.execute` in `eslint.config.mjs` |
 | A03 | Input validation once, at the edge | One Zod schema per input in `src/server/modules/*/schema.ts`; `stripMarkup()` in `src/lib/words.ts` before validation of frame and brief fields (FR-103) | Unit tests per schema |
 | A03 | Output encoding | React escaping; `react/no-danger: error`; no `dangerouslySetInnerHTML` anywhere | Lint |
@@ -4931,7 +5013,7 @@ Columns: what an attacker does, which asset is at stake, where they get in, the 
 | A07 | Session lifetime and revocation | `expiresIn` 30 d, `updateAge` 1 d, `revokeSessionsOnPasswordReset`, `revokeOtherSessions` on password change, `revokeSessions` on role change; `freshAge` 10 min required for password change and account deletion | `tests/integration/auth/sessions.test.ts` |
 | A07 | Per-account sign-in limit | Application limit 10/min per email in `src/server/rate-limit/limits.ts` (D-021) | `tests/integration/auth/rate-limit.test.ts` |
 | A08 Software and Data Integrity Failures | Reproducible build shipped from CI | `vercel build` then `vercel deploy --prebuilt` in `.github/workflows/production.yml`; `SENTRY_AUTH_TOKEN` scoped to `project:releases`, `org:read` | Production workflow |
-| A08 | No dependency lifecycle scripts | pnpm 11 default; `pnpm.onlyBuiltDependencies` empty | Review |
+| A08 | No dependency lifecycle scripts | pnpm 11 default; `allowBuilds: { esbuild: false, msw: false }` in `pnpm-workspace.yaml` (D-146) | Review |
 | A08 | Model output is data | Every structured call validated by Zod with one repair retry (ADR-013); text output rendered as text | `evals/**` |
 | A08 | Append-only trace and frozen versions | NFR-004, NFR-005 | Immutability tests |
 | A09 Security Logging and Monitoring Failures | Audit log of sensitive actions | `admin.audit()` in `src/server/modules/admin/service.ts`; table `audit_logs` (§7) | `tests/integration/admin/audit.test.ts` |
@@ -5583,7 +5665,7 @@ pino `10.3.1` writes one JSON object per line to stdout. Vercel captures stdout 
 | `packageVersionId` | UUID string | the package version being touched | authoring and scoring lines |
 | `jobId` | UUID string | pg-boss job id | job-scoped lines |
 
-`base` is `undefined`, so `pid` and `hostname` never appear. `APP_ENV` and the release are not logged: Vercel scopes logs per deployment already.
+`base` is `null`, so `pid` and `hostname` never appear. `APP_ENV` and the release are not logged: Vercel scopes logs per deployment already.
 
 ### 2.2 Levels
 
@@ -5617,7 +5699,6 @@ Two more guards: (1) `hooks.logMethod` replaces every occurrence of a secret env
 `src/server/logging/logger.ts`
 
 ```ts
-import 'server-only'
 import { createHash } from 'node:crypto'
 import pino, { type Logger, type LoggerOptions } from 'pino'
 import { env } from '@/server/config'
@@ -5639,7 +5720,7 @@ export const scrubSecrets = (text: string): string =>
 
 const options: LoggerOptions = {
   level: env.LOG_LEVEL,
-  base: undefined,
+  base: null,
   timestamp: pino.stdTimeFunctions.isoTime,
   messageKey: 'msg',
   formatters: { level: (label) => ({ level: label }) },
@@ -5884,7 +5965,6 @@ Static security headers are set in `next.config.ts` `headers()`, the CSP and `x-
 One module turns an operational condition into a log line, a Sentry event with a stable fingerprint (alert rules match the `ops` tag), and a PostHog counter.
 
 ```ts
-import 'server-only'
 import * as Sentry from '@sentry/nextjs'
 import { getLogger } from '@/server/http/request-context'
 import { track } from '@/server/analytics/track'
@@ -5913,8 +5993,8 @@ export function alertOps(name: OpsAlert, attrs: Attrs = {}): void {
 
 // Dashboard-worthy: info log + PostHog event; never alerts. distinctId is a hashed user id or 'system'.
 export function countOps(event: OpsCount, props: Attrs = {}, distinctId = 'system'): void {
-  getLogger().info({ event, ...props }, event)
-  track(event, props, distinctId)
+  getLogger().info({ event, distinctId, ...props }, event)
+  track(event, props, distinctId) // wired in Phase 13; Phase 0 ships the log line only
 }
 ```
 
@@ -5939,7 +6019,6 @@ export function GET() {
 `src/server/http/readiness.ts` (a `server-lib` module, the only layer `src/app` may reach the database through; `04-repo-structure.md` §2):
 
 ```ts
-import 'server-only'
 import { sql } from 'drizzle-orm'
 import { db } from '@/server/db/client'
 import { rootLogger } from '@/server/logging/logger'
@@ -8836,7 +8915,6 @@ Type-level union `AnyEvent` gives call sites exhaustive checking; `EVENT_NAMES` 
 ### 5.2 `src/server/analytics/distinct-id.ts`
 
 ```ts
-import 'server-only'
 import { createHash } from 'node:crypto'
 
 /** PostHog distinct id: sha256(user.id), first 16 hex characters. Never reversible to the id, stable per user. */
@@ -8848,7 +8926,6 @@ export function hashUserId(userId: string): string {
 ### 5.3 `src/server/analytics/posthog.ts`
 
 ```ts
-import 'server-only'
 import { PostHog } from 'posthog-node'
 import { after } from 'next/server'
 import { env } from '@/server/config'
@@ -8904,7 +8981,6 @@ export async function shutdownPosthog(): Promise<void> {
 ### 5.4 `src/server/analytics/track.ts`
 
 ```ts
-import 'server-only'
 import { EVENTS, type EventName, type EventProps } from '@/lib/analytics/events'
 import { env } from '@/server/config'
 import { logger } from '@/server/logging/logger'
@@ -9551,7 +9627,7 @@ pnpm typecheck && pnpm build && (pnpm start & sleep 6; curl -fsS http://localhos
 - `.prettierignore` — create; `.next`, `drizzle`, `pnpm-lock.yaml`, `docs/TASSL-TECHNICAL-DOCUMENTATION.md`, `impeccable-report.json` (one per line)
 **Commands (in order, from repo root):**
 ```bash
-pnpm add -D eslint@10.9.1 eslint-config-next@16.3.4 typescript-eslint@8.69.0 eslint-plugin-boundaries@7.2.0 eslint-config-prettier@10.1.8 prettier@3.9.6 prettier-plugin-tailwindcss@0.8.1 husky@9.1.7 lint-staged@17.4.1 @commitlint/cli@21.2.2 @commitlint/config-conventional@21.2.2
+pnpm add -D eslint@9.39.5 eslint-config-next@16.3.4 typescript-eslint@8.69.0 eslint-plugin-boundaries@7.2.0 eslint-config-prettier@10.1.8 prettier@3.9.6 prettier-plugin-tailwindcss@0.8.1 husky@9.1.7 lint-staged@17.4.1 @commitlint/cli@21.2.2 @commitlint/config-conventional@21.2.2
 pnpm exec husky init
 printf 'pnpm exec lint-staged\n' > .husky/pre-commit
 printf 'pnpm exec commitlint --edit "$1"\n' > .husky/commit-msg
@@ -9571,9 +9647,10 @@ pnpm lint && pnpm typecheck && git add -A && git commit -m "test: hook check" --
 ### Step 0.4 — Local Postgres, environment file, and fail-fast configuration
 **Goal:** Docker Compose Postgres 17 runs; `.env.example` has working defaults; the server refuses to start on invalid configuration.
 **Covers:** SYS-013, SYS-023, INT-001
-**Prerequisites:** Step 0.3 complete; Docker running
+**Prerequisites:** Step 0.3 complete; Docker running (or the portable Postgres of D-139 on a machine without Docker)
 **Files to create / modify:**
 - `compose.yaml`, `scripts/init-test-db.sql` — create; `04-repo-structure.md` §9
+- `scripts/pg-local.sh` — create; D-139 wrapper (`start|stop|restart|status`) for the portable PostgreSQL 17 install used where Docker is unavailable; same role, password, port, and databases as `compose.yaml`
 - `.env.example` — create; verbatim from `05-environment-config.md` §2
 - `src/server/config.ts` — create; `05-environment-config.md` §3 (starts with `import 'dotenv/config'`, D-131)
 - `src/lib/env.public.ts` — create; `05-environment-config.md` §3
@@ -9582,6 +9659,7 @@ pnpm lint && pnpm typecheck && git add -A && git commit -m "test: hook check" --
 ```bash
 cp .env.example .env
 docker compose up -d --wait
+# Without Docker (D-139): bash scripts/pg-local.sh start
 ```
 **Implementation notes:** `superRefine` rules for deployed environments per `05-environment-config.md` §3. `effectiveLlmProvider()` returns `mock` when `FEATURE_AI` is false (D-029).
 **Secrets (if any):** none (all defaults are non-secret).
@@ -9589,6 +9667,7 @@ docker compose up -d --wait
 **Verify (all must pass):**
 ```bash
 docker compose exec -T postgres pg_isready -U tassl -d tassl && docker compose exec -T postgres psql -U tassl -d tassl_test -c 'select 1' -tA | grep -qx 1
+# Without Docker (D-139): bash scripts/pg-local.sh status && PGPASSWORD=tassl psql -h localhost -U tassl -d tassl_test -c 'select 1' -tA | grep -qx 1
 pnpm exec tsx -e "import('./src/server/config').then(m => console.log(m.env.APP_ENV, m.effectiveLlmProvider()))" | grep -q 'local mock'
 APP_ENV=production pnpm exec tsx -e "import('./src/server/config').then(() => { console.log('NOT REFUSED'); process.exit(1) }).catch(e => { console.log('refused:', e.message); process.exit(0) })" | grep -q 'refused: INVALID_SERVER_ENV'
 ```
@@ -12270,6 +12349,15 @@ Tie-breaker: the option a senior engineer would choose for a two-person team shi
 | D-135 | Defense question for a figure that matches no claim or document (FR-025) | PRD §7.2 edge | A `figure_provenance` question kind (template with `{figure}`, no claim) exists in the bank (`≥ 1` when the package has named fields) and is selected for each named-field value that matches nothing | The selector needs a bank question to ask | Render it from the `provenance` kind instead |
 | D-136 | Casing of the exported trace file | PRD §12 | Every key in the export file (header, events, claim table, computed block) is `snake_case`; `openapi.yaml` `TraceExport` mirrors that; API JSON elsewhere stays `camelCase` | The trace is a data artefact the instructor files, matching the PRD's event names | — |
 | D-137 | Hand-written migrations | drizzle-kit semantics | Every hand-written migration is created with `pnpm exec drizzle-kit generate --custom --name <slug>` after the table migration it depends on, then filled with SQL; `drizzle/meta/_journal.json` is committed empty in Step 0.7 so `drizzle-kit migrate` runs before the first migration exists | `drizzle-kit migrate` applies only journal entries and refuses to run without a journal | — |
+| D-138 | Build machine is Windows 11 with Git Bash, Node 25, no nvm, no corepack (Node 25 dropped it) | Rule 4, D-002 | Node 24.20.0 installed with fnm (`winget install --id Schniz.fnm`, user scope) at `%APPDATA%\fnm\node-versions\v24.20.0\installation`; pnpm 11.25.0 installed with `npm i -g pnpm@11.25.0`; every build command runs with that installation directory first on `PATH` (the macOS/Linux commands in the phase files are unchanged; this row is the Windows equivalent of Step 0.1) | The phase files target macOS/Linux; the machine at hand is Windows | Install nvm on a POSIX machine and follow Step 0.1 as written |
+| D-139 | Local Postgres on the Windows build machine, which has no Docker | Rule 3 | Portable PostgreSQL 17.10 (EDB `postgresql-17.10-1-windows-x64-binaries.zip`) extracted to `~/.tassl-tools/pgsql`, cluster `~/.tassl-tools/pgdata`, superuser `tassl` / password `tassl`, port 5432, databases `tassl` and `tassl_test`; started with `pg_ctl`; `scripts/pg-local.sh` wraps start, stop, and status; `compose.yaml` stays the path on Docker hosts and CI keeps its service container | Same role, password, port, and databases as `compose.yaml`, so `.env.example` is unchanged | Install Docker Desktop and use `docker compose up -d --wait` |
+| D-140 | Line endings on Windows checkouts | Rule 4 | `.gitattributes` with `* text=auto eol=lf` (plus `*.png binary`, `*.woff2 binary`) so working copies keep LF; Prettier's default `endOfLine: 'lf'` then passes on every OS | git's `core.autocrlf=true` on the build machine would otherwise write CRLF | Remove the file |
+| D-141 | Prettier and the documentation | Rule 3 | `.prettierignore` also excludes `docs/`, `Tassl PRD.md`, and `CLAUDE.md`: the documentation is hand-formatted and Prettier would rewrap prose and tables; code, config, and `README.md` stay formatted | `pnpm lint` runs `prettier --check .` | Remove the three lines |
+| D-142 | ESLint major version | Verified at Step 0.3: `eslint-plugin-react` (pulled in by `eslint-config-next@16.3.4`) calls `context.getFilename`, removed in ESLint 10, so `eslint@10.9.1` crashes on every file | Pin ESLint to the latest 9.x (the version recorded in `04-repo-structure.md` §8); `typescript-eslint@8.69.0`, `eslint-config-prettier`, and `eslint-plugin-boundaries` all support 9.x | The lint gate must run | Bump to 10.x when `eslint-config-next` ships an ESLint-10-compatible react plugin |
+| D-143 | `server-only` marker on server modules loaded outside Next | Verified at Step 0.5: `server-only` throws under plain Node, so a module carrying it cannot be loaded by tsx scripts (jobs worker, seed, generators) or by Vitest | Only `src/server/auth/session.ts` (uses `next/headers`, Phase 3) carries `import 'server-only'`. Config, logging, ops-events, analytics, rate limit, and the http kit omit it; the client/server boundary is the ESLint boundaries rule (`src/lib` and `src/components` cannot import `src/server`) plus `env.public.ts` for the browser | Scripts and unit tests must load these modules; the lint rule already fails the build on a client import | Add a Vitest alias and a tsx loader stub for `server-only`, then restore the marker |
+| D-144 | Phase-gated smoke and Lighthouse targets | Verified at Step 0.7: `scripts/smoke.sh` (15 §9) and `lighthouserc.json` (16 §3.5) check routes that exist only from Phases 1, 3, 13, and 14, so their final forms cannot pass the Step 0.7 verify | Both files start with the routes that exist (`/api/health`, `/api/ready`, `/`) and are extended by the step that ships each route: `/privacy`, `/terms`, `/dev/components` (Phase 1); `/sign-in`, `/sign-up`, the `/home` redirect (Phase 3); `strict-transport-security` and `content-security-policy` (Phase 13); `/api/v1/openapi.yaml` (Phase 14). The 15 §9 and 16 §3.5 listings stay the final form | Every verify block must pass on the code that exists at its step | Ship the final files at Step 0.7 and accept failing smoke and LHCI runs until Phase 14 |
+| D-145 | What `pnpm openapi:generate` writes | Rule 4: `docs/tech/openapi.yaml` is both the design target (90 paths written before code) and, per `00-README.md`, "generated from Zod; committed"; a generator that emits only the implemented routes would erase the target at Step 0.7 | The generator merges: it re-serializes the committed document, replaces the operations whose `operationId` is implemented in `src/app/api/**/route.ts` (and the component schemas those operations emit), sorts paths, methods, component names, and response codes, and leaves every other path and component untouched. `openapi:check` compares that merged output with the file, so a PR that implements a route shows the diff between design and implementation | One document stays the design target and the implementation record; reviewers see drift in the PR | Split into `openapi.target.yaml` and a purely generated `openapi.yaml` once every route exists (Phase 14) |
+| D-146 | Dependencies that request install scripts | Verified at Step 0.7: pnpm 11 fails `pnpm install` (and therefore every `pnpm` script) while `esbuild` and `msw` request build scripts that are neither approved nor ignored | `pnpm-workspace.yaml` sets `allowBuilds: { esbuild: false, msw: false }`; no lifecycle script runs (12 §3 A08). esbuild loads its binary from the platform package and msw's postinstall only prints a notice, so neither is needed. A dependency that genuinely needs a build script is added to the ignored list only after review | Reproducible installs without executing third-party install scripts | Approve the scripts with `pnpm approve-builds` |
 
 
 ---
