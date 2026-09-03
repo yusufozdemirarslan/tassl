@@ -5,10 +5,10 @@
 **Requirements covered:** tracking only; see `COVERAGE.md` for the ID map.
 
 ## Phase 0 — Bootstrap (`build-plan/phase-00-bootstrap.md`)
-- [ ] 0.1 Install the toolchain and initialize the repository
-- [ ] 0.2 Scaffold the Next.js application with pinned dependencies
-- [ ] 0.3 Lint, format, layering rule, and commit hooks
-- [ ] 0.4 Local Postgres, environment file, and fail-fast configuration
+- [x] 0.1 Install the toolchain and initialize the repository
+- [x] 0.2 Scaffold the Next.js application with pinned dependencies
+- [x] 0.3 Lint, format, layering rule, and commit hooks
+- [x] 0.4 Local Postgres, environment file, and fail-fast configuration
 - [ ] 0.5 Logging, request context, error model, route and action wrappers, analytics helper
 - [ ] 0.6 Database client, health and readiness endpoints, request proxy
 - [ ] 0.7 Test tooling, OpenAPI generator, docs build, smoke script
