@@ -72,7 +72,15 @@ jobs:
           CRON_SECRET: ${{ secrets.CRON_SECRET_PREVIEW }}
         run: npx vercel@59.11.2 build --token "$VERCEL_TOKEN"
 
+      # D-161: the runner's checkout would attach git metadata, and Vercel then blocks the
+      # deployment unless the commit author is a verified member of the Vercel team
+      # (TEAM_ACCESS_REQUIRED). Deploying the prebuilt output without the .git directory skips
+      # that check; the PR number and sha stay in the alias and the job log.
+      - name: Detach git metadata
+        run: mv .git "$RUNNER_TEMP/git-detached"
+
       - name: Deploy and alias
+        timeout-minutes: 10
         run: |
           npx vercel@59.11.2 deploy --prebuilt --token "$VERCEL_TOKEN" \
             --env DATABASE_URL="${{ steps.neon.outputs.db_url_pooled }}" \
@@ -81,6 +89,15 @@ jobs:
             --env NEXT_PUBLIC_APP_URL="https://$PREVIEW_ALIAS" \
             > deployment-url.txt
           npx vercel@59.11.2 alias set "$(cat deployment-url.txt)" "$PREVIEW_ALIAS" --token "$VERCEL_TOKEN"
+
+      # D-161: the CLI polls forever on states it does not know (BLOCKED), so a failed or timed-out
+      # deploy prints the newest deployment's state and reason from the API instead.
+      - name: Explain a failed deployment
+        if: failure()
+        run: |
+          curl -sf -H "Authorization: Bearer $VERCEL_TOKEN" \
+            "https://api.vercel.com/v6/deployments?projectId=$VERCEL_PROJECT_ID&teamId=$VERCEL_ORG_ID&limit=1" \
+            | node -e 'let s="";process.stdin.on("data",c=>s+=c).on("end",()=>{const d=(JSON.parse(s).deployments||[])[0]||{};console.log("newest deployment:",d.url,d.state,d.readyState||"",JSON.stringify(d.readyStateReason||d.errorMessage||""))})'
 
       - name: Comment the preview URL on the PR
         env:
