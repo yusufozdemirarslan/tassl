@@ -8,6 +8,20 @@
       "when": 1788450023377,
       "tag": "0000_auth",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1788451074051,
+      "tag": "0001_tenancy_and_courses",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1788451075285,
+      "tag": "0002_extensions_and_triggers",
+      "breakpoints": true
     }
   ]
 }
