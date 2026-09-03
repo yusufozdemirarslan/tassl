@@ -16,6 +16,7 @@ import {
 } from 'drizzle-orm/pg-core'
 import { organization, user } from './auth'
 import { outsideAiPolicy, runType, sectionRole } from './enums'
+import { scenarioPackageVersions, scenarioVariants } from './scenarios'
 import { DEFAULT_BAND_MAPPING, type BandMapping } from './tenancy'
 
 /** Instructor-set policies (future-state); no shape is fixed yet, so an open object. */
@@ -120,13 +121,17 @@ export const assignments = pgTable(
       .references(() => sections.id),
     label: text('label').notNull(),
     runType: runType('run_type').notNull().default('decision'),
-    /** FK to `scenario_package_versions.id` is added by Step 2.3 (D-163). */
-    packageVersionId: uuid('package_version_id').notNull(),
+    /** FK added in Step 2.3 once the package tables existed (D-163). */
+    packageVersionId: uuid('package_version_id')
+      .notNull()
+      .references(() => scenarioPackageVersions.id),
     /**
      * FK to `scenario_variants.id` and the `assignments_variant_matches_version` trigger are added
      * by Step 2.3 (D-163).
      */
-    variantId: uuid('variant_id').notNull(),
+    variantId: uuid('variant_id')
+      .notNull()
+      .references(() => scenarioVariants.id),
     /** Null = the package value. */
     workingClockSeconds: integer('working_clock_seconds'),
     /** Null = the course default (`courses.default_run_weight`). */

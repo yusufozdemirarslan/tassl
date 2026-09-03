@@ -22,6 +22,20 @@
       "when": 1788451075285,
       "tag": "0002_extensions_and_triggers",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1788451208994,
+      "tag": "0003_scenario_packages",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1788451210195,
+      "tag": "0004_package_frozen",
+      "breakpoints": true
     }
   ]
 }
