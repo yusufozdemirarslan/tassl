@@ -40,6 +40,10 @@ export default defineConfig([
         { pattern: 'src/server/modules/*/**', category: 'internal' },
         // The fail-fast environment (05 §3) is the one server-lib file the db layer may import.
         { pattern: 'src/server/config.ts', category: 'config' },
+        // The after-commit registry is the one jobs file the transaction wrapper may import (D-165).
+        { pattern: 'src/server/jobs/after-commit.ts', category: 'tx-hooks' },
+        // The seed script signs seats up through Better Auth, so it may reach server-lib (06 §5).
+        { pattern: 'src/server/db/seed.ts', category: 'seed' },
       ],
     },
     rules: {
@@ -103,10 +107,19 @@ export default defineConfig([
               allow: [{ to: { element: { type: ['llm', 'lib', 'server-lib', 'db'] } } }],
             },
             {
+              from: { element: { type: 'db' }, file: { categories: ['seed'] } },
+              allow: [{ to: { element: { type: ['db', 'lib', 'server-lib'] } } }],
+            },
+            {
               from: { element: { type: 'db' } },
               allow: [
                 { to: { element: { type: ['db', 'lib'] } } },
-                { to: { element: { type: 'server-lib' }, file: { categories: ['config'] } } },
+                {
+                  to: {
+                    element: { type: 'server-lib' },
+                    file: { categories: ['config', 'tx-hooks'] },
+                  },
+                },
               ],
             },
           ],

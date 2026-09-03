@@ -2627,21 +2627,34 @@ paths:
         - url: /api
       responses:
         "200":
-          description: Drained
+          description: OK
           content:
             application/json:
               schema:
                 type: object
-                required:
-                  - processed
-                  - durationMs
                 properties:
                   processed:
-                    type: object
-                    additionalProperties:
-                      type: integer
+                    type: integer
+                    minimum: -9007199254740991
+                    maximum: 9007199254740991
+                  failed:
+                    type: integer
+                    minimum: -9007199254740991
+                    maximum: 9007199254740991
+                  skippedQueues:
+                    type: array
+                    items:
+                      type: string
                   durationMs:
                     type: integer
+                    minimum: -9007199254740991
+                    maximum: 9007199254740991
+                required:
+                  - processed
+                  - failed
+                  - skippedQueues
+                  - durationMs
+                additionalProperties: false
         "401":
           $ref: "#/components/responses/Unauthenticated"
     post:
@@ -2655,21 +2668,34 @@ paths:
         - url: /api
       responses:
         "200":
-          description: Drained
+          description: OK
           content:
             application/json:
               schema:
                 type: object
-                required:
-                  - processed
-                  - durationMs
                 properties:
                   processed:
-                    type: object
-                    additionalProperties:
-                      type: integer
+                    type: integer
+                    minimum: -9007199254740991
+                    maximum: 9007199254740991
+                  failed:
+                    type: integer
+                    minimum: -9007199254740991
+                    maximum: 9007199254740991
+                  skippedQueues:
+                    type: array
+                    items:
+                      type: string
                   durationMs:
                     type: integer
+                    minimum: -9007199254740991
+                    maximum: 9007199254740991
+                required:
+                  - processed
+                  - failed
+                  - skippedQueues
+                  - durationMs
+                additionalProperties: false
         "401":
           $ref: "#/components/responses/Unauthenticated"
   /../ready:

@@ -28,15 +28,15 @@
 - [ ] Phase 1 exit criteria
 
 ## Phase 2 — Data layer (`build-plan/phase-02-data-layer.md`)
-- [ ] 2.1 Better Auth schema generation
-- [ ] 2.2 Tenancy and courses tables
-- [ ] 2.3 Scenario package tables
-- [ ] 2.4 Run tables and the trace
-- [ ] 2.5 Scoring, review, records, and platform tables
-- [ ] 2.6 Immutability grants and the application role
-- [ ] 2.7 pg-boss schema, queues, drain, worker, ready check
-- [ ] 2.8 Repository layer, tenant enforcement, pagination, Postgres rate limiter
-- [ ] 2.9 Factories, seed, reset script
+- [x] 2.1 Better Auth schema generation
+- [x] 2.2 Tenancy and courses tables
+- [x] 2.3 Scenario package tables
+- [x] 2.4 Run tables and the trace
+- [x] 2.5 Scoring, review, records, and platform tables
+- [x] 2.6 Immutability grants and the application role
+- [x] 2.7 pg-boss schema, queues, drain, worker, ready check
+- [x] 2.8 Repository layer, tenant enforcement, pagination, Postgres rate limiter
+- [x] 2.9 Factories, seed, reset script
 - [ ] Phase 2 exit criteria
 
 ## Phase 3 — Authentication, tenancy, roles (`build-plan/phase-03-auth.md`)

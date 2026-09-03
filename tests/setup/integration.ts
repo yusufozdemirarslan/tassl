@@ -12,6 +12,12 @@ process.env.LOG_LEVEL ??= 'warn'
 export const TEST_DATABASE_URL =
   process.env.TEST_DATABASE_URL ?? 'postgres://tassl:tassl@localhost:5432/tassl_test'
 
+// The application client (src/server/db/client.ts) reads DATABASE_URL when src/server/config loads;
+// pointing it at the test database here, before any test file imports server code, keeps every
+// integration suite (seed, repositories, rate limiter) on the same database as testSql.
+process.env.DATABASE_URL = TEST_DATABASE_URL
+process.env.DATABASE_URL_UNPOOLED = TEST_DATABASE_URL
+
 if (!/test/.test(TEST_DATABASE_URL)) {
   throw new Error('TEST_DATABASE_URL must point at a database whose name contains "test"')
 }
@@ -22,18 +28,18 @@ let migrated = false
 
 export function migrateTestDatabase(): void {
   if (migrated) return
-  execSync('pnpm exec drizzle-kit migrate', {
-    stdio: 'inherit',
-    env: {
-      ...process.env,
-      DATABASE_URL: TEST_DATABASE_URL,
-      DATABASE_URL_UNPOOLED: TEST_DATABASE_URL,
-    },
-  })
+  const env = {
+    ...process.env,
+    DATABASE_URL: TEST_DATABASE_URL,
+    DATABASE_URL_UNPOOLED: TEST_DATABASE_URL,
+  }
+  execSync('pnpm exec drizzle-kit migrate', { stdio: 'inherit', env })
+  // pg-boss schema and queues (Step 2.7); lives in schema `pgboss`, which truncateAll() leaves alone.
+  execSync('pnpm exec tsx scripts/pgboss-migrate.ts', { stdio: 'inherit', env })
   migrated = true
 }
 
-/** Empties every application table (tests tagged // @db:truncate call this in afterEach). */
+/** Empties every application table in `public` (tests tagged // @db:truncate call this in afterEach); the pgboss schema is left alone. */
 export async function truncateAll(): Promise<void> {
   const tables = await testSql<{ tablename: string }[]>`
     select tablename from pg_tables where schemaname = 'public'`
@@ -42,8 +48,13 @@ export async function truncateAll(): Promise<void> {
   await testSql.unsafe(`truncate table ${names} restart identity cascade`)
 }
 
-beforeAll(() => {
+beforeAll(async () => {
   migrateTestDatabase()
+  // Step 2.6 (D-085): the immutability migration creates tassl_app NOLOGIN; the grants test signs in
+  // with this throwaway password. Local and CI databases only.
+  await testSql.unsafe(
+    "do $$ begin if exists (select 1 from pg_roles where rolname = 'tassl_app') then alter role tassl_app login password 'test'; end if; end $$",
+  )
 })
 
 afterAll(async () => {
