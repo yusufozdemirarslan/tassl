@@ -259,7 +259,7 @@ Route keys in `app-path-routes-manifest.json` keep route groups, so a run page a
 }
 ```
 
-Why these URLs: they are deterministic without a session. `/dev/components` (UI-060) renders every run-workspace component, every claim-card state, and all four graphs on fixture data, so its script size is the lab proxy for the run routes; the gallery route answers when `APP_ENV` is `local` or `test` and returns 404 in `preview` and `production` (this file's decision, §11, extending the `local`-only rule in `02-architecture.md` §4 to CI). `resource-summary:*:size` is transfer size; `next start` gzips responses (`compress: true`, the default), so the number is comparable to §3.1.
+Why these URLs: they are deterministic without a session. `/dev/components` (UI-060) renders every run-workspace component, every claim-card state, and all four graphs on fixture data, so its script size is the lab proxy for the run routes; the gallery route answers when `APP_ENV` is `local` or `test` and returns 404 in `preview` and `production` (this file's decision, §11, extending the `local`-only rule in `02-architecture.md` §4 to CI). `resource-summary:*:size` is transfer size; `next start` gzips responses (`compress: true`, the default), so the number is comparable to §3.1. The gallery entry is asserted at 300 KB of script because it renders every primitive on one page; the 250 KB run-route budget is enforced on the real routes by `scripts/bundle-budget.ts` (D-156).
 
 ## 4. API latency (NFR-008, NFR-001, NFR-014)
 
