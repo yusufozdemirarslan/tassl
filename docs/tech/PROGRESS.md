@@ -14,8 +14,8 @@
 - [x] 0.7 Test tooling, OpenAPI generator, docs build, smoke script
 - [x] 0.8 CI workflows
 - [ ] 0.9 GitHub repository and branch protection
-- [ ] 0.10 Vercel project, Neon project, environment variables, CI secrets
-- [ ] 0.11 First production deploy of the "hello" build
+- [x] 0.10 Vercel project, Neon project, environment variables, CI secrets
+- [x] 0.11 First production deploy of the "hello" build
 - [ ] Phase 0 exit criteria
 
 ## Phase 1 — Design foundation (`build-plan/phase-01-design-foundation.md`)
