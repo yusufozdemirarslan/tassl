@@ -132,7 +132,8 @@ export function defineRoute<P = undefined, Q = undefined, B = undefined, O = unk
     const startedAt = Date.now()
     const requestId = getOrCreateRequestId(request.headers)
     const url = new URL(request.url)
-    const rawParams = await routeCtx.params
+    // Next resolves `params` to undefined for routes without dynamic segments (D-165).
+    const rawParams = (await routeCtx?.params) ?? {}
     const logger = createRequestLogger({
       requestId,
       route: routePattern(url.pathname, rawParams),

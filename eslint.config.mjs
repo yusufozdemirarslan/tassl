@@ -40,6 +40,8 @@ export default defineConfig([
         { pattern: 'src/server/modules/*/**', category: 'internal' },
         // The fail-fast environment (05 §3) is the one server-lib file the db layer may import.
         { pattern: 'src/server/config.ts', category: 'config' },
+        // The after-commit registry is the one jobs file the transaction wrapper may import (D-165).
+        { pattern: 'src/server/jobs/after-commit.ts', category: 'tx-hooks' },
       ],
     },
     rules: {
@@ -106,7 +108,12 @@ export default defineConfig([
               from: { element: { type: 'db' } },
               allow: [
                 { to: { element: { type: ['db', 'lib'] } } },
-                { to: { element: { type: 'server-lib' }, file: { categories: ['config'] } } },
+                {
+                  to: {
+                    element: { type: 'server-lib' },
+                    file: { categories: ['config', 'tx-hooks'] },
+                  },
+                },
               ],
             },
           ],
