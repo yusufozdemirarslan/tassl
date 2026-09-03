@@ -130,6 +130,8 @@ const budgets: Array<{ pattern: RegExp; maxBytes: number; label: string }> = [
   { pattern: /^\/\(app\)\/review\/runs\/\[runId\]$/, maxBytes: 250_000, label: 'run route' },
   { pattern: /^\/\(app\)\/records\/\[runId\]$/, maxBytes: 250_000, label: 'run route' },
   { pattern: /^\/\(public\)\//, maxBytes: 180_000, label: 'public page' },
+  // The gallery renders every primitive at once; 300 KB here and in lighthouserc.json (D-156).
+  { pattern: /^\/dev\//, maxBytes: 300_000, label: 'dev gallery' },
   { pattern: /.*/, maxBytes: 250_000, label: 'other route' },
 ]
 
