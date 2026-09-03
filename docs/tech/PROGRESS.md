@@ -33,7 +33,7 @@
 - [x] 2.3 Scenario package tables
 - [x] 2.4 Run tables and the trace
 - [x] 2.5 Scoring, review, records, and platform tables
-- [ ] 2.6 Immutability grants and the application role
+- [x] 2.6 Immutability grants and the application role
 - [x] 2.7 pg-boss schema, queues, drain, worker, ready check
 - [ ] 2.8 Repository layer, tenant enforcement, pagination, Postgres rate limiter
 - [ ] 2.9 Factories, seed, reset script
