@@ -47,6 +47,10 @@ jobs:
           SENTRY_ORG: ${{ vars.SENTRY_ORG }}
           SENTRY_PROJECT: tassl
           SENTRY_RELEASE: ${{ github.sha }}
+          # D-160: sensitive Vercel variables are not pulled onto the runner; the build reads them
+          # from GitHub secrets and the deployment uses the Vercel production values.
+          BETTER_AUTH_SECRET: ${{ secrets.BETTER_AUTH_SECRET_PRODUCTION }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET_PRODUCTION }}
         run: npx vercel@59.11.2 build --prod --token "$VERCEL_TOKEN"
 
       # D-070: expand/contract migrations run against the unpooled production string before the deploy.
