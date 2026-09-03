@@ -1,0 +1,28 @@
+# dependencies
+node_modules/
+.pnpm-store/
+
+# next.js
+.next/
+out/
+next-env.d.ts
+
+# tests and reports
+coverage/
+playwright-report/
+test-results/
+impeccable-report.json
+
+# deploy tooling
+.vercel/
+
+# local environment (only .env.example is tracked)
+.env
+.env.*
+!.env.example
+
+# local data and caches
+.data/
+*.tsbuildinfo
+*.log
+.DS_Store
