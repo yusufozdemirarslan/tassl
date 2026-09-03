@@ -1,6 +1,8 @@
 import type { Metadata } from 'next'
 import type { ReactNode } from 'react'
 import './globals.css'
+import { plexMono, plexSans, plexSerif } from '@/app/fonts'
+import { cn } from '@/lib/cn'
 import { t } from '@/lib/i18n/t'
 
 export const metadata: Metadata = {
@@ -10,7 +12,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="en-US">
+    <html lang="en-US" className={cn(plexSans.variable, plexMono.variable, plexSerif.variable)}>
       <body>{children}</body>
     </html>
   )

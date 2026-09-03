@@ -3504,7 +3504,8 @@ Self-hosted woff2 in `public/fonts`, loaded with `next/font/local` in `src/app/f
 | `--paper-sunken` | `#ECEFF3` | inputs, timeline track |
 | `--ink` | `#141A26` | primary text (tinted, never pure black) |
 | `--ink-muted` | `#4B5563` | secondary text (contrast on paper 7.5:1) |
-| `--ink-faint` | `#8A93A3` | placeholders, disabled (4.5:1 on paper-raised) |
+| `--ink-faint` | `#8A93A3` | decorative only: gridlines, disabled outlines, hairline icons; never text (3.1:1 on paper-raised, D-153); placeholders use ink at 70 % alpha and disabled text ink at 45 % (`16 §8.7`) |
+| `--line-control` | `rgb(20 26 38 / 0.4)` | input and control boundaries (3.9:1 on paper, D-153) |
 | `--line` | `#D5DAE2` | borders |
 | `--line-strong` | `#AEB6C2` | focused borders, table rules |
 | `--primary` | `#0F6E74` | actions, links, selected stance (deep teal) |
@@ -3574,7 +3575,7 @@ Command names verified against Impeccable 3.6.1 (`npx impeccable@3.6.1`, skill `
 
 1. `npx impeccable@3.6.1 install --providers=claude --scope=project` (keep the design hook), then reload Claude Code.
 2. `/impeccable init`. When it asks: primary user = students in professional degree programs (3rd/4th year undergraduates and MBA, marketing and strategy) taking a Decision Run, and course instructors reviewing runs; the job = make a consequential decision with an AI assistant in the room and remain accountable for it; mechanism = controlled-reliability claims with an irreversible Decision Lock and a simulator-style trace readout; constraints = text-only runs, no artifact polish rewarded, WCAG 2.2 AA, en-US, Next.js 16 + Tailwind 4 + shadcn; voice = plain, declarative, never accusatory, never "cheating"; platform = web; stack = "delegated: Next.js 16 App Router, already scaffolded". Answer every question from `01-prd-analysis.md` §1–3 and this file; do not describe visual style during init (Impeccable forbids it).
-3. Write `DESIGN.md` from §2 of this file (tokens, typography, spacing, radius, elevation, motion, iconography, empty states) with the header `<!-- impeccable:design-schema 1 -->` if the installed version's `document` reference names one (check `.claude/skills/impeccable/reference/document.md`; otherwise plain markdown headings `# Design`, `## Typography`, `## Color`, `## Spacing`, `## Radius`, `## Elevation`, `## Motion`, `## Components`).
+3. Write `DESIGN.md` from §2 of this file in the installed skill's format (D-152): YAML frontmatter with `colors`, `typography`, `rounded`, `spacing`, and `components`, then the sections Overview, Colors (with the normative token table), Typography, Layout, Elevation & Depth, Shapes, Components, Do's and Don'ts, plus Motion; the sidecar `.impeccable/design.json` carries shadows, motion, breakpoints, and narrative.
 4. Build the app shell and the component gallery, then run `/impeccable document` to reconcile `DESIGN.md` with the built shell. When it proposes a change to a token, keep the value in §2 unless the change is required for contrast (log a `D-` row).
 5. Add the ignore block to `.gitignore`:
 
@@ -8181,7 +8182,7 @@ export const plexSans = localFont({
     { path: '../../public/fonts/IBMPlexSans-Medium.woff2', weight: '500', style: 'normal' },
     { path: '../../public/fonts/IBMPlexSans-SemiBold.woff2', weight: '600', style: 'normal' },
   ],
-  variable: '--font-sans',
+  variable: '--font-plex-sans',
   display: 'swap',
   preload: true,
   fallback: ['system-ui', 'Segoe UI', 'Helvetica Neue', 'Arial', 'sans-serif'],
@@ -8193,12 +8194,12 @@ export const plexMono = localFont({
     { path: '../../public/fonts/IBMPlexMono-Regular.woff2', weight: '400', style: 'normal' },
     { path: '../../public/fonts/IBMPlexMono-Medium.woff2', weight: '500', style: 'normal' },
   ],
-  variable: '--font-mono',
+  variable: '--font-plex-mono',
   display: 'swap',
   preload: false,
   fallback: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'Consolas', 'monospace'],
   adjustFontFallback: false,
-  declarations: [{ prop: 'font-feature-settings', value: '"tnum" 1' }],
+  declarations: [{ prop: 'font-feature-settings', value: "'tnum' 1" }], // single quotes: Turbopack's font loader cannot carry double quotes (D-153)
 })
 
 export const plexSerif = localFont({
@@ -8206,7 +8207,7 @@ export const plexSerif = localFont({
     { path: '../../public/fonts/IBMPlexSerif-Medium.woff2', weight: '500', style: 'normal' },
     { path: '../../public/fonts/IBMPlexSerif-SemiBold.woff2', weight: '600', style: 'normal' },
   ],
-  variable: '--font-serif',
+  variable: '--font-plex-serif',
   display: 'swap',
   preload: false,
   fallback: ['Georgia', 'Times New Roman', 'serif'],
@@ -8217,10 +8218,10 @@ export const plexSerif = localFont({
 `src/app/layout.tsx` sets `<html lang="en-US" className={cn(plexSans.variable, plexMono.variable, plexSerif.variable)}>`. `src/app/globals.css` maps the variables into Tailwind 4 tokens and adds the tabular-figure utility as belt and braces for any element that inherits Mono:
 
 ```css
-@theme {
-  --font-sans: var(--font-sans);
-  --font-mono: var(--font-mono);
-  --font-serif: var(--font-serif);
+@theme inline {
+  --font-sans: var(--font-plex-sans, 'IBM Plex Sans', sans-serif);
+  --font-mono: var(--font-plex-mono, 'IBM Plex Mono', monospace);
+  --font-serif: var(--font-plex-serif, 'IBM Plex Serif', serif);
 }
 .font-mono, .tabular { font-variant-numeric: tabular-nums; font-feature-settings: "tnum" 1; }
 ```
@@ -12222,6 +12223,8 @@ Requirement IDs now fully implemented: every build-slice ID in `COVERAGE.md`; th
 ---
 
 | D-151 | Neon history retention below the 7 days of D-069 | Verified at Step 0.10: the Neon API rejects `history_retention_seconds` above 21600 (6 hours) on the Free plan of the "Tassl" organization (`org-mute-art-29143459`, project `tassl` = `red-smoke-66780807`) | Retention is set to the plan maximum, 21600 seconds; point-in-time restore therefore covers the last 6 hours, and the nightly encrypted `pg_dump` backups of `13-observability-ops.md` (`backup.yml`, `BACKUP_ENCRYPTION_KEY`) remain the recovery path beyond that window. Raise to 604800 when the organization moves to a paid Neon plan (Phase 15 launch checklist) | The plan limit, not the design, sets the ceiling; backups already exist for longer windows | Upgrade the Neon plan and re-run the PATCH in 15 §11.3 |
+| D-152 | Impeccable skill version and DESIGN.md format | Verified at Step 1.1: `npx impeccable@3.6.1 install` downloads the current skill (4.1.3), whose `document` reference defines DESIGN.md as YAML frontmatter (colors, typography, rounded, spacing, components) plus the sections Overview, Colors, Typography, Layout, Elevation & Depth, Shapes, Components, Do's and Don'ts, with a sidecar `.impeccable/design.json`; the `init` reference wants an interview through the question tool | `DESIGN.md` uses the skill's format with the 09 §2 values verbatim (the Colors table stays normative and `tests/unit/design/tokens.test.ts` checks it against `globals.css`); `.impeccable/design.json` carries shadows, motion, breakpoints, and narrative; `PRODUCT.md` is written from the answers 09 §4 item 2 records, so `init` asks no questions (the build rule that no human decides). The installer's hook settings (`.claude/settings.local.json`, paths via `CLAUDE_PROJECT_DIR`) and `.claude/skills`, `.claude/agents` are tracked and excluded from Prettier so they stay byte-identical to the installer | One design authority that both the detector and the documented workflow read | Re-run `/impeccable document` in scan mode if a later skill version changes the format |
+| D-153 | Font variables, faint ink, control borders | Verified at Step 1.2: `16 §6.3` named the `next/font` variables `--font-sans/mono/serif`, which would alias Tailwind's own theme names, while phase 1 and 09 §2.6 use `--font-plex-*`; `--ink-faint` (`#8A93A3`) measures 3.1:1 on white and 2.9:1 on paper, so the 09 §2.2 claim of 4.5:1 was wrong; 16 §8.7 sets control borders at ink 40 % alpha but no token carried it | `src/app/fonts.ts` exports `--font-plex-sans`, `--font-plex-mono`, `--font-plex-serif` and `@theme inline` maps them to `--font-sans/mono/serif`; `--ink-faint` is decorative only (gridlines, disabled outlines, hairline icons) and never text, with placeholders at ink 70 % and disabled text at ink 45 % per 16 §8.7; a new `--line-control: rgb(20 26 38 / 0.4)` token is the input and control boundary; `tests/unit/design/contrast.test.ts` recomputes every documented pairing | The palette (D-025) is unchanged; only the claims and the variable names are corrected | Darken `--ink-faint` to a 4.5:1 value if a text use case appears |
 # DECISIONS — Every gap, resolved
 
 **Purpose / Read this when:** a spec or build step depends on something the PRD does not say, or you are about to make a new choice. Apply the Decision Policy below, add a row, continue. No row is ever "pending".

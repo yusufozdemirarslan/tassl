@@ -61,7 +61,8 @@ Self-hosted woff2 in `public/fonts`, loaded with `next/font/local` in `src/app/f
 | `--paper-sunken` | `#ECEFF3` | inputs, timeline track |
 | `--ink` | `#141A26` | primary text (tinted, never pure black) |
 | `--ink-muted` | `#4B5563` | secondary text (contrast on paper 7.5:1) |
-| `--ink-faint` | `#8A93A3` | placeholders, disabled (4.5:1 on paper-raised) |
+| `--ink-faint` | `#8A93A3` | decorative only: gridlines, disabled outlines, hairline icons; never text (3.1:1 on paper-raised, D-153); placeholders use ink at 70 % alpha and disabled text ink at 45 % (`16 §8.7`) |
+| `--line-control` | `rgb(20 26 38 / 0.4)` | input and control boundaries (3.9:1 on paper, D-153) |
 | `--line` | `#D5DAE2` | borders |
 | `--line-strong` | `#AEB6C2` | focused borders, table rules |
 | `--primary` | `#0F6E74` | actions, links, selected stance (deep teal) |
@@ -131,7 +132,7 @@ Command names verified against Impeccable 3.6.1 (`npx impeccable@3.6.1`, skill `
 
 1. `npx impeccable@3.6.1 install --providers=claude --scope=project` (keep the design hook), then reload Claude Code.
 2. `/impeccable init`. When it asks: primary user = students in professional degree programs (3rd/4th year undergraduates and MBA, marketing and strategy) taking a Decision Run, and course instructors reviewing runs; the job = make a consequential decision with an AI assistant in the room and remain accountable for it; mechanism = controlled-reliability claims with an irreversible Decision Lock and a simulator-style trace readout; constraints = text-only runs, no artifact polish rewarded, WCAG 2.2 AA, en-US, Next.js 16 + Tailwind 4 + shadcn; voice = plain, declarative, never accusatory, never "cheating"; platform = web; stack = "delegated: Next.js 16 App Router, already scaffolded". Answer every question from `01-prd-analysis.md` §1–3 and this file; do not describe visual style during init (Impeccable forbids it).
-3. Write `DESIGN.md` from §2 of this file (tokens, typography, spacing, radius, elevation, motion, iconography, empty states) with the header `<!-- impeccable:design-schema 1 -->` if the installed version's `document` reference names one (check `.claude/skills/impeccable/reference/document.md`; otherwise plain markdown headings `# Design`, `## Typography`, `## Color`, `## Spacing`, `## Radius`, `## Elevation`, `## Motion`, `## Components`).
+3. Write `DESIGN.md` from §2 of this file in the installed skill's format (D-152): YAML frontmatter with `colors`, `typography`, `rounded`, `spacing`, and `components`, then the sections Overview, Colors (with the normative token table), Typography, Layout, Elevation & Depth, Shapes, Components, Do's and Don'ts, plus Motion; the sidecar `.impeccable/design.json` carries shadows, motion, breakpoints, and narrative.
 4. Build the app shell and the component gallery, then run `/impeccable document` to reconcile `DESIGN.md` with the built shell. When it proposes a change to a token, keep the value in §2 unless the change is required for contrast (log a `D-` row).
 5. Add the ignore block to `.gitignore`:
 

@@ -40,6 +40,9 @@
   --radius-md: 6px;
   --radius-lg: 10px;
 
+  /* Control boundaries use ink at 40 % alpha (3.9:1 on paper, 16 §8.7); --line is for hairlines only. */
+  --line-control: rgb(20 26 38 / 0.4);
+
   --shadow-float: 0 8px 24px rgb(20 26 38 / 0.12);
 
   --ease-out: cubic-bezier(0.2, 0, 0, 1);
@@ -71,11 +74,34 @@
   --color-stance-challenge: var(--stance-challenge);
   --color-stance-reject: var(--stance-reject);
   --color-stance-escalate: var(--stance-escalate);
+  --color-line-control: var(--line-control);
 
-  /* The three font variables are set on <html> by next/font in Phase 1 (src/app/fonts.ts). */
+  /* The three font variables are set on <html> by next/font (src/app/fonts.ts). */
   --font-sans: var(--font-plex-sans, 'IBM Plex Sans', sans-serif);
   --font-mono: var(--font-plex-mono, 'IBM Plex Mono', monospace);
   --font-serif: var(--font-plex-serif, 'IBM Plex Serif', serif);
+
+  /* Type scale (09 §2.1): text-meta … text-h1 utilities carry size and line-height together. */
+  --text-meta: 13px;
+  --text-meta--line-height: 20px;
+  --text-body: 14px;
+  --text-body--line-height: 22px;
+  --text-reading: 16px;
+  --text-reading--line-height: 26px;
+  --text-lead: 18px;
+  --text-lead--line-height: 28px;
+  --text-mono-sm: 12px;
+  --text-mono-sm--line-height: 18px;
+  --text-mono: 14px;
+  --text-mono--line-height: 20px;
+  --text-h4: 20px;
+  --text-h4--line-height: 28px;
+  --text-h3: 24px;
+  --text-h3--line-height: 32px;
+  --text-h2: 30px;
+  --text-h2--line-height: 38px;
+  --text-h1: 36px;
+  --text-h1--line-height: 44px;
 
   --radius-sm: 2px;
   --radius-md: 6px;
@@ -83,6 +109,14 @@
 
   --shadow-float: var(--shadow-float);
   --ease-out: var(--ease-out);
+  --spacing-1: var(--space-1);
+  --spacing-2: var(--space-2);
+  --spacing-3: var(--space-3);
+  --spacing-4: var(--space-4);
+  --spacing-5: var(--space-5);
+  --spacing-6: var(--space-6);
+  --spacing-7: var(--space-7);
+  --spacing-8: var(--space-8);
 }
 
 body {
@@ -93,13 +127,61 @@ body {
   line-height: 22px;
 }
 
+/* Headings are serif (09 §2.1). Components may override size with the text-h* utilities. */
+h1,
+h2,
+h3,
+h4 {
+  font-family: var(--font-plex-serif, 'IBM Plex Serif', serif);
+  font-weight: 500;
+  color: var(--ink);
+}
+h1 {
+  font-size: 36px;
+  line-height: 44px;
+  font-weight: 600;
+}
+h2 {
+  font-size: 30px;
+  line-height: 38px;
+}
+h3 {
+  font-size: 24px;
+  line-height: 32px;
+}
+h4 {
+  font-size: 20px;
+  line-height: 28px;
+}
+
+/* No italic faces ship: emphasis is weight, never a synthesized oblique (16 §6.2). */
+em {
+  font-style: normal;
+  font-weight: 500;
+}
+strong {
+  font-weight: 600;
+}
+
+a {
+  color: var(--primary);
+  text-underline-offset: 2px;
+}
+
 :focus-visible {
   outline: 2px solid var(--focus);
   outline-offset: 2px;
 }
 
+.font-mono,
 .tabular {
+  font-variant-numeric: tabular-nums;
   font-feature-settings: 'tnum' 1;
+}
+
+::placeholder {
+  color: rgb(20 26 38 / 0.7);
+  opacity: 1;
 }
 
 @media (prefers-reduced-motion: reduce) {

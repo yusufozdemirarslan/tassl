@@ -455,7 +455,7 @@ export const plexSans = localFont({
     { path: '../../public/fonts/IBMPlexSans-Medium.woff2', weight: '500', style: 'normal' },
     { path: '../../public/fonts/IBMPlexSans-SemiBold.woff2', weight: '600', style: 'normal' },
   ],
-  variable: '--font-sans',
+  variable: '--font-plex-sans',
   display: 'swap',
   preload: true,
   fallback: ['system-ui', 'Segoe UI', 'Helvetica Neue', 'Arial', 'sans-serif'],
@@ -467,12 +467,12 @@ export const plexMono = localFont({
     { path: '../../public/fonts/IBMPlexMono-Regular.woff2', weight: '400', style: 'normal' },
     { path: '../../public/fonts/IBMPlexMono-Medium.woff2', weight: '500', style: 'normal' },
   ],
-  variable: '--font-mono',
+  variable: '--font-plex-mono',
   display: 'swap',
   preload: false,
   fallback: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'Consolas', 'monospace'],
   adjustFontFallback: false,
-  declarations: [{ prop: 'font-feature-settings', value: '"tnum" 1' }],
+  declarations: [{ prop: 'font-feature-settings', value: "'tnum' 1" }], // single quotes: Turbopack's font loader cannot carry double quotes (D-153)
 })
 
 export const plexSerif = localFont({
@@ -480,7 +480,7 @@ export const plexSerif = localFont({
     { path: '../../public/fonts/IBMPlexSerif-Medium.woff2', weight: '500', style: 'normal' },
     { path: '../../public/fonts/IBMPlexSerif-SemiBold.woff2', weight: '600', style: 'normal' },
   ],
-  variable: '--font-serif',
+  variable: '--font-plex-serif',
   display: 'swap',
   preload: false,
   fallback: ['Georgia', 'Times New Roman', 'serif'],
@@ -491,10 +491,10 @@ export const plexSerif = localFont({
 `src/app/layout.tsx` sets `<html lang="en-US" className={cn(plexSans.variable, plexMono.variable, plexSerif.variable)}>`. `src/app/globals.css` maps the variables into Tailwind 4 tokens and adds the tabular-figure utility as belt and braces for any element that inherits Mono:
 
 ```css
-@theme {
-  --font-sans: var(--font-sans);
-  --font-mono: var(--font-mono);
-  --font-serif: var(--font-serif);
+@theme inline {
+  --font-sans: var(--font-plex-sans, 'IBM Plex Sans', sans-serif);
+  --font-mono: var(--font-plex-mono, 'IBM Plex Mono', monospace);
+  --font-serif: var(--font-plex-serif, 'IBM Plex Serif', serif);
 }
 .font-mono, .tabular { font-variant-numeric: tabular-nums; font-feature-settings: "tnum" 1; }
 ```
