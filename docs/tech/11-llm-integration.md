@@ -56,7 +56,7 @@ Facts verified on 2026-09-02 from Xiaomi's documentation (`https://mimo.mi.com/d
 
 | Item | Value |
 |---|---|
-| Base URL | `https://api.xiaomimimo.com/v1` (chat completions at `/chat/completions`) |
+| Base URL | `https://token-plan-sgp.xiaomimimo.com/v1` (chat completions at `/chat/completions`) |
 | Model id | `mimo-v2.5-pro` |
 | Auth header | `api-key: <key>` in the official examples; the OpenAI SDK's `Authorization: Bearer <key>` also works. The adapter sends both |
 | Streaming | `stream: true` supported |

@@ -29,7 +29,7 @@
 | `FEATURE_SAMPLE_DATA` | Show illustrative sample data views | `true` | none | no | `src/lib/flags.ts` | — |
 | `FEATURE_TEST_CONTROLS` | Build-phase test controls (forced assistant failure) | `true` | none | no | `src/lib/flags.ts` | — |
 | `LLM_PROVIDER` | `mock`, `openai-compatible`, `anthropic` | `mock` | none | no | `src/server/llm/registry.ts` | — |
-| `LLM_BASE_URL` | OpenAI-compatible base URL | `https://api.xiaomimimo.com/v1` | none | no | `src/server/llm/providers/openai-compatible/index.ts` | — |
+| `LLM_BASE_URL` | OpenAI-compatible base URL | `https://token-plan-sgp.xiaomimimo.com/v1` | none | no | `src/server/llm/providers/openai-compatible/index.ts` | — |
 | `LLM_MODEL` | Model id | `mimo-v2.5-pro` | none | no | same | — |
 | `LLM_API_KEY` | Provider key (sent as `api-key` and `Authorization: Bearer`) | empty (mock stays active) | R when `LLM_PROVIDER=openai-compatible` | yes | same | https://platform.xiaomimimo.com/#/console/api-keys → Create API Key |
 | `LLM_TIMEOUT_MS` | Per-call timeout | `60000` | none | no | `src/server/llm/provider.ts` | — |
@@ -92,7 +92,7 @@ FEATURE_TEST_CONTROLS=true
 
 # ---- LLM (mock by default; FEATURE_AI=false forces mock regardless) ----
 LLM_PROVIDER=mock
-LLM_BASE_URL=https://api.xiaomimimo.com/v1
+LLM_BASE_URL=https://token-plan-sgp.xiaomimimo.com/v1
 LLM_MODEL=mimo-v2.5-pro
 LLM_API_KEY=
 LLM_TIMEOUT_MS=60000
@@ -161,7 +161,7 @@ const ServerEnvSchema = z.object({
   FEATURE_SAMPLE_DATA: bool.default(true),
   FEATURE_TEST_CONTROLS: bool.default(true),
   LLM_PROVIDER: z.enum(['mock', 'openai-compatible', 'anthropic']).default('mock'),
-  LLM_BASE_URL: z.string().url().default('https://api.xiaomimimo.com/v1'),
+  LLM_BASE_URL: z.string().url().default('https://token-plan-sgp.xiaomimimo.com/v1'),
   LLM_MODEL: z.string().default('mimo-v2.5-pro'),
   LLM_API_KEY: z.string().default(''),
   LLM_TIMEOUT_MS: z.coerce.number().int().positive().default(60000),

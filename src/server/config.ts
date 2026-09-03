@@ -27,7 +27,7 @@ const ServerEnvSchema = z
     FEATURE_SAMPLE_DATA: bool.default(true),
     FEATURE_TEST_CONTROLS: bool.default(true),
     LLM_PROVIDER: z.enum(['mock', 'openai-compatible', 'anthropic']).default('mock'),
-    LLM_BASE_URL: z.string().url().default('https://api.xiaomimimo.com/v1'),
+    LLM_BASE_URL: z.string().url().default('https://token-plan-sgp.xiaomimimo.com/v1'),
     LLM_MODEL: z.string().default('mimo-v2.5-pro'),
     LLM_API_KEY: z.string().default(''),
     LLM_TIMEOUT_MS: z.coerce.number().int().positive().default(60000),
