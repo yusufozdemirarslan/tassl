@@ -5,6 +5,7 @@ const config: NextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
   typedRoutes: true,
+  serverExternalPackages: ['pino', 'pino-pretty'],
 }
 
 export default config

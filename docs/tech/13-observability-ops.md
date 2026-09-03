@@ -53,7 +53,7 @@ pino `10.3.1` writes one JSON object per line to stdout. Vercel captures stdout 
 | `packageVersionId` | UUID string | the package version being touched | authoring and scoring lines |
 | `jobId` | UUID string | pg-boss job id | job-scoped lines |
 
-`base` is `undefined`, so `pid` and `hostname` never appear. `APP_ENV` and the release are not logged: Vercel scopes logs per deployment already.
+`base` is `null`, so `pid` and `hostname` never appear. `APP_ENV` and the release are not logged: Vercel scopes logs per deployment already.
 
 ### 2.2 Levels
 
@@ -87,7 +87,6 @@ Two more guards: (1) `hooks.logMethod` replaces every occurrence of a secret env
 `src/server/logging/logger.ts`
 
 ```ts
-import 'server-only'
 import { createHash } from 'node:crypto'
 import pino, { type Logger, type LoggerOptions } from 'pino'
 import { env } from '@/server/config'
@@ -109,7 +108,7 @@ export const scrubSecrets = (text: string): string =>
 
 const options: LoggerOptions = {
   level: env.LOG_LEVEL,
-  base: undefined,
+  base: null,
   timestamp: pino.stdTimeFunctions.isoTime,
   messageKey: 'msg',
   formatters: { level: (label) => ({ level: label }) },
@@ -354,7 +353,6 @@ Static security headers are set in `next.config.ts` `headers()`, the CSP and `x-
 One module turns an operational condition into a log line, a Sentry event with a stable fingerprint (alert rules match the `ops` tag), and a PostHog counter.
 
 ```ts
-import 'server-only'
 import * as Sentry from '@sentry/nextjs'
 import { getLogger } from '@/server/http/request-context'
 import { track } from '@/server/analytics/track'
@@ -383,8 +381,8 @@ export function alertOps(name: OpsAlert, attrs: Attrs = {}): void {
 
 // Dashboard-worthy: info log + PostHog event; never alerts. distinctId is a hashed user id or 'system'.
 export function countOps(event: OpsCount, props: Attrs = {}, distinctId = 'system'): void {
-  getLogger().info({ event, ...props }, event)
-  track(event, props, distinctId)
+  getLogger().info({ event, distinctId, ...props }, event)
+  track(event, props, distinctId) // wired in Phase 13; Phase 0 ships the log line only
 }
 ```
 
@@ -409,7 +407,6 @@ export function GET() {
 `src/server/http/readiness.ts` (a `server-lib` module, the only layer `src/app` may reach the database through; `04-repo-structure.md` §2):
 
 ```ts
-import 'server-only'
 import { sql } from 'drizzle-orm'
 import { db } from '@/server/db/client'
 import { rootLogger } from '@/server/logging/logger'

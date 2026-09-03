@@ -341,7 +341,6 @@ Type-level union `AnyEvent` gives call sites exhaustive checking; `EVENT_NAMES` 
 ### 5.2 `src/server/analytics/distinct-id.ts`
 
 ```ts
-import 'server-only'
 import { createHash } from 'node:crypto'
 
 /** PostHog distinct id: sha256(user.id), first 16 hex characters. Never reversible to the id, stable per user. */
@@ -353,7 +352,6 @@ export function hashUserId(userId: string): string {
 ### 5.3 `src/server/analytics/posthog.ts`
 
 ```ts
-import 'server-only'
 import { PostHog } from 'posthog-node'
 import { after } from 'next/server'
 import { env } from '@/server/config'
@@ -409,7 +407,6 @@ export async function shutdownPosthog(): Promise<void> {
 ### 5.4 `src/server/analytics/track.ts`
 
 ```ts
-import 'server-only'
 import { EVENTS, type EventName, type EventProps } from '@/lib/analytics/events'
 import { env } from '@/server/config'
 import { logger } from '@/server/logging/logger'
