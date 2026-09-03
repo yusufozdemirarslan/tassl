@@ -1,5 +1,5 @@
 // Drops and recreates the public schema of TEST_DATABASE_URL (or DATABASE_URL with --dev), runs
-// the migrations, and runs the seed when src/server/db/seed.ts exists (phase-00 step 0.7).
+// the migrations (with the pg-boss schema), and runs the seed (phase-00 step 0.7, phase-02 step 2.9).
 //   pnpm db:reset          # test database
 //   pnpm db:reset --dev    # local development database
 import 'dotenv/config'
@@ -28,7 +28,9 @@ async function main(): Promise<void> {
   console.log(`db-reset: schema recreated (${dev ? 'dev' : 'test'})`)
 
   const env = { ...process.env, DATABASE_URL: url, DATABASE_URL_UNPOOLED: url }
-  execSync('pnpm exec drizzle-kit migrate', { stdio: 'inherit', env })
+  // db:migrate = drizzle-kit migrate + scripts/pgboss-migrate.ts (Step 2.7), so a fresh database also
+  // gets the pgboss schema and queues.
+  execSync('pnpm db:migrate', { stdio: 'inherit', env })
 
   if (existsSync('src/server/db/seed.ts')) {
     execSync('pnpm exec tsx src/server/db/seed.ts', { stdio: 'inherit', env })
