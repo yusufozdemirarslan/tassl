@@ -19,7 +19,8 @@ import {
 } from '@/server/db/schema'
 import { rootLogger } from '@/server/logging/logger'
 
-export const SEED_PASSWORD_DEFAULT = 'Walkthrough-Pass-2026'
+// The documented local default (05 §1); D-111 refuses it outside local and test.
+export const SEED_PASSWORD_DEFAULT = 'Walkthrough-Pass-2026' // gitleaks:allow
 
 export const SEED_ORGANIZATION = { slug: 'walkthrough', name: 'Walkthrough University' } as const
 

@@ -228,3 +228,5 @@ jobs:
       - uses: gitleaks/gitleaks-action@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # D-169: the same gitleaks as the local scan, so the allowlist semantics match.
+          GITLEAKS_VERSION: 8.30.1
