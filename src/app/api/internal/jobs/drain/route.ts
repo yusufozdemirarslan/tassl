@@ -5,6 +5,7 @@
 import { z } from 'zod'
 import { defineRoute } from '@/server/http/define-route'
 import { drainQueues, scheduleDailyMaintenance, type DrainResult } from '@/server/jobs/drain'
+import { registerAllHandlers } from '@/server/jobs/handlers/register'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -20,6 +21,7 @@ const output = z.object({
 })
 
 async function drainAndMaintain(): Promise<DrainResult> {
+  registerAllHandlers()
   await scheduleDailyMaintenance()
   return drainQueues({ maxMs: DRAIN_BUDGET_MS })
 }

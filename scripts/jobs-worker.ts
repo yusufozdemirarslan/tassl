@@ -1,16 +1,18 @@
 // Local job worker: docs/tech/10-backend-spec.md §7 (trigger 3 of D-012), 04-repo-structure.md §1.
 //   pnpm jobs:worker
 // Polls every queue that has a registered handler with boss.work(); pg-boss settles each job from
-// the handler's outcome (throw → retry or dead letter). Stops on SIGINT/SIGTERM. Handler modules
-// register themselves as later phases add them; a queue without one is logged at warn and not polled.
+// the handler's outcome (throw → retry or dead letter). Stops on SIGINT/SIGTERM. Handlers come from
+// `handlers/register`; a queue without one is logged at warn and not polled.
 import type { JobWithMetadata } from 'pg-boss'
 import { getBoss, stopBoss } from '@/server/jobs/boss'
 import { executeJob } from '@/server/jobs/drain'
 import { hasHandler } from '@/server/jobs/handlers'
+import { registerAllHandlers } from '@/server/jobs/handlers/register'
 import { QUEUE_NAMES } from '@/server/jobs/queues'
 import { rootLogger } from '@/server/logging/logger'
 
 async function main(): Promise<void> {
+  registerAllHandlers()
   const boss = await getBoss()
   let polling = 0
   for (const queue of QUEUE_NAMES) {
