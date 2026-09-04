@@ -6,7 +6,7 @@ import type { Route } from 'next'
 import { useRouter } from 'next/navigation'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useForm } from 'react-hook-form'
-import { z } from 'zod'
+import { object, type output } from 'zod/mini'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Field, FieldError, FieldLabel } from '@/components/ui/field'
@@ -28,12 +28,12 @@ import {
 } from './auth-feedback'
 import { GoogleButton } from './google-button'
 
-const signInSchema = z.object({
+const signInSchema = object({
   email: emailField,
   password: currentPasswordField,
 })
 
-type SignInValues = z.output<typeof signInSchema>
+type SignInValues = output<typeof signInSchema>
 
 type SignInFormProps = {
   /** Already reduced to a same-site path by the page; `/home` when the caller gave nothing. */

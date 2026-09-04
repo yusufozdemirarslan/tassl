@@ -11,8 +11,8 @@
 | B1 | LCP | ≤ 2,500 ms | sign-in, run workspace, debrief, replay | Lighthouse CI (lab, public pages and gallery); Sentry Web Vitals (field, all pages) | `lhci` job, `lighthouserc.json`; Sentry alert | yes (lab) |
 | B2 | INP | ≤ 200 ms | same | Sentry Web Vitals (field); Lighthouse `interactive` ≤ 3,500 ms as the lab proxy | `lhci` job; Sentry alert | yes (lab proxy) |
 | B3 | CLS | ≤ 0.1 | same | Lighthouse CI; Sentry Web Vitals | `lhci` job | yes |
-| B4 | JavaScript per run route | ≤ 250,000 bytes gzip | every route under `/runs/[runId]/` plus `/review/runs/[runId]` and `/records/[runId]` | `scripts/bundle-budget.ts` over `.next` manifests | `build` job | yes |
-| B5 | JavaScript per public page | ≤ 180,000 bytes gzip | `(public)` routes | `scripts/bundle-budget.ts`; LHCI `resource-summary:script:size` | `build` job; `lhci` job | yes |
+| B4 | JavaScript a run route adds to the framework floor | ≤ 130,000 bytes gzip | every route under `/runs/[runId]/` plus `/review/runs/[runId]` and `/records/[runId]` | `scripts/bundle-budget.ts` over `.next` manifests | `build` job | yes |
+| B5 | JavaScript a public page adds to the framework floor | ≤ 110,000 bytes gzip | `(public)` routes | `scripts/bundle-budget.ts`; LHCI `resource-summary:script:size` | `build` job; `lhci` job | yes |
 | B6 | Total transfer per page | ≤ 900,000 bytes | LHCI URLs | LHCI `resource-summary:total:size` | `lhci` job | yes |
 | B7 | Lighthouse categories | accessibility ≥ 0.95, performance ≥ 0.85, best-practices ≥ 0.95 | LHCI URLs | LHCI | `lhci` job | yes |
 | B8 | p95 read latency | ≤ 400 ms | GET `/api/v1/*`, RSC page renders | Sentry transactions; integration latency summary (informational); k6 | Sentry alert; Phase 15 load test | no (production signal) |
@@ -71,17 +71,21 @@ Authenticated-page lab values: `tests/e2e/perf/web-vitals.spec.ts` signs in as `
 
 ### 3.1 Numbers
 
-| Route group | Budget (gzip JavaScript, all chunks the route loads) | Includes |
+**The framework floor (D-187).** React 19 and the Next 16 App Router client runtime are charged to every route and no screen can trade against them: measured 130,897 bytes gzip on 2026-09-04, so a page with no client component of ours (`/`, `/_not-found`) totals 167,244. `scripts/bundle-budget.ts` therefore asserts the floor once (≤ 175,000) and then judges each route on what it adds. A framework upgrade fails one line instead of every route, and the per-route number stays a ceiling on the code we write.
+
+| Route group | Budget (gzip JavaScript the route adds to the floor) | Includes |
 |---|---|---|
 | Run routes: `/runs/[runId]/{start,readiness,readiness/result,work,locked,turn,defense,debrief}`, `/runs/[runId]`, `/review/runs/[runId]`, `/records/[runId]` | ≤ 250,000 bytes | root main files + `(app)` layout + run layout + page chunks |
-| Public pages: `/sign-in`, `/sign-up`, `/verify-email`, `/forgot-password`, `/reset-password`, `/privacy`, `/terms` | ≤ 180,000 bytes | root main files + `(public)` layout + page chunks |
-| Every other route | ≤ 250,000 bytes | root main files + ancestor layouts + page chunks |
+| Public pages: `/sign-in`, `/sign-up`, `/verify-email`, `/forgot-password`, `/reset-password`, `/privacy`, `/terms` | ≤ 110,000 bytes (measured max 103,058) | root main files + `(public)` layout + page chunks |
+| Every other route | ≤ 175,000 bytes (measured max 170,303, `/settings/security`) | root main files + ancestor layouts + page chunks |
 
 "gzip" means `zlib.gzipSync(level 6)` of the emitted chunk files, which is at or above what Vercel serves (Vercel uses Brotli when the client accepts it). The `polyfills` chunk is excluded (it is loaded with `nomodule` and never executed by the supported browsers of NFR-010).
 
 ### 3.2 Rules that keep routes under budget
 
 - `recharts` 3.10.1 is imported only from `src/components/graphs/*` and only through `next/dynamic` (§3.3). It never appears in a layout, in `src/components/ui`, or in the run workspace. Routes that load it: `/runs/[runId]/debrief`, `/review/runs/[runId]`, `/records/[runId]`, `/review` (illustrative sample), `/dev/components`.
+- Client components build their schemas with `zod/mini`, importing named builders (`object`, `string`, `email`, `minLength`, `maxLength`, `trim`, `refine`); never `import { z } from 'zod'`, whose namespace object drags `toJSONSchema`, the locale table and every schema class into the page (94 KB gzip; D-184). `zodResolver` accepts a mini schema unchanged. Server modules keep classic Zod, so a client component that imports a module `schema.ts` still pays for it — `src/server/modules/identity/schema.ts` is why `/settings` carries 67,271 bytes of it.
+- `better-auth/react` is reached only through the facade in `src/lib/auth-client.ts`, which imports it dynamically on the first call (D-185). No client component imports `better-auth/*` directly, so the client (11,883 bytes gzip) stays out of every route's entry chunks.
 - Icons: `lucide-react` 1.39.0 imported per icon (`import { Lock } from 'lucide-react'`); never `import * as icons`. Next.js applies `optimizePackageImports` to `lucide-react` and `recharts` by default, and the per-icon import keeps the graph the same under Turbopack.
 - `date-fns` 4.4.0 imported per function (`import { formatDistanceStrict } from 'date-fns'`).
 - No Markdown, syntax-highlighting, rich-text, or PDF libraries: every student text field is a plain `textarea` (FR-103) and every document is plain text.
@@ -132,7 +136,7 @@ const budgets: Array<{ pattern: RegExp; maxBytes: number; label: string }> = [
   { pattern: /^\/\(public\)\//, maxBytes: 180_000, label: 'public page' },
   // The gallery renders every primitive at once; 300 KB here and in lighthouserc.json (D-156).
   { pattern: /^\/dev\//, maxBytes: 300_000, label: 'dev gallery' },
-  { pattern: /.*/, maxBytes: 250_000, label: 'other route' },
+  { pattern: /.*/, maxBytes: 175_000, label: 'other route' },
 ]
 
 type RscManifest = Record<string, { entryJSFiles?: Record<string, string[]> }>

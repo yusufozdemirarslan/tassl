@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useForm } from 'react-hook-form'
 import { toast } from 'sonner'
-import { z } from 'zod'
+import { object, refine, string, type output } from 'zod/mini'
 import { Field, FieldError, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
 import { authClient } from '@/lib/auth-client'
@@ -20,18 +20,18 @@ import { FormAlert, SubmitButton, passwordChangeMessage } from './form-feedback'
 // The schema is local because the input is Better Auth's, not a module's: there is no action and no
 // `/api/v1` route for it, so this form is its only caller. The field shapes come from
 // `@/lib/auth/form-fields`, so 12-128 is written once for every screen that sets a password.
-const changePasswordSchema = z
-  .object({
-    currentPassword: currentPasswordField,
-    newPassword: newPasswordField,
-    confirmPassword: z.string(),
-  })
-  .refine((values) => values.newPassword === values.confirmPassword, {
+const changePasswordSchema = object({
+  currentPassword: currentPasswordField,
+  newPassword: newPasswordField,
+  confirmPassword: string(),
+}).check(
+  refine((values) => values.newPassword === values.confirmPassword, {
     path: ['confirmPassword'],
     error: t('auth.validation.passwordMismatch'),
-  })
+  }),
+)
 
-type ChangePasswordValues = z.output<typeof changePasswordSchema>
+type ChangePasswordValues = output<typeof changePasswordSchema>
 
 export function ChangePasswordForm({ email }: { email: string }) {
   const router = useRouter()

@@ -6,7 +6,7 @@ import type { Route } from 'next'
 import { useRouter } from 'next/navigation'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useForm } from 'react-hook-form'
-import { z } from 'zod'
+import { object, type output } from 'zod/mini'
 import { Field, FieldDescription, FieldError, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
 import { authClient } from '@/lib/auth-client'
@@ -22,13 +22,13 @@ import {
   type AuthFormError,
 } from './auth-feedback'
 
-const signUpSchema = z.object({
+const signUpSchema = object({
   name: nameField,
   email: emailField,
   password: newPasswordField,
 })
 
-type SignUpValues = z.output<typeof signUpSchema>
+type SignUpValues = output<typeof signUpSchema>
 
 // UI-002. An address that is already in use is answered exactly like a new one — Better Auth's
 // USER_ALREADY_EXISTS_USE_ANOTHER_EMAIL is swallowed and the person lands on the same

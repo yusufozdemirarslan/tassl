@@ -4,7 +4,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useForm } from 'react-hook-form'
-import { z } from 'zod'
+import { object, type output } from 'zod/mini'
 import { Field, FieldError, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
 import { authClient } from '@/lib/auth-client'
@@ -21,11 +21,11 @@ import {
   type AuthFormError,
 } from './auth-feedback'
 
-const forgotPasswordSchema = z.object({
+const forgotPasswordSchema = object({
   email: emailField,
 })
 
-type ForgotPasswordValues = z.output<typeof forgotPasswordSchema>
+type ForgotPasswordValues = output<typeof forgotPasswordSchema>
 
 /** Where Better Auth's `/reset-password/:token` callback lands once the token still checks out. */
 const RESET_REDIRECT = '/reset-password'

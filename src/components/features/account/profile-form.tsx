@@ -4,20 +4,27 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useForm } from 'react-hook-form'
+import { object, type output } from 'zod/mini'
 import { toast } from 'sonner'
 import { Field, FieldDescription, FieldError, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
 import { t } from '@/lib/i18n/t'
+import { nameField } from '@/lib/auth/form-fields'
 import { updateProfileAction } from '@/server/modules/identity/actions'
-import { updateProfileSchema, type UpdateProfileInput } from '@/server/modules/identity/schema'
 import { FormAlert, SubmitButton } from './form-feedback'
 
-// UI-010 Profile (SYS-003). The form validates with the module's own schema — the one the action
-// and `PATCH /me` use — so the browser and the server can never disagree about what a name is.
+// UI-010 Profile (SYS-003). The rule is the same one `updateProfileSchema` enforces at the action
+// and at `PATCH /me`, built here from the shared `nameField` so the bound has one source (D-186):
+// a client component that imports a module's `schema.ts` drags the full Zod runtime — with its
+// JSON-schema converter and locale table — into the browser, 66 KB of gzip for a name field.
+// Validation that decides anything still runs in the action; this only tells the person sooner.
 //
-// A schema file may not reach `t()` (it is the client-safe surface and imports nothing from the
-// app), so the sentence under the field is chosen here from what the value actually is: empty, or
-// too long. The refusal from the action is rendered from its error envelope, verbatim.
+// The sentence under the field is chosen from what the value actually is (empty, or too long); the
+// refusal from the action is rendered from its error envelope, verbatim.
+const profileSchema = object({ name: nameField })
+
+type ProfileValues = output<typeof profileSchema>
+
 export function ProfileForm({ name, email }: { name: string; email: string }) {
   const router = useRouter()
   const [formError, setFormError] = useState<string | null>(null)
@@ -28,8 +35,8 @@ export function ProfileForm({ name, email }: { name: string; email: string }) {
     getValues,
     reset,
     formState: { errors, isSubmitting },
-  } = useForm<UpdateProfileInput>({
-    resolver: zodResolver(updateProfileSchema),
+  } = useForm<ProfileValues>({
+    resolver: zodResolver(profileSchema),
     defaultValues: { name },
   })
 
@@ -39,7 +46,7 @@ export function ProfileForm({ name, email }: { name: string; email: string }) {
       : t('auth.validation.nameTooLong')
     : undefined
 
-  async function onSubmit(values: UpdateProfileInput): Promise<void> {
+  async function onSubmit(values: ProfileValues): Promise<void> {
     setFormError(null)
     const result = await updateProfileAction(values)
     if (!result.ok) {

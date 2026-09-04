@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useForm } from 'react-hook-form'
-import { z } from 'zod'
+import { object, refine, string, type output } from 'zod/mini'
 import { buttonVariants } from '@/components/ui/button'
 import { Field, FieldDescription, FieldError, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
@@ -20,17 +20,17 @@ import {
   type AuthFormError,
 } from './auth-feedback'
 
-const resetPasswordSchema = z
-  .object({
-    password: newPasswordField,
-    confirmPassword: z.string(),
-  })
-  .refine((values) => values.password === values.confirmPassword, {
+const resetPasswordSchema = object({
+  password: newPasswordField,
+  confirmPassword: string(),
+}).check(
+  refine((values) => values.password === values.confirmPassword, {
     path: ['confirmPassword'],
     error: t('auth.validation.passwordMismatch'),
-  })
+  }),
+)
 
-type ResetPasswordValues = z.output<typeof resetPasswordSchema>
+type ResetPasswordValues = output<typeof resetPasswordSchema>
 
 // UI-004 (reset half). The token comes from Better Auth's `/reset-password/:token` redirect, which
 // has already checked that it exists and has not expired; a token that dies between that redirect

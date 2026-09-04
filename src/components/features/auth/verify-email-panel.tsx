@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useForm } from 'react-hook-form'
-import { z } from 'zod'
+import { object, type output } from 'zod/mini'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { Field, FieldError, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
@@ -29,11 +29,11 @@ const COOLDOWN_SECONDS = 60
 /** The countdown line names itself to the resend control it sits under. */
 const COOLDOWN_ID = 'verify-email-cooldown'
 
-const resendSchema = z.object({
+const resendSchema = object({
   email: emailField,
 })
 
-type ResendValues = z.output<typeof resendSchema>
+type ResendValues = output<typeof resendSchema>
 
 export type VerifyEmailState = 'idle' | 'sent' | 'verified' | 'invalid'
 
