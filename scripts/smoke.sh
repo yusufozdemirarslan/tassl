@@ -15,9 +15,28 @@ expect_status() { # path expected-status
   echo "ok   $1 -> $code"
 }
 
+expect_redirect() { # path expected-location-prefix
+  local code location
+  code="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 20 "$BASE$1")"
+  location="$(curl -sSI --max-time 20 "$BASE$1" | tr -d '' | awk 'tolower($1) == "location:" { print $2 }')"
+  case "$code" in
+    30[1278]) ;;
+    *) echo "FAIL $1 -> $code (expected a redirect)"; exit 1 ;;
+  esac
+  case "$location" in
+    "$2"*) ;;
+    *) echo "FAIL $1 -> $location (expected $2...)"; exit 1 ;;
+  esac
+  echo "ok   $1 -> $code $location"
+}
+
 expect_status /api/health 200
 expect_status /api/ready 200
-expect_status / 200
+# The entry points a signed-out visitor meets (UI-001, 09 §1): the root and every (app) route send
+# them to the sign-in screen, which must render (D-190).
+expect_redirect / /sign-in
+expect_status /sign-in 200
+expect_redirect /home /sign-in
 curl -sS --max-time 20 "$BASE/api/health" | grep -q '"status":"ok"' || { echo "FAIL /api/health body"; exit 1; }
 curl -sS --max-time 20 "$BASE/api/ready" | grep -q '"status":"ready"' || { echo "FAIL /api/ready body"; exit 1; }
 
