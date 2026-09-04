@@ -7,12 +7,28 @@ import { db } from '@/server/db/client'
 import {
   dataAgreements,
   institutionSettings,
+  member,
+  organization,
+  user,
   type BandMapping,
   type DataAgreement,
   type InstitutionSettings,
   type NewDataAgreement,
 } from '@/server/db/schema'
 import type { DbOrTx } from '@/server/db/tx'
+
+// The service may not import `@/server/db` (04 §2), so the row types it hands out, the platform
+// default mapping, and the transaction boundary it opens are re-exported by the layer that owns
+// database access.
+export type { BandMapping, DataAgreement, InstitutionSettings } from '@/server/db/schema'
+export { DEFAULT_BAND_MAPPING } from '@/server/db/schema'
+export type { DbOrTx, Tx } from '@/server/db/tx'
+export { withTransaction } from '@/server/db/tx'
+
+export type OrganizationRow = { id: string; name: string; slug: string }
+
+/** One `member` row joined with the organization it belongs to (08 §3). */
+export type MembershipRow = OrganizationRow & { role: string }
 
 /** Fields of institution settings a program lead may change; omitted fields keep their value. */
 export type SettingsPatch = {
@@ -30,6 +46,88 @@ function one<T>(rows: readonly T[]): T {
   const row = rows[0]
   if (row === undefined) throw new AppError('INTERNAL_ERROR', 'The statement returned no row.')
   return row
+}
+
+// ---------------------------------------------------------------------------------------------
+// Organizations, members, users
+//
+// Better Auth owns these three tables and the service writes them through `auth.api`. What is left
+// for the repository is the reading the API does not offer (a membership list with the role, an
+// organization row by id) and the one write Better Auth cannot express: the role of the member it
+// stamps on the creator of an organization (08 §3 does not use the built-in `owner` role).
+// ---------------------------------------------------------------------------------------------
+
+/** The actor's institutions with the role held in each; ordered by name for a stable switcher. */
+export async function listMembershipsByUser(
+  userId: string,
+  dbx: DbOrTx = db,
+): Promise<MembershipRow[]> {
+  return dbx
+    .select({
+      id: organization.id,
+      name: organization.name,
+      slug: organization.slug,
+      role: member.role,
+    })
+    .from(member)
+    .innerJoin(organization, eq(organization.id, member.organizationId))
+    .where(eq(member.userId, userId))
+    .orderBy(organization.name, organization.id)
+}
+
+export async function findOrganization(
+  tenantId: string,
+  dbx: DbOrTx = db,
+): Promise<OrganizationRow | null> {
+  const rows = await dbx
+    .select({ id: organization.id, name: organization.name, slug: organization.slug })
+    .from(organization)
+    .where(eq(organization.id, tenantId))
+    .limit(1)
+  return rows[0] ?? null
+}
+
+/** The role the user holds in one institution, or null when they hold none. */
+export async function findMemberRole(
+  tenantId: string,
+  userId: string,
+  dbx: DbOrTx = db,
+): Promise<string | null> {
+  const rows = await dbx
+    .select({ role: member.role })
+    .from(member)
+    .where(and(eq(member.organizationId, tenantId), eq(member.userId, userId)))
+    .limit(1)
+  return rows[0]?.role ?? null
+}
+
+/** Sets an existing member's organization role; null when the user is not a member. */
+export async function updateMemberRole(
+  tenantId: string,
+  userId: string,
+  role: string,
+  dbx: DbOrTx = db,
+): Promise<string | null> {
+  const rows = await dbx
+    .update(member)
+    .set({ role })
+    .where(and(eq(member.organizationId, tenantId), eq(member.userId, userId)))
+    .returning({ role: member.role })
+  return rows[0]?.role ?? null
+}
+
+/**
+ * The id of the account holding `email`, case-insensitively. Not tenant-scoped on purpose: the
+ * program lead of a new institution is resolved before the institution — and therefore the tenant
+ * — exists (10 §2 `createInstitution`).
+ */
+export async function findUserIdByEmail(email: string, dbx: DbOrTx = db): Promise<string | null> {
+  const rows = await dbx
+    .select({ id: user.id })
+    .from(user)
+    .where(and(sql`lower(${user.email}) = lower(${email})`, isNull(user.deleted_at)))
+    .limit(1)
+  return rows[0]?.id ?? null
 }
 
 export async function findSettings(
@@ -80,6 +178,31 @@ export async function findActiveAgreement(
       ),
     )
     .orderBy(desc(dataAgreements.signedAt), desc(dataAgreements.createdAt), desc(dataAgreements.id))
+    .limit(1)
+  return rows[0] ?? null
+}
+
+/**
+ * One live agreement of this institution. `PATCH /agreements/{agreementId}` names the agreement
+ * without its institution, so the service supplies the tenant from the session's active
+ * organization (D-006 keeps every read here tenant-scoped) and an agreement belonging to another
+ * institution simply is not found.
+ */
+export async function findAgreement(
+  tenantId: string,
+  agreementId: string,
+  dbx: DbOrTx = db,
+): Promise<DataAgreement | null> {
+  const rows = await dbx
+    .select()
+    .from(dataAgreements)
+    .where(
+      and(
+        eq(dataAgreements.id, agreementId),
+        eq(dataAgreements.organizationId, tenantId),
+        isNull(dataAgreements.deletedAt),
+      ),
+    )
     .limit(1)
   return rows[0] ?? null
 }

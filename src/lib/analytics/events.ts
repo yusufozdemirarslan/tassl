@@ -14,7 +14,19 @@ export const RouteTemplate = z.string().regex(/^\/[A-Za-z0-9[\]/-]*$/)
 export const EVENTS = {
   // AN-002 activation
   sign_up_completed: z.strictObject({ method: z.enum(['password', 'google']) }),
+  email_verified: z.strictObject({ ms_since_sign_up: Int }),
   sign_in_succeeded: z.strictObject({ method: z.enum(['password', 'google', 'verification']) }),
+  invitation_accepted: z.strictObject({
+    invitation_id: Uuid,
+    role: z.enum([
+      'student',
+      'instructor',
+      'teaching_assistant',
+      'scenario_author',
+      'program_lead',
+    ]),
+    ms_since_invited: Int,
+  }),
 
   // SYS-008, SYS-022 (client: ErrorView and the ActionResult failure toast)
   error_shown: z.strictObject({

@@ -100,7 +100,12 @@ export default defineConfig([
             },
             {
               from: { element: { type: 'server-lib' } },
-              allow: [{ to: { element: { type: ['server-lib', 'lib', 'db'] } } }],
+              allow: [
+                { to: { element: { type: ['server-lib', 'lib', 'db'] } } },
+                // Job handlers (src/server/jobs/handlers/*) call a module's service through its
+                // public index.ts, exactly as the queue table in 10 §7 names them (D-173).
+                { to: moduleFile(['public']) },
+              ],
             },
             {
               from: { element: { type: 'llm' } },
