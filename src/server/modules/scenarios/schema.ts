@@ -808,6 +808,28 @@ export const PACKAGE_EXPORT_SCHEMA_VERSION = 1
  * elements is an element key, so the document is portable between institutions and round-trips —
  * export ∘ import is the identity on it.
  */
+/**
+ * Element keys are unique within a version (06 §3.3), and the writes behind an import are upserts
+ * on `(package_version_id, key)`, so a document that repeats a key would lose an element quietly
+ * and fail a later rule that names the wrong fault. The document says what it says: a repeat is a
+ * malformed document, answered as `IMPORT_INVALID` by the caller that parses it.
+ */
+const uniqueKeys =
+  (collection: string) =>
+  (rows: readonly { key: string }[], ctx: z.RefinementCtx): void => {
+    const seen = new Set<string>()
+    rows.forEach((row, index) => {
+      if (seen.has(row.key)) {
+        ctx.addIssue({
+          code: 'custom',
+          path: [index, 'key'],
+          message: `Two ${collection} share the key "${row.key}"; keys are unique inside a version.`,
+        })
+      }
+      seen.add(row.key)
+    })
+  }
+
 export const PackageExportSchema = z.object({
   schemaVersion: z.literal(PACKAGE_EXPORT_SCHEMA_VERSION),
   package: z.object({
@@ -832,16 +854,28 @@ export const PackageExportSchema = z.object({
     debriefCounterfactual: z.string().trim().max(TEXT_MAX).default(''),
   }),
   seedRecord: SeedRecordExportSchema.nullable().default(null),
-  documents: z.array(DocumentExportSchema).default([]),
-  stakeholders: z.array(StakeholderExportSchema).default([]),
-  answerSpacePositions: z.array(AnswerSpacePositionExportSchema).default([]),
-  namedFields: z.array(NamedFieldSchema).default([]),
-  claims: z.array(ClaimExportSchema).default([]),
-  variants: z.array(VariantExportSchema).default([]),
+  documents: z.array(DocumentExportSchema).default([]).superRefine(uniqueKeys('documents')),
+  stakeholders: z
+    .array(StakeholderExportSchema)
+    .default([])
+    .superRefine(uniqueKeys('stakeholders')),
+  answerSpacePositions: z
+    .array(AnswerSpacePositionExportSchema)
+    .default([])
+    .superRefine(uniqueKeys('answer space positions')),
+  namedFields: z.array(NamedFieldSchema).default([]).superRefine(uniqueKeys('named fields')),
+  claims: z.array(ClaimExportSchema).default([]).superRefine(uniqueKeys('claims')),
+  variants: z.array(VariantExportSchema).default([]).superRefine(uniqueKeys('variants')),
   probe: SycophancyProbeExportSchema.nullable().default(null),
   turn: TurnExportSchema.nullable().default(null),
-  defenseQuestions: z.array(DefenseQuestionExportSchema).default([]),
-  readinessItems: z.array(ReadinessItemSchema).default([]),
+  defenseQuestions: z
+    .array(DefenseQuestionExportSchema)
+    .default([])
+    .superRefine(uniqueKeys('defense questions')),
+  readinessItems: z
+    .array(ReadinessItemSchema)
+    .default([])
+    .superRefine(uniqueKeys('readiness items')),
 })
 export type PackageExport = Parsed<typeof PackageExportSchema>
 
@@ -1089,6 +1123,13 @@ export const PackageVersionViewSchema = z.object({
   validation: ValidationResultSchema,
   warnings: z.array(PackageWarningSchema),
   seedRecord: SeedRecordViewSchema.nullable(),
+  /**
+   * True when the reader is admitted to the measures and nothing else (08 §4: the program lead's
+   * row reads "✓ org (measures only)"). The withheld fields are empty rather than absent, so one
+   * shape serves the endpoint; the flag is what lets a screen say so instead of rendering a package
+   * with no brief.
+   */
+  restricted: z.boolean(),
   capabilities: z.object({
     canEdit: z.boolean(),
     canConfirm: z.boolean(),

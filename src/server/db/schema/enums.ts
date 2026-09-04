@@ -235,6 +235,8 @@ export const notificationType = pgEnum('notification_type', [
   'bands_confirmed',
   'invitation',
   'export_ready',
+  // Phase 5: an author's package version was confirmed and frozen (10 §4, FR-192).
+  'package_confirmed',
 ])
 export const llmFeature = pgEnum('llm_feature', [
   'assistant',

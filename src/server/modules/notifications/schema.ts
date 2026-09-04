@@ -19,8 +19,23 @@ export const notificationTypeSchema = z.enum([
   'bands_confirmed',
   'invitation',
   'export_ready',
+  'package_confirmed',
 ])
 export type NotificationType = z.infer<typeof notificationTypeSchema>
+
+/**
+ * What `notify()` takes (10 §15). Not a wire schema: nothing outside the server calls it, and the
+ * fields are already typed by the row it writes.
+ */
+export type NotifyInput = {
+  userIds: readonly string[]
+  type: NotificationType
+  title: string
+  body: string
+  link?: string | null
+  payload?: Record<string, unknown>
+  orgId?: string | null
+}
 
 export const notificationSchema = z.object({
   id: z.uuid(),

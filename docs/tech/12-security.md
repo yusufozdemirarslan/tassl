@@ -634,7 +634,7 @@ A student view is any response produced for an actor whose relation to the run i
 | `response_id`, `counts_against_limit` on escalations | `run_escalations` | Clock timeline segments |
 | `debrief_counterfactual` | `scenario_package_versions` | The counterfactual section |
 
-Enforcement: `src/server/auth/student-view.ts` exports `STUDENT_FORBIDDEN_KEYS_ALWAYS` and `STUDENT_FORBIDDEN_KEYS_BEFORE_SCORED` as `readonly string[]`; every student projection is built by picking allowed fields, never by deleting forbidden ones, and a unit test asserts the two constants cover every key listed above. The other variant's `variant_claim_states` rows are never loaded by any student query in any state.
+Enforcement: `src/server/auth/student-view.ts` exports three sets as `readonly string[]` — `STUDENT_FORBIDDEN_KEYS_ALWAYS`, `STUDENT_FORBIDDEN_KEYS_BEFORE_SCORED`, and `STUDENT_FORBIDDEN_KEYS_RECORD_FORM` for the weight, mapping and points that §8.3 shows the student in their own debrief (FR-170) and nowhere else. Every student projection is built by picking allowed fields, never by deleting forbidden ones, and `tests/unit/security/student-view-keys.test.ts` asserts the sets cover every key listed above, transcribing the tables here rather than reading the constants, so the two derivations meet instead of agreeing by construction. The other variant's `variant_claim_states` rows are never loaded by any student query in any state.
 
 ### 8.3 The test: `tests/integration/security/student-view-invariants.test.ts`
 

@@ -238,6 +238,10 @@ export const enUS = {
   'notifications.type.bands_confirmed': 'Bands confirmed',
   'notifications.type.invitation': 'Invitation',
   'notifications.type.export_ready': 'Export ready',
+  'notifications.type.package_confirmed': 'Package confirmed',
+  'notifications.packageConfirmedTitle': 'A scenario package is ready to assign',
+  'notifications.packageConfirmedBody':
+    '{title} version {version} is confirmed and frozen, so it can be set on an assignment.',
 
   // Account settings (UI-010, SYS-003, SYS-004)
   'settings.title': 'Account settings',
@@ -570,6 +574,11 @@ export const enUS = {
   'assignment.validation.weight':
     'Enter the weight as a number of zero or more, or leave it empty.',
   'assignment.validation.opensAt': 'Enter a date and time, or leave it empty.',
+
+  // Scenario packages (UI-040 to UI-044; src/server/modules/scenarios)
+  // The package export is a download (07 §1 "Content types"); the family key names the file so two
+  // exports taken in a row do not land on top of each other.
+  'package.exportFileName': 'tassl-package-{familyKey}.json',
 } as const
 
 export type MessageKey = keyof typeof enUS

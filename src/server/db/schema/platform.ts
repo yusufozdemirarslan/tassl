@@ -30,6 +30,7 @@ export type AuditAction =
   | 'account.delete'
   | 'agreement.upsert'
   | 'package.confirm'
+  | 'package.regenerate'
   | 'mapping.change'
   | 'test_control.force_failure'
   | 'invitation.create'
