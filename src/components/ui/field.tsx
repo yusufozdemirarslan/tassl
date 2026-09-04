@@ -128,12 +128,16 @@ function FieldTitle({ className, ...props }: React.ComponentProps<'div'>) {
   )
 }
 
+// A description inside a choice card takes full ink the moment that card's control is checked: the
+// card fills with `--primary-soft`, and DESIGN.md's Ink-on-Wash rule allows no gray text on a
+// colored background. Muted ink is only ever the treatment on paper.
 function FieldDescription({ className, ...props }: React.ComponentProps<'p'>) {
   return (
     <p
       data-slot="field-description"
       className={cn(
         'text-ink-muted text-meta text-left font-normal group-has-data-horizontal/field:text-balance [[data-variant=legend]+&]:-mt-1.5',
+        'group-has-data-checked/field-label:text-ink',
         'last:mt-0 nth-last-2:-mt-1',
         '[&>a:hover]:text-primary [&>a]:underline [&>a]:underline-offset-4',
         className,

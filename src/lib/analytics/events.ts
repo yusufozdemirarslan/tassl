@@ -8,6 +8,10 @@ export const Uuid = z.uuid()
 export const Int = z.int().nonnegative()
 export const Share = z.number().min(0).max(1)
 export const RuleCode = z.string().regex(/^[A-Z0-9_]+$/)
+/** The three outside-AI policies a course can set (06 §3.2). */
+export const OutsideAiPolicy = z.enum(['open', 'declared', 'in_environment_only'])
+/** The two variants of a scenario package version (06 §3.3). */
+export const Variant = z.enum(['defective', 'sound'])
 /** A route template such as /runs/[runId]/work, never a concrete path. */
 export const RouteTemplate = z.string().regex(/^\/[A-Za-z0-9[\]/-]*$/)
 
@@ -26,6 +30,26 @@ export const EVENTS = {
       'program_lead',
     ]),
     ms_since_invited: Int,
+  }),
+
+  // AN-001 activation: the two writes an instructor makes before a run can exist (17 §5.2)
+  course_created: z.strictObject({
+    course_id: Uuid,
+    outside_ai_policy: OutsideAiPolicy,
+    mapping_is_default: z.boolean(),
+    ms_since_first_sign_in: Int,
+  }),
+  assignment_configured: z.strictObject({
+    assignment_id: Uuid,
+    course_id: Uuid,
+    section_id: Uuid,
+    package_version_id: Uuid,
+    variant: Variant,
+    is_new: z.boolean(),
+    is_walkthrough: z.boolean(),
+    working_clock_seconds: z.int().positive(),
+    weight_overridden: z.boolean(),
+    ms_since_first_sign_in: Int,
   }),
 
   // SYS-008, SYS-022 (client: ErrorView and the ActionResult failure toast)

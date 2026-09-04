@@ -97,6 +97,19 @@ const OPERATION_IDS = [
   'exportMe',
   'listMyAssignments',
   'listMyRuns',
+  'listCourses',
+  'createCourse',
+  'getCourse',
+  'updateCoursePolicy',
+  'createSection',
+  'listSectionMembers',
+  'addSectionMember',
+  'removeSectionMember',
+  'createAssignment',
+  'getAssignment',
+  'updateAssignment',
+  'getPolicyDisplay',
+  'deleteWalkthroughRun',
 ] as const
 
 // ---------------------------------------------------------------------------------------------
@@ -161,6 +174,24 @@ let programLead: UserRow
 let agreementId: string
 let invitations: Record<Seat, string>
 let operations: Record<string, Operation>
+
+/**
+ * The courses fixture (Step 4.1): one course of institution A created by the `instructor` seat,
+ * with a section the three section seats hold a membership in, a confirmed package version, an
+ * assignment, and a walkthrough assignment. The two destructive rows — `removeSectionMember` and
+ * `deleteWalkthroughRun` — get one target per seat, so a row that is allowed cannot change what a
+ * later row is answered.
+ */
+let course: string
+let section: string
+let assignment: string
+let walkthroughAssignment: string
+let packageVersionId: string
+let soundVariantId: string
+let defectiveVariantId: string
+let addable: UserRow
+let removable: Record<Seat, UserRow>
+let walkthroughRuns: Record<Seat, string>
 
 /** Seat labels reach slugs and emails; `program_lead` has to lose its underscore to pass z.email(). */
 const slugOf = (seat: Seat): string => seat.replace(/_/g, '-')
@@ -283,6 +314,69 @@ describe('authorization matrix (08 §4)', () => {
     })
     agreementId = row!.id
 
+    const pkg = await f.minimalConfirmedVersion(orgA, 'matrix-package', {
+      createdBy: seats.instructor.id,
+    })
+    packageVersionId = pkg.version.id
+    soundVariantId = pkg.sound.id
+    defectiveVariantId = pkg.defective.id
+
+    const courseRow = await f.createCourse(orgA, 'matrix', { createdBy: seats.instructor.id })
+    course = courseRow.id
+    const sectionRow = await f.createSection(orgA, courseRow.id, 'matrix-a')
+    section = sectionRow.id
+    await f.addSectionMember(orgA, section, seats.instructor.id, 'instructor')
+    await f.addSectionMember(orgA, section, seats.student.id, 'student')
+    await f.addSectionMember(orgA, section, seats.ta.id, 'ta')
+
+    assignment = (
+      await f.createAssignment(orgA, section, 'matrix-assignment', {
+        packageVersionId,
+        variantId: defectiveVariantId,
+        isWalkthrough: false,
+      })
+    ).id
+    walkthroughAssignment = (
+      await f.createAssignment(orgA, section, 'matrix-walkthrough', {
+        packageVersionId,
+        variantId: soundVariantId,
+        isWalkthrough: true,
+      })
+    ).id
+
+    // The address `addSectionMember` names: a member of institution A who is not yet in the section.
+    addable = await f.createUser('matrix-addable')
+    await f.addMember(orgA, addable.id, 'student')
+
+    const runsRepository = await import('@/server/modules/runs/repository')
+    const removableBuilt: Partial<Record<Seat, UserRow>> = {}
+    const runsBuilt: Partial<Record<Seat, string>> = {}
+    for (const seat of SEATS) {
+      const person = await f.createUser(`matrix-removable-${slugOf(seat)}`)
+      await f.addMember(orgA, person.id, 'student')
+      await f.addSectionMember(orgA, section, person.id, 'student')
+      removableBuilt[seat] = person
+
+      // The run each `deleteWalkthroughRun` row targets belongs to its own student, so no row is a
+      // `MEMBER_HAS_RUNS` refusal of the row above it.
+      const runner = await f.createUser(`matrix-runner-${slugOf(seat)}`)
+      await f.addMember(orgA, runner.id, 'student')
+      await f.addSectionMember(orgA, section, runner.id, 'student')
+      runsBuilt[seat] = (
+        await runsRepository.insertRun(orgA, {
+          assignmentId: walkthroughAssignment,
+          studentId: runner.id,
+          packageVersionId,
+          variantId: soundVariantId,
+          state: 'working',
+          workingClockSeconds: 1500,
+          turnDelaySeconds: 90,
+        })
+      ).id
+    }
+    removable = removableBuilt as Record<Seat, UserRow>
+    walkthroughRuns = runsBuilt as Record<Seat, string>
+
     const institutions = await import('@/app/api/v1/institutions/route')
     const institution = await import('@/app/api/v1/institutions/[orgId]/route')
     const settings = await import('@/app/api/v1/institutions/[orgId]/settings/route')
@@ -294,6 +388,16 @@ describe('authorization matrix (08 §4)', () => {
     const exportRoute = await import('@/app/api/v1/me/export/route')
     const assignments = await import('@/app/api/v1/me/assignments/route')
     const runs = await import('@/app/api/v1/me/runs/route')
+    const orgCourses = await import('@/app/api/v1/institutions/[orgId]/courses/route')
+    const courseDetail = await import('@/app/api/v1/courses/[courseId]/route')
+    const courseSections = await import('@/app/api/v1/courses/[courseId]/sections/route')
+    const sectionMembers = await import('@/app/api/v1/sections/[sectionId]/members/route')
+    const sectionMember = await import('@/app/api/v1/sections/[sectionId]/members/[userId]/route')
+    const sectionAssignments = await import('@/app/api/v1/sections/[sectionId]/assignments/route')
+    const assignmentDetail = await import('@/app/api/v1/assignments/[assignmentId]/route')
+    const policyDisplay =
+      await import('@/app/api/v1/assignments/[assignmentId]/policy-display/route')
+    const runDetail = await import('@/app/api/v1/runs/[runId]/route')
 
     operations = {
       listInstitutions: {
@@ -429,6 +533,143 @@ describe('authorization matrix (08 §4)', () => {
       listMyRuns: {
         route: 'GET /me/runs',
         run: async (seat) => call(runs.GET, { path: '/me/runs', session: await sessionFor(seat) }),
+      },
+      listCourses: {
+        route: 'GET /institutions/{orgId}/courses',
+        run: async (seat) =>
+          call(orgCourses.GET, {
+            path: `/institutions/${orgA}/courses`,
+            session: await sessionFor(seat),
+            params: { orgId: orgA },
+          }),
+      },
+      createCourse: {
+        route: 'POST /institutions/{orgId}/courses',
+        run: async (seat) =>
+          call(orgCourses.POST, {
+            method: 'POST',
+            path: `/institutions/${orgA}/courses`,
+            session: await sessionFor(seat),
+            params: { orgId: orgA },
+            body: { name: `Matrix course by ${seat}`, term: '2026-fall' },
+          }),
+      },
+      getCourse: {
+        route: 'GET /courses/{courseId}',
+        run: async (seat) =>
+          call(courseDetail.GET, {
+            path: `/courses/${course}`,
+            session: await sessionFor(seat),
+            params: { courseId: course },
+          }),
+      },
+      updateCoursePolicy: {
+        route: 'PATCH /courses/{courseId}',
+        run: async (seat) =>
+          call(courseDetail.PATCH, {
+            method: 'PATCH',
+            path: `/courses/${course}`,
+            session: await sessionFor(seat),
+            params: { courseId: course },
+            body: { outsideAiPolicy: 'declared' },
+          }),
+      },
+      createSection: {
+        route: 'POST /courses/{courseId}/sections',
+        run: async (seat) =>
+          call(courseSections.POST, {
+            method: 'POST',
+            path: `/courses/${course}/sections`,
+            session: await sessionFor(seat),
+            params: { courseId: course },
+            body: { name: `Matrix ${seat}` },
+          }),
+      },
+      listSectionMembers: {
+        route: 'GET /sections/{sectionId}/members',
+        run: async (seat) =>
+          call(sectionMembers.GET, {
+            path: `/sections/${section}/members`,
+            session: await sessionFor(seat),
+            params: { sectionId: section },
+          }),
+      },
+      addSectionMember: {
+        route: 'POST /sections/{sectionId}/members',
+        run: async (seat) =>
+          call(sectionMembers.POST, {
+            method: 'POST',
+            path: `/sections/${section}/members`,
+            session: await sessionFor(seat),
+            params: { sectionId: section },
+            body: { email: addable.email, role: 'student' },
+          }),
+      },
+      removeSectionMember: {
+        route: 'DELETE /sections/{sectionId}/members/{userId}',
+        // One target per seat: the allowed row deletes its own, so no row depends on another.
+        run: async (seat) =>
+          call(sectionMember.DELETE, {
+            method: 'DELETE',
+            path: `/sections/${section}/members/${removable[seat].id}`,
+            session: await sessionFor(seat),
+            params: { sectionId: section, userId: removable[seat].id },
+          }),
+      },
+      createAssignment: {
+        route: 'POST /sections/{sectionId}/assignments',
+        run: async (seat) =>
+          call(sectionAssignments.POST, {
+            method: 'POST',
+            path: `/sections/${section}/assignments`,
+            session: await sessionFor(seat),
+            params: { sectionId: section },
+            body: {
+              label: `Matrix run by ${seat}`,
+              packageVersionId,
+              variantId: soundVariantId,
+            },
+          }),
+      },
+      getAssignment: {
+        route: 'GET /assignments/{assignmentId}',
+        run: async (seat) =>
+          call(assignmentDetail.GET, {
+            path: `/assignments/${assignment}`,
+            session: await sessionFor(seat),
+            params: { assignmentId: assignment },
+          }),
+      },
+      updateAssignment: {
+        route: 'PATCH /assignments/{assignmentId}',
+        run: async (seat) =>
+          call(assignmentDetail.PATCH, {
+            method: 'PATCH',
+            path: `/assignments/${assignment}`,
+            session: await sessionFor(seat),
+            params: { assignmentId: assignment },
+            body: { label: `Matrix label by ${seat}` },
+          }),
+      },
+      getPolicyDisplay: {
+        route: 'GET /assignments/{assignmentId}/policy-display',
+        run: async (seat) =>
+          call(policyDisplay.GET, {
+            path: `/assignments/${assignment}/policy-display`,
+            session: await sessionFor(seat),
+            params: { assignmentId: assignment },
+          }),
+      },
+      deleteWalkthroughRun: {
+        route: 'DELETE /runs/{runId}',
+        // One run per seat, as above: the allowed row deletes its own.
+        run: async (seat) =>
+          call(runDetail.DELETE, {
+            method: 'DELETE',
+            path: `/runs/${walkthroughRuns[seat]}`,
+            session: await sessionFor(seat),
+            params: { runId: walkthroughRuns[seat] },
+          }),
       },
     }
   })

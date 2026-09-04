@@ -158,6 +158,12 @@ export const MembershipSchema = z.object({
 })
 export type Membership = z.infer<typeof MembershipSchema>
 
+/**
+ * `status` is Better Auth's own column, so it stays a free string. `listInvitations` is the one
+ * reader that resolves the clock into it: a stored `pending` row whose seven days have run out is
+ * handed to the screen as `expired`, so the client renders a state rather than comparing a
+ * deadline against its own `Date.now()` (D-177).
+ */
 export const InvitationSchema = z.object({
   id: z.string(),
   organizationId: z.string(),

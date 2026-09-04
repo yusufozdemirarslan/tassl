@@ -306,6 +306,45 @@ export async function inviteMember(
 const INVITATION_TTL_MS = 7 * 24 * 60 * 60 * 1000
 
 /**
+ * How many outstanding invitations the roster reads. An institution with more open invitations
+ * than this has a problem no roster screen solves, and the list is bounded rather than paged.
+ */
+const INVITATION_LIST_LIMIT = 200
+
+/**
+ * The institution's outstanding invitations (UI-031). Better Auth owns the `invitation` table and
+ * offers no list of its own, so the rows are read through the repository the way every other
+ * tenancy read is, and the seat that may create one is the seat that may see them (INVITE_ROLES).
+ *
+ * A stored row is `pending` until it is accepted, rejected, or cancelled; whether its seven days
+ * have run out is a fact about the clock, not about the row, so the expiry is resolved here and
+ * the view carries `expired`. Deciding it on the server is also what keeps a server render and its
+ * hydration in agreement — the client is handed a state, never a deadline to compare against
+ * `Date.now()` (D-177).
+ */
+export async function listInvitations(
+  actor: SessionUser,
+  orgId: string,
+): Promise<InvitationView[]> {
+  await requireOrgRole(actor, orgId, INVITE_ROLES)
+  const rows = await repo.listInvitations(orgId, INVITATION_LIST_LIMIT)
+  const now = Date.now()
+  return rows.map((row) => {
+    // `invitation.role` is a free-text column; a role outside 08 §3 reads as the least-privileged
+    // seat rather than dropping the row, exactly as `getInvitation` does.
+    const role = OrganizationRoleSchema.safeParse(row.role)
+    return {
+      id: row.id,
+      organizationId: orgId,
+      email: row.email,
+      role: role.success ? role.data : 'student',
+      status: row.expiresAt.getTime() <= now ? 'expired' : 'pending',
+      expiresAt: iso(row.expiresAt),
+    }
+  })
+}
+
+/**
  * The invitation the accept screen renders (UI-005), read the way Better Auth's own
  * `get-invitation` reads it, with the same two refusals so the screen can tell them apart:
  *

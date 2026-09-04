@@ -8,6 +8,12 @@ export const enUS = {
   'ui.close': 'Close',
   'ui.loading': 'Loading',
   'ui.more': 'More',
+  // A form that arrives with its dialog (16 §3.2) and did not; reopening the dialog retries.
+  'ui.formLoadFailed': 'The form could not be loaded. Close this and open it again.',
+  // A menu that arrives with the press that opens it (16 §3.2) and did not; pressing again retries.
+  'ui.menuLoadFailed': 'The menu could not be loaded. Try again.',
+  // A dialog that arrives with the press that opens it and did not; pressing again retries.
+  'ui.actionLoadFailed': 'That could not be opened. Try the button again.',
   // Timestamps are formatted in UTC so a server render and its hydration always agree (D-177).
   'ui.dateTime': '{value} UTC',
   'toast.region': 'Messages',
@@ -301,6 +307,269 @@ export const enUS = {
     'You are signed in as {email}. Sign in with the address the invitation was sent to, then open the link again.',
   'invitation.switchAccount': 'Sign out and use another account',
   'invitation.home': 'Go home',
+
+  // Courses, sections, rosters, assignments (UI-030 to UI-032, FR-200, FR-201, FR-205, D-104)
+  'courses.courseNotFound': 'That course no longer exists.',
+  'courses.sectionNotFound': 'That section no longer exists.',
+  'courses.assignmentNotFound': 'That assignment no longer exists.',
+  'courses.runNotFound': 'That run no longer exists.',
+  'courses.runNotWalkthrough':
+    'Only a run on a walkthrough assignment can be deleted. A run that counts is voided instead.',
+  // The sentence the policy display shows above the Begin control (FR-201, PRD §7.19).
+  'courses.countsStatement': 'This run counts toward the course grade. Run one counts.',
+
+  // UI-030 course list (/courses)
+  'courses.title': 'Courses',
+  'courses.description':
+    'Every course in this institution, with the sections that hold its rosters and the assignments a run starts from.',
+  'courses.listCaption': 'Courses in this institution',
+  'courses.columnName': 'Course',
+  'courses.columnTerm': 'Term',
+  'courses.columnSections': 'Sections',
+  'courses.columnAssignments': 'Assignments',
+  'courses.openCourse': 'Open {name}',
+  'courses.showMore': 'Show more courses',
+  'courses.emptyTitle': 'No courses yet',
+  'courses.emptyBody':
+    'A course carries the outside-AI policy, the run weight, and the band-to-points mapping its assignments run under.',
+  'courses.noInstitutionTitle': 'No institution yet',
+  'courses.noInstitutionBody':
+    'Courses belong to an institution. Once you accept an invitation, the courses you teach appear here.',
+
+  // UI-030 new course (CourseForm)
+  'courses.newCourse': 'New course',
+  'courses.newCourseDescription':
+    'Name it and give it a term. Policy, weight, and the band mapping are set on the course once it exists.',
+  'courses.nameLabel': 'Course name',
+  'courses.termLabel': 'Term',
+  'courses.termHint': 'The term this course runs in, written the way your institution writes it.',
+  'courses.createSubmit': 'Create course',
+  'courses.createPending': 'Creating…',
+  'courses.cancel': 'Cancel',
+  'courses.created': '{name} is ready.',
+  'courses.validation.name': 'Give the course a name.',
+  'courses.validation.nameTooLong': 'A course name is at most 200 characters.',
+  'courses.validation.term': 'Give the course a term.',
+  'courses.validation.termTooLong': 'A term is at most 100 characters.',
+
+  // UI-030 course detail: the four sub-views
+  'courses.backToCourses': 'All courses',
+  'courses.termLine': 'Term {term}',
+  'courses.viewsLabel': 'Course views',
+  'courses.tabSections': 'Sections',
+  'courses.tabAssignments': 'Assignments',
+  'courses.tabPolicy': 'Policy',
+  'courses.tabMapping': 'Mapping',
+  // Each sub-view is its own address, so each is its own document title (WCAG 2.4.2).
+  'courses.metaTitle': '{course} · {view}',
+  'courses.readOnlyNote':
+    'You can read this course. Only an instructor who teaches it can change its setup.',
+
+  // UI-030 sections sub-view (SectionsList)
+  'courses.sectionsTitle': 'Sections',
+  'courses.sectionsDescription':
+    'A section holds its own roster, and every assignment belongs to one section.',
+  'courses.sectionsCaption': 'Sections in this course',
+  'courses.columnSection': 'Section',
+  'courses.columnMembers': 'Members',
+  'courses.columnRoster': 'Roster',
+  'courses.openRoster': 'Open the roster for {name}',
+  'courses.rosterLink': 'Roster',
+  'courses.sectionsEmptyTitle': 'No sections yet',
+  'courses.sectionsEmptyBody':
+    'Add a section, then add the people who run its assignments to its roster.',
+  'courses.newSection': 'New section',
+  'courses.newSectionDescription':
+    'Sections divide one course into rosters. An assignment is configured on a section.',
+  'courses.sectionNameLabel': 'Section name',
+  'courses.sectionSubmit': 'Add section',
+  'courses.sectionPending': 'Adding…',
+  'courses.sectionCreated': 'Section {name} added.',
+  'courses.validation.sectionName': 'Give the section a name.',
+  'courses.validation.sectionNameTooLong': 'A section name is at most 100 characters.',
+
+  // UI-030 assignments sub-view (AssignmentsList)
+  'courses.assignmentsTitle': 'Assignments',
+  'courses.assignmentsDescription':
+    'Each assignment points at one confirmed scenario package version; a run starts from it.',
+  'courses.assignmentsCaption': 'Assignments in this course',
+  'courses.columnAssignment': 'Assignment',
+  'courses.columnType': 'Type',
+  'courses.columnState': 'State',
+  'courses.columnClock': 'Working clock',
+  'courses.runTypeDecision': 'Decision run',
+  'courses.runTypeCritique': 'Critique run',
+  'courses.stateOpen': 'Open now',
+  'courses.stateScheduled': 'Opens {date}',
+  'courses.clockMinutes': '{minutes} min',
+  'courses.clockPackageDefault': 'Package default',
+  'courses.configureAssignment': 'Configure {label}',
+  'courses.assignmentsEmptyTitle': 'No assignments yet',
+  'courses.assignmentsEmptyBody':
+    'An assignment carries the scenario package version, the working clock, and the weight a run starts from. Confirm a scenario package first.',
+  'courses.newAssignment': 'New assignment',
+  'courses.newAssignmentDescription':
+    'An assignment belongs to one section and points at one confirmed scenario package version. Every run on it is taken under what you set here.',
+  'courses.newAssignmentNoSections':
+    'An assignment belongs to a section. Add a section to this course first.',
+  'courses.assignmentSectionLabel': 'Section',
+  'courses.assignmentSectionHint':
+    'The roster this assignment is set for; its students are the ones who take it.',
+  'courses.assignmentSectionOne':
+    'This assignment goes to {name}, the only section of this course.',
+
+  // UI-030 policy sub-view (PolicyForm); the three policies are PRD §7.19, FR-062
+  'courses.policyTitle': 'Policy and weight',
+  'courses.policyDescription':
+    'What this course allows outside Tassl, what one run is worth, and which concepts it teaches.',
+  'courses.policyLegend': 'Outside-AI policy',
+  'courses.policyNotEnforced':
+    'Tassl displays this policy and never enforces it. It does not detect, infer, or estimate undeclared use, and a declaration never lowers a band or a point.',
+  'courses.policyOpen': 'Open',
+  'courses.policyOpenDescription':
+    'Students may use any AI tool they like, inside Tassl or outside it, and need not say so.',
+  'courses.policyDeclared': 'Declared',
+  'courses.policyDeclaredDescription':
+    'Students may use outside AI tools and are asked to declare each use and its purpose. The declaration is recorded beside the run and changes nothing about its score.',
+  'courses.policyInEnvironment': 'In-Environment Only',
+  'courses.policyInEnvironmentDescription':
+    'The course asks students to work only with the assistant inside Tassl. A declaration of outside use is still recorded and shown to you, with no scoring effect; what follows is your call.',
+  'courses.weightLabel': 'Default run weight',
+  'courses.weightDescription':
+    'What one Decision Run in this course is worth in your gradebook. A Critique Run defaults to half of it.',
+  'courses.conceptsLabel': 'Taught concepts',
+  'courses.conceptsDescription':
+    'One per line. Tassl matches scenarios to what the course has taught.',
+  'courses.policySubmit': 'Save policy',
+  'courses.policyPending': 'Saving…',
+  'courses.policySaved': 'Policy saved.',
+  'courses.validation.weight': 'Enter the weight as a number.',
+  'courses.validation.weightNegative': 'A weight cannot be negative.',
+  'courses.validation.concept': 'A taught concept is at most 120 characters.',
+  'courses.validation.conceptsTooMany': 'A course lists at most 50 taught concepts.',
+
+  // UI-030 mapping sub-view (MappingEditor); apply-with-recompute is FR-206, Phase 11
+  'courses.mappingTitle': 'Band-to-points mapping',
+  'courses.mappingDescription':
+    "What one confirmed band is worth in this course. A run's points are the mean over the dimensions it assessed; an unassessed dimension is excluded, never counted as zero.",
+  'courses.mappingNovice': 'Novice',
+  'courses.mappingDeveloping': 'Developing',
+  'courses.mappingProficient': 'Proficient',
+  'courses.mappingProfessional': 'Professional',
+  'courses.mappingSubmit': 'Save mapping',
+  'courses.mappingPending': 'Saving…',
+  'courses.mappingSaved': 'Mapping saved.',
+  // The Apply control itself arrives with Phase 11 (FR-206), together with the preview table and
+  // the "every confirmed run will be re-exported" acknowledgement; until then only the note shows.
+  'courses.mappingApply': 'Apply to confirmed runs',
+  'courses.mappingApplyNote': 'Recomputation of confirmed runs arrives with review.',
+  'courses.validation.point': 'Enter the points as a number.',
+  'courses.validation.pointPositive': 'Points must be above zero.',
+
+  // UI-031 section roster (/courses/[courseId]/sections/[sectionId]/roster, SYS-005)
+  'roster.title': 'Section roster',
+  'roster.description':
+    'Who is in this section. Everyone on it already belongs to the institution; invite anyone who does not.',
+  'roster.context': '{course} · {section}',
+  'roster.backToCourse': 'Back to the course',
+  'roster.membersTitle': 'Members',
+  'roster.membersCaption': 'People in {section}',
+  'roster.columnName': 'Name',
+  'roster.columnEmail': 'Email',
+  'roster.columnRole': 'Role',
+  'roster.columnActions': 'Actions',
+  'roster.remove': 'Remove',
+  'roster.removeLabel': 'Remove {name} from this section',
+  'roster.removed': '{name} is out of this section.',
+  'roster.membersEmptyTitle': 'Nobody is in this section yet',
+  'roster.membersEmptyBody':
+    'Add the people who will take this section’s assignments. A student needs a row here before a run can start.',
+  'roster.truncated': 'The first {count} members are shown.',
+  'roster.roleStudent': 'Student',
+  'roster.roleInstructor': 'Instructor',
+  'roster.roleTa': 'Teaching assistant',
+  'roster.addTitle': 'Add member',
+  'roster.addDescription':
+    'Add someone by the address they sign in with. They must already belong to the institution.',
+  'roster.addEmail': 'Email address',
+  'roster.addRole': 'Role in this section',
+  'roster.addSubmit': 'Add to section',
+  'roster.added': '{email} is now in this section.',
+  'roster.inviteAction': 'Invite to institution',
+  'roster.invited': 'An invitation is on its way to {email}.',
+  'roster.invitationsTitle': 'Invitations',
+  'roster.invitationsDescription': 'An invitation lasts seven days and can be accepted once.',
+  'roster.invitationsCaption': 'Outstanding invitations to this institution',
+  'roster.invitationsExpires': 'Expires',
+  'roster.invitationsEmptyTitle': 'No invitations yet',
+  'roster.invitationsEmptyBody':
+    'Invite an address that does not belong to the institution and the invitation appears here with the day it expires.',
+  'roster.cancel': 'Cancel',
+  'roster.columnStatus': 'Status',
+  'roster.invitationPending': 'Pending',
+  'roster.invitationExpired': 'Expired',
+  'roster.removeConfirmTitle': 'Take this person off the roster?',
+  'roster.removeConfirmBody':
+    '{name} ({email}) comes off the roster of {section} and can no longer start its assignments. Nothing they have written is deleted, and you can add them back by address.',
+  'roster.removeConfirmAction': 'Remove from section',
+  'roster.removeConfirmPending': 'Removing…',
+  'roster.inviteTitle': 'Invite to the institution',
+  'roster.inviteDescription':
+    'They get an email with a link that lasts seven days. Accepting it makes them a member of the institution; add them to this section afterwards.',
+  'roster.inviteEmail': 'Email address',
+  'roster.inviteRole': 'Role in the institution',
+  'roster.inviteSubmit': 'Send invitation',
+  'roster.invitePending': 'Sending…',
+
+  // UI-032 assignment configuration (/assignments/[assignmentId], FR-200)
+  'assignment.title': 'Assignment',
+  'assignment.context': '{course} · {section}',
+  'assignment.backToCourse': 'Back to the course',
+  'assignment.configureTitle': 'Configuration',
+  'assignment.configureDescription': 'What every run on this assignment is taken under.',
+  'assignment.labelLabel': 'Assignment name',
+  'assignment.labelHint': 'What students see in their list.',
+  'assignment.packageLabel': 'Scenario package version',
+  'assignment.packageOption': '{title} · version {version}',
+  'assignment.packageHint': 'Only a confirmed version can carry an assignment.',
+  'assignment.variantLegend': 'Variant',
+  'assignment.variantDefective': 'Defective',
+  'assignment.variantDefectiveHint':
+    'The assistant states one consequential claim that does not hold up.',
+  'assignment.variantSound': 'Sound',
+  'assignment.variantSoundHint': 'Every consequential claim the assistant states holds up.',
+  'assignment.clockLabel': 'Working clock (seconds)',
+  'assignment.clockDefault': 'The package sets {seconds} seconds. Leave this empty to follow it.',
+  'assignment.clockHint': 'Whole seconds, at least 60. Leave this empty to follow the package.',
+  'assignment.weightLabel': 'Weight',
+  'assignment.weightDefault': 'The course sets {weight}. Leave this empty to follow it.',
+  'assignment.walkthroughLabel': 'Walkthrough',
+  'assignment.walkthroughHint':
+    'A practice assignment. A run on it can be deleted; a run that counts is voided instead.',
+  'assignment.opensAtLabel': 'Opens at',
+  'assignment.opensAtHint': 'Times are UTC. Leave this empty to open it now.',
+  'assignment.lockedTitle': 'The setup is fixed',
+  'assignment.lockedBody':
+    'A run has already started on this assignment, so the package version, the variant, the working clock, and the weight cannot change. The name, the walkthrough flag, and the opening time stay editable.',
+  'assignment.createSubmit': 'Create assignment',
+  'assignment.saveSubmit': 'Save configuration',
+  'assignment.created': '{label} is ready.',
+  'assignment.saved': 'The assignment is saved.',
+  'assignment.noPackagesTitle': 'Confirm a scenario package first',
+  'assignment.noPackagesBody':
+    'An assignment runs on a confirmed scenario package version. Confirm one, then configure the assignment.',
+  'assignment.runsTitle': 'Runs',
+  'assignment.runsEmptyTitle': 'No runs yet',
+  'assignment.runsEmptyBody':
+    'Once a student starts this assignment, their run appears here with its state and its replay.',
+  'assignment.validation.label': 'Name this assignment.',
+  'assignment.validation.labelTooLong': 'Use 200 characters or fewer.',
+  'assignment.validation.package': 'Choose a scenario package version.',
+  'assignment.validation.variant': 'Choose a variant.',
+  'assignment.validation.clock': 'Enter whole seconds, at least 60, or leave it empty.',
+  'assignment.validation.weight':
+    'Enter the weight as a number of zero or more, or leave it empty.',
+  'assignment.validation.opensAt': 'Enter a date and time, or leave it empty.',
 } as const
 
 export type MessageKey = keyof typeof enUS

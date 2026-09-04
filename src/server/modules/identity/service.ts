@@ -14,22 +14,16 @@ import { getLogger } from '@/server/http/request-context'
 import { createMemoryRateLimiter, type RateLimiter } from '@/server/rate-limit/memory'
 import { createPostgresRateLimiter } from '@/server/rate-limit/sliding-window'
 import { audit } from '@/server/modules/admin'
-// The `/me` lists read the courses and runs tables through the repositories that already own those
-// queries; both are empty until Phases 4 and 6 fill them, and the shape they answer with is the
-// final one. When those modules gain a service they move behind `courses.listMyAssignments` and
-// `runs.listMyRuns` (10-backend-spec-modules.md §3, §6) and this import goes away.
-import {
-  listAssignmentsForStudent,
-  type StudentAssignmentRow,
-} from '@/server/modules/courses/repository'
+// `/me/assignments` is the courses module's list behind an identity route (10 §3
+// `listMyAssignments`), so it is called through that module's public interface. `/me/runs` still
+// reads the runs repository directly: that module has no service until Phase 6 (D-173).
+import { listMyAssignments as listAssignmentsForActor } from '@/server/modules/courses'
 import { listRunsForStudent, type RunListItem } from '@/server/modules/runs/repository'
 import { exportRateLimited, userDeleted } from './errors'
 import {
   anonymizeUserReferences,
-  clampLimit,
   countUserReferences,
   createPlaceholderUser,
-  decodeCursor,
   deleteMemberships,
   deleteNotifications,
   deletePendingInvitations,
@@ -46,7 +40,6 @@ import {
   listSectionMembershipsForUser,
   repointUserReferences,
   softDeleteUser,
-  toPage,
   updateProfile as updateProfileRow,
   withTransaction,
   type MembershipRow,
@@ -173,29 +166,6 @@ function toRunSummary(item: RunListItem): RunSummary {
   }
 }
 
-function toStudentAssignment(row: StudentAssignmentRow): StudentAssignment {
-  const { assignment, section, course, latestRun } = row
-  return {
-    assignmentId: assignment.id,
-    label: assignment.label,
-    isWalkthrough: assignment.isWalkthrough,
-    opensAt: isoOrNull(assignment.opensAt),
-    courseId: course.id,
-    courseName: course.name,
-    sectionId: section.id,
-    sectionName: section.name,
-    createdAt: iso(assignment.createdAt),
-    latestRun: latestRun
-      ? {
-          id: latestRun.id,
-          attemptNo: latestRun.attemptNo,
-          state: latestRun.state,
-          scoringStatus: latestRun.scoringStatus,
-        }
-      : null,
-  }
-}
-
 /**
  * The institution the `/me` lists read. The active organization is the session's when it has one;
  * otherwise the first institution the person belongs to, so a student who has never used the
@@ -216,33 +186,17 @@ export async function getCurrentUser(actor: SessionUser): Promise<MeView> {
   return toMeView(row, actor, memberships)
 }
 
-/** Assignments in the actor's sections with their latest attempt (07-api-spec.md §3). */
+/**
+ * Assignments in the actor's sections with their latest attempt (07-api-spec.md §3). The list is
+ * the courses module's (10 §3 `listMyAssignments`); identity adds the one thing it owns, the check
+ * that the account is still live, and serves it under `/me`.
+ */
 export async function listMyAssignments(
   actor: SessionUser,
   input: PageQuery = {},
 ): Promise<Page<StudentAssignment>> {
   await requireActiveUser(actor)
-  const memberships = await listMembershipsForUser(actor.id)
-  const tenantId = resolveTenant(actor, memberships)
-  if (!tenantId) return { items: [], nextCursor: null }
-
-  // The courses repository answers with the whole list in (created_at desc, id desc) order, so the
-  // page is cut here and the endpoint speaks the cursor contract from the first day.
-  const rows = await listAssignmentsForStudent(tenantId, actor.id)
-  const cursor = decodeCursor(input.cursor)
-  const keyed = rows
-    .map((row) => ({ id: row.assignment.id, createdAt: row.assignment.createdAt, row }))
-    .filter(
-      (entry) =>
-        !cursor ||
-        entry.createdAt.getTime() < cursor.createdAt.getTime() ||
-        (entry.createdAt.getTime() === cursor.createdAt.getTime() && entry.id < cursor.id),
-    )
-  const page = toPage(keyed, clampLimit(input.limit))
-  return {
-    items: page.items.map((entry) => toStudentAssignment(entry.row)),
-    nextCursor: page.nextCursor,
-  }
+  return listAssignmentsForActor(actor, input)
 }
 
 /** The actor's own runs (07-api-spec.md §3); reviewers read runs through the review endpoints. */

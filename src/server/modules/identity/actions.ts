@@ -13,6 +13,7 @@ import {
   type MeView,
   type UpdateProfileInput,
 } from './schema'
+import { clearSessionCookies } from '@/server/auth/session-cookies'
 import { requestAccountDeletion, updateProfile } from './service'
 
 /** UI-010 profile form (SYS-003); the shell shows the new name after the revalidate. */
@@ -42,6 +43,9 @@ export const requestAccountDeletionAction = defineAction<
       })
     }
     await requestAccountDeletion(ctx.actor)
+    // The account is closed and every session with it, so the sign-out the dialog fires next has
+    // nothing left to authenticate and cannot clear the cookie itself: this response does (D-197).
+    await clearSessionCookies()
     return { data: { deleted: true }, revalidate: ['/', '/home', '/settings'] }
   },
   { name: 'identity.requestAccountDeletion' },

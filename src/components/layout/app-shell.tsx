@@ -47,7 +47,14 @@ export function AppShell({
           <span aria-hidden="true" className="bg-line hidden h-6 w-px shrink-0 md:block" />
           <InstitutionSwitcher institutions={institutions} activeId={activeInstitutionId} />
         </div>
-        <div className="flex min-w-0 items-center gap-1">
+        {/* WCAG 1.4.4. The bell and the account control are sized in rem, so at 200 % text they
+            doubled to 80 px each while nothing in the header could give way, and the document
+            scrolled sideways at 360 px. Neither control carries text: their size is a target size,
+            not a type size, so both are pinned to the 40 px minimum DESIGN.md §Layout commits to,
+            with their 20 px icons pinned the same way, and the cluster is left free to shrink. The
+            two menus swap a plain button for the Base UI trigger once their code arrives
+            (./deferred-menu), and both are the same `<button>` to these rules. */}
+        <div className="flex min-w-0 shrink items-center gap-1 [&_svg]:size-[20px] [&>a]:size-[40px] [&>button]:size-[40px]">
           <NotificationsBell unreadCount={unreadCount} />
           <AccountMenu user={user} />
         </div>

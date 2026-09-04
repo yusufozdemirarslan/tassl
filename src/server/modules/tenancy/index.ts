@@ -9,6 +9,7 @@ export {
   getInvitation,
   inviteMember,
   listDataAgreements,
+  listInvitations,
   listMyInstitutions,
   requireMembership,
   setActiveInstitution,

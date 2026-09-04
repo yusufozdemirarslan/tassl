@@ -25,6 +25,12 @@ function captionText(children: React.ReactNode): string | undefined {
 
 // The scroll container is keyboard reachable (tabIndex 0, role region) so a wide table can be
 // scrolled without a pointer, and it shows the focus recipe like every other focusable element.
+//
+// `min-w-xs` (20 rem) is the floor the region scrolls against. Without it a narrow viewport does
+// not scroll the region at all: the table simply squeezes, and a column of long unbroken strings
+// (an address, an id) collapses to a few characters per line. A table wider than its container is
+// what the scroll region exists for, so the table keeps its natural width and the region moves.
+// A table that needs a wider floor than 20 rem passes its own `min-w-*`; `cn` lets it win.
 function Table({ className, children, ...props }: React.ComponentProps<'table'>) {
   const label = captionText(children)
   return (
@@ -37,7 +43,7 @@ function Table({ className, children, ...props }: React.ComponentProps<'table'>)
     >
       <table
         data-slot="table"
-        className={cn('text-body w-full caption-bottom', className)}
+        className={cn('text-body w-full min-w-xs caption-bottom', className)}
         {...props}
       >
         {children}
@@ -110,11 +116,14 @@ function TableCell({ className, ...props }: React.ComponentProps<'td'>) {
   )
 }
 
+// `<caption>` is centred by the user-agent stylesheet, which left every caption in the product
+// floating over the middle of its table. It reads as the table's own label, so it starts where the
+// table's first column starts: left aligned, with the 8 px of gutter a dense cell carries.
 function TableCaption({ className, ...props }: React.ComponentProps<'caption'>) {
   return (
     <caption
       data-slot="table-caption"
-      className={cn('text-ink-muted text-meta mt-4', className)}
+      className={cn('text-ink-muted text-meta mt-4 px-2 text-left', className)}
       {...props}
     />
   )

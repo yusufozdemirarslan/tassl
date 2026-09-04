@@ -46,6 +46,10 @@ export function proxy(request: NextRequest) {
 
   const requestHeaders = new Headers(request.headers)
   requestHeaders.set('x-request-id', requestId)
+  // Where this request was going, for the guard behind the optimistic hop above: a cookie that is
+  // present but dead (expired, forged, or a deleted account) reaches the page, and getViewer() has
+  // no other way to name the address it is turning away (D-198).
+  requestHeaders.set('x-pathname', `${pathname}${search}`)
 
   return withBaselineHeaders(NextResponse.next({ request: { headers: requestHeaders } }), requestId)
 }

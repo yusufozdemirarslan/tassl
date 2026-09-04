@@ -3011,37 +3011,245 @@ paths:
       operationId: getAssignment
       summary: Assignment with package and variant
       parameters:
-        - $ref: "#/components/parameters/assignmentId"
+        - in: path
+          name: assignmentId
+          schema:
+            type: string
+            format: uuid
+            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+          required: true
       responses:
         "200":
           description: OK
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/AssignmentView"
+                type: object
+                properties:
+                  id:
+                    type: string
+                    format: uuid
+                    pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                  sectionId:
+                    type: string
+                    format: uuid
+                    pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                  label:
+                    type: string
+                  runType:
+                    type: string
+                    enum:
+                      - decision
+                      - critique
+                  packageVersionId:
+                    type: string
+                    format: uuid
+                    pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                  variantId:
+                    type: string
+                    format: uuid
+                    pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                  workingClockSeconds:
+                    anyOf:
+                      - type: integer
+                        minimum: -9007199254740991
+                        maximum: 9007199254740991
+                      - type: "null"
+                  weight:
+                    type:
+                      - number
+                      - "null"
+                  isWalkthrough:
+                    type: boolean
+                  opensAt:
+                    anyOf:
+                      - type: string
+                        format: date-time
+                        pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z))$
+                      - type: "null"
+                  courseId:
+                    type: string
+                    format: uuid
+                    pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                  courseName:
+                    type: string
+                  sectionName:
+                    type: string
+                  packageTitle:
+                    type: string
+                  packageVersion:
+                    type: integer
+                    minimum: -9007199254740991
+                    maximum: 9007199254740991
+                  variantKey:
+                    type: string
+                    enum:
+                      - defective
+                      - sound
+                  effectiveWorkingClockSeconds:
+                    type: integer
+                    minimum: -9007199254740991
+                    maximum: 9007199254740991
+                  effectiveWeight:
+                    type: number
+                  inUse:
+                    type: boolean
+                required:
+                  - id
+                  - sectionId
+                  - label
+                  - runType
+                  - packageVersionId
+                  - variantId
+                  - workingClockSeconds
+                  - weight
+                  - isWalkthrough
+                  - opensAt
+                  - courseId
+                  - courseName
+                  - sectionName
+                  - packageTitle
+                  - packageVersion
+                  - variantKey
+                  - effectiveWorkingClockSeconds
+                  - effectiveWeight
+                  - inUse
+                additionalProperties: false
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "429":
+          $ref: "#/components/responses/RateLimited"
     patch:
       tags:
         - courses
       operationId: updateAssignment
       summary: Update configuration
       parameters:
-        - $ref: "#/components/parameters/assignmentId"
-        - $ref: "#/components/parameters/requestedWith"
+        - in: path
+          name: assignmentId
+          schema:
+            type: string
+            format: uuid
+            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+          required: true
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/UpdateAssignment"
+              type: object
+              properties:
+                label:
+                  type: string
+                  minLength: 1
+                  maxLength: 200
+                packageVersionId:
+                  type: string
+                  format: uuid
+                  pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                variantId:
+                  type: string
+                  format: uuid
+                  pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                runType:
+                  type: string
+                  enum:
+                    - decision
+                    - critique
+                workingClockSeconds:
+                  anyOf:
+                    - type: integer
+                      minimum: 60
+                      maximum: 9007199254740991
+                    - type: "null"
+                weight:
+                  anyOf:
+                    - type: number
+                      minimum: 0
+                    - type: "null"
+                isWalkthrough:
+                  type: boolean
+                opensAt:
+                  type:
+                    - string
+                    - "null"
       responses:
         "200":
           description: OK
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Assignment"
-        "409":
-          $ref: "#/components/responses/Conflict"
+                type: object
+                properties:
+                  id:
+                    type: string
+                    format: uuid
+                    pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                  sectionId:
+                    type: string
+                    format: uuid
+                    pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                  label:
+                    type: string
+                  runType:
+                    type: string
+                    enum:
+                      - decision
+                      - critique
+                  packageVersionId:
+                    type: string
+                    format: uuid
+                    pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                  variantId:
+                    type: string
+                    format: uuid
+                    pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                  workingClockSeconds:
+                    anyOf:
+                      - type: integer
+                        minimum: -9007199254740991
+                        maximum: 9007199254740991
+                      - type: "null"
+                  weight:
+                    type:
+                      - number
+                      - "null"
+                  isWalkthrough:
+                    type: boolean
+                  opensAt:
+                    anyOf:
+                      - type: string
+                        format: date-time
+                        pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z))$
+                      - type: "null"
+                required:
+                  - id
+                  - sectionId
+                  - label
+                  - runType
+                  - packageVersionId
+                  - variantId
+                  - workingClockSeconds
+                  - weight
+                  - isWalkthrough
+                  - opensAt
+                additionalProperties: false
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "429":
+          $ref: "#/components/responses/RateLimited"
   /assignments/{assignmentId}/exports:
     get:
       tags:
@@ -3073,14 +3281,84 @@ paths:
       operationId: getPolicyDisplay
       summary: Policy display values shown at run start
       parameters:
-        - $ref: "#/components/parameters/assignmentId"
+        - in: path
+          name: assignmentId
+          schema:
+            type: string
+            format: uuid
+            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+          required: true
       responses:
         "200":
           description: OK
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/PolicyDisplay"
+                type: object
+                properties:
+                  outsideAiPolicy:
+                    type: string
+                    enum:
+                      - open
+                      - declared
+                      - in_environment_only
+                  weight:
+                    type: number
+                  mapping:
+                    type: object
+                    properties:
+                      novice:
+                        type: number
+                        exclusiveMinimum: 0
+                      developing:
+                        type: number
+                        exclusiveMinimum: 0
+                      proficient:
+                        type: number
+                        exclusiveMinimum: 0
+                      professional:
+                        type: number
+                        exclusiveMinimum: 0
+                    required:
+                      - novice
+                      - developing
+                      - proficient
+                      - professional
+                    additionalProperties: false
+                  runType:
+                    type: string
+                    enum:
+                      - decision
+                      - critique
+                  workingClockSeconds:
+                    type: integer
+                    minimum: -9007199254740991
+                    maximum: 9007199254740991
+                  uncalibrated:
+                    type: boolean
+                    const: true
+                  countsStatement:
+                    type: boolean
+                    const: true
+                required:
+                  - outsideAiPolicy
+                  - weight
+                  - mapping
+                  - runType
+                  - workingClockSeconds
+                  - uncalibrated
+                  - countsStatement
+                additionalProperties: false
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "429":
+          $ref: "#/components/responses/RateLimited"
   /assignments/{assignmentId}/runs:
     get:
       tags:
@@ -3130,37 +3408,314 @@ paths:
       operationId: getCourse
       summary: Course detail
       parameters:
-        - $ref: "#/components/parameters/courseId"
+        - in: path
+          name: courseId
+          schema:
+            type: string
+            format: uuid
+            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+          required: true
       responses:
         "200":
           description: OK
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/CourseView"
+                type: object
+                properties:
+                  id:
+                    type: string
+                    format: uuid
+                    pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                  organizationId:
+                    type: string
+                  name:
+                    type: string
+                  term:
+                    type: string
+                  outsideAiPolicy:
+                    type: string
+                    enum:
+                      - open
+                      - declared
+                      - in_environment_only
+                  mapping:
+                    type: object
+                    properties:
+                      novice:
+                        type: number
+                        exclusiveMinimum: 0
+                      developing:
+                        type: number
+                        exclusiveMinimum: 0
+                      proficient:
+                        type: number
+                        exclusiveMinimum: 0
+                      professional:
+                        type: number
+                        exclusiveMinimum: 0
+                    required:
+                      - novice
+                      - developing
+                      - proficient
+                      - professional
+                    additionalProperties: false
+                  defaultRunWeight:
+                    type: number
+                  critiqueWeightFactor:
+                    type: number
+                  taughtConcepts:
+                    type: array
+                    items:
+                      type: string
+                  sections:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                          format: uuid
+                          pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                        courseId:
+                          type: string
+                          format: uuid
+                          pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                        name:
+                          type: string
+                        memberCount:
+                          type: integer
+                          minimum: 0
+                          maximum: 9007199254740991
+                        assignmentCount:
+                          type: integer
+                          minimum: 0
+                          maximum: 9007199254740991
+                      required:
+                        - id
+                        - courseId
+                        - name
+                        - memberCount
+                        - assignmentCount
+                      additionalProperties: false
+                  assignments:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                          format: uuid
+                          pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                        sectionId:
+                          type: string
+                          format: uuid
+                          pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                        label:
+                          type: string
+                        runType:
+                          type: string
+                          enum:
+                            - decision
+                            - critique
+                        packageVersionId:
+                          type: string
+                          format: uuid
+                          pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                        variantId:
+                          type: string
+                          format: uuid
+                          pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                        workingClockSeconds:
+                          anyOf:
+                            - type: integer
+                              minimum: -9007199254740991
+                              maximum: 9007199254740991
+                            - type: "null"
+                        weight:
+                          type:
+                            - number
+                            - "null"
+                        isWalkthrough:
+                          type: boolean
+                        opensAt:
+                          anyOf:
+                            - type: string
+                              format: date-time
+                              pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z))$
+                            - type: "null"
+                      required:
+                        - id
+                        - sectionId
+                        - label
+                        - runType
+                        - packageVersionId
+                        - variantId
+                        - workingClockSeconds
+                        - weight
+                        - isWalkthrough
+                        - opensAt
+                      additionalProperties: false
+                required:
+                  - id
+                  - organizationId
+                  - name
+                  - term
+                  - outsideAiPolicy
+                  - mapping
+                  - defaultRunWeight
+                  - critiqueWeightFactor
+                  - taughtConcepts
+                  - sections
+                  - assignments
+                additionalProperties: false
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
+        "429":
+          $ref: "#/components/responses/RateLimited"
     patch:
       tags:
         - courses
       operationId: updateCoursePolicy
       summary: Update policy, weights, taught concepts
       parameters:
-        - $ref: "#/components/parameters/courseId"
-        - $ref: "#/components/parameters/requestedWith"
+        - in: path
+          name: courseId
+          schema:
+            type: string
+            format: uuid
+            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+          required: true
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/UpdateCoursePolicy"
+              type: object
+              properties:
+                name:
+                  type: string
+                  minLength: 1
+                  maxLength: 200
+                term:
+                  type: string
+                  minLength: 1
+                  maxLength: 100
+                outsideAiPolicy:
+                  type: string
+                  enum:
+                    - open
+                    - declared
+                    - in_environment_only
+                mapping:
+                  type: object
+                  properties:
+                    novice:
+                      type: number
+                    developing:
+                      type: number
+                    proficient:
+                      type: number
+                    professional:
+                      type: number
+                  required:
+                    - novice
+                    - developing
+                    - proficient
+                    - professional
+                defaultRunWeight:
+                  type: number
+                  minimum: 0
+                critiqueWeightFactor:
+                  type: number
+                  minimum: 0
+                taughtConcepts:
+                  maxItems: 50
+                  type: array
+                  items:
+                    type: string
+                    minLength: 1
+                    maxLength: 120
       responses:
         "200":
           description: OK
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Course"
+                type: object
+                properties:
+                  id:
+                    type: string
+                    format: uuid
+                    pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                  organizationId:
+                    type: string
+                  name:
+                    type: string
+                  term:
+                    type: string
+                  outsideAiPolicy:
+                    type: string
+                    enum:
+                      - open
+                      - declared
+                      - in_environment_only
+                  mapping:
+                    type: object
+                    properties:
+                      novice:
+                        type: number
+                        exclusiveMinimum: 0
+                      developing:
+                        type: number
+                        exclusiveMinimum: 0
+                      proficient:
+                        type: number
+                        exclusiveMinimum: 0
+                      professional:
+                        type: number
+                        exclusiveMinimum: 0
+                    required:
+                      - novice
+                      - developing
+                      - proficient
+                      - professional
+                    additionalProperties: false
+                  defaultRunWeight:
+                    type: number
+                  critiqueWeightFactor:
+                    type: number
+                  taughtConcepts:
+                    type: array
+                    items:
+                      type: string
+                required:
+                  - id
+                  - organizationId
+                  - name
+                  - term
+                  - outsideAiPolicy
+                  - mapping
+                  - defaultRunWeight
+                  - critiqueWeightFactor
+                  - taughtConcepts
+                additionalProperties: false
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "429":
+          $ref: "#/components/responses/RateLimited"
   /courses/{courseId}/mapping:
     post:
       tags:
@@ -3228,27 +3783,59 @@ paths:
       operationId: createSection
       summary: Create a section
       parameters:
-        - $ref: "#/components/parameters/courseId"
-        - $ref: "#/components/parameters/requestedWith"
+        - in: path
+          name: courseId
+          schema:
+            type: string
+            format: uuid
+            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+          required: true
       requestBody:
         required: true
         content:
           application/json:
             schema:
               type: object
-              required:
-                - name
               properties:
                 name:
                   type: string
                   minLength: 1
+                  maxLength: 100
+              required:
+                - name
       responses:
         "201":
-          description: Created
+          description: OK
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Section"
+                type: object
+                properties:
+                  id:
+                    type: string
+                    format: uuid
+                    pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                  courseId:
+                    type: string
+                    format: uuid
+                    pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                  name:
+                    type: string
+                required:
+                  - id
+                  - courseId
+                  - name
+                additionalProperties: false
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "429":
+          $ref: "#/components/responses/RateLimited"
   /institutions:
     get:
       tags:
@@ -3660,46 +4247,256 @@ paths:
       operationId: listCourses
       summary: Courses in an institution
       parameters:
-        - $ref: "#/components/parameters/orgId"
-        - $ref: "#/components/parameters/cursor"
-        - $ref: "#/components/parameters/limit"
+        - in: path
+          name: orgId
+          schema:
+            type: string
+            minLength: 1
+          required: true
+        - in: query
+          name: cursor
+          schema:
+            type: string
+            minLength: 1
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
       responses:
         "200":
           description: OK
           content:
             application/json:
               schema:
-                allOf:
-                  - $ref: "#/components/schemas/Page"
-                  - type: object
-                    properties:
-                      items:
-                        type: array
-                        items:
-                          $ref: "#/components/schemas/Course"
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                          format: uuid
+                          pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                        organizationId:
+                          type: string
+                        name:
+                          type: string
+                        term:
+                          type: string
+                        outsideAiPolicy:
+                          type: string
+                          enum:
+                            - open
+                            - declared
+                            - in_environment_only
+                        mapping:
+                          type: object
+                          properties:
+                            novice:
+                              type: number
+                              exclusiveMinimum: 0
+                            developing:
+                              type: number
+                              exclusiveMinimum: 0
+                            proficient:
+                              type: number
+                              exclusiveMinimum: 0
+                            professional:
+                              type: number
+                              exclusiveMinimum: 0
+                          required:
+                            - novice
+                            - developing
+                            - proficient
+                            - professional
+                          additionalProperties: false
+                        defaultRunWeight:
+                          type: number
+                        critiqueWeightFactor:
+                          type: number
+                        taughtConcepts:
+                          type: array
+                          items:
+                            type: string
+                        sectionCount:
+                          type: integer
+                          minimum: 0
+                          maximum: 9007199254740991
+                        assignmentCount:
+                          type: integer
+                          minimum: 0
+                          maximum: 9007199254740991
+                      required:
+                        - id
+                        - organizationId
+                        - name
+                        - term
+                        - outsideAiPolicy
+                        - mapping
+                        - defaultRunWeight
+                        - critiqueWeightFactor
+                        - taughtConcepts
+                        - sectionCount
+                        - assignmentCount
+                      additionalProperties: false
+                  nextCursor:
+                    type:
+                      - string
+                      - "null"
+                required:
+                  - items
+                  - nextCursor
+                additionalProperties: false
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "429":
+          $ref: "#/components/responses/RateLimited"
     post:
       tags:
         - courses
       operationId: createCourse
       summary: Create a course
       parameters:
-        - $ref: "#/components/parameters/orgId"
-        - $ref: "#/components/parameters/requestedWith"
+        - in: path
+          name: orgId
+          schema:
+            type: string
+            minLength: 1
+          required: true
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/CreateCourse"
+              type: object
+              properties:
+                name:
+                  type: string
+                  minLength: 1
+                  maxLength: 200
+                term:
+                  type: string
+                  minLength: 1
+                  maxLength: 100
+                outsideAiPolicy:
+                  type: string
+                  enum:
+                    - open
+                    - declared
+                    - in_environment_only
+                mapping:
+                  type: object
+                  properties:
+                    novice:
+                      type: number
+                    developing:
+                      type: number
+                    proficient:
+                      type: number
+                    professional:
+                      type: number
+                  required:
+                    - novice
+                    - developing
+                    - proficient
+                    - professional
+                defaultRunWeight:
+                  type: number
+                  minimum: 0
+                taughtConcepts:
+                  maxItems: 50
+                  type: array
+                  items:
+                    type: string
+                    minLength: 1
+                    maxLength: 120
+              required:
+                - name
+                - term
       responses:
         "201":
-          description: Created
+          description: OK
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Course"
+                type: object
+                properties:
+                  id:
+                    type: string
+                    format: uuid
+                    pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                  organizationId:
+                    type: string
+                  name:
+                    type: string
+                  term:
+                    type: string
+                  outsideAiPolicy:
+                    type: string
+                    enum:
+                      - open
+                      - declared
+                      - in_environment_only
+                  mapping:
+                    type: object
+                    properties:
+                      novice:
+                        type: number
+                        exclusiveMinimum: 0
+                      developing:
+                        type: number
+                        exclusiveMinimum: 0
+                      proficient:
+                        type: number
+                        exclusiveMinimum: 0
+                      professional:
+                        type: number
+                        exclusiveMinimum: 0
+                    required:
+                      - novice
+                      - developing
+                      - proficient
+                      - professional
+                    additionalProperties: false
+                  defaultRunWeight:
+                    type: number
+                  critiqueWeightFactor:
+                    type: number
+                  taughtConcepts:
+                    type: array
+                    items:
+                      type: string
+                required:
+                  - id
+                  - organizationId
+                  - name
+                  - term
+                  - outsideAiPolicy
+                  - mapping
+                  - defaultRunWeight
+                  - critiqueWeightFactor
+                  - taughtConcepts
+                additionalProperties: false
         "400":
           $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "429":
+          $ref: "#/components/responses/RateLimited"
   /institutions/{orgId}/invitations:
     post:
       tags:
@@ -5517,15 +6314,34 @@ paths:
       tags:
         - courses
       operationId: deleteWalkthroughRun
-      summary: Delete a walkthrough run (instructor)
+      summary: Delete a walkthrough run
       parameters:
-        - $ref: "#/components/parameters/runId"
-        - $ref: "#/components/parameters/requestedWith"
+        - in: path
+          name: runId
+          schema:
+            type: string
+            format: uuid
+            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+          required: true
       responses:
         "204":
-          $ref: "#/components/responses/NoContent"
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties: {}
+                additionalProperties: false
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
         "403":
           $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "429":
+          $ref: "#/components/responses/RateLimited"
   /runs/{runId}/addendum:
     post:
       tags:
@@ -6323,23 +7139,125 @@ paths:
       operationId: createAssignment
       summary: Create an assignment
       parameters:
-        - $ref: "#/components/parameters/sectionId"
-        - $ref: "#/components/parameters/requestedWith"
+        - in: path
+          name: sectionId
+          schema:
+            type: string
+            format: uuid
+            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+          required: true
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/CreateAssignment"
+              type: object
+              properties:
+                label:
+                  type: string
+                  minLength: 1
+                  maxLength: 200
+                packageVersionId:
+                  type: string
+                  format: uuid
+                  pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                variantId:
+                  type: string
+                  format: uuid
+                  pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                runType:
+                  type: string
+                  enum:
+                    - decision
+                    - critique
+                workingClockSeconds:
+                  type: integer
+                  minimum: 60
+                  maximum: 9007199254740991
+                weight:
+                  type: number
+                  minimum: 0
+                isWalkthrough:
+                  type: boolean
+                opensAt:
+                  type:
+                    - string
+                    - "null"
+              required:
+                - label
+                - packageVersionId
+                - variantId
       responses:
         "201":
-          description: Created
+          description: OK
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Assignment"
-        "409":
-          $ref: "#/components/responses/Conflict"
+                type: object
+                properties:
+                  id:
+                    type: string
+                    format: uuid
+                    pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                  sectionId:
+                    type: string
+                    format: uuid
+                    pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                  label:
+                    type: string
+                  runType:
+                    type: string
+                    enum:
+                      - decision
+                      - critique
+                  packageVersionId:
+                    type: string
+                    format: uuid
+                    pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                  variantId:
+                    type: string
+                    format: uuid
+                    pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                  workingClockSeconds:
+                    anyOf:
+                      - type: integer
+                        minimum: -9007199254740991
+                        maximum: 9007199254740991
+                      - type: "null"
+                  weight:
+                    type:
+                      - number
+                      - "null"
+                  isWalkthrough:
+                    type: boolean
+                  opensAt:
+                    anyOf:
+                      - type: string
+                        format: date-time
+                        pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z))$
+                      - type: "null"
+                required:
+                  - id
+                  - sectionId
+                  - label
+                  - runType
+                  - packageVersionId
+                  - variantId
+                  - workingClockSeconds
+                  - weight
+                  - isWalkthrough
+                  - opensAt
+                additionalProperties: false
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "429":
+          $ref: "#/components/responses/RateLimited"
   /sections/{sectionId}/members:
     get:
       tags:
@@ -6347,59 +7265,146 @@ paths:
       operationId: listSectionMembers
       summary: Roster
       parameters:
-        - $ref: "#/components/parameters/sectionId"
-        - $ref: "#/components/parameters/cursor"
-        - $ref: "#/components/parameters/limit"
+        - in: path
+          name: sectionId
+          schema:
+            type: string
+            format: uuid
+            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+          required: true
+        - in: query
+          name: cursor
+          schema:
+            type: string
+            minLength: 1
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
       responses:
         "200":
           description: OK
           content:
             application/json:
               schema:
-                allOf:
-                  - $ref: "#/components/schemas/Page"
-                  - type: object
-                    properties:
-                      items:
-                        type: array
-                        items:
-                          $ref: "#/components/schemas/SectionMember"
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        userId:
+                          type: string
+                        name:
+                          type: string
+                        email:
+                          type: string
+                          format: email
+                          pattern: ^(?!\.)(?!.*\.\.)([A-Za-z0-9_'+\-\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\-]*\.)+[A-Za-z]{2,}$
+                        role:
+                          type: string
+                          enum:
+                            - student
+                            - instructor
+                            - ta
+                      required:
+                        - userId
+                        - name
+                        - email
+                        - role
+                      additionalProperties: false
+                  nextCursor:
+                    type:
+                      - string
+                      - "null"
+                required:
+                  - items
+                  - nextCursor
+                additionalProperties: false
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "429":
+          $ref: "#/components/responses/RateLimited"
     post:
       tags:
         - courses
       operationId: addSectionMember
       summary: Add an institution member to the section
       parameters:
-        - $ref: "#/components/parameters/sectionId"
-        - $ref: "#/components/parameters/requestedWith"
+        - in: path
+          name: sectionId
+          schema:
+            type: string
+            format: uuid
+            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+          required: true
       requestBody:
         required: true
         content:
           application/json:
             schema:
               type: object
-              required:
-                - email
-                - role
               properties:
                 email:
                   type: string
                   format: email
+                  pattern: ^(?!\.)(?!.*\.\.)([A-Za-z0-9_'+\-\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\-]*\.)+[A-Za-z]{2,}$
                 role:
                   type: string
                   enum:
                     - student
                     - instructor
                     - ta
+              required:
+                - email
+                - role
       responses:
         "201":
-          description: Created
+          description: OK
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/SectionMember"
+                type: object
+                properties:
+                  userId:
+                    type: string
+                  name:
+                    type: string
+                  email:
+                    type: string
+                    format: email
+                    pattern: ^(?!\.)(?!.*\.\.)([A-Za-z0-9_'+\-\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\-]*\.)+[A-Za-z]{2,}$
+                  role:
+                    type: string
+                    enum:
+                      - student
+                      - instructor
+                      - ta
+                required:
+                  - userId
+                  - name
+                  - email
+                  - role
+                additionalProperties: false
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
         "403":
           $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "429":
+          $ref: "#/components/responses/RateLimited"
   /sections/{sectionId}/members/{userId}:
     delete:
       tags:
@@ -6407,15 +7412,35 @@ paths:
       operationId: removeSectionMember
       summary: Remove a member
       parameters:
-        - $ref: "#/components/parameters/sectionId"
-        - name: userId
-          in: path
-          required: true
+        - in: path
+          name: sectionId
           schema:
             type: string
-        - $ref: "#/components/parameters/requestedWith"
+            format: uuid
+            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+          required: true
+        - in: path
+          name: userId
+          schema:
+            type: string
+            minLength: 1
+          required: true
       responses:
         "204":
-          $ref: "#/components/responses/NoContent"
-        "409":
-          $ref: "#/components/responses/Conflict"
+          description: Removed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties: {}
+                additionalProperties: false
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "429":
+          $ref: "#/components/responses/RateLimited"
