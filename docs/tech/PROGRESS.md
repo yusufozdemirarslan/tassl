@@ -43,7 +43,7 @@
 - [x] 3.1 Email module: transport, templates, send_email job
 - [x] 3.2 Better Auth wiring: route handler, client, session helpers, permissions
 - [x] 3.3 Identity module: me, profile, export, deletion, purge job
-- [ ] 3.4 Public screens: sign-in, sign-up, verify, forgot and reset password
+- [x] 3.4 Public screens: sign-in, sign-up, verify, forgot and reset password
 - [ ] 3.5 Shell wiring, home, account settings, invitations
 - [ ] 3.6 Authorization matrix test and E2E fixtures
 - [ ] Phase 3 exit criteria
