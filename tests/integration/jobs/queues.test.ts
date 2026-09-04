@@ -62,7 +62,6 @@ describe('pg-boss queues', () => {
       'score_run',
       'generate_package_step',
       'recompute_exports',
-      'purge_deleted_accounts',
     ])
   })
 
@@ -102,16 +101,16 @@ describe('pg-boss queues', () => {
       skippedQueues: string[]
       durationMs: number
     }
-    expect(body).toMatchObject({ processed: 0, failed: 0 })
-    expect(body.skippedQueues).toContain('purge_deleted_accounts')
+    // Step 3.3 registered purge_deleted_accounts, so the cron drain schedules the daily purge and
+    // then runs it in the same pass; only the queues without a handler are skipped.
+    expect(body).toMatchObject({ failed: 0 })
+    expect(body.processed).toBeGreaterThanOrEqual(1)
+    expect(body.skippedQueues).not.toContain('purge_deleted_accounts')
     expect(body.durationMs).toBeGreaterThanOrEqual(0)
 
     // Queue counters on pgboss.queue are refreshed by the supervisor, which is off (D-012): read the job.
     const boss = await getBoss()
-    const purge = await boss.findJobs('purge_deleted_accounts', {
-      key: `purge:${utcDateKey()}`,
-      queued: true,
-    })
-    expect(purge).toHaveLength(1)
+    const purge = await boss.findJobs('purge_deleted_accounts', { key: `purge:${utcDateKey()}` })
+    expect(purge.length).toBeGreaterThanOrEqual(1)
   })
 })

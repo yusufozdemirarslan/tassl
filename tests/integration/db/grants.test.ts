@@ -13,7 +13,7 @@ const appUrl = (() => {
 
 const appSql = postgres(appUrl, { max: 1, prepare: false })
 
-type Ids = { runId: string; userId: string }
+type Ids = { runId: string; userId: string; orgId: string; placeholderId: string }
 
 // The parent chain is written by the owner role; only the assertions run as tassl_app.
 async function seedRun(): Promise<Ids> {
@@ -48,7 +48,13 @@ async function seedRun(): Promise<Ids> {
       working_clock_seconds, turn_delay_seconds)
     values (${orgId}, ${assignment!.id}, ${userId}, ${version!.id}, ${variant!.id}, 1500, 90)
     returning id`
-  return { runId: run!.id, userId }
+  // The per-organization placeholder a purged account's rows are re-pointed to (D-093).
+  const placeholderId = crypto.randomUUID()
+  await testSql`
+    insert into "user" (id, name, email, email_verified, created_at, updated_at)
+    values (${placeholderId}, 'Deleted user',
+      ${`deleted-user@org-${orgId.slice(0, 8)}.tassl.local`}, true, now(), now())`
+  return { runId: run!.id, userId, orgId, placeholderId }
 }
 
 describe('tassl_app grants', () => {
@@ -93,6 +99,44 @@ describe('tassl_app grants', () => {
     await expect(appSql`delete from audit_logs where id = ${audit!.id}`).rejects.toThrow(
       /permission denied/,
     )
+  })
+
+  // D-167: the purge has to rewrite the actor columns of two tables the role may only insert into,
+  // so it goes through a SECURITY DEFINER function (migration 0010) rather than a widened grant.
+  it('re-points a purged user through repoint_user_references, though a direct update is denied', async () => {
+    const [event] = await appSql<{ id: number }[]>`
+      insert into run_events (run_id, seq, type, occurred_at, actor_id, payload)
+      values (${ids.runId}, 10, 'lifecycle', now(), ${ids.userId},
+        '{"from":"readiness","to":"framing"}')
+      returning id`
+    const [audit] = await appSql<{ id: string }[]>`
+      insert into audit_logs (organization_id, actor_id, action, target_type, target_id, request_id)
+      values (${ids.orgId}, ${ids.userId}, 'account.delete', 'user', ${ids.userId}, 'req-grants')
+      returning id`
+
+    await expect(
+      appSql`update run_events set actor_id = ${ids.placeholderId} where id = ${event!.id}`,
+    ).rejects.toThrow(/permission denied/)
+    await expect(
+      appSql`update audit_logs set actor_id = null where id = ${audit!.id}`,
+    ).rejects.toThrow(/permission denied/)
+
+    const [counts] = await appSql<
+      { runs_updated: number; run_events_updated: number; audit_logs_updated: number }[]
+    >`select * from repoint_user_references(${ids.userId}, ${ids.placeholderId}, ${ids.orgId})`
+    expect(Number(counts?.run_events_updated)).toBe(1)
+    expect(Number(counts?.audit_logs_updated)).toBe(1)
+    expect(Number(counts?.runs_updated)).toBe(1)
+
+    const [row] = await appSql<{ actor_id: string }[]>`
+      select actor_id from run_events where id = ${event!.id}`
+    expect(row?.actor_id).toBe(ids.placeholderId)
+
+    // Put the run back for the tests that follow.
+    const [restored] = await appSql<
+      { runs_updated: number }[]
+    >`select * from repoint_user_references(${ids.placeholderId}, ${ids.userId}, ${ids.orgId})`
+    expect(Number(restored?.runs_updated)).toBe(1)
   })
 
   it('may still update a table that is not append-only', async () => {
