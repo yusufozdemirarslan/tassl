@@ -57,7 +57,7 @@
 
 ## Phase 5 — Scenario packages (`build-plan/phase-05-scenario-packages.md`)
 - [x] 5.1 Package schemas and validatePackage
-- [ ] 5.2 Scenarios service, import and export, confirmation, freezing
+- [x] 5.2 Scenarios service, import and export, confirmation, freezing
 - [ ] 5.3 Fixture package and seed assignments
 - [ ] 5.4 Packages list, new-from-seed, and version view screens
 - [ ] 5.5 Element confirmation workspace
