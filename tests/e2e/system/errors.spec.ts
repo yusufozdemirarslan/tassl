@@ -1,4 +1,4 @@
-import { axe, expect, test } from '../fixtures'
+import { axe, expect, signInAs, signOut, test } from '../fixtures'
 
 test.describe('error pages (UI-007)', () => {
   test('an unknown address renders the not-found page with a link home', async ({ page }) => {
@@ -9,12 +9,12 @@ test.describe('error pages (UI-007)', () => {
     await axe(page)
   })
 
+  // Step 3.5 put the (app) group behind a session, so the shell is reached as a seat now; the
+  // empty state a member sees is "nothing assigned", not "no institution".
   test('the app shell renders the home empty state with a working skip link', async ({ page }) => {
-    await page.goto('/home')
+    await signInAs(page, 'student1')
     await expect(page.getByRole('heading', { level: 1, name: 'Home' })).toBeVisible()
-    await expect(
-      page.getByRole('heading', { level: 3, name: 'Waiting for an invitation' }),
-    ).toBeVisible()
+    await expect(page.getByRole('heading', { level: 3, name: 'Nothing to do yet' })).toBeVisible()
 
     // WebKit does not put links in the Tab order by default, so focus the link directly: it must
     // be the first anchor in the document, become visible when focused, and jump to main.
@@ -26,5 +26,7 @@ test.describe('error pages (UI-007)', () => {
     await skip.press('Enter')
     await expect(page).toHaveURL(/#main$/)
     await axe(page)
+
+    await signOut(page)
   })
 })
