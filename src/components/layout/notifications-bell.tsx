@@ -1,10 +1,7 @@
-import type { Route } from 'next'
 import Link from 'next/link'
 import { Bell } from 'lucide-react'
 import { t } from '@/lib/i18n/t'
 
-// The notifications route lands in Phase 3; the shell already points at it (without prefetching).
-const NOTIFICATIONS_ROUTE = '/notifications' as Route
 const OVERFLOW = 99
 // The accessible name carries the exact count with grouping ("1,200 unread"); the badge caps at 99+.
 const COUNT_FORMAT = new Intl.NumberFormat('en-US')
@@ -16,8 +13,7 @@ export function NotificationsBell({ unreadCount }: { unreadCount: number }) {
       : t('shell.notificationsNone')
   return (
     <Link
-      href={NOTIFICATIONS_ROUTE}
-      prefetch={false}
+      href="/notifications"
       aria-label={t('shell.notificationsLabel', { title: t('shell.notifications'), status })}
       className="text-ink hover:bg-paper-sunken relative inline-flex size-10 shrink-0 items-center justify-center rounded-md transition-colors duration-150 ease-out"
     >

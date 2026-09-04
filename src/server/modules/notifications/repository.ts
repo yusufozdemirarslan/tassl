@@ -17,6 +17,11 @@ import {
 import { notifications, type NewNotification, type Notification } from '@/server/db/schema'
 import type { DbOrTx } from '@/server/db/tx'
 
+// The service may not import `@/server/db` (04 §2), so the row types and the page shape it hands
+// out are re-exported by the layer that owns database access.
+export type { NewNotification, Notification } from '@/server/db/schema'
+export type { Page } from '@/server/db/pagination'
+
 /** `?cursor&limit&unread?` of GET /notifications (07-api-spec.md). */
 export type NotificationListInput = PageInput & { unread?: boolean | null | undefined }
 
@@ -50,6 +55,15 @@ export async function listNotifications(
     .orderBy(...cursorOrder({ createdAt: notifications.createdAt, id: notifications.id }))
     .limit(limit + 1)
   return toPage(rows, limit)
+}
+
+/** How many of the user's notifications are unread; the number the shell's bell badge shows. */
+export async function countUnread(userId: string, dbx: DbOrTx = db): Promise<number> {
+  const rows = await dbx
+    .select({ unread: sql<number>`count(*)::int` })
+    .from(notifications)
+    .where(and(eq(notifications.userId, userId), isNull(notifications.readAt)))
+  return rows[0]?.unread ?? 0
 }
 
 /** Marks one of the user's notifications read (idempotent: the first read_at stays). */

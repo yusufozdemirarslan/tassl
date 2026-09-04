@@ -168,6 +168,13 @@ export const InvitationSchema = z.object({
 })
 export type InvitationView = z.infer<typeof InvitationSchema>
 
+/**
+ * `getInvitation`: what the accept screen (UI-005) renders — the invitation plus the name of the
+ * institution it is for. Only the recipient ever sees it.
+ */
+export const InvitationDetailSchema = InvitationSchema.extend({ organizationName: z.string() })
+export type InvitationDetail = z.infer<typeof InvitationDetailSchema>
+
 export const DataAgreementSchema = z.object({
   id: z.uuid(),
   organizationId: z.string(),

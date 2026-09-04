@@ -7,6 +7,7 @@ import { db } from '@/server/db/client'
 import {
   dataAgreements,
   institutionSettings,
+  invitation,
   member,
   organization,
   user,
@@ -128,6 +129,43 @@ export async function findUserIdByEmail(email: string, dbx: DbOrTx = db): Promis
     .where(and(sql`lower(${user.email}) = lower(${email})`, isNull(user.deleted_at)))
     .limit(1)
   return rows[0]?.id ?? null
+}
+
+/** One invitation with the institution it is for; the accept screen reads it (UI-005). */
+export type InvitationRow = {
+  id: string
+  organizationId: string
+  organizationName: string
+  email: string
+  role: string | null
+  status: string
+  expiresAt: Date
+}
+
+/**
+ * The invitation named by its own id. Deliberately not tenant-scoped: the recipient is not a member
+ * of the institution yet, so there is no tenant to scope by — the address on the row is the guard,
+ * and the service refuses anyone else (08 §2.5).
+ */
+export async function findInvitation(
+  invitationId: string,
+  dbx: DbOrTx = db,
+): Promise<InvitationRow | null> {
+  const rows = await dbx
+    .select({
+      id: invitation.id,
+      organizationId: invitation.organizationId,
+      organizationName: organization.name,
+      email: invitation.email,
+      role: invitation.role,
+      status: invitation.status,
+      expiresAt: invitation.expiresAt,
+    })
+    .from(invitation)
+    .innerJoin(organization, eq(organization.id, invitation.organizationId))
+    .where(eq(invitation.id, invitationId))
+    .limit(1)
+  return rows[0] ?? null
 }
 
 export async function findSettings(

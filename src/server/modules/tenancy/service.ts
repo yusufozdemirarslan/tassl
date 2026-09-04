@@ -29,11 +29,13 @@ import { audit } from '@/server/modules/admin'
 import { callAuth } from './errors'
 import * as repo from './repository'
 import {
+  OrganizationRoleSchema,
   type CreateInstitutionInput,
   type DataAgreementInput,
   type DataAgreementView,
   type Institution,
   type InstitutionView,
+  type InvitationDetail,
   type InvitationView,
   type Mapping,
   type Membership,
@@ -302,6 +304,41 @@ export async function inviteMember(
 
 /** Invitations live seven days (08 §2.5, `invitationExpiresIn` in auth.ts). */
 const INVITATION_TTL_MS = 7 * 24 * 60 * 60 * 1000
+
+/**
+ * The invitation the accept screen renders (UI-005), read the way Better Auth's own
+ * `get-invitation` reads it, with the same two refusals so the screen can tell them apart:
+ *
+ *   - missing, already spent, or past its expiry → NOT_FOUND (the screen's "expired" state);
+ *   - addressed to another email → INVITATION_EMAIL_MISMATCH (the screen's "wrong account" state).
+ *
+ * The mismatch refusal carries nothing about the invitation, so a signed-in stranger holding the
+ * link learns neither the institution nor the invited address.
+ */
+export async function getInvitation(
+  actor: SessionUser,
+  invitationId: string,
+): Promise<InvitationDetail> {
+  const row = await repo.findInvitation(invitationId)
+  if (!row || row.status !== 'pending' || row.expiresAt.getTime() <= Date.now()) {
+    throw new AppError('NOT_FOUND', t('tenancy.invitationNotFound'))
+  }
+  if (row.email.toLowerCase() !== actor.email.toLowerCase()) {
+    throw new AppError('INVITATION_EMAIL_MISMATCH')
+  }
+  // Better Auth's `invitation.role` is a free-text column; a role outside 08 §3 reads as the
+  // least-privileged seat rather than failing the screen (the accept itself keeps the stored role).
+  const role = OrganizationRoleSchema.safeParse(row.role)
+  return {
+    id: row.id,
+    organizationId: row.organizationId,
+    organizationName: row.organizationName,
+    email: row.email,
+    role: role.success ? role.data : 'student',
+    status: row.status,
+    expiresAt: iso(row.expiresAt),
+  }
+}
 
 /**
  * Accepts an invitation addressed to the actor's own email (10 §2). Better Auth compares the
