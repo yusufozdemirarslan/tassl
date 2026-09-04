@@ -3,7 +3,6 @@
 import { useEffect } from 'react'
 import { plexMono, plexSans, plexSerif } from '@/app/fonts'
 import { cn } from '@/lib/cn'
-import { t } from '@/lib/i18n/t'
 
 // UI-007: the last-resort boundary replaces the root layout, so it carries its own html and body,
 // loads the Plex faces itself (next/font hashes family names, so a literal family never resolves),
@@ -11,6 +10,21 @@ import { t } from '@/lib/i18n/t'
 // adds Sentry.captureException; until then the error is logged to the console.
 // Inline because globals.css is not loaded on this page.
 const FOCUS_CSS = 'button:focus-visible{outline:2px solid #0F6E74;outline-offset:2px}'
+
+// The five sentences are written out here rather than read from `src/lib/i18n/en-US.ts` for the
+// same reason the fonts and the colours are: this file is its own client entry, and Turbopack
+// gives every entry group its own copy of every module it reaches, so one `t()` call put the whole
+// 25 KB catalogue (7 KB gzip) into the bundle of every route in the app — to spell five sentences
+// this page shows only when the root layout itself has failed (B4, 16 §3.2). The wording is
+// `error.title`, `error.body`, `error.bodyNoReference`, `error.reference` and `error.retry`
+// verbatim: change one there and change it here.
+const MESSAGES = {
+  title: 'Something went wrong',
+  body: 'The problem has been recorded. If it continues, quote the reference below.',
+  bodyNoReference: 'The problem has been recorded. Try again, or come back in a moment.',
+  reference: 'Reference',
+  retry: 'Try again',
+} as const
 
 export default function GlobalError({
   error,
@@ -65,16 +79,16 @@ export default function GlobalError({
                 margin: 0,
               }}
             >
-              {t('error.title')}
+              {MESSAGES.title}
             </h1>
             {/* Margins are explicit because the preflight reset may not have loaded either; the
                 rhythm and colors mirror ErrorState (message in ink, reference label muted). */}
             <p style={{ color: '#141A26', margin: '12px 0 0' }}>
-              {error.digest ? t('error.body') : t('error.bodyNoReference')}
+              {error.digest ? MESSAGES.body : MESSAGES.bodyNoReference}
             </p>
             {error.digest && (
               <p style={{ color: '#4B5563', fontSize: 13, lineHeight: '20px', margin: '12px 0 0' }}>
-                {t('error.reference')}
+                {MESSAGES.reference}
                 {': '}
                 <code
                   style={{
@@ -104,7 +118,7 @@ export default function GlobalError({
                 cursor: 'pointer',
               }}
             >
-              {t('error.retry')}
+              {MESSAGES.retry}
             </button>
           </div>
         </main>

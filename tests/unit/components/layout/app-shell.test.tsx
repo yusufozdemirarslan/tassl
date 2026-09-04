@@ -217,7 +217,22 @@ describe('rail derivation (UI-008)', () => {
       roles: ['student', 'instructor', 'scenario_author'],
       platformRole: 'admin',
     })
-    expect(items).toEqual([{ href: '/home', label: enUS['nav.home'], icon: 'home' }])
+    // Runs, Review, Packages, and Admin are permitted for these roles but have no route yet;
+    // Courses landed with step 4.2 (UI-030), so it is the second destination that renders.
+    expect(items).toEqual([
+      { href: '/home', label: enUS['nav.home'], icon: 'home' },
+      { href: '/courses', label: enUS['nav.courses'], icon: 'courses' },
+    ])
+  })
+
+  it('offers Courses to a program lead and never to a student alone', () => {
+    expect(railFor({ roles: ['program_lead'], platformRole: 'none' })).toEqual([
+      { href: '/home', label: enUS['nav.home'], icon: 'home' },
+      { href: '/courses', label: enUS['nav.courses'], icon: 'courses' },
+    ])
+    expect(railFor({ roles: ['student'], platformRole: 'none' })).toEqual([
+      { href: '/home', label: enUS['nav.home'], icon: 'home' },
+    ])
   })
 })
 

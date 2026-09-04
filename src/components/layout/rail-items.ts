@@ -37,15 +37,18 @@ export function permittedRailKeys({ roles, platformRole }: RailAudience): RailKe
  * that creates its page.
  *
  *   runs      → Phase 6, step 6.5  (`/runs`)
- *   courses   → Phase 4, step 4.2  (`/courses`)
  *   review    → Phase 11, step 11.4 (`/review`)
  *   packages  → Phase 5, step 5.4  (`/packages`)
  *   admin     → Phase 13, step 13.5 (`/admin`)
+ *
+ * `/courses` landed with Phase 4, step 4.2 (UI-030), so an instructor or a program lead is now
+ * offered it; `permittedRailKeys` above is what decides who sees it.
  *
  * Notifications and Settings are not rail items: they live in the bell and the account menu.
  */
 const READY: Partial<Record<RailKey, RailItem>> = {
   home: { href: '/home', label: t('nav.home'), icon: 'home' },
+  courses: { href: '/courses', label: t('nav.courses'), icon: 'courses' },
 }
 
 export function railFor(audience: RailAudience): RailItem[] {
