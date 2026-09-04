@@ -301,6 +301,16 @@ export const enUS = {
     'You are signed in as {email}. Sign in with the address the invitation was sent to, then open the link again.',
   'invitation.switchAccount': 'Sign out and use another account',
   'invitation.home': 'Go home',
+
+  // Courses, sections, rosters, assignments (UI-030 to UI-032, FR-200, FR-201, FR-205, D-104)
+  'courses.courseNotFound': 'That course no longer exists.',
+  'courses.sectionNotFound': 'That section no longer exists.',
+  'courses.assignmentNotFound': 'That assignment no longer exists.',
+  'courses.runNotFound': 'That run no longer exists.',
+  'courses.runNotWalkthrough':
+    'Only a run on a walkthrough assignment can be deleted. A run that counts is voided instead.',
+  // The sentence the policy display shows above the Begin control (FR-201, PRD §7.19).
+  'courses.countsStatement': 'This run counts toward the course grade. Run one counts.',
 } as const
 
 export type MessageKey = keyof typeof enUS
