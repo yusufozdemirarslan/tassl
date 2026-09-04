@@ -4,43 +4,47 @@
 // Two jobs, both about the database rather than the browser:
 //
 //   the fixture package — `createAssignment` requires a confirmed package version
-//     (`PACKAGE_NOT_CONFIRMED`) and a variant of that version (`VARIANT_MISMATCH`), and the seeded
-//     database holds no confirmed version until Phase 5 ships the Meridian Roast package (06 §5
-//     item 4). `minimalConfirmedVersion()` writes the smallest one an assignment may point at,
-//     under the deterministic ids of ./fixture-package.ts.
+//     (`PACKAGE_NOT_CONFIRMED`) and a variant of that version (`VARIANT_MISMATCH`). Since Phase 5
+//     the seed supplies one: it imports the Meridian Roast package and confirms it (06 §5 item 4),
+//     so the suite reads the ids of that version instead of writing a stand-in of its own. They are
+//     database-generated, so they are looked up here and left in a file for the workers.
 //
 //   the purge — nothing in the product deletes a course, a section, or an assignment, so the rows
 //     the instructor specs create are taken back out here. Running it at the start as well as in
 //     the teardown is what makes a repeated run against the same database idempotent: a run that
 //     crashed between the two leaves nothing behind for the next one to trip over.
 //
-// The write goes straight to the database rather than through the app because the screens that
-// author a package are Phase 5's; every row is confined to the seeded institution and named with
-// SUITE_PREFIX, so the purge can never reach the walkthrough course the other specs read.
+// The purge goes straight to the database because nothing in the product deletes these rows; every
+// row it touches is confined to the seeded institution and named with SUITE_PREFIX, so it can never
+// reach the walkthrough course and assignments the other specs read.
 import 'dotenv/config'
-import { and, eq, inArray, like } from 'drizzle-orm'
+import { mkdirSync, writeFileSync } from 'node:fs'
+import { dirname } from 'node:path'
+import { and, asc, eq, inArray, like } from 'drizzle-orm'
 import { client, db } from '@/server/db/client'
 import {
   assignments,
   courses,
   invitation,
   organization,
+  scenarioPackages,
   scenarioPackageVersions,
+  scenarioVariants,
   sectionMemberships,
   sections,
-  user,
 } from '@/server/db/schema'
-import { minimalConfirmedVersion } from '../factories/package'
 import {
-  FIXTURE_PACKAGE_LABEL,
-  FIXTURE_VERSION_ID,
+  FIXTURE_FILE,
   SUITE_INVITE_PREFIX,
   SUITE_PREFIX,
+  type SeededPackage,
 } from './fixture-package'
 
-/** The seeded institution and the seat that owns its courses (06 §5, `src/server/db/seed.ts`). */
+/** The seeded institution (06 §5, `src/server/db/seed.ts`). */
 const SEED_ORGANIZATION_SLUG = 'walkthrough'
-const SEED_INSTRUCTOR_EMAIL = 'instructor@tassl.local'
+
+/** The family key `src/server/db/seed.ts` imports the fixture under (06 §5 item 4). */
+const SEED_PACKAGE_FAMILY_KEY = 'meridian-roast'
 
 /** The seeded institution, or the sentence that says the database was never seeded. */
 export async function walkthroughOrganizationId(): Promise<string> {
@@ -93,34 +97,64 @@ export async function purgeSuiteData(organizationId: string): Promise<void> {
 }
 
 /** Writes the confirmed fixture version once; a second run finds it and leaves it alone. */
-export async function ensureFixturePackage(organizationId: string): Promise<void> {
-  const [existing] = await db
-    .select({ id: scenarioPackageVersions.id, status: scenarioPackageVersions.status })
+/**
+ * The seeded Meridian Roast version, written where every worker can read it (./fixture-package.ts).
+ *
+ * A missing or unconfirmed version is a state to report, not one to repair: the seed is what makes
+ * it, and a suite that quietly built its own would be testing something the walkthrough is not.
+ */
+export async function ensureFixturePackage(organizationId: string): Promise<SeededPackage> {
+  const [version] = await db
+    .select({
+      packageId: scenarioPackageVersions.packageId,
+      versionId: scenarioPackageVersions.id,
+      versionNumber: scenarioPackageVersions.version,
+      status: scenarioPackageVersions.status,
+      title: scenarioPackages.title,
+      workingClockSeconds: scenarioPackageVersions.workingClockSeconds,
+    })
     .from(scenarioPackageVersions)
-    .where(eq(scenarioPackageVersions.id, FIXTURE_VERSION_ID))
-  if (existing) {
-    // A version that exists is already frozen by the `package_frozen` triggers (migration 0004),
-    // so a half-written one is a state to report rather than one to repair.
-    if (existing.status !== 'confirmed') {
-      throw new Error(
-        `Fixture package version ${FIXTURE_VERSION_ID} is "${existing.status}", not "confirmed". ` +
-          'Delete it and run the suite again.',
-      )
-    }
-    return
+    .innerJoin(scenarioPackages, eq(scenarioPackages.id, scenarioPackageVersions.packageId))
+    .where(
+      and(
+        eq(scenarioPackages.organizationId, organizationId),
+        eq(scenarioPackages.familyKey, SEED_PACKAGE_FAMILY_KEY),
+      ),
+    )
+    .orderBy(asc(scenarioPackageVersions.version))
+  if (!version) {
+    throw new Error(
+      `No seeded package "${SEED_PACKAGE_FAMILY_KEY}" in the walkthrough institution. ` +
+        'Run pnpm db:seed (or pnpm db:reset -- --dev) and try again.',
+    )
+  }
+  if (version.status !== 'confirmed') {
+    throw new Error(
+      `The seeded package version is "${version.status}", not "confirmed". Re-seed the database.`,
+    )
   }
 
-  const [instructor] = await db
-    .select({ id: user.id })
-    .from(user)
-    .where(eq(user.email, SEED_INSTRUCTOR_EMAIL))
-  if (!instructor) {
-    throw new Error(`No ${SEED_INSTRUCTOR_EMAIL} account. Run \`pnpm db:seed\` first.`)
-  }
+  const variants = await db
+    .select({ id: scenarioVariants.id, key: scenarioVariants.key })
+    .from(scenarioVariants)
+    .where(eq(scenarioVariants.packageVersionId, version.versionId))
+  const byKey = new Map(variants.map((row) => [row.key, row.id]))
+  const defective = byKey.get('defective')
+  const sound = byKey.get('sound')
+  if (!defective || !sound)
+    throw new Error('The seeded version is missing one of its two variants.')
 
-  await minimalConfirmedVersion(organizationId, FIXTURE_PACKAGE_LABEL, {
-    createdBy: instructor.id,
-  })
+  const seeded: SeededPackage = {
+    packageId: version.packageId,
+    versionId: version.versionId,
+    versionNumber: version.versionNumber,
+    title: version.title,
+    workingClockSeconds: version.workingClockSeconds,
+    variantIds: { defective, sound },
+  }
+  mkdirSync(dirname(FIXTURE_FILE), { recursive: true })
+  writeFileSync(FIXTURE_FILE, JSON.stringify(seeded, null, 2))
+  return seeded
 }
 
 export default async function globalSetup(): Promise<void> {

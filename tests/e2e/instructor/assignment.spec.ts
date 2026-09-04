@@ -16,14 +16,7 @@
 // an assignment anywhere in the product. `AssignmentForm` already accepts the `sectionId` shape the
 // control needs.
 import { expect, signInAs, signOut, test } from '../fixtures'
-import {
-  FIXTURE_PACKAGE_CLOCK_SECONDS,
-  FIXTURE_PACKAGE_TITLE,
-  FIXTURE_VARIANT_IDS,
-  FIXTURE_VERSION_ID,
-  FIXTURE_VERSION_NUMBER,
-  suiteName,
-} from '../fixture-package'
+import { seededPackage, suiteName } from '../fixture-package'
 import { createAssignment, createCourse, createSection, walkthroughOrgId } from './api'
 
 const SECTION_NAME = 'Section A1'
@@ -41,8 +34,8 @@ test('an instructor configures an assignment: the working clock and the walkthro
   const label = suiteName('Decision Run')
   const assignment = await createAssignment(page, section.id, {
     label,
-    packageVersionId: FIXTURE_VERSION_ID,
-    variantId: FIXTURE_VARIANT_IDS.defective,
+    packageVersionId: seededPackage().versionId,
+    variantId: seededPackage().variantIds.defective,
   })
 
   // The course's Assignments sub-view is the way in (UI-030 → Assignments).
@@ -64,7 +57,7 @@ test('an instructor configures an assignment: the working clock and the walkthro
   await expect(page.getByRole('heading', { level: 2, name: 'Configuration' })).toBeVisible()
   await expect(page.getByLabel('Assignment name')).toHaveValue(label)
   await expect(page.locator('#assignment-package')).toContainText(
-    `${FIXTURE_PACKAGE_TITLE} · version ${FIXTURE_VERSION_NUMBER}`,
+    `${seededPackage().title} · version ${seededPackage().versionNumber}`,
   )
   await expect(page.getByRole('radio', { name: 'Defective' })).toBeChecked()
 
@@ -72,7 +65,7 @@ test('an instructor configures an assignment: the working clock and the walkthro
   await expect(clock).toHaveValue('')
   await expect(
     page.getByText(
-      `The package sets ${FIXTURE_PACKAGE_CLOCK_SECONDS} seconds. Leave this empty to follow it.`,
+      `The package sets ${seededPackage().workingClockSeconds} seconds. Leave this empty to follow it.`,
     ),
   ).toBeVisible()
   await expect(page.getByLabel('Weight')).toHaveValue('')

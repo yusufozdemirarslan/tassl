@@ -1,0 +1,1536 @@
+{
+  "schemaVersion": 1,
+  "package": {
+    "title": "Meridian Roast (fixture)",
+    "familyKey": "meridian-roast",
+    "discipline": "marketing_strategy"
+  },
+  "version": {
+    "conceptSet": [
+      "payback_period",
+      "cohort_retention",
+      "contribution_margin",
+      "price_tier_positioning",
+      "evidence_recency",
+      "survey_error"
+    ],
+    "brief": "Meridian Roast sells single-origin coffee by subscription. Revenue is 18 million dollars a year, growth has been flat for three quarters, and the board has set aside 500,000 dollars for acquisition this quarter.\n\nYou run growth. Today 15 percent of that budget goes to the premium tier and 85 percent to the value tier. The founder wants to move upmarket fast; the finance director wants the premium numbers rechecked first; the roastery is worried about capacity. Nine documents sit in the Evidence Room, dated and attributed. Nobody has agreed on what the premium tier actually costs to fill.\n\nDecide what share of this quarter's 500,000 dollars goes to premium acquisition, and state the premium payback you are betting on. You have the Evidence Room, an AI assistant, and 25 minutes. The board meets on the 14th and expects one number and the reasoning behind it. Whatever you commit is what finance funds on Monday; there is no second pass this quarter.",
+    "workingClockSeconds": 1500,
+    "turnDelaySeconds": 90,
+    "difficultyProfile": {
+      "estimate": "moderate",
+      "note": "Uncalibrated, and no cohort has run it. The planted defect is catchable on the date alone once a Source Trace is run, which is the most forgiving form of stale evidence; the harder judgement is sizing the share, where two positions are defensible and the evidence-inconsistent one is the fastest to reach.",
+      "uncalibrated": true
+    },
+    "generalEscalationReply": "Rowan Adeyemi, research operations. I have picked this up and I do not have a defensible answer for you inside your window. I would rather tell you that than hand you a number you would have to defend on my behalf. Log the escalation with what you would need to resolve it, decide with the assumption stated in the open, and if the assumption turns out to carry the decision we will run it properly before the next planning cycle.",
+    "debriefCounterfactual": "If the retention memo had been opened before the payback figure entered the Decision Brief, the eleven-month number would have failed on its date alone. A Source Trace on the deck returns a February 2025 slide and the memo that replaced it, and the premium share committed here would have been bounded rather than quadrupled. The Turn would then have cost a revision instead of a reversal."
+  },
+  "seedRecord": {
+    "caseTitle": "Meridian Roast (fixture)",
+    "publisher": "Tassl",
+    "licenseTerms": "Internal fixture. Written for Tassl and licensed for unrestricted use inside the product and its tests. No third-party case material is incorporated, and no attribution to an outside publisher is owed.",
+    "licensePermitsAdaptation": true,
+    "seedText": "Fixture seed. Meridian Roast is a wholly invented company, written to exercise every rule a confirmed scenario package must satisfy rather than adapted from a published case.\n\nThe situation it describes: an 18 million dollar subscription coffee roaster with a 500,000 dollar quarterly acquisition budget, three consecutive flat quarters, and a founder who wants to move the tier mix upmarket. A premium tier has run as a pilot for two quarters. A February 2025 positioning review put premium payback at eleven months on a contribution figure that excluded fulfillment costs that had not yet been quoted. A retention and payback memo of August 2026 corrected the contribution to 19.40 dollars a month and the payback to sixteen months, and said in writing that the deck's figure should be retired. Both documents are in the room. The head of growth owns the tier split for the coming quarter and reports it to the board on 14 September 2026.\n\nThe planted defect is the eleven-month payback carried forward from the superseded deck. It is catchable by a Source Trace, which returns the deck and its date, and by a Replication Check, which returns both divisions side by side. The Turn is the second pilot cohort reaching month three at 61 percent rather than the 78 percent everyone had been quoting.",
+    "reskinLog": [
+      {
+        "kind": "renamed_entity",
+        "from": "Generic specialty subscription roaster, unnamed founder and finance lead",
+        "to": "Meridian Roast; Marisol Quintero, Ellery Vance, Priya Raman, Tomas Iversen",
+        "note": "Company, people, market and the supplying cooperative are invented, so no lookup resolves a claim (PRD 7.2)."
+      },
+      {
+        "kind": "altered_number",
+        "from": "Placeholder acquisition and margin figures used while drafting",
+        "to": "310 dollar premium acquisition cost, 19.40 dollar contribution, sixteen-month corrected payback, 61 percent month-three retention",
+        "note": "Every figure was set so the arithmetic reproduces end to end: 310 over 28.20 is eleven months, 310 over 19.40 is sixteen, and the Turn curve pushes it to roughly 22."
+      },
+      {
+        "kind": "restructured_document",
+        "from": "A single combined positioning and retention exhibit",
+        "to": "Nine dated documents, with the positioning deck and the retention memo split apart and the fulfillment schedule pulled out on its own",
+        "note": "The split is what makes the supersession visible to a student who reads dates, and what makes the fulfillment omission traceable."
+      }
+    ]
+  },
+  "documents": [
+    {
+      "key": "D1",
+      "title": "Premium Tier Positioning Review (February 2025 board deck)",
+      "author": "Ellery Vance, VP Brand and Growth",
+      "datedOn": "2025-02-10",
+      "role": "superseded",
+      "position": 0,
+      "supersededByKey": "D2",
+      "stakeholderKey": "growth_lead",
+      "body": "Prepared for the February board session.\n\nThe premium tier has been in market for two quarters. This review asks one question: does a premium subscriber pay for himself fast enough to justify moving acquisition dollars out of the value tier?\n\nWhat the pilot shows.\nThe first premium cohort, acquired in October and November 2024, cost 310 dollars each, blended across paid social, the podcast reads, and the roastery's own list. That is high against the value tier's 96 dollars, and it should be. The creative is heavier, the audience is narrower, and we are buying a 38 dollar monthly subscription rather than a 22 dollar one.\n\nAgainst that cost, a premium subscriber contributes 28.20 dollars a month in gross margin. Green coffee, roasting labour, and the standard mailer are all inside that figure.\n\nPayback.\n310 divided by 28.20 is 11.0. Eleven months. The premium subscriber returns his acquisition cost inside the fiscal year, and every month after that is contribution we do not have to buy again. The value tier's 4.2 months is faster in absolute terms and buys a subscriber worth less than half as much.\n\nRecommendation.\nMove sixty percent of quarterly acquisition to premium at the next planning cycle. The value tier is saturated in our three strongest metros, the premium creative is working, and an eleven-month payback is the strongest number this company has produced since the subscription launched.\n\nOpen items.\nFulfillment costs for the insulated shipper and the glass jar are still out for quote and are not carried in the contribution figure above. Retention beyond month two is not yet observable on this cohort. Both should be revisited before the tier mix is changed permanently."
+    },
+    {
+      "key": "D2",
+      "title": "Retention and Payback Memo: correcting the premium payback figure",
+      "author": "Priya Raman, Finance Director",
+      "datedOn": "2026-08-04",
+      "role": "supporting",
+      "position": 1,
+      "supersededByKey": null,
+      "stakeholderKey": "finance_director",
+      "body": "To leadership, from finance. Subject: the premium payback figure, corrected.\n\nThe eleven-month premium payback in the February 2025 positioning review is eighteen months old and it is wrong for the decision in front of us. This memo replaces it. Please retire the deck's payback slide from planning material.\n\nWhat changed.\nThe review's 28.20 dollar monthly contribution excluded premium fulfillment. The insulated shipper, the glass jar, and the roast-to-order freight schedule were still out for quote in February 2025. They are quoted now. Roastery operations puts them at 8.80 dollars per premium subscriber per month; the schedule of 12 June 2026 has the line items. Contribution is therefore 19.40 dollars a month, not 28.20.\n\nCorrected payback.\n310 dollars of acquisition cost divided by 19.40 dollars a month is 15.98. Call it sixteen months. That is the number to plan against for the tier as a whole.\n\nOne figure the deck was right about, in a narrower sense.\nThe October and November 2024 pilot cohort, priced before the freight change and before the jar, did return its acquisition cost in about eleven months. That is a pre-fulfillment number, for one cohort of 214, under economics we no longer run. It is not the tier-wide payback and it must not be used as one. If anyone quotes eleven months in the planning session, this is the only sense in which it is true.\n\nRetention.\nThe July dashboard puts month-three retention on that first premium cohort at 78 percent. I would not build a plan on it yet. It is one cohort, and the second cohort does not reach month three until September.\n\nWhat I would hold to.\nSixteen months is a real payback and it is shorter than the twenty months this category usually reports. It is not eleven, and it is not inside the fiscal year. A plan that moves a majority of the quarter on the eleven-month number is planning against a figure that has been superseded in writing."
+    },
+    {
+      "key": "D3",
+      "title": "Founder's note to the leadership team",
+      "author": "Marisol Quintero, Founder and Chief Executive",
+      "datedOn": "2026-08-21",
+      "role": "interpretation_as_fact",
+      "position": 2,
+      "supersededByKey": null,
+      "stakeholderKey": null,
+      "body": "A note to the leadership team before we plan the quarter.\n\nI have read the memo and I do not think it changes the direction. Premium subscribers are 40 percent less price sensitive than value subscribers. That is the fact that matters here, and it is why I keep pushing upmarket: a subscriber who does not flinch at 38 dollars will not flinch at 45 either, and the whole payback conversation moves the moment we take price.\n\nI have watched this for two years in the comment threads under the harvest posts and in the notes people leave when they upgrade. The premium people talk about the farm, the roast date, the jar. They do not talk about price. Value subscribers ask about price in almost every message they send us, and they churn the week we raise it.\n\nSo when finance tells me the payback is sixteen months rather than eleven, my answer is that we are underpricing. Sixteen months at 38 dollars is about eleven months at 45 dollars, and I have seen nothing that says the premium buyer would leave over seven dollars a month.\n\nI am not asking anyone to ignore the fulfillment numbers. Tomas is right about the jar and he is right about capacity. I am asking us to stop treating the premium tier as if it lived under the same price ceiling as the value tier. It does not, and every quarter we plan as though it does is a quarter we hand to somebody else.\n\nMarisol"
+    },
+    {
+      "key": "D4",
+      "title": "Green coffee supply agreement, Sirena Cooperative, crop years 2026 and 2027",
+      "author": "Roastery operations, summary for the leadership file",
+      "datedOn": "2026-05-30",
+      "role": "irrelevant",
+      "position": 3,
+      "supersededByKey": null,
+      "stakeholderKey": "ops_lead",
+      "body": "Executed 30 May 2026. Summary prepared for the leadership file.\n\nVolume. Meridian Roast commits to 42,000 kilograms of washed Sirena lots per crop year, with a tolerance of plus or minus 8 percent, drawn against forecast in monthly lots.\n\nPrice. 6.15 dollars per kilogram, fixed for both crop years, plus a differential of 0.35 dollars per kilogram on the Reserve lot separations. The fixed price applies to every kilogram we take, whichever tier the coffee ends up in. The cooperative does not price by our product line and has no visibility into it.\n\nQuality and rejection. Cup score floor of 84 on the standard lots and 86 on the Reserve separations. Lots below the floor are replaced at the cooperative's cost within 30 days of cupping.\n\nLogistics. FOB Buenaventura, two shipments a crop year, arriving in the second and fourth quarters. Freight, insurance, and customs are ours.\n\nTerm. Two crop years, terminable by either party on 180 days' notice after the first crop year, with a wind-down at the contracted price.\n\nSocial premium. 0.22 dollars per kilogram paid into the cooperative's own fund, reported annually and published in our impact note.\n\nNote for the file. This agreement is accurate, current, and unaffected by the tier mix. Green cost per kilogram is identical for the value blend and the Reserve separations, both tier margins already carry it, and nothing in the tier decision changes what we owe under it."
+    },
+    {
+      "key": "D5",
+      "title": "Quarterly acquisition cohort table",
+      "author": "Devi Ahluwalia, Growth Analytics",
+      "datedOn": "2026-07-15",
+      "role": "supporting",
+      "position": 4,
+      "supersededByKey": null,
+      "stakeholderKey": "growth_lead",
+      "body": "Acquisition cohorts, last five quarters. Figures are blended across channels and net of promotional credits.\n\nValue tier.\nQ3 2025: 1,910 new subscribers at 94 dollars.\nQ4 2025: 2,040 new subscribers at 95 dollars.\nQ1 2026: 1,880 new subscribers at 97 dollars.\nQ2 2026: 1,845 new subscribers at 96 dollars.\nQ3 2026 to date: 1,120 new subscribers at 96 dollars.\n\nValue tier contribution is 22.90 dollars per subscriber per month after fulfillment. Blended payback across the last three cohorts is 4.2 months.\n\nPremium tier.\nQ4 2024 pilot: 214 new subscribers at 310 dollars.\nQ2 2026 pilot extension: 186 new subscribers at 308 dollars.\n\nPremium acquisition has held near 310 dollars across both pilots. We have never bought more than 214 premium subscribers in a quarter, and we do not know what the cost curve does when we buy at four times that volume.\n\nSpend mix. The quarterly acquisition budget of 500,000 dollars has run 85 percent value and 15 percent premium since the pilot opened, which is 75,000 dollars of premium spend a quarter.\n\nCaveat worth reading twice. Value tier volume has fallen for three consecutive quarters at a flat cost per subscriber. That is the pattern people are describing when they say the value tier is saturated, and it is a volume ceiling in our three largest metros rather than a cost blowout. Cost per subscriber has moved four dollars in five quarters."
+    },
+    {
+      "key": "D6",
+      "title": "Premium pilot retention dashboard export",
+      "author": "Devi Ahluwalia, Growth Analytics",
+      "datedOn": "2026-07-31",
+      "role": "supporting",
+      "position": 5,
+      "supersededByKey": null,
+      "stakeholderKey": null,
+      "body": "Data as of 31 July 2026. Exported from the billing system without adjustment.\n\nCohort P1, acquired October and November 2024, 214 subscribers.\nMonth 1: 94 percent.\nMonth 2: 86 percent.\nMonth 3: 78 percent.\nMonth 6: 69 percent.\nMonth 12: 58 percent.\n\nCohort P2, acquired April and May 2026, 186 subscribers.\nMonth 1: 91 percent.\nMonth 2: 80 percent.\nMonth 3: not yet observable. The cohort reaches month three in September 2026.\n\nValue tier, same ages, all cohorts blended.\nMonth 1: 88 percent.\nMonth 2: 78 percent.\nMonth 3: 71 percent.\nMonth 6: 60 percent.\nMonth 12: 44 percent.\n\nRead with care. Cohort P1 is a single cohort of 214 subscribers acquired under pre-freight pricing, and its month-three figure is the only month-three premium observation we have. Cohort P2 is six points below P1 at month two, at the same age, which is either noise on 186 subscribers or the start of a different curve. The export reports what is in the billing system and does not adjust for the pause-and-resume feature, which premium subscribers use roughly twice as often as value subscribers; a paused subscriber counts as retained here and contributes nothing that month."
+    },
+    {
+      "key": "D7",
+      "title": "Premium fulfillment cost schedule",
+      "author": "Tomas Iversen, Head of Roastery Operations",
+      "datedOn": "2026-06-12",
+      "role": "supporting",
+      "position": 6,
+      "supersededByKey": null,
+      "stakeholderKey": "ops_lead",
+      "body": "Cost per premium subscriber per month, prepared for the finance review.\n\nGlass jar and closure: 2.10 dollars.\nInsulated shipper and void fill: 3.40 dollars.\nRoast-to-order handling, incremental labour over the standard mailer: 1.55 dollars.\nExpedited freight differential: 1.75 dollars.\nTotal: 8.80 dollars per premium subscriber per month.\n\nThese are quoted costs at current volumes, effective from the June schedule. They are not in the gross margin figures the brand team has been using. They are in the value tier's figures, because the value tier ships in the standard mailer at 0.90 dollars, which we have always carried.\n\nCapacity. The Portland roastery can absorb premium volume up to about 4,000 units a month without new equipment. We are running 380. Above 4,000 units we need a second roaster and a second packing line: a 14-week lead time and a capital request, not a budget line.\n\nOne risk worth naming. The insulated shipper quote holds to 6,000 units a month. Beyond that the vendor reprices and I do not have the number, so any plan that assumes 8.80 dollars at high volume is assuming something nobody has quoted."
+    },
+    {
+      "key": "D8",
+      "title": "Willingness-to-pay survey summary",
+      "author": "Halden Research, for Meridian Roast",
+      "datedOn": "2026-04-09",
+      "role": "supporting",
+      "position": 7,
+      "supersededByKey": null,
+      "stakeholderKey": null,
+      "body": "Subscriber panel study, fielded March 2026.\n\nMethod. Online panel, 180 completed responses drawn from Meridian Roast's active subscriber list, quota-balanced on tenure and metro. A price sensitivity battery plus a direct purchase-intent question at four price points.\n\nHeadline. 31 percent of value-tier subscribers indicate they would subscribe at the 38 dollar premium price. The reported margin of error is 3 points at the 95 percent level on the full sample.\n\nBy tenure. Subscribers past their first year index higher, at 38 percent. First-year subscribers sit at 24 percent.\n\nCaveats we would want the reader to hold.\nThe 3 point margin is computed on the full sample of 180, not on the tier subgroups, and the subgroup figures above rest on 60 to 90 responses each, where the interval is roughly three times wider.\nStated purchase intent at a named price overstates realised conversion in subscription categories, by a factor this study did not measure.\nThe panel is drawn from active subscribers, so it describes upgrade interest inside the existing base. It says nothing about acquiring premium subscribers from cold audiences, which is what an acquisition budget buys.\n\nWe would not recommend using the 31 percent figure as a conversion assumption for a paid acquisition plan without a live price test."
+    },
+    {
+      "key": "D9",
+      "title": "Board minutes, 28 August 2026",
+      "author": "Anais Fournier, Corporate Secretary",
+      "datedOn": "2026-08-28",
+      "role": "supporting",
+      "position": 8,
+      "supersededByKey": null,
+      "stakeholderKey": null,
+      "body": "Meridian Roast, board of directors. Minutes of the meeting of 28 August 2026.\n\nPresent: five directors, the founder and chief executive, and the finance director. Apologies from one director.\n\n1. Trading. Revenue for the trailing twelve months is 18.1 million dollars against 18.0 million in the prior period. Subscriber count is flat. The board noted a third consecutive quarter of flat growth and did not take a view on cause.\n\n2. Acquisition budget. The board approved 500,000 dollars for acquisition in the fourth quarter, unchanged from the third. It declined to approve an increase, and declined to entertain any capital request tied to roastery expansion this year.\n\n3. Premium tier. The founder presented the case for moving the tier mix upmarket. The finance director noted that the payback figure in circulation is drawn from a February 2025 deck and has been corrected in a memo dated 4 August 2026. The board did not resolve the question and did not take a view on which figure is correct.\n\n4. Delegation. The board delegated the tier split of the fourth-quarter acquisition budget to the head of growth, to be reported at the meeting of 14 September 2026 with the payback assumption stated explicitly. The board asked for one number and the reasoning behind it, and noted that the split is not revisited inside the quarter.\n\n5. Next meeting. 14 September 2026."
+    }
+  ],
+  "stakeholders": [
+    {
+      "key": "growth_lead",
+      "name": "Ellery Vance",
+      "roleTitle": "VP Brand and Growth",
+      "positionStatement": "Move sixty percent of the quarter to premium now. The premium creative is working, the value tier has stopped growing at a flat cost per subscriber, and every quarter we spend arguing about a fulfillment line item is a quarter somebody else spends buying the audience we want.",
+      "incentives": "Her bonus is written against premium subscriber growth and brand metrics, not against payback or contribution. She authored the February 2025 positioning review and has defended its recommendation through three planning cycles.",
+      "blindSpots": "She treats a 214-subscriber pilot as representative of a tier she has never bought at scale, and reads the eleven-month payback as a property of the tier rather than of one cohort under economics that no longer apply. She has not opened the fulfillment schedule.",
+      "contradictionPoint": "Ellery reads the pilot's 78 percent month-three retention as the premium tier's retention. Priya reads it as one cohort of 214 whose successor has not reached month three. They are looking at the same dashboard row and disagree on whether it is evidence yet.",
+      "contradictsStakeholderKey": "finance_director"
+    },
+    {
+      "key": "finance_director",
+      "name": "Priya Raman",
+      "roleTitle": "Finance Director",
+      "positionStatement": "Hold the premium share where it is until the second pilot cohort reaches month three in September. Sixteen months is a defensible payback and it is not eleven; a majority shift priced on eleven months is a plan built on a slide that has been superseded in writing.",
+      "incentives": "She owns the quarterly forecast and is measured on its accuracy. She wrote the memo that corrected the payback figure, and would rather be right in September than fast in August.",
+      "blindSpots": "She discounts the option value of moving early and has no view on what the premium audience costs six months from now. Her own memo treats acquisition cost as fixed at 310 dollars, which has only ever been observed at about 200 subscribers a quarter.",
+      "contradictionPoint": null,
+      "contradictsStakeholderKey": null
+    },
+    {
+      "key": "ops_lead",
+      "name": "Tomas Iversen",
+      "roleTitle": "Head of Roastery Operations",
+      "positionStatement": "Any premium volume up to about 4,000 units a month is a scheduling problem I can solve. Above that it is a capital request the board has already refused this year, and I would want the shipper requoted before anyone commits the quarter.",
+      "incentives": "He is measured on on-time fulfillment and on cost per unit at the roastery. A premium ramp he cannot staff shows up as his failure rather than the growth team’s.",
+      "blindSpots": "He costs only what he can see: the June schedule holds to 6,000 units and he does not know what the vendor does above that. He has no view on acquisition at all, and treats the tier question as settled once capacity is satisfied.",
+      "contradictionPoint": null,
+      "contradictsStakeholderKey": null
+    }
+  ],
+  "answerSpacePositions": [
+    {
+      "key": "hold_value_tier",
+      "kind": "defensible",
+      "summary": "Hold the premium share of the quarter at 15 percent, about 75,000 dollars, and fund the second pilot cohort through its month-three read in September. The value tier still returns its acquisition cost in 4.2 months, and a corrected sixteen-month premium payback does not justify moving a majority of the budget before the second cohort is observable.",
+      "ignoredEvidence": null,
+      "isMinimumCommitment": true,
+      "position": 0,
+      "supportingDocumentKeys": ["D2", "D5", "D6"]
+    },
+    {
+      "key": "bounded_shift",
+      "kind": "defensible",
+      "summary": "Shift the premium share to 30 percent, about 150,000 dollars, with a stop rule: if cohort P2 comes in below 70 percent at month three, the share returns to 15 percent next quarter. This buys the volume test the cohort table says nobody has run, stays inside the roastery’s 4,000-unit ceiling, and prices the bet on the memo’s sixteen months rather than the deck’s eleven.",
+      "ignoredEvidence": null,
+      "isMinimumCommitment": false,
+      "position": 1,
+      "supportingDocumentKeys": ["D2", "D5", "D7", "D8"]
+    },
+    {
+      "key": "majority_to_premium",
+      "kind": "evidence_inconsistent",
+      "summary": "Move 60 percent of the quarter, about 300,000 dollars, into premium acquisition on an eleven-month payback, as the February 2025 positioning review recommends.",
+      "ignoredEvidence": "The retention and payback memo of 4 August 2026 supersedes the deck this position is priced on: premium fulfillment adds 8.80 dollars a month, contribution is 19.40 dollars rather than 28.20, and the tier-wide payback is sixteen months rather than eleven. The position also ignores the memo’s warning that the only month-three premium retention observation is a single cohort of 214, and the cohort table’s note that premium acquisition cost has never been tested above 214 subscribers in a quarter.",
+      "isMinimumCommitment": false,
+      "position": 2,
+      "supportingDocumentKeys": ["D1"]
+    }
+  ],
+  "namedFields": [
+    {
+      "key": "budget_share_to_premium",
+      "label": "Share of the quarter's acquisition budget going to premium",
+      "unit": "percent",
+      "position": 0
+    },
+    {
+      "key": "premium_payback_months",
+      "label": "Premium payback you are betting on",
+      "unit": "months",
+      "position": 1
+    }
+  ],
+  "claims": [
+    {
+      "key": "C1",
+      "text": "The value tier's blended acquisition cost has held near 96 dollars for five quarters, and the last three cohorts pay back in 4.2 months.",
+      "sourceKind": "document",
+      "sourceDocumentKey": "D5",
+      "sourcePassage": "Value tier contribution is 22.90 dollars per subscriber per month after fulfillment. Blended payback across the last three cohorts is 4.2 months.",
+      "importance": "load_bearing",
+      "consequenceLevel": "medium",
+      "verificationCost": "cheap",
+      "weaklySourced": false,
+      "volatile": false,
+      "conceptKey": "payback_period",
+      "carriedValues": [
+        {
+          "value": 4.2,
+          "unit": "months"
+        }
+      ],
+      "triggerPhrases": [
+        "value tier payback",
+        "value tier acquisition cost",
+        "what does the value tier cost"
+      ],
+      "triggerDescription": "Raised whenever the student asks what the current spend buys, or asks the assistant to compare the two tiers on cost or payback.",
+      "escalatable": false,
+      "escalationReply": null,
+      "rationale": "Accept. The figure sits in a dated, attributed table, the arithmetic reproduces (96 divided by 22.90 is 4.19), and nothing in the room contradicts it. Challenging it is a false alarm.",
+      "position": 0
+    },
+    {
+      "key": "C2",
+      "text": "Month-three retention on the premium pilot is 78 percent, seven points above the value tier at the same age.",
+      "sourceKind": "assistant",
+      "sourceDocumentKey": null,
+      "sourcePassage": "",
+      "importance": "load_bearing",
+      "consequenceLevel": "high",
+      "verificationCost": "cheap",
+      "weaklySourced": false,
+      "volatile": true,
+      "conceptKey": "cohort_retention",
+      "carriedValues": [
+        {
+          "value": 78,
+          "unit": "percent"
+        }
+      ],
+      "triggerPhrases": [
+        "premium retention",
+        "month three retention",
+        "does premium retain better"
+      ],
+      "triggerDescription": "Raised when the student asks whether premium subscribers stay longer, or asks what the retention evidence is for the premium tier.",
+      "escalatable": false,
+      "escalationReply": null,
+      "rationale": "Verify. The number is real and correctly read off the dashboard, but it rests on one cohort of 214 acquired under pre-freight pricing, and the export itself says the second cohort has not reached month three. A Source Trace returns the caveat with the figure, which is what makes the Turn a revision rather than a surprise.",
+      "position": 1
+    },
+    {
+      "key": "C3",
+      "text": "Premium payback is about 11 months, so the premium tier returns its acquisition cost inside the fiscal year.",
+      "sourceKind": "assistant",
+      "sourceDocumentKey": null,
+      "sourcePassage": "",
+      "importance": "load_bearing",
+      "consequenceLevel": "high",
+      "verificationCost": "moderate",
+      "weaklySourced": false,
+      "volatile": false,
+      "conceptKey": "payback_period",
+      "carriedValues": [
+        {
+          "field_key": "premium_payback_months",
+          "value": 11,
+          "unit": "months"
+        }
+      ],
+      "triggerPhrases": ["premium payback", "how long until premium pays back", "payback period"],
+      "triggerDescription": "Raised as soon as the student asks what the premium tier returns, asks for a payback figure, or asks the assistant to compare the tiers on payback.",
+      "escalatable": false,
+      "escalationReply": null,
+      "rationale": "Challenge in the defective variant. The eleven months comes from the February 2025 positioning review, whose contribution figure excluded the 8.80 dollars of premium fulfillment that had not yet been quoted; the memo of 4 August 2026 replaced it with sixteen months and says so in writing. A Source Trace returns the deck and its date, and the date alone is enough to refuse the number. In the sound variant the assistant is quoting the memo’s own pilot figure and labelling it as a pre-fulfillment number for one cohort, which is accurate and still worth verifying before it enters the Decision Brief.",
+      "position": 2
+    },
+    {
+      "key": "C4",
+      "text": "The cohort comparison puts premium month-six retention about nine points above the value tier, and the gap widens by month twelve.",
+      "sourceKind": "assistant",
+      "sourceDocumentKey": null,
+      "sourcePassage": "",
+      "importance": "load_bearing",
+      "consequenceLevel": "medium",
+      "verificationCost": "moderate",
+      "weaklySourced": false,
+      "volatile": false,
+      "conceptKey": "cohort_retention",
+      "carriedValues": [
+        {
+          "value": 9,
+          "unit": "percent"
+        }
+      ],
+      "triggerPhrases": [
+        "cohort comparison",
+        "is the difference meaningful",
+        "compare the cohorts"
+      ],
+      "triggerDescription": "Raised when the student asks whether the difference between the tiers is meaningful, or asks for a comparison of the retention curves.",
+      "escalatable": false,
+      "escalationReply": null,
+      "rationale": "Verify. The comparison is describable and the gap does reproduce on the export, but a described method is not a run method: the Replication Check is what separates a number the assistant computed from a number it produced. The gap is real and rests on one premium cohort.",
+      "position": 3
+    },
+    {
+      "key": "C5",
+      "text": "Premium subscribers are 40 percent less price sensitive than value subscribers.",
+      "sourceKind": "document",
+      "sourceDocumentKey": "D3",
+      "sourcePassage": "Premium subscribers are 40 percent less price sensitive than value subscribers. That is the fact that matters here, and it is why I keep pushing upmarket.",
+      "importance": "load_bearing",
+      "consequenceLevel": "medium",
+      "verificationCost": "cheap",
+      "weaklySourced": true,
+      "volatile": false,
+      "conceptKey": "price_tier_positioning",
+      "carriedValues": [
+        {
+          "value": 40,
+          "unit": "percent"
+        }
+      ],
+      "triggerPhrases": [
+        "price sensitivity",
+        "can we raise the premium price",
+        "less price sensitive"
+      ],
+      "triggerDescription": "Raised when the student asks whether the premium price could move, or asks what the evidence is for premium buyers tolerating a higher price.",
+      "escalatable": false,
+      "escalationReply": null,
+      "rationale": "Verify. The assistant reports the founder's note accurately, so the claim is sound as stated; what it does not carry is that the note is the only source and its stated basis is comment threads and upgrade notes. A Source Trace returns an interpretation presented as a fact, which is exactly the result that should move a reasonable stance.",
+      "position": 4
+    },
+    {
+      "key": "C6",
+      "text": "Premium packaging and freight add 8.80 dollars per subscriber per month, and the value tier's 0.90 dollar mailer is already carried in its margin.",
+      "sourceKind": "document",
+      "sourceDocumentKey": "D7",
+      "sourcePassage": "Total: 8.80 dollars per premium subscriber per month. These are quoted costs at current volumes, effective from the June schedule.",
+      "importance": "supporting",
+      "consequenceLevel": "low",
+      "verificationCost": "cheap",
+      "weaklySourced": false,
+      "volatile": false,
+      "conceptKey": "contribution_margin",
+      "carriedValues": [
+        {
+          "value": 8.8,
+          "unit": "usd"
+        }
+      ],
+      "triggerPhrases": [
+        "fulfillment cost",
+        "what does the jar cost",
+        "shipping cost per subscriber"
+      ],
+      "triggerDescription": "Raised when the student asks what premium costs to fulfil, or works through the contribution margin line by line.",
+      "escalatable": false,
+      "escalationReply": null,
+      "rationale": "Accept. Itemised, dated, attributed to the person who buys the packaging, and cheap to check. The judgement it invites is whether the quote holds at volume, which is a question about the plan rather than about the claim.",
+      "position": 5
+    },
+    {
+      "key": "C7",
+      "text": "The willingness-to-pay survey puts 31 percent of value subscribers above the 38 dollar premium price, with a reported margin of error of 3 points on 180 responses.",
+      "sourceKind": "document",
+      "sourceDocumentKey": "D8",
+      "sourcePassage": "31 percent of value-tier subscribers indicate they would subscribe at the 38 dollar premium price. The reported margin of error is 3 points at the 95 percent level on the full sample.",
+      "importance": "supporting",
+      "consequenceLevel": "medium",
+      "verificationCost": "moderate",
+      "weaklySourced": false,
+      "volatile": false,
+      "conceptKey": "survey_error",
+      "carriedValues": [
+        {
+          "value": 31,
+          "unit": "percent"
+        }
+      ],
+      "triggerPhrases": ["willingness to pay", "survey", "how many would upgrade"],
+      "triggerDescription": "Raised when the student asks how many subscribers would pay the premium price, or asks what the survey supports.",
+      "escalatable": true,
+      "escalationReply": "Rowan Adeyemi, research operations. Two things about that number. The 3 point margin is computed on the full sample of 180, so it does not describe the tier subgroups the headline is about; those sit on 60 to 90 responses each, where the interval is closer to 11 points. And the panel is drawn from your own active subscribers, so it measures upgrade interest inside the base, not what a cold audience does when you buy it. I would not plan acquisition volume off it. If you need a conversion assumption this quarter, use the pilot's observed rate and label it as an assumption you are making.",
+      "rationale": "Escalate. The figure is reported correctly and the study is honest about its own limits, but whether a full-sample margin of error can carry a subgroup headline is a methodological question a growth lead is not placed to settle inside a 25-minute window. Escalating it is the proportionate move; accepting it as a conversion rate is not.",
+      "position": 6
+    },
+    {
+      "key": "C8",
+      "text": "The value tier is saturated in our three strongest metros.",
+      "sourceKind": "assistant",
+      "sourceDocumentKey": null,
+      "sourcePassage": "",
+      "importance": "supporting",
+      "consequenceLevel": "low",
+      "verificationCost": "cheap",
+      "weaklySourced": false,
+      "volatile": false,
+      "conceptKey": "price_tier_positioning",
+      "carriedValues": [],
+      "triggerPhrases": ["saturated", "is the value tier out of room", "value tier growth"],
+      "triggerDescription": "Raised when the student asks why the value tier has stopped growing, or challenges the premise that spend has to move at all.",
+      "escalatable": false,
+      "escalationReply": null,
+      "rationale": "Accept. Three consecutive quarters of falling volume at a flat cost per subscriber is what a volume ceiling looks like, the cohort table shows it by metro, and the claim is stated with the right scope. This is the claim the Sycophancy Probe pushes on: the assistant abandons a defensible position under pressure, and a student who takes the reversal as evidence has been moved by agreement rather than by anything new.",
+      "position": 7
+    }
+  ],
+  "variants": [
+    {
+      "key": "defective",
+      "label": "Variant A",
+      "claimStates": [
+        {
+          "claimKey": "C1",
+          "evidenceStatus": "sound",
+          "failureFamily": null,
+          "warrantedStance": "accept",
+          "planted": false,
+          "verificationPaths": {
+            "source_trace": {
+              "document_key": "D5",
+              "passage": "Value tier contribution is 22.90 dollars per subscriber per month after fulfillment. Blended payback across the last three cohorts is 4.2 months.",
+              "dated_on": "2026-07-15",
+              "author": "Devi Ahluwalia, Growth Analytics"
+            },
+            "decomposition_check": {
+              "steps": [
+                {
+                  "label": "Blended acquisition cost, last three value cohorts",
+                  "result": "96 dollars."
+                },
+                {
+                  "label": "Monthly contribution after fulfillment",
+                  "result": "22.90 dollars."
+                },
+                {
+                  "label": "96 divided by 22.90",
+                  "result": "4.19 months, reported as 4.2."
+                }
+              ]
+            }
+          }
+        },
+        {
+          "claimKey": "C2",
+          "evidenceStatus": "sound",
+          "failureFamily": null,
+          "warrantedStance": "verify",
+          "planted": false,
+          "verificationPaths": {
+            "source_trace": {
+              "document_key": "D6",
+              "passage": "Cohort P1, acquired October and November 2024, 214 subscribers. Month 3: 78 percent. Cohort P2 reaches month three in September 2026. The export does not adjust for the pause-and-resume feature, which premium subscribers use roughly twice as often as value subscribers.",
+              "dated_on": "2026-07-31",
+              "author": "Devi Ahluwalia, Growth Analytics"
+            }
+          }
+        },
+        {
+          "claimKey": "C3",
+          "evidenceStatus": "defective",
+          "failureFamily": "stale_evidence",
+          "warrantedStance": "challenge",
+          "planted": true,
+          "verificationPaths": {
+            "source_trace": {
+              "document_key": "D1",
+              "passage": "310 divided by 28.20 is 11.0. Eleven months. The premium subscriber returns his acquisition cost inside the fiscal year. Open items: fulfillment costs for the insulated shipper and the glass jar are still out for quote and are not carried in the contribution figure above.",
+              "dated_on": "2025-02-10",
+              "author": "Ellery Vance, VP Brand and Growth"
+            },
+            "decomposition_check": {
+              "steps": [
+                {
+                  "label": "Acquisition cost used",
+                  "result": "310 dollars, from the Q4 2024 pilot cohort."
+                },
+                {
+                  "label": "Monthly contribution used",
+                  "result": "28.20 dollars, which excludes the 8.80 dollars of premium fulfillment quoted in June 2026."
+                },
+                {
+                  "label": "310 divided by 28.20",
+                  "result": "11.0 months, the figure as stated."
+                },
+                {
+                  "label": "310 divided by 19.40, contribution after fulfillment",
+                  "result": "15.98 months, the figure the memo of 4 August 2026 replaced it with."
+                }
+              ]
+            }
+          }
+        },
+        {
+          "claimKey": "C4",
+          "evidenceStatus": "sound",
+          "failureFamily": null,
+          "warrantedStance": "verify",
+          "planted": false,
+          "verificationPaths": {
+            "replication_check": {
+              "result": "Cohort comparison, re-run on the dashboard export. Premium cohort P1 at month six is 69 percent; the blended value cohorts at the same age are 60 percent. The nine-point gap reproduces, and widens to fourteen points by month twelve. Two qualifications the assistant did not state: the comparison rests on one premium cohort of 214 acquired under pre-freight pricing, and neither series is adjusted for paused subscribers, whom premium uses about twice as often."
+            }
+          }
+        },
+        {
+          "claimKey": "C5",
+          "evidenceStatus": "sound",
+          "failureFamily": null,
+          "warrantedStance": "verify",
+          "planted": false,
+          "verificationPaths": {
+            "source_trace": {
+              "document_key": "D3",
+              "passage": "Premium subscribers are 40 percent less price sensitive than value subscribers. I have watched this for two years in the comment threads under the harvest posts and in the notes people leave when they upgrade.",
+              "dated_on": "2026-08-21",
+              "author": "Marisol Quintero, Founder and Chief Executive"
+            }
+          }
+        },
+        {
+          "claimKey": "C6",
+          "evidenceStatus": "sound",
+          "failureFamily": null,
+          "warrantedStance": "accept",
+          "planted": false,
+          "verificationPaths": {
+            "source_trace": {
+              "document_key": "D7",
+              "passage": "Glass jar and closure 2.10, insulated shipper and void fill 3.40, roast-to-order handling 1.55, expedited freight differential 1.75. Total 8.80 dollars per premium subscriber per month.",
+              "dated_on": "2026-06-12",
+              "author": "Tomas Iversen, Head of Roastery Operations"
+            }
+          }
+        },
+        {
+          "claimKey": "C7",
+          "evidenceStatus": "sound",
+          "failureFamily": null,
+          "warrantedStance": "escalate",
+          "planted": false,
+          "verificationPaths": {
+            "source_trace": {
+              "document_key": "D8",
+              "passage": "The 3 point margin is computed on the full sample of 180, not on the tier subgroups, and the subgroup figures rest on 60 to 90 responses each, where the interval is roughly three times wider.",
+              "dated_on": "2026-04-09",
+              "author": "Halden Research, for Meridian Roast"
+            }
+          }
+        },
+        {
+          "claimKey": "C8",
+          "evidenceStatus": "sound",
+          "failureFamily": null,
+          "warrantedStance": "accept",
+          "planted": false,
+          "verificationPaths": {
+            "source_trace": {
+              "document_key": "D5",
+              "passage": "Value tier volume has fallen for three consecutive quarters at a flat cost per subscriber. That is a volume ceiling in our three largest metros rather than a cost blowout.",
+              "dated_on": "2026-07-15",
+              "author": "Devi Ahluwalia, Growth Analytics"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "key": "sound",
+      "label": "Variant B",
+      "claimStates": [
+        {
+          "claimKey": "C1",
+          "evidenceStatus": "sound",
+          "failureFamily": null,
+          "warrantedStance": "accept",
+          "planted": false,
+          "verificationPaths": {
+            "source_trace": {
+              "document_key": "D5",
+              "passage": "Value tier contribution is 22.90 dollars per subscriber per month after fulfillment. Blended payback across the last three cohorts is 4.2 months.",
+              "dated_on": "2026-07-15",
+              "author": "Devi Ahluwalia, Growth Analytics"
+            },
+            "decomposition_check": {
+              "steps": [
+                {
+                  "label": "Blended acquisition cost, last three value cohorts",
+                  "result": "96 dollars."
+                },
+                {
+                  "label": "Monthly contribution after fulfillment",
+                  "result": "22.90 dollars."
+                },
+                {
+                  "label": "96 divided by 22.90",
+                  "result": "4.19 months, reported as 4.2."
+                }
+              ]
+            }
+          }
+        },
+        {
+          "claimKey": "C2",
+          "evidenceStatus": "sound",
+          "failureFamily": null,
+          "warrantedStance": "verify",
+          "planted": false,
+          "verificationPaths": {
+            "source_trace": {
+              "document_key": "D6",
+              "passage": "Cohort P1, acquired October and November 2024, 214 subscribers. Month 3: 78 percent. Cohort P2 reaches month three in September 2026. The export does not adjust for the pause-and-resume feature, which premium subscribers use roughly twice as often as value subscribers.",
+              "dated_on": "2026-07-31",
+              "author": "Devi Ahluwalia, Growth Analytics"
+            }
+          }
+        },
+        {
+          "claimKey": "C3",
+          "evidenceStatus": "sound",
+          "failureFamily": null,
+          "warrantedStance": "verify",
+          "planted": false,
+          "verificationPaths": {
+            "source_trace": {
+              "document_key": "D2",
+              "passage": "The October and November 2024 pilot cohort, priced before the freight change and before the jar, did return its acquisition cost in about eleven months. That is a pre-fulfillment number, for one cohort of 214, under economics we no longer run.",
+              "dated_on": "2026-08-04",
+              "author": "Priya Raman, Finance Director"
+            }
+          }
+        },
+        {
+          "claimKey": "C4",
+          "evidenceStatus": "sound",
+          "failureFamily": null,
+          "warrantedStance": "verify",
+          "planted": false,
+          "verificationPaths": {
+            "replication_check": {
+              "result": "Cohort comparison, re-run on the dashboard export. Premium cohort P1 at month six is 69 percent; the blended value cohorts at the same age are 60 percent. The nine-point gap reproduces, and widens to fourteen points by month twelve. Two qualifications the assistant did not state: the comparison rests on one premium cohort of 214 acquired under pre-freight pricing, and neither series is adjusted for paused subscribers, whom premium uses about twice as often."
+            }
+          }
+        },
+        {
+          "claimKey": "C5",
+          "evidenceStatus": "sound",
+          "failureFamily": null,
+          "warrantedStance": "verify",
+          "planted": false,
+          "verificationPaths": {
+            "source_trace": {
+              "document_key": "D3",
+              "passage": "Premium subscribers are 40 percent less price sensitive than value subscribers. I have watched this for two years in the comment threads under the harvest posts and in the notes people leave when they upgrade.",
+              "dated_on": "2026-08-21",
+              "author": "Marisol Quintero, Founder and Chief Executive"
+            }
+          }
+        },
+        {
+          "claimKey": "C6",
+          "evidenceStatus": "sound",
+          "failureFamily": null,
+          "warrantedStance": "accept",
+          "planted": false,
+          "verificationPaths": {
+            "source_trace": {
+              "document_key": "D7",
+              "passage": "Glass jar and closure 2.10, insulated shipper and void fill 3.40, roast-to-order handling 1.55, expedited freight differential 1.75. Total 8.80 dollars per premium subscriber per month.",
+              "dated_on": "2026-06-12",
+              "author": "Tomas Iversen, Head of Roastery Operations"
+            }
+          }
+        },
+        {
+          "claimKey": "C7",
+          "evidenceStatus": "sound",
+          "failureFamily": null,
+          "warrantedStance": "escalate",
+          "planted": false,
+          "verificationPaths": {
+            "source_trace": {
+              "document_key": "D8",
+              "passage": "The 3 point margin is computed on the full sample of 180, not on the tier subgroups, and the subgroup figures rest on 60 to 90 responses each, where the interval is roughly three times wider.",
+              "dated_on": "2026-04-09",
+              "author": "Halden Research, for Meridian Roast"
+            }
+          }
+        },
+        {
+          "claimKey": "C8",
+          "evidenceStatus": "sound",
+          "failureFamily": null,
+          "warrantedStance": "accept",
+          "planted": false,
+          "verificationPaths": {
+            "source_trace": {
+              "document_key": "D5",
+              "passage": "Value tier volume has fallen for three consecutive quarters at a flat cost per subscriber. That is a volume ceiling in our three largest metros rather than a cost blowout.",
+              "dated_on": "2026-07-15",
+              "author": "Devi Ahluwalia, Growth Analytics"
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "probe": {
+    "claimKey": "C8",
+    "originalPosition": "Three consecutive quarters of falling new-subscriber volume at a flat 96 dollar acquisition cost is what a volume ceiling looks like. The cohort table shows it in your three largest metros, and it is the strongest argument in the room for putting money somewhere else. I would hold that reading unless there is a channel you have not bought yet.",
+    "scriptedReversal": "You are right, I should not have called it saturated. The evidence is thinner than I made it sound, and three quarters of falling volume could be seasonality or creative fatigue just as easily as a ceiling. Let us treat the value tier as having room, which strengthens the case for keeping the spend where it is."
+  },
+  "turn": {
+    "text": "Ellery here. The September readout on cohort P2 has landed and you should hear it from me: month-three retention is 61 percent, not the 78 we have been quoting all month. The 78 was cohort P1, one cohort of 214 acquired under the old pricing, and I have been treating it as the tier's number in every conversation, including with you. On 61 percent the payback does not hold where finance put it either. I still think premium is the right direction. I no longer think this quarter should be priced on the retention I was quoting.",
+    "voice": "stakeholder_message",
+    "stakeholderKey": "growth_lead",
+    "warrantsChange": true,
+    "proportionateResponse": "revise",
+    "evidence": "Cohort P2, acquired April and May 2026, 186 subscribers, reached month three in September 2026 at 61 percent, against cohort P1’s 78 percent at the same age. Two cohorts is still not a curve, and the second is the one acquired under current pricing. Carried through the memo’s contribution of 19.40 dollars a month, a 310 dollar acquisition cost on the P2 curve is returned in roughly 22 months rather than 16. The direction of the decision survives this; the number it was priced on does not, and neither does any share sized on eleven months.",
+    "disruptedAssumptionKeys": [
+      "premium_payback_months",
+      "cohort_retention",
+      "budget_share_to_premium"
+    ],
+    "windowClaimKeys": ["C2", "C3"]
+  },
+  "defenseQuestions": [
+    {
+      "key": "Q01",
+      "condition": {},
+      "assumptionIndex": null,
+      "claimKey": "C1",
+      "followUp": "If it is the cohort table, say which cohorts are inside the 4.2 months.",
+      "expectedAnswerNotes": "The cohort table of 15 July 2026. The blended figure covers the last three value cohorts at 96 dollars of acquisition cost and 22.90 dollars of monthly contribution.",
+      "isDefault": false,
+      "position": 0,
+      "kind": "provenance",
+      "template": "You accepted this: {claim_text} Which document is that from, and what period does it cover?"
+    },
+    {
+      "key": "Q02",
+      "condition": {},
+      "assumptionIndex": null,
+      "claimKey": "C2",
+      "followUp": "What did the same export say about the second cohort?",
+      "expectedAnswerNotes": "Cohort P1: 214 subscribers acquired in October and November 2024, as of the export of 31 July 2026. Cohort P2 had not reached month three.",
+      "isDefault": false,
+      "position": 1,
+      "kind": "provenance",
+      "template": "{claim_text} Which cohort is that, how many subscribers, and as of when?"
+    },
+    {
+      "key": "Q03",
+      "condition": {},
+      "assumptionIndex": null,
+      "claimKey": "C3",
+      "followUp": "Did you check whether the document it came from had been replaced?",
+      "expectedAnswerNotes": "In the defective variant the figure is the positioning review of 10 February 2025, replaced by the memo of 4 August 2026. A student who traced it names the deck and its date; a student who did not will say the assistant said so, which is the answer this question exists to surface.",
+      "isDefault": false,
+      "position": 2,
+      "kind": "provenance",
+      "template": "{claim_text} Where did the payback figure come from, and what is the date on it?"
+    },
+    {
+      "key": "Q04",
+      "condition": {},
+      "assumptionIndex": null,
+      "claimKey": "C4",
+      "followUp": "Did you ask the assistant to run it, or did it describe running it?",
+      "expectedAnswerNotes": "The month-six rows of the dashboard export: premium 69 percent against a blended value 60. If no Replication Check was run, the honest answer is that the assistant described the method and produced a number.",
+      "isDefault": false,
+      "position": 3,
+      "kind": "provenance",
+      "template": "{claim_text} What did that comparison actually run on?"
+    },
+    {
+      "key": "Q05",
+      "condition": {},
+      "assumptionIndex": null,
+      "claimKey": "C5",
+      "followUp": "Is there a price test anywhere in the room?",
+      "expectedAnswerNotes": "The founder's note of 21 August 2026, whose stated basis is comment threads and upgrade messages. There is no study and no price test in the room.",
+      "isDefault": false,
+      "position": 4,
+      "kind": "provenance",
+      "template": "{claim_text} Who says so, and what is it based on?"
+    },
+    {
+      "key": "Q06",
+      "condition": {},
+      "assumptionIndex": null,
+      "claimKey": "C6",
+      "followUp": "What happens to the quote above 6,000 units a month?",
+      "expectedAnswerNotes": "The fulfillment schedule of 12 June 2026, quoted at current volumes. The insulated shipper quote holds to 6,000 units a month and is unpriced above that.",
+      "isDefault": false,
+      "position": 5,
+      "kind": "provenance",
+      "template": "{claim_text} Which schedule is that, and does it hold at the volume you committed to?"
+    },
+    {
+      "key": "Q07",
+      "condition": {},
+      "assumptionIndex": null,
+      "claimKey": "C7",
+      "followUp": "Who was in the panel, and what does that exclude?",
+      "expectedAnswerNotes": "Halden Research, 180 completed responses from Meridian Roast's own active subscribers, fielded March 2026. It excludes cold audiences entirely, which is what the acquisition budget buys.",
+      "isDefault": false,
+      "position": 6,
+      "kind": "provenance",
+      "template": "{claim_text} Who ran that survey, on whom, and when?"
+    },
+    {
+      "key": "Q08",
+      "condition": {},
+      "assumptionIndex": null,
+      "claimKey": "C8",
+      "followUp": "Did the assistant hold that position when you pushed on it?",
+      "expectedAnswerNotes": "The cohort table: three consecutive quarters of falling volume at a flat 96 dollar cost, concentrated in the three largest metros. It is a volume ceiling, not a cost blowout.",
+      "isDefault": false,
+      "position": 7,
+      "kind": "provenance",
+      "template": "{claim_text} What is the evidence for saturation, and is it a cost problem or a volume problem?"
+    },
+    {
+      "key": "Q09",
+      "condition": {},
+      "assumptionIndex": null,
+      "claimKey": "C1",
+      "followUp": "",
+      "expectedAnswerNotes": "Cheap to check and already documented; a Verify is proportionate, a Challenge is a false alarm.",
+      "isDefault": false,
+      "position": 8,
+      "kind": "verification",
+      "template": "You settled on {stance} here. What check did you run, and what would you have needed to see to move off it?"
+    },
+    {
+      "key": "Q10",
+      "condition": {},
+      "assumptionIndex": null,
+      "claimKey": "C2",
+      "followUp": "Did you read the caveat under the table?",
+      "expectedAnswerNotes": "The export names the cohort, its size, and the fact that the second cohort has not reached month three. A Source Trace returns all three with the number.",
+      "isDefault": false,
+      "position": 9,
+      "kind": "verification",
+      "template": "Retention is the number the whole plan turns on. What did you do to test the 78 percent before you used it, and what did the export itself say about that figure?"
+    },
+    {
+      "key": "Q11",
+      "condition": {},
+      "assumptionIndex": null,
+      "claimKey": "C3",
+      "followUp": "What would the trace have told you before you wrote the number into the brief?",
+      "expectedAnswerNotes": "The trace returns the deck, its author, and its date. In the defective variant that is sufficient on its own: an eighteen-month-old figure with a memo in the room replacing it.",
+      "isDefault": false,
+      "position": 10,
+      "kind": "verification",
+      "template": "A Source Trace on the payback figure costs two minutes of clock. Did you run one, and if not, what were you spending the clock on instead?"
+    },
+    {
+      "key": "Q12",
+      "condition": {},
+      "assumptionIndex": null,
+      "claimKey": "C4",
+      "followUp": "",
+      "expectedAnswerNotes": "A Replication Check re-runs it and returns the two qualifications the description omitted.",
+      "isDefault": false,
+      "position": 11,
+      "kind": "verification",
+      "template": "The assistant described a cohort comparison and gave you a number. Did you ask it to run the comparison, and how would you tell a described comparison from a computed one?"
+    },
+    {
+      "key": "Q13",
+      "condition": {},
+      "assumptionIndex": null,
+      "claimKey": "C5",
+      "followUp": "",
+      "expectedAnswerNotes": "A price test, or at minimum a study. Comment threads support a hypothesis, not a planning input.",
+      "isDefault": false,
+      "position": 12,
+      "kind": "verification",
+      "template": "You stanced {stance} on the price sensitivity claim. What would have to be true of the evidence behind it for 40 percent to be a number you could plan on?"
+    },
+    {
+      "key": "Q14",
+      "condition": {},
+      "assumptionIndex": null,
+      "claimKey": "C6",
+      "followUp": "",
+      "expectedAnswerNotes": "It holds to 6,000 units a month and is unpriced above that; at 30 percent of the quarter the ceiling is not reached.",
+      "isDefault": false,
+      "position": 13,
+      "kind": "verification",
+      "template": "This was the cheapest claim in the room to check. Did you check it, and does 8.80 dollars hold at the volume your decision implies?"
+    },
+    {
+      "key": "Q15",
+      "condition": {},
+      "assumptionIndex": null,
+      "claimKey": "C7",
+      "followUp": "",
+      "expectedAnswerNotes": "That a full-sample margin of error does not carry a subgroup headline, and that stated intent overstates realised conversion by an unmeasured factor.",
+      "isDefault": false,
+      "position": 14,
+      "kind": "verification",
+      "template": "Whether or not you escalated it, name the thing about that survey you were not placed to evaluate yourself."
+    },
+    {
+      "key": "Q16",
+      "condition": {},
+      "assumptionIndex": null,
+      "claimKey": "C8",
+      "followUp": "If it brought none, what should its agreement have been worth?",
+      "expectedAnswerNotes": "None. The reversal is the Sycophancy Probe; agreement without evidence is not evidence, and the original position was the better supported one.",
+      "isDefault": false,
+      "position": 15,
+      "kind": "verification",
+      "template": "You pushed back on saturation and the assistant agreed with you. What new evidence did it bring when it changed its position?"
+    },
+    {
+      "key": "Q17",
+      "condition": {},
+      "assumptionIndex": 0,
+      "claimKey": null,
+      "followUp": "",
+      "expectedAnswerNotes": "The answer names a document, not a feeling. A frame assumption with no document behind it is an assumption the student owns rather than one the room supports.",
+      "isDefault": false,
+      "position": 16,
+      "kind": "assumption",
+      "template": "Your frame named this assumption: {assumption} What in the Evidence Room would have had to be false for it to fail, and did you go and look?"
+    },
+    {
+      "key": "Q18",
+      "condition": {},
+      "assumptionIndex": 1,
+      "claimKey": null,
+      "followUp": "",
+      "expectedAnswerNotes": "Tests whether the student updates only what is pushed on. An assumption can be undermined by evidence that arrived before the Turn and was never revisited.",
+      "isDefault": false,
+      "position": 17,
+      "kind": "assumption",
+      "template": "Your second frame assumption was: {assumption} The Turn did not touch it. Should it have changed anyway?"
+    },
+    {
+      "key": "Q19",
+      "condition": {},
+      "assumptionIndex": 2,
+      "claimKey": null,
+      "followUp": "If the answer is the positioning review, say what else in the room speaks to the same question.",
+      "expectedAnswerNotes": "The recency question again, applied to the frame rather than to a claim. The memo of 4 August 2026 is the document that speaks to most of these.",
+      "isDefault": false,
+      "position": 18,
+      "kind": "assumption",
+      "template": "Your third frame assumption was: {assumption} Which document is it resting on, and how old is that document?"
+    },
+    {
+      "key": "Q20",
+      "condition": {},
+      "assumptionIndex": null,
+      "claimKey": null,
+      "followUp": "If the answer is none, what was the confidence measuring?",
+      "expectedAnswerNotes": "A confidence rise carried by unchecked claims is the pattern the confidence graph plots. Naming it honestly is a better answer than defending the number.",
+      "isDefault": false,
+      "position": 19,
+      "kind": "confidence",
+      "template": "Your confidence rose between the frame and the lock. Name the evidence that moved it, and say which of the claims underneath it you had actually checked at the moment you locked."
+    },
+    {
+      "key": "Q21",
+      "condition": {},
+      "assumptionIndex": null,
+      "claimKey": null,
+      "followUp": "Was the frame wrong, or was the response disproportionate?",
+      "expectedAnswerNotes": "Either answer can be defended. What cannot is not noticing that the thing that moved the decision was never in the frame.",
+      "isDefault": false,
+      "position": 20,
+      "kind": "frame_vs_response",
+      "template": "Your frozen frame named supplier cost as a load-bearing assumption, and the Turn was about retention. Explain the gap between what your frame said would matter and what actually moved you."
+    },
+    {
+      "key": "Q22",
+      "condition": {},
+      "assumptionIndex": null,
+      "claimKey": null,
+      "followUp": "If it does not survive, what would you have done differently at the lock?",
+      "expectedAnswerNotes": "On the memo’s contribution of 19.40 dollars a month, a 20 percent worse curve pushes a 310 dollar acquisition cost past 20 months. A decision priced at eleven months does not survive it. A bounded share with a stop rule does, which is the point of the stop rule.",
+      "isDefault": false,
+      "position": 21,
+      "kind": "counterfactual",
+      "template": "Take the payback you committed to and make churn 20 percent worse than the curve you priced it on. What does premium payback become, and does your decision survive it?"
+    },
+    {
+      "key": "Q23",
+      "condition": {},
+      "assumptionIndex": null,
+      "claimKey": null,
+      "followUp": "If the assistant gave it to you, say so, and say what you did to check it.",
+      "expectedAnswerNotes": "A named-field value has to resolve to a document, to a computation the student can restate, or to an assumption the student is willing to own. \"The assistant said so\" is the answer this question exists to surface.",
+      "isDefault": false,
+      "position": 22,
+      "kind": "figure_provenance",
+      "template": "You wrote {figure} into the Decision Brief. Which document does that number come from, and if it came from no document, what did you compute it from?"
+    },
+    {
+      "key": "Q24",
+      "condition": {},
+      "assumptionIndex": null,
+      "claimKey": null,
+      "followUp": "Name the document or the number, not the feeling.",
+      "expectedAnswerNotes": "",
+      "isDefault": true,
+      "position": 23,
+      "kind": "default",
+      "template": "What would you have had to see to make the opposite decision?"
+    },
+    {
+      "key": "Q25",
+      "condition": {},
+      "assumptionIndex": null,
+      "claimKey": null,
+      "followUp": "",
+      "expectedAnswerNotes": "",
+      "isDefault": true,
+      "position": 24,
+      "kind": "default",
+      "template": "Which document in the room did you not open, and would it have changed anything?"
+    },
+    {
+      "key": "Q26",
+      "condition": {},
+      "assumptionIndex": null,
+      "claimKey": null,
+      "followUp": "",
+      "expectedAnswerNotes": "",
+      "isDefault": true,
+      "position": 25,
+      "kind": "default",
+      "template": "Where in this run did you take the assistant’s word for something you could have checked in under two minutes?"
+    },
+    {
+      "key": "Q27",
+      "condition": {},
+      "assumptionIndex": null,
+      "claimKey": null,
+      "followUp": "What would move that confidence?",
+      "expectedAnswerNotes": "",
+      "isDefault": true,
+      "position": 26,
+      "kind": "default",
+      "template": "Name the single number your decision is most sensitive to, and say how much confidence you have in it."
+    },
+    {
+      "key": "Q28",
+      "condition": {},
+      "assumptionIndex": null,
+      "claimKey": null,
+      "followUp": "",
+      "expectedAnswerNotes": "",
+      "isDefault": true,
+      "position": 27,
+      "kind": "default",
+      "template": "If your successor inherits this decision next quarter, what should they check first?"
+    },
+    {
+      "key": "Q29",
+      "condition": {},
+      "assumptionIndex": null,
+      "claimKey": null,
+      "followUp": "",
+      "expectedAnswerNotes": "",
+      "isDefault": true,
+      "position": 28,
+      "kind": "default",
+      "template": "What did you decide not to do, and why was leaving it out the right call?"
+    }
+  ],
+  "readinessItems": [
+    {
+      "key": "R01",
+      "category": "foundation",
+      "conceptKey": "payback_period",
+      "stem": "A subscriber costs 240 dollars to acquire and contributes 20 dollars of margin a month. What is the payback period?",
+      "options": [
+        {
+          "key": "a",
+          "text": "12 months"
+        },
+        {
+          "key": "b",
+          "text": "4.8 months"
+        },
+        {
+          "key": "c",
+          "text": "20 months"
+        },
+        {
+          "key": "d",
+          "text": "It cannot be computed without the full retention curve"
+        }
+      ],
+      "answerKey": "a",
+      "position": 0
+    },
+    {
+      "key": "R02",
+      "category": "foundation",
+      "conceptKey": "contribution_margin",
+      "stem": "Contribution margin per subscriber should be computed after subtracting which costs?",
+      "options": [
+        {
+          "key": "a",
+          "text": "None; contribution margin is revenue"
+        },
+        {
+          "key": "b",
+          "text": "Every cost that varies with having one more subscriber, fulfillment and freight included"
+        },
+        {
+          "key": "c",
+          "text": "All costs, including the roastery lease and salaried staff"
+        },
+        {
+          "key": "d",
+          "text": "Acquisition cost only"
+        }
+      ],
+      "answerKey": "b",
+      "position": 1
+    },
+    {
+      "key": "R03",
+      "category": "foundation",
+      "conceptKey": "cohort_retention",
+      "stem": "A cohort is holding 78 percent of its subscribers at month three. What does that tell you about the same cohort at month twelve?",
+      "options": [
+        {
+          "key": "a",
+          "text": "It will still be 78 percent"
+        },
+        {
+          "key": "b",
+          "text": "It will be roughly a quarter of that"
+        },
+        {
+          "key": "c",
+          "text": "Nothing on its own; the shape of the curve after month three has to be observed or assumed"
+        },
+        {
+          "key": "d",
+          "text": "It will be higher, because the subscribers who remain are the committed ones"
+        }
+      ],
+      "answerKey": "c",
+      "position": 2
+    },
+    {
+      "key": "R04",
+      "category": "foundation",
+      "conceptKey": "payback_period",
+      "stem": "Two tiers show the same payback period, but one has twice the acquisition cost and twice the monthly contribution. Which statement is true?",
+      "options": [
+        {
+          "key": "a",
+          "text": "They are equally attractive in every respect"
+        },
+        {
+          "key": "b",
+          "text": "The costlier tier ties up more cash per subscriber and is more exposed if the retention curve turns out to be wrong"
+        },
+        {
+          "key": "c",
+          "text": "The costlier tier necessarily retains better"
+        },
+        {
+          "key": "d",
+          "text": "Payback periods cannot be compared across tiers"
+        }
+      ],
+      "answerKey": "b",
+      "position": 3
+    },
+    {
+      "key": "R05",
+      "category": "foundation",
+      "conceptKey": "price_tier_positioning",
+      "stem": "A panel study reports that 31 percent of existing subscribers would buy at a higher price. What is the most defensible use of that figure?",
+      "options": [
+        {
+          "key": "a",
+          "text": "As the conversion rate for a paid campaign aimed at a cold audience"
+        },
+        {
+          "key": "b",
+          "text": "As an upper bound on upgrade interest inside the existing base, to be tested live"
+        },
+        {
+          "key": "c",
+          "text": "As the expected share of new subscribers who will choose the higher price"
+        },
+        {
+          "key": "d",
+          "text": "As proof that the current price is set too low"
+        }
+      ],
+      "answerKey": "b",
+      "position": 4
+    },
+    {
+      "key": "R06",
+      "category": "foundation",
+      "conceptKey": "contribution_margin",
+      "stem": "A cost was left out of a tier’s margin because it had not been quoted yet. The quotes have since arrived. What follows for any payback computed on the old margin?",
+      "options": [
+        {
+          "key": "a",
+          "text": "Nothing; the quotes are new information and the old figure stands"
+        },
+        {
+          "key": "b",
+          "text": "The old figure remains the best available estimate"
+        },
+        {
+          "key": "c",
+          "text": "The old payback overstates how quickly the tier returns its acquisition cost"
+        },
+        {
+          "key": "d",
+          "text": "The cost is fixed and does not belong in contribution at all"
+        }
+      ],
+      "answerKey": "c",
+      "position": 5
+    },
+    {
+      "key": "R07",
+      "category": "defect_concept",
+      "conceptKey": "evidence_recency",
+      "stem": "A figure appears in a deck from eighteen months ago and again in a memo from last month, with different values and no explanation. Which do you plan on?",
+      "options": [
+        {
+          "key": "a",
+          "text": "The deck, because it was prepared for the board"
+        },
+        {
+          "key": "b",
+          "text": "The memo, and you find out what changed between them"
+        },
+        {
+          "key": "c",
+          "text": "The average of the two"
+        },
+        {
+          "key": "d",
+          "text": "Whichever one the assistant cited first"
+        }
+      ],
+      "answerKey": "b",
+      "position": 6
+    },
+    {
+      "key": "R08",
+      "category": "defect_concept",
+      "conceptKey": "evidence_recency",
+      "stem": "Which is the cheapest check that would reveal a superseded figure?",
+      "options": [
+        {
+          "key": "a",
+          "text": "Recomputing the arithmetic behind it"
+        },
+        {
+          "key": "b",
+          "text": "Asking a stakeholder what they think of it"
+        },
+        {
+          "key": "c",
+          "text": "Reading the date and the author on the document it came from"
+        },
+        {
+          "key": "d",
+          "text": "Running a sensitivity analysis around it"
+        }
+      ],
+      "answerKey": "c",
+      "position": 7
+    },
+    {
+      "key": "R09",
+      "category": "defect_concept",
+      "conceptKey": "payback_period",
+      "stem": "A payback figure is quoted for a whole tier but was computed on one small pilot cohort under earlier pricing. What is the defect?",
+      "options": [
+        {
+          "key": "a",
+          "text": "There is none; a pilot is representative by construction"
+        },
+        {
+          "key": "b",
+          "text": "The figure is applied to a population it was not computed on"
+        },
+        {
+          "key": "c",
+          "text": "The arithmetic behind it is wrong"
+        },
+        {
+          "key": "d",
+          "text": "Payback is the wrong measure for a subscription tier"
+        }
+      ],
+      "answerKey": "b",
+      "position": 8
+    },
+    {
+      "key": "R10",
+      "category": "defect_concept",
+      "conceptKey": "survey_error",
+      "stem": "A margin of error is reported for a full sample. Why can it not be carried over to a subgroup inside that sample?",
+      "options": [
+        {
+          "key": "a",
+          "text": "It can; a margin of error is a property of the instrument"
+        },
+        {
+          "key": "b",
+          "text": "Subgroups are smaller, so their intervals are wider"
+        },
+        {
+          "key": "c",
+          "text": "Subgroups are always biased in the same direction"
+        },
+        {
+          "key": "d",
+          "text": "Margins of error apply only to yes-or-no questions"
+        }
+      ],
+      "answerKey": "b",
+      "position": 9
+    },
+    {
+      "key": "R11",
+      "category": "ai_behavior",
+      "conceptKey": "ai_sycophancy",
+      "stem": "An assistant states a position, you push back without offering new evidence, and it adopts your view. What is the most accurate reading?",
+      "options": [
+        {
+          "key": "a",
+          "text": "It has recognised the better argument"
+        },
+        {
+          "key": "b",
+          "text": "Its agreement carries no evidential weight, and its first position may still be the better supported one"
+        },
+        {
+          "key": "c",
+          "text": "It was being dishonest the first time"
+        },
+        {
+          "key": "d",
+          "text": "The second answer should be preferred as the more considered one"
+        }
+      ],
+      "answerKey": "b",
+      "position": 10
+    },
+    {
+      "key": "R12",
+      "category": "ai_behavior",
+      "conceptKey": "ai_confabulation",
+      "stem": "An assistant describes a method competently and then gives you a number. What has it demonstrated?",
+      "options": [
+        {
+          "key": "a",
+          "text": "That it ran the method"
+        },
+        {
+          "key": "b",
+          "text": "That it can describe the method; whether anything was run is a separate question you have to ask"
+        },
+        {
+          "key": "c",
+          "text": "That the number is correct"
+        },
+        {
+          "key": "d",
+          "text": "That the method is the right one for the question"
+        }
+      ],
+      "answerKey": "b",
+      "position": 11
+    },
+    {
+      "key": "R13",
+      "category": "ai_behavior",
+      "conceptKey": "ai_provenance",
+      "stem": "You ask an assistant where a figure came from and it names a document. What is the next step before relying on it?",
+      "options": [
+        {
+          "key": "a",
+          "text": "None; it named a source"
+        },
+        {
+          "key": "b",
+          "text": "Open the document and check that the figure and the date are what it said they were"
+        },
+        {
+          "key": "c",
+          "text": "Ask the same question again in different words"
+        },
+        {
+          "key": "d",
+          "text": "Ask a second assistant the same question"
+        }
+      ],
+      "answerKey": "b",
+      "position": 12
+    },
+    {
+      "key": "R14",
+      "category": "ai_behavior",
+      "conceptKey": "ai_reliance",
+      "stem": "Which of these is a false alarm rather than good verification?",
+      "options": [
+        {
+          "key": "a",
+          "text": "Challenging a well documented, dated, cheap-to-check claim you have already traced clean"
+        },
+        {
+          "key": "b",
+          "text": "Verifying a load-bearing figure you have not seen a source for"
+        },
+        {
+          "key": "c",
+          "text": "Escalating a methodological question outside your competence"
+        },
+        {
+          "key": "d",
+          "text": "Asking for the date on a figure the assistant volunteered"
+        }
+      ],
+      "answerKey": "a",
+      "position": 13
+    },
+    {
+      "key": "R15",
+      "category": "ai_behavior",
+      "conceptKey": "ai_escalation",
+      "stem": "When is escalating a claim the right move rather than an evasion?",
+      "options": [
+        {
+          "key": "a",
+          "text": "Whenever the clock is short"
+        },
+        {
+          "key": "b",
+          "text": "When the claim is consequential and evaluating it needs expertise you do not have and cannot acquire inside the window"
+        },
+        {
+          "key": "c",
+          "text": "Whenever the assistant expresses uncertainty"
+        },
+        {
+          "key": "d",
+          "text": "Never; escalation is deferral by another name"
+        }
+      ],
+      "answerKey": "b",
+      "position": 14
+    },
+    {
+      "key": "R16",
+      "category": "ai_behavior",
+      "conceptKey": "ai_reliance",
+      "stem": "New information arrives that contradicts one figure your decision rested on. What is the proportionate response?",
+      "options": [
+        {
+          "key": "a",
+          "text": "Reverse the decision"
+        },
+        {
+          "key": "b",
+          "text": "Hold, because a single figure is not a trend"
+        },
+        {
+          "key": "c",
+          "text": "Work out what the new figure changes and revise the parts that rest on it"
+        },
+        {
+          "key": "d",
+          "text": "Ask the assistant what to do about it"
+        }
+      ],
+      "answerKey": "c",
+      "position": 15
+    }
+  ]
+}

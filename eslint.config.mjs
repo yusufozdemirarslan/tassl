@@ -121,7 +121,14 @@ export default defineConfig([
             },
             {
               from: { element: { type: 'db' }, file: { categories: ['seed'] } },
-              allow: [{ to: { element: { type: ['db', 'lib', 'server-lib'] } } }],
+              allow: [
+                { to: { element: { type: ['db', 'lib', 'server-lib'] } } },
+                // 06 §5 item 4: the seed imports the fixture package through the scenarios service,
+                // because `importPackage` is what turns a document's element keys into rows. Writing
+                // those rows here instead would be a second implementation of the resolution authors
+                // depend on, free to drift from it (D-214). A module's public index only.
+                { to: { element: { type: 'module' }, file: { categories: ['public'] } } },
+              ],
             },
             {
               from: { element: { type: 'db' } },
