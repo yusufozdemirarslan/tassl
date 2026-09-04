@@ -40,7 +40,7 @@
 - [ ] Phase 2 exit criteria
 
 ## Phase 3 — Authentication, tenancy, roles (`build-plan/phase-03-auth.md`)
-- [ ] 3.1 Email module: transport, templates, send_email job
+- [x] 3.1 Email module: transport, templates, send_email job
 - [ ] 3.2 Better Auth wiring: route handler, client, session helpers, permissions
 - [ ] 3.3 Identity module: me, profile, export, deletion, purge job
 - [ ] 3.4 Public screens: sign-in, sign-up, verify, forgot and reset password
