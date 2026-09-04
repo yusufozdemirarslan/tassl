@@ -69,6 +69,14 @@ export default defineConfig([
               ],
             },
             { from: { element: { type: 'lib' } }, allow: [{ to: { element: { type: 'lib' } } }] },
+            // A module schema reaches `src/lib` and nothing else: 10 §17 builds every free-text
+            // field from `wordLimit(n)`, which lives in `src/lib/words.ts` so the form and the
+            // server count words with one implementation (D-075). Anything under `src/server`
+            // stays out, which is what keeps a schema readable from a Server Component.
+            {
+              from: { element: { type: 'module' }, file: { categories: ['schema'] } },
+              allow: [{ to: { element: { type: 'lib' } } }],
+            },
             {
               from: { element: { type: 'module' }, file: { categories: ['actions', 'router'] } },
               allow: [

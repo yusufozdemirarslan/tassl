@@ -107,8 +107,9 @@ Errors: `PACKAGE_NOT_CONFIRMED` (409), `VARIANT_MISMATCH` (400), `ASSIGNMENT_IN_
 | `NAMED_FIELDS_MISSING` | ≥ 1 named field | 7.10 |
 | `CLAIMS_TOO_FEW` | ≥ 6 consequential claims | 7.18 (9) |
 | `CLAIM_STATE_MISSING` | every claim has a state in both variants | 7.18 (9) |
-| `DEFECTIVE_VARIANT_PLANT` | defective variant has exactly one `planted` defective claim; sound variant has none defective | 12 |
-| `PLANTED_PATH_MISSING` | the planted claim has a `source_trace` path (or `replication_check` when `failure_family = uncomputed_number` or `misapplied_method`) | 12 |
+| `DEFECTIVE_VARIANT_PLANT` | defective variant has exactly one `planted` defective claim, and it names a claim of this version; no other state carries `planted` in either variant; sound variant has none defective and none planted (D-202) | 12 |
+| `VARIANTS_DIFFER_BEYOND_PLANT` | every claim except the planted one carries the same evidence status, failure family, warranted stance and planted flag in both variants (D-203) | 7.18 (9), 12 |
+| `PLANTED_PATH_MISSING` | the planted claim has a `source_trace` path naming a document in the Evidence Room (or a `replication_check` when `failure_family = uncomputed_number` or `misapplied_method`) | 12 |
 | `DEFECT_OUTSIDE_CONCEPTS` | the planted claim's `concept_key` ∈ `concept_set` | 7.18 Rules |
 | `DEFECT_NOT_CONSEQUENTIAL` | the planted claim is `load_bearing` and `consequence_level ≠ low` | 7.18 Rules |
 | `NO_STANCE_CHANGING_TRACE` | ≥ 1 non-planted claim with a `source_trace` path and `weakly_sourced` or `volatile` true | 7.18 (9) |
@@ -449,7 +450,7 @@ Errors: `ROLE_INVALID` (400).
 | `CreateAssignmentSchema` | as in §3 |
 | `TraceExportSchema` | §10 |
 
-`wordLimit(n)` = `z.string().transform(stripMarkup).refine(t => countWords(t) <= n, { message: 'WORD_LIMIT' })`.
+`wordLimit(n)` = `z.string().overwrite(stripMarkup).refine(t => countWords(t) <= n, { error: 'WORD_LIMIT', params: { limit: n } })`. `overwrite` rather than `transform`: in Zod 4 a transform returns a `ZodPipe`, which would make the `wordLimit(50).min(1)` this table uses impossible; `overwrite` is the check that rewrites the value in place and keeps the string type, so a later `.min(1)` reads the stripped, trimmed text, which is what this table means by it (D-200).
 
 ## 18. Notes on decisions introduced here
 
