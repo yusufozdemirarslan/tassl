@@ -4,6 +4,12 @@ import { defineConfig, devices } from '@playwright/test'
 export default defineConfig({
   testDir: 'tests/e2e',
   fullyParallel: false,
+  // The instructor specs (step 4.2 to 4.4) need a confirmed scenario package version, which the
+  // seeded database does not hold until Phase 5; the setup writes one and clears what an earlier
+  // run left behind, and the teardown clears what this one creates. Both are idempotent, so the
+  // suite can be run repeatedly against the same database.
+  globalSetup: './tests/e2e/global-setup.ts',
+  globalTeardown: './tests/e2e/global-teardown.ts',
   // A full-page axe scan plus a real sign-in is more than Playwright's 30 s default allows on a
   // loaded machine; the assertions are unchanged, only the patience (D-188).
   timeout: 60_000,
