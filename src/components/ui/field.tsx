@@ -67,6 +67,10 @@ const fieldVariants = cva('group/field flex w-full gap-2 data-[invalid=true]:tex
   },
 })
 
+// A vertical field is one label and one control: wrapping it in an unnamed `role="group"` makes a
+// screen reader announce a group around every input for nothing. The role stays on the horizontal
+// and responsive orientations, which is where a field pairs a toggle (checkbox, radio, switch)
+// with its label and description; a caller that needs it back can pass `role` explicitly.
 function Field({
   className,
   orientation = 'vertical',
@@ -74,7 +78,7 @@ function Field({
 }: React.ComponentProps<'div'> & VariantProps<typeof fieldVariants>) {
   return (
     <div
-      role="group"
+      role={orientation === 'vertical' ? undefined : 'group'}
       data-slot="field"
       data-orientation={orientation}
       className={cn(fieldVariants({ orientation }), className)}

@@ -283,6 +283,14 @@
       transition-duration: 0s !important;
       animation-duration: 0s !important;
     }
+
+    /* The one exception: a pending spinner frozen at 0 s is a static mark that says nothing, and
+       it is the only sign a submitted form is still working. It keeps turning, slowly (1.2 s, a
+       steady linear rotation with no bounce and no flashing). The submit label swaps to its
+       pending wording as well, so the state also reads with no motion at all. */
+    .animate-spin {
+      animation-duration: 1.2s !important;
+    }
   }
 }
 
