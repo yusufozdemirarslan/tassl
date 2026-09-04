@@ -840,6 +840,57 @@ export async function findPackageVersion(
   return rows[0] ?? null
 }
 
+/**
+ * Every confirmed version of the institution, ordered by package title and newest version first.
+ * UI-032 re-points an assignment from this list, so it is the whole shelf, not one row.
+ */
+export async function listConfirmedPackageVersions(
+  tenantId: string,
+  dbx: DbOrTx = db,
+): Promise<PackageVersionRow[]> {
+  return dbx
+    .select({ version: scenarioPackageVersions, packageTitle: scenarioPackages.title })
+    .from(scenarioPackageVersions)
+    .innerJoin(scenarioPackages, eq(scenarioPackages.id, scenarioPackageVersions.packageId))
+    .where(
+      and(
+        eq(scenarioPackageVersions.organizationId, tenantId),
+        eq(scenarioPackageVersions.status, 'confirmed'),
+        isNull(scenarioPackages.deletedAt),
+      ),
+    )
+    .orderBy(scenarioPackages.title, desc(scenarioPackageVersions.version))
+}
+
+/**
+ * The live variants of the given versions. `scenario_variants` carries no organization column, so
+ * the tenant is asserted through the version the variant hangs off — which is also what keeps the
+ * `tenantId`-first rule (D-006) meaningful here.
+ */
+export async function listVariantsOfVersions(
+  tenantId: string,
+  versionIds: readonly string[],
+  dbx: DbOrTx = db,
+): Promise<ScenarioVariant[]> {
+  if (versionIds.length === 0) return []
+  const rows = await dbx
+    .select({ variant: scenarioVariants })
+    .from(scenarioVariants)
+    .innerJoin(
+      scenarioPackageVersions,
+      eq(scenarioPackageVersions.id, scenarioVariants.packageVersionId),
+    )
+    .where(
+      and(
+        inArray(scenarioVariants.packageVersionId, [...versionIds]),
+        eq(scenarioPackageVersions.organizationId, tenantId),
+        isNull(scenarioVariants.retiredAt),
+      ),
+    )
+    .orderBy(scenarioVariants.key)
+  return rows.map((row) => row.variant)
+}
+
 /** The variant, only when it belongs to the version — which is what `VARIANT_MISMATCH` asserts. */
 export async function findVariantOfVersion(
   versionId: string,

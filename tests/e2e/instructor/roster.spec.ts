@@ -31,7 +31,11 @@ test('an instructor adds a seat to a section, removes it, adds it again, and inv
   await expect(
     page.getByRole('heading', { level: 3, name: 'Nobody is in this section yet' }),
   ).toBeVisible()
-  await expect(page.getByRole('heading', { level: 3, name: 'No invitations yet' })).toBeVisible()
+  // The invitations panel is the institution's, not this section's, and every browser project runs
+  // this spec against the same seeded institution — so "no invitations yet" is not a state this
+  // spec owns, and the row it creates below is what it may assert. The empty case is covered where
+  // it is deterministic: tests/unit/components/roster/section-roster.test.tsx.
+  await expect(page.getByRole('heading', { level: 2, name: 'Invitations' })).toBeVisible()
 
   const email = page.getByLabel('Email address')
   const add = page.getByRole('button', { name: 'Add to section' })
@@ -50,8 +54,25 @@ test('an instructor adds a seat to a section, removes it, adds it again, and inv
   await expect(email).toHaveValue('')
 
   // Removed: the person has no runs in the section, so nothing refuses it (MEMBER_HAS_RUNS).
+  // Unseating someone is destructive, so the row's button opens a confirmation that names the
+  // person, their address and the section; the removal happens on the dialog's own destructive
+  // action, and pressing Remove alone changes nothing.
   await memberRow.getByRole('button', { name: `Remove ${SEAT_NAME} from this section` }).click()
+  const removeConfirm = page.getByRole('alertdialog')
+  await expect(removeConfirm).toContainText('Take this person off the roster?')
+  await expect(removeConfirm).toContainText(SEAT_EMAIL)
+  await expect(removeConfirm).toContainText(SECTION_NAME)
+
+  // Cancelling leaves the roster exactly as it was: the question is a real one, and while it is on
+  // screen the page behind it is inert, so the row can only be checked once the dialog is gone.
+  await removeConfirm.getByRole('button', { name: 'Cancel' }).click()
+  await expect(removeConfirm).toHaveCount(0)
+  await expect(memberRow).toBeVisible()
+
+  await memberRow.getByRole('button', { name: `Remove ${SEAT_NAME} from this section` }).click()
+  await removeConfirm.getByRole('button', { name: 'Remove from section' }).click()
   await expect(page.getByText(`${SEAT_NAME} is out of this section.`)).toBeVisible()
+  await expect(removeConfirm).toHaveCount(0)
   await expect(memberRow).toHaveCount(0)
   await expect(
     page.getByRole('heading', { level: 3, name: 'Nobody is in this section yet' }),
@@ -79,8 +100,15 @@ test('an instructor adds a seat to a section, removes it, adds it again, and inv
   await expect(memberRow).toBeVisible() // the refusal changed nothing about the roster
 
   const since = Date.now()
+  // Institution mail is not sent by a single press: the action opens a form carrying the address
+  // the add form could not place, and the invitation goes out when that form is submitted.
   await refusal.getByRole('button', { name: 'Invite to institution' }).click()
+  const inviteDialog = page.getByRole('dialog')
+  await expect(inviteDialog).toContainText('Invite to the institution')
+  await expect(inviteDialog.getByLabel('Email address')).toHaveValue(invited)
+  await inviteDialog.getByRole('button', { name: 'Send invitation' }).click()
   await expect(page.getByText(`An invitation is on its way to ${invited}.`)).toBeVisible()
+  await expect(inviteDialog).toHaveCount(0)
   // The refusal is gone with the reason for it: the alert region collapses when it holds nothing.
   await expect(refusal).toHaveCount(0)
 
@@ -91,7 +119,10 @@ test('an instructor adds a seat to a section, removes it, adds it again, and inv
     .filter({ hasText: invited })
   await expect(inviteRow).toBeVisible()
   await expect(inviteRow.getByRole('cell').nth(1)).toHaveText('Student')
-  const expiry = inviteRow.getByRole('cell').nth(2).locator('time')
+  // Address, seat, standing, expiry: an invitation that has not been accepted and has not run out
+  // is pending, and the row says which of the two it is rather than leaving the date to be read.
+  await expect(inviteRow.getByRole('cell').nth(2)).toContainText('Pending')
+  const expiry = inviteRow.getByRole('cell').nth(3).locator('time')
   await expect(expiry).toContainText('UTC')
   const expiresAt = Date.parse((await expiry.getAttribute('datetime')) ?? '')
   const days = (expiresAt - Date.now()) / 86_400_000

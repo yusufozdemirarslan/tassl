@@ -29,6 +29,11 @@ export type SectionRoleValue = z.infer<typeof SectionRoleSchema>
 
 /** `scenario_variants.key` (06 §3.3). */
 export const VariantKeySchema = z.enum(['defective', 'sound'])
+export type VariantKeyValue = z.infer<typeof VariantKeySchema>
+
+/** `scenario_package_versions.calibration_status` (06 §3.3); nothing is calibrated in this build. */
+export const CalibrationStatusSchema = z.enum(['uncalibrated', 'calibrated'])
+export type CalibrationStatusValue = z.infer<typeof CalibrationStatusSchema>
 
 /** `runs.state` and `runs.scoring_status` (06 §3.4), restated rather than imported from the db. */
 export const RunStateSchema = z.enum([
@@ -277,6 +282,23 @@ export const AssignmentViewSchema = AssignmentSchema.extend({
   inUse: z.boolean(),
 })
 export type AssignmentView = z.infer<typeof AssignmentViewSchema>
+
+/**
+ * A confirmed package version an assignment may point at, with the live variants of that version
+ * (UI-030's "New assignment" and UI-032's package select both list them). No route serves this yet —
+ * the two Server Components read it directly — and the scenarios module of Phase 5 is where it will
+ * finally live; the shape is written here so both screens agree on it in the meantime.
+ */
+export const ConfirmedPackageVersionSchema = z.object({
+  id: z.uuid(),
+  version: z.number().int(),
+  packageTitle: z.string(),
+  calibrationStatus: CalibrationStatusSchema,
+  /** The version's own working clock, which an assignment may override. */
+  workingClockSeconds: z.number().int(),
+  variants: z.array(z.object({ id: z.uuid(), key: VariantKeySchema })),
+})
+export type ConfirmedPackageVersion = z.infer<typeof ConfirmedPackageVersionSchema>
 
 export const SectionMemberSchema = z.object({
   userId: z.string(),

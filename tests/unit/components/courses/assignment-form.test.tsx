@@ -41,6 +41,7 @@ const VERSION: PackageVersionOption = {
   id: '11111111-1111-4111-8111-111111111111',
   title: 'Meridian Roast',
   version: 3,
+  calibrationStatus: 'uncalibrated',
   variants: [
     { id: '22222222-2222-4222-8222-222222222222', key: 'defective' },
     { id: '33333333-3333-4333-8333-333333333333', key: 'sound' },
@@ -107,6 +108,30 @@ describe('AssignmentForm (UI-032)', () => {
     // With no default to name, the field states the rule instead.
     expect(screen.getByText(enUS['assignment.clockHint'])).toBeInTheDocument()
     expect(screen.queryByText(t('assignment.clockDefault', { seconds: 1500 }))).toBeNull()
+  })
+
+  it('names the version and its calibration state on the closed trigger', () => {
+    renderForm()
+
+    const select = screen.getByLabelText(enUS['assignment.packageLabel'])
+    expect(select).toHaveTextContent(
+      t('assignment.packageOption', { title: 'Meridian Roast', version: 3 }),
+    )
+    // The chip is not a detail of the open menu: what the field says it is set to includes it.
+    expect(select).toHaveTextContent(enUS['label.uncalibrated'])
+  })
+
+  it('keeps the label hint beside the label error rather than replacing it', async () => {
+    const user = renderForm()
+
+    await user.clear(screen.getByLabelText(enUS['assignment.labelLabel']))
+    await user.click(submit())
+
+    expect(await screen.findByText(enUS['assignment.validation.label'])).toBeInTheDocument()
+    expect(screen.getByLabelText(enUS['assignment.labelLabel'])).toHaveAttribute(
+      'aria-describedby',
+      'assignment-label-hint assignment-label-error',
+    )
   })
 
   it('refuses a working clock under 60 seconds with an inline message', async () => {

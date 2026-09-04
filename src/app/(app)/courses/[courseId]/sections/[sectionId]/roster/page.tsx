@@ -9,6 +9,7 @@ import { isAppError } from '@/lib/errors'
 import { t } from '@/lib/i18n/t'
 import type { SessionUser } from '@/server/auth/types'
 import { getCourse, listSectionMembers, type SectionMember } from '@/server/modules/courses'
+import { listInvitations, type InvitationView } from '@/server/modules/tenancy'
 import { getViewer } from '../../../../../viewer'
 
 export const metadata: Metadata = { title: t('roster.title') }
@@ -54,6 +55,21 @@ async function readRoster(
   return { members, truncated: true }
 }
 
+/**
+ * UI-031's invitations list. Everyone who may read this roster may also invite, with one exception:
+ * a teaching assistant who instructs the section without holding the institution's instructor seat
+ * (08 §4) reads the roster and not the institution's invitations. That refusal empties the panel
+ * rather than taking the whole screen away — the roster is what they came for and they may see it.
+ */
+async function readInvitations(actor: SessionUser, orgId: string): Promise<InvitationView[]> {
+  try {
+    return await listInvitations(actor, orgId)
+  } catch (error) {
+    if (isAppError(error) && error.code === 'FORBIDDEN') return []
+    throw error
+  }
+}
+
 export default async function SectionRosterPage({
   params,
 }: PageProps<'/courses/[courseId]/sections/[sectionId]/roster'>) {
@@ -64,7 +80,10 @@ export default async function SectionRosterPage({
   // A section id that belongs to another course is not this course's roster.
   if (!section) notFound()
 
-  const { members, truncated } = await orNotFound(() => readRoster(actor, sectionId))
+  const [{ members, truncated }, invitations] = await Promise.all([
+    orNotFound(() => readRoster(actor, sectionId)),
+    orNotFound(() => readInvitations(actor, course.organizationId)),
+  ])
 
   return (
     <>
@@ -88,6 +107,7 @@ export default async function SectionRosterPage({
         sectionName={section.name}
         organizationId={course.organizationId}
         members={members}
+        invitations={invitations}
         truncated={truncated}
       />
     </>

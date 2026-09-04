@@ -168,6 +168,44 @@ export async function findInvitation(
   return rows[0] ?? null
 }
 
+/** An invitation of one institution, without the join the accept screen needs (UI-031). */
+export type OrganizationInvitationRow = {
+  id: string
+  email: string
+  role: string | null
+  status: string
+  expiresAt: Date
+}
+
+/**
+ * The institution's outstanding invitations, newest expiry first — every row Better Auth still
+ * holds as `pending`, whether or not its seven days have run out (08 §2.5). The expiry is left on
+ * the row rather than filtered here: UI-031 renders pending and expired in one list, and the
+ * service is where a date becomes a state. Accepted, rejected, and cancelled rows are history and
+ * are not read back. The `invitation_organizationId_idx` index carries the scope.
+ *
+ * `limit` is a ceiling, not a page: the screen shows the institution's open invitations and a
+ * roster screen has no cursor for them, so the query is bounded rather than paged.
+ */
+export async function listInvitations(
+  tenantId: string,
+  limit: number,
+  dbx: DbOrTx = db,
+): Promise<OrganizationInvitationRow[]> {
+  return dbx
+    .select({
+      id: invitation.id,
+      email: invitation.email,
+      role: invitation.role,
+      status: invitation.status,
+      expiresAt: invitation.expiresAt,
+    })
+    .from(invitation)
+    .where(and(eq(invitation.organizationId, tenantId), eq(invitation.status, 'pending')))
+    .orderBy(desc(invitation.expiresAt), desc(invitation.id))
+    .limit(limit)
+}
+
 export async function findSettings(
   tenantId: string,
   dbx: DbOrTx = db,

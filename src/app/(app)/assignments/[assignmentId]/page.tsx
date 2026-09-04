@@ -2,10 +2,11 @@ import type { Metadata } from 'next'
 import type { Route } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
+import { AssignmentForm } from '@/components/features/courses/assignment-form'
 import {
-  AssignmentForm,
+  toPackageVersionOptions,
   type PackageVersionOption,
-} from '@/components/features/courses/assignment-form'
+} from '@/components/features/courses/package-version-option'
 import { EmptyState } from '@/components/layout/empty-state'
 import { LabelChip } from '@/components/layout/label-chip'
 import { PageHeader } from '@/components/layout/page-header'
@@ -13,7 +14,8 @@ import { Panel } from '@/components/layout/panel'
 import { buttonVariants } from '@/components/ui/button'
 import { isAppError } from '@/lib/errors'
 import { t } from '@/lib/i18n/t'
-import { getAssignment, getCourse } from '@/server/modules/courses'
+import { getAssignment, getCourse, listConfirmedPackageVersions } from '@/server/modules/courses'
+import { AssignmentIdParamsSchema } from '@/server/modules/courses/schema'
 import { getViewer } from '../../viewer'
 
 export const metadata: Metadata = { title: t('assignment.title') }
@@ -42,6 +44,10 @@ async function orNotFound<T>(read: () => Promise<T>): Promise<T> {
 export default async function AssignmentPage({ params }: PageProps<'/assignments/[assignmentId]'>) {
   const [{ actor, me }, { assignmentId }] = await Promise.all([getViewer(), params])
 
+  // An id that is not a uuid never reaches the repository: a malformed address is a 404, not a
+  // database cast error on the error boundary.
+  if (!AssignmentIdParamsSchema.safeParse({ assignmentId }).success) notFound()
+
   const assignment = await orNotFound(() => getAssignment(actor, assignmentId))
   const course = await orNotFound(() => getCourse(actor, assignment.courseId))
 
@@ -50,20 +56,26 @@ export default async function AssignmentPage({ params }: PageProps<'/assignments
   )?.role
   if (role !== 'instructor' && role !== 'program_lead') notFound()
 
-  // Until Phase 5 gives the packages module a public read, the only confirmed version this screen
-  // can name is the one the assignment already points at — with its own variant, and its clock only
-  // when the assignment does not override it (`effectiveWorkingClockSeconds` resolves to the
-  // package's value in exactly that case).
-  const packageVersions: PackageVersionOption[] = [
-    {
-      id: assignment.packageVersionId,
-      title: assignment.packageTitle,
-      version: assignment.packageVersion,
-      variants: [{ id: assignment.variantId, key: assignment.variantKey }],
-      defaultWorkingClockSeconds:
-        assignment.workingClockSeconds === null ? assignment.effectiveWorkingClockSeconds : null,
-    },
-  ]
+  // Every confirmed version of the institution, so the screen can re-point the assignment at
+  // another one and offer that version's own variants — which is what UI-032 is for.
+  const confirmed = toPackageVersionOptions(
+    await listConfirmedPackageVersions(actor, course.organizationId),
+  )
+  // A version that has since been retired keeps the assignments already on it, and the select still
+  // has to be able to name what this one points at. Nothing is calibrated in this build (PRD §7.19),
+  // which is what the chip on that row says.
+  const current: PackageVersionOption = {
+    id: assignment.packageVersionId,
+    title: assignment.packageTitle,
+    version: assignment.packageVersion,
+    calibrationStatus: 'uncalibrated',
+    variants: [{ id: assignment.variantId, key: assignment.variantKey }],
+    defaultWorkingClockSeconds:
+      assignment.workingClockSeconds === null ? assignment.effectiveWorkingClockSeconds : null,
+  }
+  const packageVersions = confirmed.some((option) => option.id === assignment.packageVersionId)
+    ? confirmed
+    : [current, ...confirmed]
 
   return (
     <>

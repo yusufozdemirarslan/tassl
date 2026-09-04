@@ -32,6 +32,7 @@ import {
 import { Switch } from '@/components/ui/switch'
 import { t } from '@/lib/i18n/t'
 import { createAssignmentAction, updateAssignmentAction } from '@/server/modules/courses/actions'
+import type { AssignmentVariantOption, PackageVersionOption } from './package-version-option'
 
 // UI-032's configuration form, used twice: the course detail's "New assignment" (step 4.2 renders
 // it with a `sectionId`) and this assignment's own screen (`assignment`). Both write through the
@@ -47,20 +48,9 @@ import { createAssignmentAction, updateAssignmentAction } from '@/server/modules
 // patch omits them entirely, because `updateAssignment` refuses a structural *key*, not a changed
 // value (`ASSIGNMENT_IN_USE`). Name, walkthrough, and opening time stay open.
 
-export type AssignmentVariantOption = {
-  id: string
-  key: 'defective' | 'sound'
-}
-
-export type PackageVersionOption = {
-  id: string
-  title: string
-  version: number
-  /** The variants this version offers; the radio shows one row per entry. */
-  variants: readonly AssignmentVariantOption[]
-  /** The version's own working clock, shown as the default; null when it is not known here. */
-  defaultWorkingClockSeconds: number | null
-}
+// The option shape is shared with the screens that build it (./package-version-option); it is
+// re-exported here because this is where its consumers already look for it.
+export type { AssignmentVariantOption, PackageVersionOption }
 
 /** What the form needs of an existing assignment (`AssignmentView`, minus what it does not edit). */
 export type EditableAssignment = {
@@ -83,6 +73,16 @@ type AssignmentFormProps = {
   | { sectionId: string; assignment?: undefined }
   | { sectionId?: undefined; assignment: EditableAssignment }
 )
+
+/** One version as the closed trigger and the open list both show it: its name, then its state. */
+function VersionOption({ version }: { version: PackageVersionOption }) {
+  return (
+    <span className="flex flex-wrap items-center gap-2">
+      {t('assignment.packageOption', { title: version.title, version: version.version })}
+      {version.calibrationStatus === 'uncalibrated' && <LabelChip kind="uncalibrated" />}
+    </span>
+  )
+}
 
 const VARIANT_LABELS: Record<AssignmentVariantOption['key'], string> = {
   defective: t('assignment.variantDefective'),
@@ -270,7 +270,12 @@ export function AssignmentForm({
           <Input
             id="assignment-label"
             aria-invalid={errors.label ? true : undefined}
-            aria-describedby={errors.label ? 'assignment-label-error' : 'assignment-label-hint'}
+            // The hint says what the field is for; the error says what is wrong with this value.
+            // A reader who hears only the second is told to fix something they were never told.
+            aria-describedby={describedBy(
+              'assignment-label-hint',
+              Boolean(errors.label) && 'assignment-label-error',
+            )}
             {...register('label')}
           />
           <FieldDescription id="assignment-label-hint">
@@ -316,18 +321,19 @@ export function AssignmentForm({
                   disabled={locked}
                   aria-describedby={describedBy('assignment-package-hint', locked && lockedNoteId)}
                 >
-                  <SelectValue />
+                  {/* The closed trigger says what the open list says, chip included: a version's
+                      calibration state is part of what it is, not a detail of the menu. */}
+                  <SelectValue>
+                    {(value: unknown) => {
+                      const chosen = packageVersions.find((version) => version.id === value)
+                      return chosen ? <VersionOption version={chosen} /> : null
+                    }}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   {packageVersions.map((version) => (
                     <SelectItem key={version.id} value={version.id}>
-                      <span className="flex flex-wrap items-center gap-2">
-                        {t('assignment.packageOption', {
-                          title: version.title,
-                          version: version.version,
-                        })}
-                        <LabelChip kind="uncalibrated" />
-                      </span>
+                      <VersionOption version={version} />
                     </SelectItem>
                   ))}
                 </SelectContent>

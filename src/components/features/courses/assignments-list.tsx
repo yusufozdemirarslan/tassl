@@ -13,13 +13,17 @@ import {
 } from '@/components/ui/table'
 import { formatDateTime } from '@/lib/format/date-time'
 import { t } from '@/lib/i18n/t'
+import { NewAssignmentDialog } from './new-assignment-dialog'
+import type { PackageVersionOption } from './package-version-option'
 
 // UI-030 → Assignments. The course's assignments with the state summary this build can tell the
 // truth about — the run type, whether the assignment is open or still scheduled, the working clock,
-// and the walkthrough label — and the way through to the configuration screen (UI-032, step 4.4).
+// and the walkthrough label — the way through to the configuration screen (UI-032, step 4.4), and
+// "New assignment", which is where an assignment comes from in the first place.
 // The runs behind an assignment arrive in Phase 6; nothing here stands in for them.
 //
-// No interaction, so no client bundle: a server component that renders links and text.
+// The table itself has no interaction, so it stays a server component that renders links and text;
+// only the dialog is a client island, and its form is not even that until the dialog opens.
 
 export type AssignmentRow = {
   id: string
@@ -36,6 +40,14 @@ export type AssignmentsListProps = {
   assignments: readonly AssignmentRow[]
   /** Only a reviewer may open the configuration screen (09 §1); everyone else reads the label. */
   canConfigure: boolean
+  /** An instructor who teaches the course: the only person offered "New assignment". */
+  canCreate: boolean
+  /** The sections a new assignment can be set on; empty until the course has one. */
+  sections: readonly { id: string; name: string }[]
+  /** The institution's confirmed versions; empty until one is confirmed (Phase 5 authors them). */
+  packageVersions: readonly PackageVersionOption[]
+  /** The course's default run weight, which a new assignment follows unless it overrides it. */
+  courseDefaultWeight: number
 }
 
 const RUN_TYPE_LABELS: Record<AssignmentRow['runType'], string> = {
@@ -64,54 +76,73 @@ function clockOf(seconds: number | null): string {
   return t('courses.clockMinutes', { minutes: Math.round(seconds / 60) })
 }
 
-export function AssignmentsList({ assignments, canConfigure }: AssignmentsListProps) {
-  if (assignments.length === 0) {
-    return (
-      <EmptyState
-        headingLevel={3}
-        title={t('courses.assignmentsEmptyTitle')}
-        body={t('courses.assignmentsEmptyBody')}
-      />
-    )
-  }
-
+export function AssignmentsList({
+  assignments,
+  canConfigure,
+  canCreate,
+  sections,
+  packageVersions,
+  courseDefaultWeight,
+}: AssignmentsListProps) {
   return (
-    <Table>
-      <TableCaption>{t('courses.assignmentsCaption')}</TableCaption>
-      <TableHeader>
-        <TableRow>
-          <TableHead scope="col">{t('courses.columnAssignment')}</TableHead>
-          <TableHead scope="col">{t('courses.columnType')}</TableHead>
-          <TableHead scope="col">{t('courses.columnState')}</TableHead>
-          <TableHead scope="col">{t('courses.columnClock')}</TableHead>
-        </TableRow>
-      </TableHeader>
-      <TableBody>
-        {assignments.map((assignment) => (
-          <TableRow key={assignment.id}>
-            <TableCell className="whitespace-normal">
-              <div className="flex flex-wrap items-center gap-2">
-                {canConfigure ? (
-                  <Link
-                    href={assignmentHref(assignment.id)}
-                    prefetch={false}
-                    aria-label={t('courses.configureAssignment', { label: assignment.label })}
-                    className="text-primary focus-visible:outline-focus rounded-sm font-medium underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2"
-                  >
-                    {assignment.label}
-                  </Link>
-                ) : (
-                  <span className="text-ink font-medium">{assignment.label}</span>
-                )}
-                {assignment.isWalkthrough && <LabelChip kind="walkthrough" />}
-              </div>
-            </TableCell>
-            <TableCell>{RUN_TYPE_LABELS[assignment.runType]}</TableCell>
-            <TableCell>{stateOf(assignment.opensAt)}</TableCell>
-            <TableCell className="font-mono">{clockOf(assignment.workingClockSeconds)}</TableCell>
-          </TableRow>
-        ))}
-      </TableBody>
-    </Table>
+    <div className="flex flex-col gap-4">
+      {canCreate && (
+        <div className="flex justify-start">
+          <NewAssignmentDialog
+            sections={sections}
+            packageVersions={packageVersions}
+            courseDefaultWeight={courseDefaultWeight}
+          />
+        </div>
+      )}
+
+      {assignments.length === 0 ? (
+        <EmptyState
+          headingLevel={3}
+          title={t('courses.assignmentsEmptyTitle')}
+          body={t('courses.assignmentsEmptyBody')}
+        />
+      ) : (
+        <Table>
+          <TableCaption>{t('courses.assignmentsCaption')}</TableCaption>
+          <TableHeader>
+            <TableRow>
+              <TableHead scope="col">{t('courses.columnAssignment')}</TableHead>
+              <TableHead scope="col">{t('courses.columnType')}</TableHead>
+              <TableHead scope="col">{t('courses.columnState')}</TableHead>
+              <TableHead scope="col">{t('courses.columnClock')}</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {assignments.map((assignment) => (
+              <TableRow key={assignment.id}>
+                <TableCell className="whitespace-normal">
+                  <div className="flex flex-wrap items-center gap-2">
+                    {canConfigure ? (
+                      <Link
+                        href={assignmentHref(assignment.id)}
+                        prefetch={false}
+                        aria-label={t('courses.configureAssignment', { label: assignment.label })}
+                        className="text-primary focus-visible:outline-focus rounded-sm font-medium underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2"
+                      >
+                        {assignment.label}
+                      </Link>
+                    ) : (
+                      <span className="text-ink font-medium">{assignment.label}</span>
+                    )}
+                    {assignment.isWalkthrough && <LabelChip kind="walkthrough" />}
+                  </div>
+                </TableCell>
+                <TableCell>{RUN_TYPE_LABELS[assignment.runType]}</TableCell>
+                <TableCell>{stateOf(assignment.opensAt)}</TableCell>
+                <TableCell className="font-mono">
+                  {clockOf(assignment.workingClockSeconds)}
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      )}
+    </div>
   )
 }

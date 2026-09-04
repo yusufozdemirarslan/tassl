@@ -39,6 +39,20 @@ export function FormStatus({ message }: { message: string | null }) {
   )
 }
 
+/**
+ * The submit control of every form on the instructor and account screens.
+ *
+ * `aria-disabled`, never `disabled`: the browser blurs a control the moment it becomes disabled,
+ * and nothing here takes the focus back, so every submit dropped a keyboard or screen-reader user
+ * at the top of the document — precisely when the refusal they need to read is being announced
+ * under the form. The resend control on UI-003 already avoids this, and DESIGN.md §Buttons →
+ * Disabled asks for `aria-disabled` wherever a control has to stay reachable while it is refusing.
+ *
+ * The early return in the click handler is what `disabled` used to do: a press while the request is
+ * in flight is swallowed before the form hears it, so the guard is the handler rather than the
+ * browser. The control keeps its focus, its 45 % opacity (the base recipe styles `aria-disabled`
+ * exactly as it styles `disabled`), and the `aria-busy` its spinner belongs to.
+ */
 export function SubmitButton({
   pending,
   children,
@@ -52,8 +66,11 @@ export function SubmitButton({
     <Button
       type="submit"
       variant={variant}
-      disabled={pending}
+      aria-disabled={pending ? true : undefined}
       aria-busy={pending}
+      onClick={(event) => {
+        if (pending) event.preventDefault()
+      }}
       className="w-fit"
     >
       {pending && <Loader2Icon aria-hidden="true" className="size-4 animate-spin" />}

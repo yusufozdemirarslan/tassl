@@ -12,6 +12,8 @@ export const enUS = {
   'ui.formLoadFailed': 'The form could not be loaded. Close this and open it again.',
   // A menu that arrives with the press that opens it (16 §3.2) and did not; pressing again retries.
   'ui.menuLoadFailed': 'The menu could not be loaded. Try again.',
+  // A dialog that arrives with the press that opens it and did not; pressing again retries.
+  'ui.actionLoadFailed': 'That could not be opened. Try the button again.',
   // Timestamps are formatted in UTC so a server render and its hydration always agree (D-177).
   'ui.dateTime': '{value} UTC',
   'toast.region': 'Messages',
@@ -358,6 +360,8 @@ export const enUS = {
   'courses.tabAssignments': 'Assignments',
   'courses.tabPolicy': 'Policy',
   'courses.tabMapping': 'Mapping',
+  // Each sub-view is its own address, so each is its own document title (WCAG 2.4.2).
+  'courses.metaTitle': '{course} · {view}',
   'courses.readOnlyNote':
     'You can read this course. Only an instructor who teaches it can change its setup.',
 
@@ -403,6 +407,16 @@ export const enUS = {
   'courses.assignmentsEmptyTitle': 'No assignments yet',
   'courses.assignmentsEmptyBody':
     'An assignment carries the scenario package version, the working clock, and the weight a run starts from. Confirm a scenario package first.',
+  'courses.newAssignment': 'New assignment',
+  'courses.newAssignmentDescription':
+    'An assignment belongs to one section and points at one confirmed scenario package version. Every run on it is taken under what you set here.',
+  'courses.newAssignmentNoSections':
+    'An assignment belongs to a section. Add a section to this course first.',
+  'courses.assignmentSectionLabel': 'Section',
+  'courses.assignmentSectionHint':
+    'The roster this assignment is set for; its students are the ones who take it.',
+  'courses.assignmentSectionOne':
+    'This assignment goes to {name}, the only section of this course.',
 
   // UI-030 policy sub-view (PolicyForm); the three policies are PRD §7.19, FR-062
   'courses.policyTitle': 'Policy and weight',
@@ -445,6 +459,8 @@ export const enUS = {
   'courses.mappingSubmit': 'Save mapping',
   'courses.mappingPending': 'Saving…',
   'courses.mappingSaved': 'Mapping saved.',
+  // The Apply control itself arrives with Phase 11 (FR-206), together with the preview table and
+  // the "every confirmed run will be re-exported" acknowledgement; until then only the note shows.
   'courses.mappingApply': 'Apply to confirmed runs',
   'courses.mappingApplyNote': 'Recomputation of confirmed runs arrives with review.',
   'courses.validation.point': 'Enter the points as a number.',
@@ -481,13 +497,29 @@ export const enUS = {
   'roster.added': '{email} is now in this section.',
   'roster.inviteAction': 'Invite to institution',
   'roster.invited': 'An invitation is on its way to {email}.',
-  'roster.invitationsTitle': 'Pending invitations',
+  'roster.invitationsTitle': 'Invitations',
   'roster.invitationsDescription': 'An invitation lasts seven days and can be accepted once.',
-  'roster.invitationsCaption': 'Invitations sent from this screen',
+  'roster.invitationsCaption': 'Outstanding invitations to this institution',
   'roster.invitationsExpires': 'Expires',
   'roster.invitationsEmptyTitle': 'No invitations yet',
   'roster.invitationsEmptyBody':
     'Invite an address that does not belong to the institution and the invitation appears here with the day it expires.',
+  'roster.cancel': 'Cancel',
+  'roster.columnStatus': 'Status',
+  'roster.invitationPending': 'Pending',
+  'roster.invitationExpired': 'Expired',
+  'roster.removeConfirmTitle': 'Take this person off the roster?',
+  'roster.removeConfirmBody':
+    '{name} ({email}) comes off the roster of {section} and can no longer start its assignments. Nothing they have written is deleted, and you can add them back by address.',
+  'roster.removeConfirmAction': 'Remove from section',
+  'roster.removeConfirmPending': 'Removing…',
+  'roster.inviteTitle': 'Invite to the institution',
+  'roster.inviteDescription':
+    'They get an email with a link that lasts seven days. Accepting it makes them a member of the institution; add them to this section afterwards.',
+  'roster.inviteEmail': 'Email address',
+  'roster.inviteRole': 'Role in the institution',
+  'roster.inviteSubmit': 'Send invitation',
+  'roster.invitePending': 'Sending…',
 
   // UI-032 assignment configuration (/assignments/[assignmentId], FR-200)
   'assignment.title': 'Assignment',

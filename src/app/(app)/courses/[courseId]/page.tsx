@@ -1,9 +1,11 @@
+import { cache } from 'react'
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import type { Route } from 'next'
 import { AssignmentsList } from '@/components/features/courses/assignments-list'
 import { MappingEditor } from '@/components/features/courses/mapping-editor'
+import { toPackageVersionOptions } from '@/components/features/courses/package-version-option'
 import { PolicyForm } from '@/components/features/courses/policy-form'
 import { SectionsList } from '@/components/features/courses/sections-list'
 import { PageHeader } from '@/components/layout/page-header'
@@ -12,11 +14,9 @@ import { cn } from '@/lib/cn'
 import { isAppError } from '@/lib/errors'
 import { t } from '@/lib/i18n/t'
 import type { SessionUser } from '@/server/auth/types'
-import { getCourse, type CourseView } from '@/server/modules/courses'
+import { getCourse, listConfirmedPackageVersions, type CourseView } from '@/server/modules/courses'
 import { CourseIdParamsSchema } from '@/server/modules/courses/schema'
 import { getViewer } from '../../viewer'
-
-export const metadata: Metadata = { title: t('courses.title') }
 
 // UI-030, the detail half: one course and the four things a course is — its sections, its
 // assignments, its policy and weights, and its band-to-points mapping.
@@ -74,6 +74,32 @@ async function readCourse(actor: SessionUser, courseId: string): Promise<CourseV
   }
 }
 
+/** `generateMetadata` and the render both need the course; `cache` makes that one read (D-178). */
+const loadCourse = cache(async (courseId: string): Promise<CourseView | null> => {
+  const { actor } = await getViewer()
+  return readCourse(actor, courseId)
+})
+
+/**
+ * The four sub-views are four addresses, so they are four documents: the title names the course and
+ * the view, which is what a person hears on arriving and what a bookmark or a tab strip says
+ * afterwards (WCAG 2.4.2). A course the reader may not see keeps the generic title — the page
+ * itself answers 404, and a title must not confirm that an id exists.
+ */
+export async function generateMetadata({
+  params,
+  searchParams,
+}: PageProps<'/courses/[courseId]'>): Promise<Metadata> {
+  const [{ courseId }, query] = await Promise.all([params, searchParams])
+  if (!CourseIdParamsSchema.safeParse({ courseId }).success) return { title: t('courses.title') }
+
+  const course = await loadCourse(courseId)
+  if (!course) return { title: t('courses.title') }
+  return {
+    title: t('courses.metaTitle', { course: course.name, view: TAB_LABELS[readTab(query.tab)] }),
+  }
+}
+
 export default async function CourseDetailPage({
   params,
   searchParams,
@@ -88,7 +114,7 @@ export default async function CourseDetailPage({
   // database cast error on the error boundary.
   if (!CourseIdParamsSchema.safeParse({ courseId }).success) notFound()
 
-  const course = await readCourse(actor, courseId)
+  const course = await loadCourse(courseId)
   if (!course) notFound()
 
   const role = me.memberships.find((row) => row.organizationId === course.organizationId)?.role
@@ -98,6 +124,13 @@ export default async function CourseDetailPage({
   const canManage = role === 'instructor'
   const canReview = role === 'instructor' || role === 'program_lead'
   const tab = readTab(query.tab)
+
+  // Only the sub-view that offers "New assignment", and only for the person offered it, asks what
+  // the institution has confirmed; the other three sub-views never touch the packages tables.
+  const packageVersions =
+    tab === 'assignments' && canManage
+      ? toPackageVersionOptions(await listConfirmedPackageVersions(actor, course.organizationId))
+      : []
 
   return (
     <>
@@ -115,7 +148,9 @@ export default async function CourseDetailPage({
       />
 
       <nav aria-label={t('courses.viewsLabel')} className="mb-6">
-        <ul className="bg-paper-sunken flex w-fit max-w-full flex-wrap gap-1 rounded-md p-1">
+        {/* Four labels do not fit one row on a 360 px screen, and three-and-one reads as a mistake:
+            below sm the well is a two-up grid, and from sm it is the row it was. */}
+        <ul className="bg-paper-sunken grid grid-cols-2 gap-1 rounded-md p-1 sm:flex sm:w-fit sm:max-w-full sm:flex-wrap">
           {TABS.map((key) => {
             const active = key === tab
             return (
@@ -124,7 +159,7 @@ export default async function CourseDetailPage({
                   href={tabHref(courseId, key)}
                   aria-current={active ? 'page' : undefined}
                   className={cn(
-                    'text-meta focus-visible:outline-focus flex h-10 items-center rounded-md px-3 font-medium transition-colors duration-150 ease-out focus-visible:outline-2 focus-visible:-outline-offset-2',
+                    'text-meta focus-visible:outline-focus flex h-10 items-center justify-center rounded-md px-3 font-medium transition-colors duration-150 ease-out focus-visible:outline-2 focus-visible:-outline-offset-2 sm:justify-start',
                     active
                       ? 'border-line bg-paper-raised text-ink border'
                       : 'text-ink-muted hover:text-ink',
@@ -153,7 +188,14 @@ export default async function CourseDetailPage({
           />
         )}
         {tab === 'assignments' && (
-          <AssignmentsList assignments={course.assignments} canConfigure={canReview} />
+          <AssignmentsList
+            assignments={course.assignments}
+            canConfigure={canReview}
+            canCreate={canManage}
+            sections={course.sections}
+            packageVersions={packageVersions}
+            courseDefaultWeight={course.defaultRunWeight}
+          />
         )}
         {tab === 'policy' && (
           <PolicyForm

@@ -5,9 +5,17 @@ import { useRouter } from 'next/navigation'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Controller, useForm } from 'react-hook-form'
 import { literal, object, type output } from 'zod/mini'
-import { Loader2Icon, MailPlusIcon } from 'lucide-react'
+import { HourglassIcon, Loader2Icon, MailPlusIcon, SendIcon } from 'lucide-react'
 import { toast } from 'sonner'
 import { FormAlert, SubmitButton } from '@/components/features/account/form-feedback'
+import {
+  INVITATION_ROLES,
+  ORGANIZATION_ROLE_LABELS,
+  SECTION_ROLES,
+  SECTION_ROLE_ITEMS,
+  SECTION_ROLE_LABELS,
+  type InviteRoleValue,
+} from '@/components/features/roster/roster-roles'
 import { EmptyState } from '@/components/layout/empty-state'
 import { Panel } from '@/components/layout/panel'
 import { Button } from '@/components/ui/button'
@@ -31,56 +39,49 @@ import {
 } from '@/components/ui/table'
 import { emailField } from '@/lib/auth/form-fields'
 import { formatDateTime } from '@/lib/format/date-time'
+import { useDeferredModule, type DeferredModule } from '@/lib/hooks/use-deferred-module'
 import { t } from '@/lib/i18n/t'
 import { addSectionMemberAction, removeSectionMemberAction } from '@/server/modules/courses/actions'
-import { inviteMemberAction } from '@/server/modules/tenancy/actions'
 import type { SectionMember, SectionRoleValue } from '@/server/modules/courses/schema'
-import type { InvitationView, OrganizationRoleValue } from '@/server/modules/tenancy/schema'
+import type { InvitationView } from '@/server/modules/tenancy/schema'
 
-// UI-031. The page reads the roster; this component owns the three things the screen does with it:
-// add a member by address, remove one, and — when the address belongs to nobody in the institution
-// — invite them instead. Both refusals the service can answer here are shown where the person is
-// looking rather than in a toast that disappears:
+// UI-031. The page reads the roster and the institution's outstanding invitations; this component
+// owns the four things the screen does with them: add a member by address, take one off the
+// roster, invite an address that belongs to nobody in the institution yet, and show what has been
+// invited. Both refusals the service can answer here are shown where the person is looking rather
+// than in a toast that disappears:
 //
 //   NOT_SECTION_MEMBER → under the add form, with the invitation as the way forward (D-062);
 //   MEMBER_HAS_RUNS    → in the row it refuses, because the row is what the reader is aiming at.
+//
+// The two consequential actions ask first. Removing someone unseats them on the spot and there is
+// no undo, and "Invite to institution" sends mail; DESIGN.md asks a destructive action to be
+// confirmed and UI-031 says the invite action opens the invitation form, so both now open an
+// overlay. Neither overlay is part of the first paint: `./roster-dialogs` is one chunk fetched on
+// the press that needs it (B4), and the roster paints two tables, an add form and its buttons.
 //
 // The bound on the address is `emailField` (src/lib/auth/form-fields), the same shape the public
 // forms use: a client component never imports the module's schema, which would drag the full Zod
 // runtime into the browser (D-186). The rule that decides anything still runs in the action.
 
-/** The section roles a roster row can hold (`section_memberships.role`, 08 §3). */
-const SECTION_ROLES = ['student', 'instructor', 'ta'] as const
+/** `load` must be a module-scope arrow holding a literal `import()` for the bundler to split it. */
+const loadDialogs = () => import('@/components/features/roster/roster-dialogs')
 
-const SECTION_ROLE_LABELS: Record<SectionRoleValue, string> = {
-  student: t('roster.roleStudent'),
-  instructor: t('roster.roleInstructor'),
-  ta: t('roster.roleTa'),
-}
+type RosterDialogs = DeferredModule<typeof import('@/components/features/roster/roster-dialogs')>
 
 /**
- * The institution role an invitation carries for someone who will hold this section role. A section
- * TA is a teaching assistant of the institution; the other two names are the same in both
- * vocabularies (08 §3).
+ * `listInvitations` resolves the seven-day expiry on the server and hands the screen a state, so
+ * nothing here compares a deadline against the browser's own clock (D-177).
  */
-const INVITATION_ROLES: Record<SectionRoleValue, OrganizationRoleValue> = {
-  student: 'student',
-  instructor: 'instructor',
-  ta: 'teaching_assistant',
-}
+const EXPIRED = 'expired'
 
-const ORGANIZATION_ROLE_LABELS: Record<OrganizationRoleValue, string> = {
-  student: t('role.student'),
-  instructor: t('role.instructor'),
-  teaching_assistant: t('role.teaching_assistant'),
-  scenario_author: t('role.scenario_author'),
-  program_lead: t('role.program_lead'),
-}
-
-const ROLE_ITEMS = SECTION_ROLES.map((role) => ({
-  value: role,
-  label: SECTION_ROLE_LABELS[role],
-}))
+/**
+ * A 32 px row control is below the 40 px minimum this product commits to (DESIGN.md §Layout), and
+ * growing the control would loosen a dense table. The radio primitive answers this the same way:
+ * the drawn control keeps its size and a transparent `::after` carries the target, four pixels
+ * above and below, which is what a pointer and a screen reader's touch exploration actually hit.
+ */
+const ROW_ACTION_HIT_AREA = 'relative after:absolute after:inset-x-0 after:-inset-y-1'
 
 const addMemberSchema = object({
   email: emailField,
@@ -95,6 +96,8 @@ type SectionRosterProps = {
   /** The institution the section belongs to; an invitation is written against it, not the section. */
   organizationId: string
   members: readonly SectionMember[]
+  /** The institution's outstanding invitations, pending and expired (UI-031). */
+  invitations: readonly InvitationView[]
   /** True when the roster is longer than the pages the page read (see the page's cap). */
   truncated: boolean
 }
@@ -104,15 +107,32 @@ export function SectionRoster({
   sectionName,
   organizationId,
   members,
+  invitations,
   truncated,
 }: SectionRosterProps) {
   const router = useRouter()
   const [removing, setRemoving] = useState<string | null>(null)
+  const [confirming, setConfirming] = useState<SectionMember | null>(null)
   const [removalRefusal, setRemovalRefusal] = useState<{ userId: string; message: string } | null>(
     null,
   )
   const [pending, startTransition] = useTransition()
-  const [invitations, setInvitations] = useState<InvitationView[]>([])
+  // What this screen has just sent, prepended until `router.refresh()` brings the row back from
+  // the server; the id match is what retires the optimistic copy.
+  const [justSent, setJustSent] = useState<readonly InvitationView[]>([])
+  const dialogs = useDeferredModule(loadDialogs)
+  const RemoveMemberDialog = dialogs.loaded?.RemoveMemberDialog
+
+  const shownInvitations = [
+    ...justSent.filter((sent) => !invitations.some((row) => row.id === sent.id)),
+    ...invitations,
+  ]
+
+  function confirmRemoval(member: SectionMember): void {
+    setRemovalRefusal(null)
+    setConfirming(member)
+    dialogs.request()
+  }
 
   function remove(member: SectionMember): void {
     setRemoving(member.userId)
@@ -120,6 +140,9 @@ export function SectionRoster({
     startTransition(async () => {
       const result = await removeSectionMemberAction({ sectionId, userId: member.userId })
       setRemoving(null)
+      // The dialog closes either way: Base UI hands focus back to the row's own control, which
+      // points at the refusal below it when there is one.
+      setConfirming(null)
       if (!result.ok) {
         // MEMBER_HAS_RUNS and every other refusal stay on the row until the reader acts on them.
         setRemovalRefusal({ userId: member.userId, message: result.error.message })
@@ -132,6 +155,10 @@ export function SectionRoster({
 
   return (
     <div className="flex flex-col gap-6">
+      {/* An overlay whose chunk never arrived would leave a button that does nothing, so the
+          screen says so and the next press retries the import. */}
+      <FormAlert message={dialogs.status === 'failed' ? t('ui.actionLoadFailed') : null} />
+
       <Panel id="roster-members" title={t('roster.membersTitle')} headingLevel={2}>
         {members.length === 0 ? (
           <EmptyState
@@ -157,25 +184,25 @@ export function SectionRoster({
                 const refused =
                   removalRefusal?.userId === member.userId ? removalRefusal.message : null
                 const refusalId = `roster-refusal-${member.userId}`
+                const busy = pending && removing === member.userId
                 return (
                   <TableRow key={member.userId}>
                     <TableCell className="text-ink">{member.name}</TableCell>
-                    <TableCell className="text-ink-muted [overflow-wrap:anywhere] whitespace-normal">
-                      {member.email}
-                    </TableCell>
+                    <TableCell className="text-ink-muted">{member.email}</TableCell>
                     <TableCell>{SECTION_ROLE_LABELS[member.role]}</TableCell>
                     <TableCell className="text-right">
                       <div className="flex flex-col items-end gap-2">
                         <Button
                           variant="ghost"
                           size="sm"
-                          disabled={pending && removing === member.userId}
-                          aria-busy={pending && removing === member.userId}
+                          className={ROW_ACTION_HIT_AREA}
+                          aria-haspopup="dialog"
+                          aria-busy={busy}
                           aria-label={t('roster.removeLabel', { name: member.name })}
                           {...(refused === null ? {} : { 'aria-describedby': refusalId })}
-                          onClick={() => remove(member)}
+                          onClick={() => confirmRemoval(member)}
                         >
-                          {pending && removing === member.userId && (
+                          {busy && (
                             <Loader2Icon aria-hidden="true" className="size-4 animate-spin" />
                           )}
                           {t('roster.remove')}
@@ -207,7 +234,11 @@ export function SectionRoster({
       <AddMemberPanel
         sectionId={sectionId}
         organizationId={organizationId}
-        onInvited={(invitation) => setInvitations((current) => [invitation, ...current])}
+        dialogs={dialogs}
+        onInvited={(invitation) => {
+          setJustSent((current) => [invitation, ...current])
+          router.refresh()
+        }}
       />
 
       <Panel
@@ -216,7 +247,7 @@ export function SectionRoster({
         description={t('roster.invitationsDescription')}
         headingLevel={2}
       >
-        {invitations.length === 0 ? (
+        {shownInvitations.length === 0 ? (
           <EmptyState
             headingLevel={3}
             title={t('roster.invitationsEmptyTitle')}
@@ -229,49 +260,89 @@ export function SectionRoster({
               <TableRow>
                 <TableHead scope="col">{t('roster.columnEmail')}</TableHead>
                 <TableHead scope="col">{t('roster.columnRole')}</TableHead>
+                <TableHead scope="col">{t('roster.columnStatus')}</TableHead>
                 <TableHead scope="col">{t('roster.invitationsExpires')}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {invitations.map((invitation) => (
-                <TableRow key={invitation.id}>
-                  <TableCell className="text-ink [overflow-wrap:anywhere] whitespace-normal">
-                    {invitation.email}
-                  </TableCell>
-                  <TableCell>{ORGANIZATION_ROLE_LABELS[invitation.role]}</TableCell>
-                  <TableCell className="text-mono-sm font-mono tabular-nums">
-                    <time dateTime={invitation.expiresAt}>
-                      {formatDateTime(invitation.expiresAt)}
-                    </time>
-                  </TableCell>
-                </TableRow>
-              ))}
+              {shownInvitations.map((invitation) => {
+                const expired = invitation.status === EXPIRED
+                return (
+                  <TableRow key={invitation.id}>
+                    <TableCell className="text-ink">{invitation.email}</TableCell>
+                    <TableCell>{ORGANIZATION_ROLE_LABELS[invitation.role]}</TableCell>
+                    <TableCell className="text-ink">
+                      {/* Semantic color is the icon; the text beside it stays ink and says the
+                          state in words (DESIGN.md: the Amber-Is-Not-Text rule). */}
+                      <span className="inline-flex items-center gap-1.5">
+                        {expired ? (
+                          <HourglassIcon aria-hidden="true" className="text-amber size-4" />
+                        ) : (
+                          <SendIcon aria-hidden="true" className="text-primary size-4" />
+                        )}
+                        {expired ? t('roster.invitationExpired') : t('roster.invitationPending')}
+                      </span>
+                    </TableCell>
+                    <TableCell className="text-mono-sm font-mono tabular-nums">
+                      <time dateTime={invitation.expiresAt}>
+                        {formatDateTime(invitation.expiresAt)}
+                      </time>
+                    </TableCell>
+                  </TableRow>
+                )
+              })}
             </TableBody>
           </Table>
         )}
       </Panel>
+
+      {RemoveMemberDialog && confirming !== null && (
+        <RemoveMemberDialog
+          name={confirming.name}
+          email={confirming.email}
+          sectionName={sectionName}
+          open
+          onOpenChange={(next) => {
+            // Cancel, Escape and the scrim all land here; a removal in flight owns the dialog.
+            if (!next && !pending) setConfirming(null)
+          }}
+          pending={pending && removing === confirming.userId}
+          onConfirm={() => remove(confirming)}
+        />
+      )}
     </div>
   )
 }
 
 /**
  * The add form and the invitation that grows out of its one interesting refusal. `notMember` holds
- * the address the service did not recognise, so the invitation is sent for exactly that address and
- * that role rather than for whatever the fields hold by the time the button is pressed.
+ * the address the service did not recognise, so the invitation is offered for exactly that address
+ * and that seat rather than for whatever the fields hold by the time the button is pressed.
+ *
+ * The invitation itself is a form in a dialog, not a press: `./roster-dialogs` arrives with the
+ * press that asks for it and sends nothing until Send.
  */
 function AddMemberPanel({
   sectionId,
   organizationId,
+  dialogs,
   onInvited,
 }: {
   sectionId: string
   organizationId: string
+  dialogs: RosterDialogs
   onInvited: (invitation: InvitationView) => void
 }) {
   const router = useRouter()
   const [formError, setFormError] = useState<string | null>(null)
-  const [notMember, setNotMember] = useState<{ email: string; role: SectionRoleValue } | null>(null)
-  const [inviting, setInviting] = useState(false)
+  const [notMember, setNotMember] = useState<{
+    email: string
+    /** What the add form asked for, so the form comes back to it once the invitation is away. */
+    sectionRole: SectionRoleValue
+    role: InviteRoleValue
+  } | null>(null)
+  const [inviteOpen, setInviteOpen] = useState(false)
+  const InviteMemberDialog = dialogs.loaded?.InviteMemberDialog
 
   const {
     control,
@@ -292,33 +363,17 @@ function AddMemberPanel({
       setFormError(result.error.message)
       // The address belongs to nobody in the institution yet: the way forward is an invitation.
       if (result.error.code === 'NOT_SECTION_MEMBER') {
-        setNotMember({ email: values.email, role: values.role })
+        setNotMember({
+          email: values.email,
+          sectionRole: values.role,
+          role: INVITATION_ROLES[values.role],
+        })
       }
       return
     }
     toast.success(t('roster.added', { email: result.data.email }))
     reset({ email: '', role: values.role })
     router.refresh()
-  }
-
-  async function invite(): Promise<void> {
-    if (notMember === null) return
-    setInviting(true)
-    const result = await inviteMemberAction({
-      orgId: organizationId,
-      email: notMember.email,
-      role: INVITATION_ROLES[notMember.role],
-    })
-    setInviting(false)
-    if (!result.ok) {
-      setFormError(result.error.message)
-      return
-    }
-    toast.success(t('roster.invited', { email: result.data.email }))
-    onInvited(result.data)
-    setNotMember(null)
-    setFormError(null)
-    reset({ email: '', role: notMember.role })
   }
 
   return (
@@ -350,7 +405,7 @@ function AddMemberPanel({
               name="role"
               render={({ field }) => (
                 <Select
-                  items={ROLE_ITEMS}
+                  items={SECTION_ROLE_ITEMS}
                   value={field.value}
                   onValueChange={(value: SectionRoleValue | null) => {
                     // Base UI can report an empty selection; the roster always holds a role.
@@ -361,7 +416,7 @@ function AddMemberPanel({
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {ROLE_ITEMS.map((item) => (
+                    {SECTION_ROLE_ITEMS.map((item) => (
                       <SelectItem key={item.value} value={item.value}>
                         {item.label}
                       </SelectItem>
@@ -380,17 +435,14 @@ function AddMemberPanel({
                   type="button"
                   variant="secondary"
                   size="sm"
-                  disabled={inviting}
-                  aria-busy={inviting}
+                  className={ROW_ACTION_HIT_AREA}
+                  aria-haspopup="dialog"
                   onClick={() => {
-                    void invite()
+                    setInviteOpen(true)
+                    dialogs.request()
                   }}
                 >
-                  {inviting ? (
-                    <Loader2Icon aria-hidden="true" className="size-4 animate-spin" />
-                  ) : (
-                    <MailPlusIcon aria-hidden="true" className="size-4" />
-                  )}
+                  <MailPlusIcon aria-hidden="true" className="size-4" />
                   {t('roster.inviteAction')}
                 </Button>
               )
@@ -400,6 +452,24 @@ function AddMemberPanel({
           <SubmitButton pending={isSubmitting}>{t('roster.addSubmit')}</SubmitButton>
         </div>
       </form>
+
+      {InviteMemberDialog && inviteOpen && notMember !== null && (
+        <InviteMemberDialog
+          orgId={organizationId}
+          email={notMember.email}
+          role={notMember.role}
+          open
+          onOpenChange={setInviteOpen}
+          onInvited={(invitation) => {
+            onInvited(invitation)
+            // The refusal that offered the invitation has been answered; the form starts again on
+            // the seat it was asking for.
+            reset({ email: '', role: notMember.sectionRole })
+            setNotMember(null)
+            setFormError(null)
+          }}
+        />
+      )}
     </Panel>
   )
 }

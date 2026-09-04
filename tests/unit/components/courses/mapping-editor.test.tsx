@@ -53,7 +53,6 @@ function renderEditor(readOnly = false) {
 const field = (label: string) => screen.getByLabelText(label)
 const novice = () => field(enUS['courses.mappingNovice'])
 const save = () => screen.getByRole('button', { name: enUS['courses.mappingSubmit'] })
-const apply = () => screen.getByRole('button', { name: enUS['courses.mappingApply'] })
 
 describe('MappingEditor (UI-030 → Mapping)', () => {
   beforeEach(() => {
@@ -115,19 +114,14 @@ describe('MappingEditor (UI-030 → Mapping)', () => {
     expect(actions.updateCoursePolicyAction).not.toHaveBeenCalled()
   })
 
-  it('offers Apply but never lets it act, and says when recomputation arrives', async () => {
-    const user = renderEditor()
-    const button = apply()
+  // Phase 11 brings the preview table, the acknowledgement and the applied toast together (FR-206);
+  // until then the screen says so in a sentence rather than offering a control that cannot act.
+  it('offers no Apply control, and says when recomputation arrives', () => {
+    renderEditor()
 
-    expect(button).toHaveAttribute('aria-disabled', 'true')
-    const note = button.getAttribute('aria-describedby')
-    expect(note).not.toBeNull()
-    expect(document.getElementById(note as string)).toHaveTextContent(
-      'Recomputation of confirmed runs arrives with review',
-    )
-
-    await user.click(button)
-    expect(actions.updateCoursePolicyAction).not.toHaveBeenCalled()
+    expect(screen.getByText(enUS['courses.mappingApplyNote'])).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: enUS['courses.mappingApply'] })).toBeNull()
+    expect(screen.getAllByRole('button')).toHaveLength(1)
   })
 
   it('sends the four numbers as numbers and confirms with a toast', async () => {

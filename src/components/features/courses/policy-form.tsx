@@ -201,14 +201,16 @@ export function PolicyForm({
           />
         </FieldSet>
 
-        <Field className="max-w-[32ch]" data-invalid={errors.defaultRunWeight ? 'true' : undefined}>
+        {/* The cap belongs to the control, which holds one number, not to the field, whose hint is
+            a sentence: at 32ch the sentence was set three words to a line. */}
+        <Field className="max-w-[60ch]" data-invalid={errors.defaultRunWeight ? 'true' : undefined}>
           <FieldLabel htmlFor={weightId}>{t('courses.weightLabel')}</FieldLabel>
           <Input
             id={weightId}
             type="text"
             inputMode="decimal"
             autoComplete="off"
-            className="font-mono"
+            className="max-w-24 font-mono tabular-nums"
             disabled={readOnly}
             aria-invalid={errors.defaultRunWeight ? true : undefined}
             aria-describedby={

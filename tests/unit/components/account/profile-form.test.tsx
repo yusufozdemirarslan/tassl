@@ -88,7 +88,9 @@ describe('ProfileForm (UI-010)', () => {
     expect(router.refresh).toHaveBeenCalled()
   })
 
-  it('disables the submit button while the action is in flight', async () => {
+  // `aria-disabled`, not `disabled`: the browser blurs a control the moment it is disabled, which
+  // dropped the keyboard to <body> on every submit (SubmitButton, ./form-feedback).
+  it('marks the submit button unavailable while the action is in flight, without losing focus', async () => {
     let release: (value: unknown) => void = () => {}
     actions.updateProfileAction.mockReturnValue(
       new Promise((resolve) => {
@@ -98,11 +100,31 @@ describe('ProfileForm (UI-010)', () => {
     const user = renderForm()
     await user.click(submit())
 
-    await waitFor(() => expect(submit()).toBeDisabled())
+    await waitFor(() => expect(submit()).toHaveAttribute('aria-disabled', 'true'))
     expect(submit()).toHaveAttribute('aria-busy', 'true')
+    expect(submit()).not.toBeDisabled()
+    expect(submit()).toHaveFocus()
 
     release(ok('Lena Ortiz'))
-    await waitFor(() => expect(submit()).not.toBeDisabled())
+    await waitFor(() => expect(submit()).not.toHaveAttribute('aria-disabled'))
+  })
+
+  it('swallows a second press while the first submission is still running', async () => {
+    let release: (value: unknown) => void = () => {}
+    actions.updateProfileAction.mockReturnValue(
+      new Promise((resolve) => {
+        release = resolve
+      }),
+    )
+    const user = renderForm()
+    await user.click(submit())
+    await waitFor(() => expect(submit()).toHaveAttribute('aria-disabled', 'true'))
+
+    await user.click(submit())
+    expect(actions.updateProfileAction).toHaveBeenCalledTimes(1)
+
+    release(ok('Lena Ortiz'))
+    await waitFor(() => expect(submit()).not.toHaveAttribute('aria-disabled'))
   })
 
   it('renders the message from the action error envelope', async () => {

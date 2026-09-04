@@ -54,6 +54,7 @@ import {
   type AddSectionMemberInput,
   type Assignment,
   type AssignmentView,
+  type ConfirmedPackageVersion,
   type Course,
   type CourseSummary,
   type CourseView,
@@ -69,6 +70,7 @@ import {
   type StudentAssignment,
   type UpdateAssignmentInput,
   type UpdateCoursePolicyInput,
+  type VariantKeyValue,
 } from './schema'
 
 /** Organization roles that see every course of the institution (10 §3 `listCourses`). */
@@ -576,6 +578,48 @@ async function requirePackageVersionAndVariant(
   const variant = await repo.findVariantOfVersion(packageVersionId, variantId)
   if (!variant) variantMismatch()
   return { version: found.version, variant }
+}
+
+/**
+ * The confirmed versions of an institution with the live variants of each (10 §3's package select).
+ * Both screens that point an assignment at a version need the whole shelf: UI-030's "New assignment"
+ * to choose one, UI-032 to re-point an existing assignment, and a version's own variants are what
+ * its radio offers.
+ *
+ * The read belongs to the scenarios module, which Phase 5 owns; until that module exists this is
+ * the only place it can honestly live, because `courses` is what already resolves the institution
+ * and already reads these two tables (`requirePackageVersionAndVariant`). Phase 5 may move it.
+ *
+ * Instructors and program leads only: a student never chooses a package version (08 §4).
+ */
+export async function listConfirmedPackageVersions(
+  actor: SessionUser,
+  orgId: string,
+): Promise<ConfirmedPackageVersion[]> {
+  const role = await requireVisibleMembership(actor, orgId)
+  if (!COURSE_READERS.includes(role)) forbidden()
+
+  const versions = await repo.listConfirmedPackageVersions(orgId)
+  const variants = await repo.listVariantsOfVersions(
+    orgId,
+    versions.map((row) => row.version.id),
+  )
+
+  const byVersion = new Map<string, Array<{ id: string; key: VariantKeyValue }>>()
+  for (const variant of variants) {
+    const list = byVersion.get(variant.packageVersionId)
+    if (list) list.push({ id: variant.id, key: variant.key })
+    else byVersion.set(variant.packageVersionId, [{ id: variant.id, key: variant.key }])
+  }
+
+  return versions.map((row) => ({
+    id: row.version.id,
+    version: row.version.version,
+    packageTitle: row.packageTitle,
+    calibrationStatus: row.version.calibrationStatus,
+    workingClockSeconds: row.version.workingClockSeconds,
+    variants: byVersion.get(row.version.id) ?? [],
+  }))
 }
 
 export async function createAssignment(
