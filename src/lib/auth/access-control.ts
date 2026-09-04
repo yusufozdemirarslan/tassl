@@ -1,5 +1,5 @@
-// Better Auth access control (docs/tech/08-auth-authz.md §3). This file has no server imports so the
-// browser auth client can load the same statement and roles.
+// Better Auth access control (docs/tech/08-auth-authz.md §3). It sits in src/lib because the
+// browser auth client loads the same statement and roles (D-170); it has no server imports.
 import { createAccessControl } from 'better-auth/plugins/access'
 
 export const statement = {

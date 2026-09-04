@@ -8,6 +8,14 @@ export const ERROR_STATUS = {
   NOT_FOUND: 404,
   CONFLICT: 409,
   RATE_LIMITED: 429,
+  // identity (10 §1)
+  EXPORT_RATE_LIMITED: 429,
+  USER_DELETED: 401,
+  // tenancy (10 §2)
+  INVITATION_EMAIL_MISMATCH: 409,
+  AGREEMENT_PURPOSES_INVALID: 400,
+  // courses (10 §3): the mapping is validated wherever it is set
+  MAPPING_INVALID: 400,
   LLM_BUDGET_EXCEEDED: 402,
   LLM_PROVIDER_ERROR: 502,
   LLM_CIRCUIT_OPEN: 503,
@@ -26,6 +34,11 @@ export const DEFAULT_MESSAGES: Record<ErrorCode, string> = {
   NOT_FOUND: 'Not found.',
   CONFLICT: 'The request conflicts with the current state.',
   RATE_LIMITED: 'Too many requests. Try again shortly.',
+  EXPORT_RATE_LIMITED: 'You can download your data twice an hour. Try again shortly.',
+  USER_DELETED: 'This account has been deleted.',
+  INVITATION_EMAIL_MISMATCH: 'This invitation was sent to a different email address.',
+  AGREEMENT_PURPOSES_INVALID: 'An agreement needs at least one permitted purpose.',
+  MAPPING_INVALID: 'A band mapping needs four positive numbers.',
   LLM_BUDGET_EXCEEDED: 'The assistant budget for this period has been used up.',
   LLM_PROVIDER_ERROR: 'The assistant provider did not respond correctly.',
   LLM_CIRCUIT_OPEN: 'The assistant is temporarily unavailable.',

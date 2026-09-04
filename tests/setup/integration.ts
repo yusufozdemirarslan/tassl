@@ -3,6 +3,7 @@
 // (beginTest/rollbackTest) and the tassl_app role arrive with the data layer in Phase 2.
 import 'dotenv/config'
 import { execSync } from 'node:child_process'
+import { createHmac } from 'node:crypto'
 import postgres from 'postgres'
 import { afterAll, beforeAll } from 'vitest'
 
@@ -46,6 +47,36 @@ export async function truncateAll(): Promise<void> {
   if (tables.length === 0) return
   const names = tables.map((t) => `"public"."${t.tablename}"`).join(', ')
   await testSql.unsafe(`truncate table ${names} restart identity cascade`)
+}
+
+/**
+ * A real signed-in session for `userId` (phase-03 step 3.2): inserts a `session` row and returns the
+ * request headers carrying the Better Auth session cookie, so `getSession(headers)` — and any route
+ * handler or `auth.api.*` call given these headers — sees the user signed in.
+ *
+ * The cookie is signed the way better-call does it (`value.HMAC-SHA256(value, secret)`,
+ * percent-encoded), which is the one piece of Better Auth internals a test has to reproduce: the
+ * factories write users straight to the schema (D-040), so there is no password to sign in with.
+ *
+ * `auth` is imported lazily: a top-level import would be hoisted above the `DATABASE_URL`
+ * assignment at the top of this file and open the app client against the development database.
+ */
+export async function asUser(
+  userId: string,
+  options: { activeOrganizationId?: string | null } = {},
+): Promise<Headers> {
+  const { auth } = await import('@/server/auth/auth')
+  const ctx = await auth.$context
+  const token = crypto.randomUUID()
+  const now = new Date()
+  const expiresAt = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000)
+  await testSql`
+    insert into session (id, token, expires_at, created_at, updated_at, user_id, active_organization_id)
+    values (${crypto.randomUUID()}, ${token}, ${expiresAt}, ${now}, ${now}, ${userId},
+      ${options.activeOrganizationId ?? null})`
+  const signature = createHmac('sha256', ctx.secret).update(token).digest('base64')
+  const cookie = encodeURIComponent(`${token}.${signature}`)
+  return new Headers({ cookie: `${ctx.authCookies.sessionToken.name}=${cookie}` })
 }
 
 beforeAll(async () => {

@@ -100,7 +100,7 @@ import { ac, roles } from '@/server/auth/access-control-shared'
 export const authClient = createAuthClient({ plugins: [organizationClient({ ac, roles })] })
 ```
 
-(`access-control-shared.ts` contains only the `createAccessControl` statement and roles; it has no server imports and is safe for the client.)
+(The statement and roles live in `src/lib/auth/access-control.ts` so the browser client can import them without `src/lib` reaching into `src/server`; `src/server/auth/access-control-shared.ts` re-exports them for server code, D-170.)
 
 Schema generation: `npx auth@1.7.2 generate --adapter drizzle --dialect pg --config src/server/auth/auth.ts --output src/server/db/schema/auth.ts -y`, then `pnpm db:generate`.
 
