@@ -33,7 +33,7 @@ const changePasswordSchema = z
 
 type ChangePasswordValues = z.output<typeof changePasswordSchema>
 
-export function ChangePasswordForm() {
+export function ChangePasswordForm({ email }: { email: string }) {
   const router = useRouter()
   const [formError, setFormError] = useState<string | null>(null)
 
@@ -66,6 +66,22 @@ export function ChangePasswordForm() {
 
   return (
     <form noValidate onSubmit={(event) => void handleSubmit(onSubmit)(event)}>
+      {/*
+        The account this password belongs to, for the browser's password manager. Without it Safari
+        cannot tell which credential the form updates: its heuristics then clear the current-password
+        field the moment the new one is filled, so the change could not be submitted at all (D-182).
+        It is readonly and off-screen rather than hidden, because a display:none field is ignored.
+      */}
+      <input
+        type="text"
+        name="username"
+        autoComplete="username"
+        value={email}
+        readOnly
+        tabIndex={-1}
+        aria-hidden="true"
+        className="sr-only"
+      />
       <div className="flex max-w-[48ch] flex-col gap-5">
         <Field data-invalid={errors.currentPassword ? 'true' : undefined}>
           <FieldLabel htmlFor="current-password">

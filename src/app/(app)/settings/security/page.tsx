@@ -13,7 +13,7 @@ export const metadata: Metadata = { title: t('settings.tabSecurity') }
 // that hold a session. Both talk to Better Auth from the browser, so the page itself only proves
 // there is a session to talk about.
 export default async function SettingsSecurityPage() {
-  await getViewer()
+  const viewer = await getViewer()
   return (
     <>
       <PageHeader title={t('settings.title')} description={t('settings.description')} />
@@ -25,7 +25,7 @@ export default async function SettingsSecurityPage() {
           description={t('settings.security.passwordDescription')}
           headingLevel={2}
         >
-          <ChangePasswordForm />
+          <ChangePasswordForm email={viewer.actor.email} />
         </Panel>
         <Panel
           id="settings-sessions"

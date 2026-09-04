@@ -81,7 +81,9 @@ test('an account changes its password, downloads its data twice, and deletes its
   await createVerifiedAccount(page, { name: 'Devon Marsh', email, password: TEST_PASSWORD })
 
   // UI-010 Security. The panel warns before the fact that other devices are signed out (08 §2.8).
-  await page.goto('/settings/security')
+  // WebKit drops a value typed into a password field before React attaches, so the form is filled
+  // only once the page has settled (the same race a person would meet in the first moments).
+  await page.goto('/settings/security', { waitUntil: 'networkidle' })
   await expect(
     page.getByText('Choosing a new password signs out every other device straight away.'),
   ).toBeVisible()
