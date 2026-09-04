@@ -49,7 +49,7 @@
 - [x] Phase 3 exit criteria
 
 ## Phase 4 — Courses and assignments (`build-plan/phase-04-courses-and-assignments.md`)
-- [ ] 4.1 Courses module: schemas, service, repository, router, actions
+- [x] 4.1 Courses module: schemas, service, repository, router, actions
 - [ ] 4.2 Courses screens
 - [ ] 4.3 Section roster screen
 - [ ] 4.4 Assignment configuration screen
