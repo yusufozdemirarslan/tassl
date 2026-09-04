@@ -36,7 +36,59 @@ export const test = base.extend({
   extraHTTPHeaders: async ({ extraHTTPHeaders }, provide) => {
     await provide({ ...extraHTTPHeaders, 'x-forwarded-for': syntheticClientIp() })
   },
+  page: async ({ page }, provide) => {
+    await provide(settleBeforeNavigating(page))
+  },
 })
+
+/**
+ * Every save in the app ends with `router.refresh()`, and that refresh is still in flight when the
+ * success toast appears. Firefox cancels a document load started on top of one and reports
+ * `NS_BINDING_ABORTED`; Chromium and WebKit let the new load win. It is a race in the spec rather
+ * than a defect in the screen — nobody reloads by hand inside that window — so the lane absorbs it:
+ * the page every spec is handed waits for the network to fall quiet before it navigates, and if the
+ * navigation is cancelled anyway it is asked for once more. A cancelled load did not happen, so
+ * retrying it asserts nothing that was not asked for; a second cancellation is raised. The same
+ * wait runs on arrival, so a spec never types into a form React has not attached to yet (D-199).
+ */
+function settleBeforeNavigating(page: Page): Page {
+  const goto = page.goto.bind(page)
+  const reload = page.reload.bind(page)
+
+  const settle = async (): Promise<void> => {
+    try {
+      await page.waitForLoadState('networkidle', { timeout: 10_000 })
+    } catch {
+      // Still busy after ten seconds: navigate anyway and let the assertions say what is wrong.
+    }
+  }
+
+  /** Firefox's marker for "the load you asked for was cancelled by another one". */
+  const wasCancelled = (error: unknown): boolean =>
+    error instanceof Error && error.message.includes('NS_BINDING_ABORTED')
+
+  const navigate = async <T>(attempt: () => Promise<T>): Promise<T> => {
+    await settle()
+    let answer: T
+    try {
+      answer = await attempt()
+    } catch (error) {
+      if (!wasCancelled(error)) throw error
+      await settle()
+      answer = await attempt()
+    }
+    // And once more on arrival: 'load' fires before React attaches, and a value typed into a field
+    // the form does not own yet is a value it never sees — the field looks filled and the submit
+    // carries nothing (D-182 found this in WebKit's password field). A quiet network is the closest
+    // honest signal that the page is done becoming itself.
+    await settle()
+    return answer
+  }
+
+  page.goto = async (url, options) => navigate(() => goto(url, options))
+  page.reload = async (options) => navigate(() => reload(options))
+  return page
+}
 
 /** The five walkthrough seat accounts of docs/tech/06-data-model.md §5. */
 export type Seat = 'student1' | 'student2' | 'instructor' | 'editor' | 'admin'

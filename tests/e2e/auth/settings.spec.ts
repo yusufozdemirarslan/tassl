@@ -119,10 +119,6 @@ test('an account changes its password, downloads its data twice, and deletes its
     await route.fulfill({ response })
   })
 
-  // A successful change refreshes this route so the device list loses the sessions it revoked, and
-  // that fetch is still in flight when the sentence above appears. Firefox cancels a document load
-  // that starts while one is outstanding (NS_BINDING_ABORTED), so the refresh is waited out first.
-  await page.waitForLoadState('networkidle')
   await page.goto('/settings/data')
   const download = page.getByRole('button', { name: 'Download my data' })
 
@@ -162,10 +158,6 @@ test('an account changes its password, downloads its data twice, and deletes its
   await dialog.getByRole('button', { name: 'Delete my account' }).click()
 
   await page.waitForURL(/\/sign-in/)
-  // The sign-out behind the deletion is still settling here: a navigation started on top of it is
-  // replaced by the client's own, which lands on a bare /sign-in and would read as a proxy that
-  // forgot where the visitor was going. The redirect only means anything once the page is idle.
-  await page.waitForLoadState('networkidle')
   await page.goto('/home')
   await expect(page).toHaveURL(/\/sign-in\?next=%2Fhome$/)
 })

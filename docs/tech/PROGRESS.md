@@ -53,7 +53,7 @@
 - [x] 4.2 Courses screens
 - [x] 4.3 Section roster screen
 - [x] 4.4 Assignment configuration screen
-- [ ] Phase 4 exit criteria
+- [x] Phase 4 exit criteria
 
 ## Phase 5 — Scenario packages (`build-plan/phase-05-scenario-packages.md`)
 - [ ] 5.1 Package schemas and validatePackage
