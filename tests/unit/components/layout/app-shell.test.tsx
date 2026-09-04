@@ -1,15 +1,23 @@
 import { render, screen } from '@testing-library/react'
 import type { Route } from 'next'
 import { describe, expect, it, vi } from 'vitest'
-import HomePage from '@/app/(app)/home/page'
+import { HomeRunsPanel } from '@/components/features/home/runs-panel'
 import { AppShell } from '@/components/layout/app-shell'
 import { ErrorState } from '@/components/layout/error-state'
 import type { RailItem } from '@/components/layout/rail'
+import { permittedRailKeys, railFor } from '@/components/layout/rail-items'
+import { enUS } from '@/lib/i18n/en-US'
 
 vi.mock('next/navigation', () => ({
   usePathname: () => '/runs/abc',
-  useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
+  useRouter: () => ({ push: vi.fn(), replace: vi.fn(), refresh: vi.fn() }),
 }))
+
+// The header's two menus reach the server and Better Auth; the shell test is about what the header
+// renders, so both boundaries are stubbed here.
+vi.mock('@/server/modules/tenancy/actions', () => ({ setActiveInstitutionAction: vi.fn() }))
+vi.mock('@/lib/auth-client', () => ({ authClient: { signOut: vi.fn() } }))
+vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }))
 
 const rail: RailItem[] = [
   { href: '/home' as Route, label: 'Home', icon: 'home' },
@@ -161,17 +169,75 @@ describe('AppShell', () => {
   })
 })
 
-describe('HomePage', () => {
-  it('renders the zero-membership empty state in an h1 → h2 → h3 outline', () => {
-    render(<HomePage />)
-    expect(screen.getByRole('heading', { level: 1, name: 'Home' })).toBeInTheDocument()
+describe('rail derivation (UI-008)', () => {
+  it('gives everyone Home and nothing else without a membership', () => {
+    expect(permittedRailKeys({ roles: [], platformRole: 'none' })).toEqual(['home'])
+  })
+
+  it('derives each destination from the role that earns it', () => {
+    expect(permittedRailKeys({ roles: ['student'], platformRole: 'none' })).toEqual([
+      'home',
+      'runs',
+    ])
+    expect(permittedRailKeys({ roles: ['instructor'], platformRole: 'none' })).toEqual([
+      'home',
+      'courses',
+      'review',
+    ])
+    expect(permittedRailKeys({ roles: ['teaching_assistant'], platformRole: 'none' })).toEqual([
+      'home',
+      'review',
+    ])
+    expect(permittedRailKeys({ roles: ['scenario_author'], platformRole: 'none' })).toEqual([
+      'home',
+      'packages',
+    ])
+    expect(permittedRailKeys({ roles: ['program_lead'], platformRole: 'none' })).toEqual([
+      'home',
+      'courses',
+    ])
+  })
+
+  it('adds Packages for a platform editor and Admin for a platform admin', () => {
+    expect(permittedRailKeys({ roles: [], platformRole: 'tassl_scenario_editor' })).toEqual([
+      'home',
+      'packages',
+    ])
+    expect(permittedRailKeys({ roles: [], platformRole: 'admin' })).toEqual(['home', 'admin'])
+  })
+
+  it('unions the roles held across institutions, without repeating a destination', () => {
+    expect(
+      permittedRailKeys({ roles: ['student', 'instructor', 'instructor'], platformRole: 'none' }),
+    ).toEqual(['home', 'runs', 'courses', 'review'])
+  })
+
+  it('renders only the destinations whose routes exist, so no rail link can 404', () => {
+    const items = railFor({
+      roles: ['student', 'instructor', 'scenario_author'],
+      platformRole: 'admin',
+    })
+    expect(items).toEqual([{ href: '/home', label: enUS['nav.home'], icon: 'home' }])
+  })
+})
+
+describe('HomeRunsPanel (UI-009)', () => {
+  it('explains how an institution arrives when the person has no membership', () => {
+    render(<HomeRunsPanel hasMembership={false} />)
     expect(screen.getByRole('heading', { level: 2, name: 'Your runs' })).toBeInTheDocument()
     expect(
       screen.getByRole('heading', { level: 3, name: 'Waiting for an invitation' }),
     ).toBeInTheDocument()
     expect(screen.getByText(/adds you by an invitation email/)).toBeInTheDocument()
-    expect(screen.queryByText('Nothing to do yet')).not.toBeInTheDocument()
     expect(screen.getByRole('region', { name: 'Your runs' })).toHaveAttribute('id', 'home-runs')
+  })
+
+  it('says nothing is assigned yet once the person belongs to an institution', () => {
+    render(<HomeRunsPanel hasMembership />)
+    expect(
+      screen.getByRole('heading', { level: 3, name: enUS['home.emptyTitle'] }),
+    ).toBeInTheDocument()
+    expect(screen.queryByText(enUS['home.noMembershipsTitle'])).not.toBeInTheDocument()
   })
 })
 

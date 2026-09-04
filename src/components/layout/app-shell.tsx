@@ -17,7 +17,7 @@ export type AppShellProps = {
 }
 
 // UI-008: skip link → header (brand, institution switcher, bell, account) → rail → main.
-// Phase 3 supplies the session-derived props; until then the layout passes placeholders.
+// Every prop is session-derived by the (app) layout; the shell itself decides nothing.
 // Both header groups can shrink (min-w-0) so a long institution name truncates instead of
 // pushing the bell and account controls off the edge.
 export function AppShell({

@@ -1,6 +1,5 @@
 'use client'
 
-import type { Route } from 'next'
 import Link from 'next/link'
 import { CircleUserRound, LogOut, Settings } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -13,21 +12,18 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { useSignOut } from '@/lib/hooks/use-sign-out'
 import { t } from '@/lib/i18n/t'
 
 export type AccountUser = { name: string; email: string }
 
-type AccountMenuProps = {
-  user: AccountUser | null
-  /** Wired to the Better Auth client in Phase 3. */
-  onSignOut?: (() => void) | undefined
-}
+type AccountMenuProps = { user: AccountUser | null }
 
 // Settings and sign-out live behind the account menu; the user's initials are never an image.
-// The settings route lands in Phase 3, so the link is not prefetched.
-const SETTINGS_ROUTE = '/settings' as Route
+// Signing out revokes the session through Better Auth and lands on /sign-in (`useSignOut`).
+export function AccountMenu({ user }: AccountMenuProps) {
+  const { signOut, pending } = useSignOut()
 
-export function AccountMenu({ user, onSignOut }: AccountMenuProps) {
   if (!user) {
     // Under sm only the icon shows; the text stays in the accessibility tree exactly once.
     return (
@@ -59,11 +55,16 @@ export function AccountMenu({ user, onSignOut }: AccountMenuProps) {
             </span>
           </DropdownMenuLabel>
           <DropdownMenuSeparator />
-          <DropdownMenuItem render={<Link href={SETTINGS_ROUTE} prefetch={false} />}>
+          <DropdownMenuItem render={<Link href="/settings" />}>
             <Settings aria-hidden="true" className="size-4" />
             {t('shell.settings')}
           </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => onSignOut?.()}>
+          <DropdownMenuItem
+            disabled={pending}
+            onClick={() => {
+              void signOut()
+            }}
+          >
             <LogOut aria-hidden="true" className="size-4" />
             {t('shell.signOut')}
           </DropdownMenuItem>

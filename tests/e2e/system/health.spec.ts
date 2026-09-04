@@ -1,10 +1,12 @@
 import { axe, expect, test } from '../fixtures'
 
 test.describe('system', () => {
-  test('landing renders and has no axe violations', async ({ page }) => {
+  // Step 3.4 turned `/` into a signpost (09 §1): Tassl has no marketing surface, so the root
+  // address is `/home` with a session and `/sign-in` without one, and nothing renders there.
+  test('the root address sends a signed-out visitor to sign in', async ({ page }) => {
     await page.goto('/')
-    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Tassl')
-    await expect(page.getByText('Make the call.')).toBeVisible()
+    await expect(page).toHaveURL(/\/sign-in$/)
+    await expect(page.getByRole('heading', { level: 1, name: 'Sign in to Tassl' })).toBeVisible()
     await axe(page)
   })
 

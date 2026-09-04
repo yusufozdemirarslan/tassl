@@ -8,6 +8,7 @@ import { pathToFileURL } from 'node:url'
 import { auth } from '@/server/auth/auth'
 import { env } from '@/server/config'
 import { client, db } from '@/server/db/client'
+import { stopBoss } from '@/server/jobs/boss'
 import {
   courses,
   institutionSettings,
@@ -227,17 +228,27 @@ export async function runSeed(): Promise<SeedSummary> {
 const invokedDirectly =
   typeof process.argv[1] === 'string' && import.meta.url === pathToFileURL(process.argv[1]).href
 
+/**
+ * Signing a seat up sends its verification email, which enqueues a `send_email` job and so starts
+ * pg-boss; its pool keeps the event loop alive, so the script closes both connections before it
+ * returns (D-180).
+ */
+async function shutdown(): Promise<void> {
+  await stopBoss()
+  await client.end({ timeout: 5 })
+}
+
 if (invokedDirectly) {
   runSeed()
     .then(async (summary) => {
       console.log(
         `seed: ${Object.keys(summary.users).length} seat accounts, course ${summary.courseId}`,
       )
-      await client.end({ timeout: 5 })
+      await shutdown()
     })
     .catch(async (error: unknown) => {
       console.error(error instanceof Error ? error.message : error)
-      await client.end({ timeout: 5 })
+      await shutdown()
       process.exit(1)
     })
 }

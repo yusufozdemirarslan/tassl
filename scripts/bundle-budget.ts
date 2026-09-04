@@ -1,5 +1,11 @@
 // scripts/bundle-budget.ts — docs/tech/16-performance-a11y-budgets.md §3.4 (B4, B5).
 // Runs in the CI build job after `pnpm build`; sums gzip bytes of the JS each route loads.
+//
+// Two assertions, not one (D-187): the framework floor — React and the Next App Router runtime,
+// charged to every route and not something a screen can trade against — is checked once, and each
+// route is then judged on the chunks it adds on top of it. A framework upgrade shows up as one
+// failing line instead of every route at once, and the per-route number stays a real ceiling on the
+// code we write.
 // Turbopack (Next 16) writes no root app-build-manifest.json (D-148): the shared runtime chunks
 // are `rootMainFiles` in .next/build-manifest.json and each route's client chunks (layouts above
 // it, the page, its client components) are `entryJSFiles` in the route's
@@ -10,14 +16,19 @@ import vm from 'node:vm'
 import { gzipSync } from 'node:zlib'
 
 const NEXT = join(process.cwd(), '.next')
+
+/** React 19 + the Next 16 client runtime (`rootMainFiles`), 130,897 bytes gzip on 2026-09-04 (D-187). */
+const FRAMEWORK_FLOOR_MAX_BYTES = 175_000
+
+/** Bytes a route may add on top of the floor: its layouts, its page, and their client components. */
 const budgets: Array<{ pattern: RegExp; maxBytes: number; label: string }> = [
-  { pattern: /^\/\(app\)\/runs\/\[runId\](\/|$)/, maxBytes: 250_000, label: 'run route' },
-  { pattern: /^\/\(app\)\/review\/runs\/\[runId\]$/, maxBytes: 250_000, label: 'run route' },
-  { pattern: /^\/\(app\)\/records\/\[runId\]$/, maxBytes: 250_000, label: 'run route' },
-  { pattern: /^\/\(public\)\//, maxBytes: 180_000, label: 'public page' },
-  // The gallery renders every primitive at once; 300 KB here and in lighthouserc.json (D-156).
-  { pattern: /^\/dev\//, maxBytes: 300_000, label: 'dev gallery' },
-  { pattern: /.*/, maxBytes: 250_000, label: 'other route' },
+  { pattern: /^\/\(app\)\/runs\/\[runId\](\/|$)/, maxBytes: 130_000, label: 'run route' },
+  { pattern: /^\/\(app\)\/review\/runs\/\[runId\]$/, maxBytes: 130_000, label: 'run route' },
+  { pattern: /^\/\(app\)\/records\/\[runId\]$/, maxBytes: 130_000, label: 'run route' },
+  { pattern: /^\/\(public\)\//, maxBytes: 110_000, label: 'public page' },
+  // The gallery renders every primitive at once (D-156); lighthouserc.json carries the total.
+  { pattern: /^\/dev\//, maxBytes: 190_000, label: 'dev gallery' },
+  { pattern: /.*/, maxBytes: 175_000, label: 'other route' },
 ]
 
 type RscManifest = Record<string, { entryJSFiles?: Record<string, string[]> }>
@@ -58,6 +69,17 @@ function routeEntryFiles(pageKey: string): string[] | undefined {
 }
 
 let failed = false
+
+const rootFiles = (buildManifest.rootMainFiles ?? []).filter(
+  (f) => f.endsWith('.js') && !f.includes('polyfills'),
+)
+const floorBytes = rootFiles.reduce((sum, f) => sum + gzipBytes(f), 0)
+const floorOk = floorBytes <= FRAMEWORK_FLOOR_MAX_BYTES
+if (!floorOk) failed = true
+console.log(
+  `${floorOk ? 'ok  ' : 'FAIL'} ${String(floorBytes).padStart(7)} / ${FRAMEWORK_FLOOR_MAX_BYTES} framework    (React + Next runtime, every route)`,
+)
+
 for (const pageKey of Object.keys(routes)
   .filter((k) => k.endsWith('/page'))
   .sort()) {
@@ -69,8 +91,10 @@ for (const pageKey of Object.keys(routes)
     failed = true
     continue
   }
-  const files = new Set<string>([...(buildManifest.rootMainFiles ?? []), ...entryFiles])
-  const js = [...files].filter((f) => f.endsWith('.js') && !f.includes('polyfills'))
+  // The floor is charged once, above; a route answers for what it adds to it.
+  const own = new Set<string>(entryFiles)
+  for (const f of rootFiles) own.delete(f)
+  const js = [...own].filter((f) => f.endsWith('.js') && !f.includes('polyfills'))
   const bytes = js.reduce((sum, f) => sum + gzipBytes(f), 0)
   const budget = budgets.find((b) => b.pattern.test(route))!
   const ok = bytes <= budget.maxBytes

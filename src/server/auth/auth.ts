@@ -1,31 +1,24 @@
-// Better Auth server configuration (docs/tech/08-auth-authz.md §1). Phase 2 uses this file to
-// generate the identity and tenancy tables; Phase 3 wires the route handler, the client, and the
-// email module. Until then every outbound email is written to the server log by notifyByConsole.
+// Better Auth server configuration (docs/tech/08-auth-authz.md §1). The generated identity and
+// tenancy tables come from this file (D-099: `npx auth@1.7.2 generate` owns
+// src/server/db/schema/auth.ts and it is never hand-edited). Every outbound email goes through the
+// email module's `sendEmail`, which renders the react-email template and enqueues `send_email`.
 import { drizzleAdapter } from '@better-auth/drizzle-adapter'
 import { betterAuth } from 'better-auth'
+import { createAuthMiddleware } from 'better-auth/api'
 import { nextCookies } from 'better-auth/next-js'
 import { organization } from 'better-auth/plugins'
+import { track } from '@/server/analytics/track'
 import { env } from '@/server/config'
 import { db } from '@/server/db/client'
 import * as schema from '@/server/db/schema'
-import { rootLogger } from '@/server/logging/logger'
+import { sendEmail } from '@/server/email/send'
 import { ac, roles } from './access-control-shared'
-
-type ConsoleEmail = {
-  to: string
-  template: 'verify-email' | 'reset-password' | 'invitation'
-  props: Record<string, string>
-}
-
-// Placeholder for src/server/email/send (Phase 3). Never logs the recipient's address in full.
-function notifyByConsole({ to, template, props }: ConsoleEmail): void {
-  const domain = to.split('@')[1] ?? ''
-  rootLogger.info({ event: 'email.console', template, domain, props }, 'email (console transport)')
-}
 
 export const auth = betterAuth({
   baseURL: env.NEXT_PUBLIC_APP_URL,
   secret: env.BETTER_AUTH_SECRET,
+  // Better Auth's own origin check for its endpoints (08 §2.7); /api/v1 uses X-Requested-With.
+  trustedOrigins: [env.NEXT_PUBLIC_APP_URL],
   database: drizzleAdapter(db, { provider: 'pg', schema }),
   advanced: {
     database: { generateId: () => crypto.randomUUID() },
@@ -51,14 +44,48 @@ export const auth = betterAuth({
     autoSignIn: false,
     revokeSessionsOnPasswordReset: true,
     sendResetPassword: async ({ user, url }) =>
-      notifyByConsole({ to: user.email, template: 'reset-password', props: { url } }),
+      sendEmail({ to: user.email, template: 'reset-password', props: { url } }),
   },
   emailVerification: {
     sendOnSignUp: true,
     autoSignInAfterVerification: true,
     expiresIn: 60 * 60 * 24,
     sendVerificationEmail: async ({ user, url }) =>
-      notifyByConsole({ to: user.email, template: 'verify-email', props: { url } }),
+      sendEmail({ to: user.email, template: 'verify-email', props: { url } }),
+    // AN-002 (17-analytics-events.md §5.5).
+    afterEmailVerification: async (user) => {
+      track(
+        'email_verified',
+        { ms_since_sign_up: Math.max(0, Date.now() - user.createdAt.getTime()) },
+        { userId: user.id },
+      )
+    },
+  },
+  // The three activation events Better Auth owns (17 §5.5); every other event is emitted by the
+  // service that performs the write.
+  databaseHooks: {
+    user: {
+      create: {
+        after: async (user, ctx) => {
+          const method = ctx?.path?.startsWith('/callback/') ? 'google' : 'password'
+          track('sign_up_completed', { method }, { userId: user.id })
+        },
+      },
+    },
+  },
+  hooks: {
+    after: createAuthMiddleware(async (ctx) => {
+      const session = ctx.context.newSession
+      if (!session) return
+      const method = ctx.path.startsWith('/callback/')
+        ? 'google'
+        : ctx.path === '/verify-email'
+          ? 'verification'
+          : ctx.path === '/sign-in/email'
+            ? 'password'
+            : null
+      if (method) track('sign_in_succeeded', { method }, { userId: session.user.id })
+    }),
   },
   socialProviders: env.GOOGLE_CLIENT_ID
     ? {
@@ -91,10 +118,15 @@ export const auth = betterAuth({
     organization({
       ac,
       roles,
+      // Seven days rather than Better Auth's 48 hours (08 §2.5).
+      invitationExpiresIn: 60 * 60 * 24 * 7,
+      // 08 §3 does not use the built-in owner/admin roles for people: the account an admin names
+      // when creating an institution is its program lead.
+      creatorRole: 'program_lead',
       allowUserToCreateOrganization: async (user) =>
         (user as { platformRole?: string }).platformRole === 'admin',
       sendInvitationEmail: async ({ id, email, organization: org, inviter }) =>
-        notifyByConsole({
+        sendEmail({
           to: email,
           template: 'invitation',
           props: {

@@ -16,6 +16,12 @@ import {
 import { auditLogs, user, type AuditLog, type NewAuditLog } from '@/server/db/schema'
 import type { DbOrTx } from '@/server/db/tx'
 
+// The service may not import `@/server/db` (04 §2), so the types and the transaction boundary it
+// needs are re-exported by the layer that owns database access.
+export type { AuditAction, AuditLog, AuditLogMetadata, NewAuditLog } from '@/server/db/schema'
+export type { DbOrTx, Tx } from '@/server/db/tx'
+export { withTransaction } from '@/server/db/tx'
+
 export type UserRow = typeof user.$inferSelect
 
 /** `user.platform_role` values (06 §3.1, D-007). */
