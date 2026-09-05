@@ -79,8 +79,15 @@ function CalibrationChip({ status }: { status: CalibrationStatusValue }) {
   return <Badge variant="secondary">{t('packages.calibrated')}</Badge>
 }
 
+/**
+ * The list carries the family-level warning; `READINESS_CONCEPT_SINGLE_ITEM` is a property of one
+ * version's readiness items and reaches its author on the version's own screen (D-251). Its label
+ * is here because the map is total over the warning vocabulary, which is what makes a warning added
+ * tomorrow a type error rather than a blank chip.
+ */
 const WARNING_LABELS: Record<PackageWarningValue, string> = {
   FAMILY_LACKS_ETHICAL_DEFECT: t('packages.warningEthicalShortcut'),
+  READINESS_CONCEPT_SINGLE_ITEM: t('packages.warningReadinessConcept'),
 }
 
 /**

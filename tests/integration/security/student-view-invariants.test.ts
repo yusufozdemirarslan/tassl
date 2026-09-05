@@ -76,10 +76,16 @@ const getStudentScenario = await loadGetStudentScenario()
 type Factories = typeof import('@tests/factories')
 type ScenariosRepo = typeof import('@/server/modules/scenarios/repository')
 type RunsRepo = typeof import('@/server/modules/runs/repository')
+type Runs = typeof import('@/server/modules/runs')
+type Reliance = typeof import('@/server/modules/reliance')
+type Trace = typeof import('@/server/modules/trace')
 
 let f: Factories
 let repo: ScenariosRepo
 let runsRepo: RunsRepo
+let runs: Runs
+let reliance: Reliance
+let trace: Trace
 
 const actorFor = (
   user: { id: string; email: string; name: string },
@@ -381,6 +387,9 @@ beforeEach(async () => {
   f ??= await import('@tests/factories')
   repo ??= await import('@/server/modules/scenarios/repository')
   runsRepo ??= await import('@/server/modules/runs/repository')
+  runs ??= await import('@/server/modules/runs')
+  reliance ??= await import('@/server/modules/reliance')
+  trace ??= await import('@/server/modules/trace')
   fx = await setup()
 })
 
@@ -390,6 +399,46 @@ afterAll(async () => {
 
 const keysFound = (payload: unknown, scored: boolean): string[] =>
   findForbiddenKeys(payload, { scored }).map((finding) => finding.key)
+
+/**
+ * Every statement the application client sent while `call` ran (D-252).
+ *
+ * `postgres.js` reads `options.debug` from the live options object once per statement it writes
+ * (`src/connection.js`), so assigning it here instruments the very client the service uses — no
+ * mock, no second connection, and the service is called exactly as a route handler calls it. It is
+ * restored in `finally`, and only one test at a time uses it (`fileParallelism: false`).
+ */
+async function capturingSql(call: () => Promise<unknown>): Promise<string[]> {
+  const { client } = await import('@/server/db/client')
+  const options = (client as unknown as { options: { debug: unknown } }).options
+  const previous = options.debug
+  const statements: string[] = []
+  options.debug = (_id: number, statement: string) => {
+    statements.push(statement)
+  }
+  try {
+    await call()
+  } finally {
+    options.debug = previous
+  }
+  return statements
+}
+
+/**
+ * Every property name anywhere in a value (12 §8.3). The key sets answer "is anything forbidden in
+ * here"; this answers "is this exact field in here", which is what a projection assertion needs when
+ * the field is allowed elsewhere and forbidden on this payload.
+ */
+function keysOf(value: unknown, out = new Set<string>()): Set<string> {
+  if (Array.isArray(value)) value.forEach((entry) => keysOf(entry, out))
+  else if (value && typeof value === 'object') {
+    for (const [key, nested] of Object.entries(value as Record<string, unknown>)) {
+      out.add(key)
+      keysOf(nested, out)
+    }
+  }
+  return out
+}
 
 // ---------------------------------------------------------------------------------------------
 // The negative control: the sets fire on the payloads this codebase produces
@@ -555,6 +604,185 @@ describe('the package a student receives carries no forbidden key', () => {
       expect(parsed.namedFields.map((field) => field.key)).toContain('premium_payback_months')
     },
   )
+
+  /**
+   * The assertion above is about the answer. This one is about the *row the answer is made of*
+   * (D-252), and it is the difference between a projection and a query.
+   *
+   * `GET /runs/{runId}/workspace` is the read a student's screen polls for the whole working
+   * period, and `getStudentScenario` is what it calls for the package half. A read that loaded the
+   * version whole to pick three fields off it would put the warranted stances, the evidence
+   * statuses, the failure families, the verification paths, the question bank and the readiness
+   * answer keys into the request that answers it — clean on the wire, and in the object any Sentry
+   * `extra` or pino error field would carry. The control is the author's own read of the same
+   * version, which does carry all of it.
+   */
+  it('the row behind the student’s package carries no forbidden key either (D-252)', async () => {
+    // The control: the wide read of this very version is full of things a student may not see.
+    const author = await repo.findVersionFull(fx.orgId, fx.versionId)
+    expect(keysFound(author, false).length).toBeGreaterThan(0)
+
+    const row = await repo.findRunScenario(fx.orgId, fx.run.id)
+    expect(row, 'the run’s package was not found by its own tenant').toBeDefined()
+    expect(findForbiddenKeys(row, { scored: false })).toEqual([])
+    expect(Object.keys(row!).sort()).toEqual(['brief', 'documents', 'namedFields'])
+    expect(row!.documents.length).toBeGreaterThan(0)
+    for (const document of row!.documents) {
+      // No body, and nothing authored about the document: five columns, named in the select.
+      expect(Object.keys(document).sort()).toEqual(['author', 'datedOn', 'id', 'key', 'title'])
+    }
+    expect(row!.namedFields.length).toBeGreaterThan(0)
+    for (const field of row!.namedFields) {
+      expect(Object.keys(field).sort()).toEqual(['key', 'label', 'unit'])
+    }
+  })
+
+  it.skipIf(getStudentScenario === undefined)(
+    'the student’s package is that row, not a projection over a wider one (D-252)',
+    async () => {
+      // Nothing is dropped between the query and the answer, because nothing wider was loaded.
+      const view = await getStudentScenario!(fx.learner, fx.run.id)
+      expect(view).toEqual(await repo.findRunScenario(fx.orgId, fx.run.id))
+    },
+  )
+
+  /**
+   * The one assertion that can tell "never loaded" from "loaded and then dropped": the SQL the
+   * student path actually sends. Both readings answer the same clean object, so a shape assertion
+   * cannot separate them — `postgres.js` calls `options.debug` for every statement it writes, which
+   * can, and the columns named below exist only on authored elements.
+   *
+   * The control is `findVersionForRun`, the wide read of the same version through the same client:
+   * it names every one of them, which is what makes their absence above a fact about the query
+   * rather than about the fixture.
+   */
+  it.skipIf(getStudentScenario === undefined)(
+    'the student path never sends an answer key or a warranted stance to Postgres (D-252)',
+    async () => {
+      /** Columns of the authored elements 12 §8.1 and §8.2 withhold until a run is scored. */
+      const withheld = [
+        'answer_key',
+        'warranted_stance',
+        'evidence_status',
+        'failure_family',
+        'verification_paths',
+        'planted',
+        'expected_answer_notes',
+        'scripted_reversal',
+        'trigger_phrases',
+      ]
+
+      const namedIn = (statements: readonly string[]): string[] =>
+        withheld.filter((column) => statements.some((statement) => statement.includes(column)))
+
+      // The control first: the wide read of the same version, through the same client, names them.
+      expect(
+        namedIn(await capturingSql(() => repo.findVersionForRun(fx.orgId, fx.versionId))).length,
+        'the control read named none of the withheld columns',
+      ).toBeGreaterThan(0)
+
+      const sent = await capturingSql(() => getStudentScenario!(fx.learner, fx.run.id))
+      expect(sent.length, 'no statement was captured, so this test proves nothing').toBeGreaterThan(
+        0,
+      )
+      expect(namedIn(sent)).toEqual([])
+    },
+  )
+
+  it('answers undefined for a run another institution owns (D-252)', async () => {
+    const other = (await f.createInstitution('student-view-other')).organization.id
+    expect(await repo.findRunScenario(other, fx.run.id)).toBeUndefined()
+  })
+})
+
+// ---------------------------------------------------------------------------------------------
+// The workspace a student works in (Step 6.4)
+//
+// The package projection above is one function; the workspace is what a student actually receives
+// while the run is open, and it is assembled from three modules — the run itself, the package, and
+// the claims a document surfaces. Each is built by picking fields, and this is where that is proven
+// against a version whose every element carries something forbidden.
+// ---------------------------------------------------------------------------------------------
+
+describe('the workspace a student works in carries no forbidden key', () => {
+  /** The fixture's two documents, by the keys `setup()` gives them. */
+  async function documentIds(): Promise<{ deck: string; retention: string }> {
+    const rows = await testSql<{ id: string; key: string }[]>`
+      select id, key from scenario_documents where package_version_id = ${fx.versionId}`
+    const deck = rows.find((row) => row.key === 'D1')?.id
+    const retention = rows.find((row) => row.key === 'D2')?.id
+    if (!deck || !retention) throw new Error('the fixture room is missing a document')
+    return { deck, retention }
+  }
+
+  it('the room the workspace lists carries no body and nothing authored about a document', async () => {
+    const workspace = await runs.getRunWorkspace(fx.learner, fx.run.id)
+
+    expect(findForbiddenKeys(workspace, { scored: false })).toEqual([])
+    expect(workspace.documents.length).toBeGreaterThan(0)
+    for (const document of workspace.documents) {
+      // `role` and `supersededByDocumentId` are the missed-defect section of the debrief (12 §8.2):
+      // which document supersedes which is the finding the run is measuring.
+      expect(Object.keys(document).sort()).toEqual(['author', 'datedOn', 'id', 'key', 'title'])
+    }
+    // And no variant: which variant they drew says whether a defect was planted at all (D-228).
+    expect(keysOf(workspace).has('variantKey')).toBe(false)
+  })
+
+  it('an open hands over the body and nothing else about the document', async () => {
+    const { deck } = await documentIds()
+    const opened = await runs.openDocument(fx.learner, fx.run.id, deck)
+
+    expect(findForbiddenKeys(opened, { scored: false })).toEqual([])
+    expect(opened.document.body.length).toBeGreaterThan(0)
+    expect(Object.keys(opened.document).sort()).toEqual([
+      'author',
+      'body',
+      'datedOn',
+      'id',
+      'key',
+      'title',
+    ])
+  })
+
+  it('a claim surfaced by a document carries the claim, and nothing authored about it', async () => {
+    // The fixture's sound claim is sourced from the retention memo, so opening it surfaces the
+    // claim (FR-031) — and the claim's row carries the trigger phrases, the escalation reply, the
+    // author's rationale and, next to it, the warranted stance and the planted flag.
+    const { retention } = await documentIds()
+    await runs.openDocument(fx.learner, fx.run.id, retention)
+
+    const claims = await reliance.listRunClaims(fx.learner, fx.run.id)
+    expect(claims.length).toBeGreaterThan(0)
+    expect(findForbiddenKeys(claims, { scored: false })).toEqual([])
+    expect(Object.keys(claims[0]!).sort()).toEqual([
+      'id',
+      'inTurnWindow',
+      'key',
+      'previousStance',
+      'reliedOn',
+      'stance',
+      'stanceSetAt',
+      'surfacedAt',
+      'surfacedBy',
+      'text',
+      'usedMarked',
+    ])
+  })
+
+  it('the skim flag is not in the workspace, the open, or the owner’s trace (12 §8.2)', async () => {
+    const { deck } = await documentIds()
+    const { openId } = await runs.openDocument(fx.learner, fx.run.id, deck)
+    await runs.closeDocument(fx.learner, fx.run.id, openId)
+
+    const owned = await trace.listEvents(fx.learner, fx.run.id)
+    const close = owned.find((event) => event.type === 'document_close')
+    expect(close).toBeDefined()
+    // D-082's reading of *how* they read is an input to the Verification band. Handing it back
+    // mid-run is in-run feedback on the assessment (D-223).
+    expect(keysOf(close?.payload).has('skim')).toBe(false)
+    expect(keysOf(await runs.getRunWorkspace(fx.learner, fx.run.id)).has('skim')).toBe(false)
+  })
 })
 
 // ---------------------------------------------------------------------------------------------

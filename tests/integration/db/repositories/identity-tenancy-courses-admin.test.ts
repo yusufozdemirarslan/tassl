@@ -81,6 +81,14 @@ async function createPackage(orgId: string, userId: string): Promise<PackageRows
 
 type RunOptions = { attemptNo?: number; state?: string }
 
+/**
+ * One run for one student on one assignment.
+ *
+ * `attemptNo` above 1 belongs to a re-offer, which voids the attempt it replaces first (FR-183,
+ * D-041): a student holds one run that is not voided per assignment, which
+ * `runs_assignment_id_student_id_live_uidx` enforces (D-259). Several runs on one assignment are
+ * several students; several runs by one student are several assignments.
+ */
 async function createRun(
   orgId: string,
   assignmentId: string,
@@ -460,16 +468,27 @@ describe('courses repository', () => {
 
   it('lists confirmed and recorded runs of a course with their score rows', async () => {
     const tenant = await createTenant()
-    const student = await createUser('Student')
     const { course, pkg, assignment } = await createCourseChain(tenant)
-    const confirmed = await createRun(tenant.orgId, assignment.id, student, pkg, {
-      state: 'confirmed',
+    // Three seats on the assignment, one run each: the course's finished runs are the finished
+    // runs of different students, because one student holds one live run on an assignment (D-041).
+    const confirmed = await createRun(
+      tenant.orgId,
+      assignment.id,
+      await createUser('Confirmed Student'),
+      pkg,
+      { state: 'confirmed' },
+    )
+    const recorded = await createRun(
+      tenant.orgId,
+      assignment.id,
+      await createUser('Recorded Student'),
+      pkg,
+      { state: 'recorded' },
+    )
+    // Still working: not a finished run, so the list must leave it out.
+    await createRun(tenant.orgId, assignment.id, await createUser('Working Student'), pkg, {
+      state: 'working',
     })
-    const recorded = await createRun(tenant.orgId, assignment.id, student, pkg, {
-      attemptNo: 2,
-      state: 'recorded',
-    })
-    await createRun(tenant.orgId, assignment.id, student, pkg, { attemptNo: 3, state: 'working' })
     await testSql`
       insert into run_scores (run_id, rubric_version, graphs, points_effective, scored_at)
       values (${confirmed}, 'v1', '{}'::jsonb, 3.000, now())`
@@ -555,32 +574,42 @@ describe('courses repository', () => {
     expect(await courses.updateAssignment(tenant.orgId, assignment.id, { label: 'Y' })).toBeNull()
   })
 
-  it('lists the runs of an assignment with the student and the newest export version', async () => {
+  it('pages the runs of an assignment with the student, variant, decisions and export version', async () => {
     const tenant = await createTenant()
     const student = await createUser('Student')
+    const classmate = await createUser('Classmate')
     const { pkg, assignment } = await createCourseChain(tenant)
+    // Two students on the assignment — which is what the page is: a run per seat, each with its own
+    // student, variant and exports. One student cannot hold both rows (D-041, D-259).
     const exported = await createRun(tenant.orgId, assignment.id, student, pkg, {
       state: 'recorded',
     })
-    const fresh = await createRun(tenant.orgId, assignment.id, student, pkg, { attemptNo: 2 })
+    const fresh = await createRun(tenant.orgId, assignment.id, classmate, pkg)
     for (const version of [1, 2]) {
       await testSql`
         insert into course_exports (organization_id, run_id, assignment_id, version, file, reason)
         values (${tenant.orgId}, ${exported}, ${assignment.id}, ${version}, '{}'::jsonb, 'initial')`
     }
 
-    const rows = await courses.listRunsForAssignment(tenant.orgId, assignment.id)
-    expect(rows).toHaveLength(2)
-    const byId = new Map(rows.map((r) => [r.run.id, r]))
+    const page = await courses.pageRunsForAssignment(tenant.orgId, assignment.id)
+    expect(page.items).toHaveLength(2)
+    expect(page.nextCursor).toBeNull()
+    const byId = new Map(page.items.map((row) => [row.run.id, row]))
     expect(byId.get(exported)).toMatchObject({
       run: { attemptNo: 1, state: 'recorded' },
       student: { id: student, name: 'Student' },
+      variant: { key: 'defective' },
+      decisionsMade: 0,
       latestExportVersion: 2,
     })
-    expect(byId.get(fresh)).toMatchObject({ run: { attemptNo: 2 }, latestExportVersion: null })
+    expect(byId.get(fresh)).toMatchObject({
+      run: { attemptNo: 1, state: 'assigned' },
+      student: { id: classmate, name: 'Classmate' },
+      latestExportVersion: null,
+    })
 
     const other = await createTenant()
-    expect(await courses.listRunsForAssignment(other.orgId, assignment.id)).toEqual([])
+    expect((await courses.pageRunsForAssignment(other.orgId, assignment.id)).items).toEqual([])
   })
 
   it('lists a student’s assignments with the latest attempt on each', async () => {

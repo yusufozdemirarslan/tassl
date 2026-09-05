@@ -1,7 +1,10 @@
 import type { Metadata } from 'next'
 import { HomeRunsPanel } from '@/components/features/home/runs-panel'
+import { toRunListRows } from '@/components/features/run/run-rows'
 import { PageHeader } from '@/components/layout/page-header'
 import { t } from '@/lib/i18n/t'
+import { listMyAssignments } from '@/server/modules/courses'
+import { listMyRuns } from '@/server/modules/runs'
 import { getViewer } from '../viewer'
 
 export const metadata: Metadata = { title: t('home.title') }
@@ -18,8 +21,22 @@ export const metadata: Metadata = { title: t('home.title') }
 // empty state about nothing or a promise the build cannot keep. The loading state for all of them
 // is ./loading.tsx (the shell skeleton) and the error state is ./error.tsx, so every panel added
 // here inherits both.
+//
+// The two reads are the same pair `/runs` makes, and both are scoped to the actor by their own
+// queries: another student's work is not reachable from either (08 §4). Both answer an empty page
+// for a session with no institution yet, which is why neither is guarded here.
+
+/** Enough to fill the panel and to know whether there is more behind the link. */
+const HOME_LIMIT = 20
+
 export default async function HomePage() {
-  const { me } = await getViewer()
+  const { actor, me } = await getViewer()
+
+  const [assignments, runs] = await Promise.all([
+    listMyAssignments(actor, { limit: HOME_LIMIT }),
+    listMyRuns(actor, { limit: HOME_LIMIT }),
+  ])
+
   const institution = me.memberships.find((m) => m.organizationId === me.activeOrganizationId)
   const eyebrow = institution?.name ?? me.memberships[0]?.name
 
@@ -30,7 +47,10 @@ export default async function HomePage() {
         description={t('home.description')}
         {...(eyebrow === undefined ? {} : { eyebrow })}
       />
-      <HomeRunsPanel hasMembership={me.memberships.length > 0} />
+      <HomeRunsPanel
+        hasMembership={me.memberships.length > 0}
+        rows={toRunListRows(assignments.items, runs.items)}
+      />
     </>
   )
 }

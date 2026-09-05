@@ -7,7 +7,6 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { Controller, useForm, useWatch } from 'react-hook-form'
 import { boolean, maxLength, minLength, object, refine, string, trim, type output } from 'zod/mini'
 import { LockIcon } from 'lucide-react'
-import { toast } from 'sonner'
 import { FormAlert, SubmitButton } from '@/components/features/account/form-feedback'
 import { EmptyState } from '@/components/layout/empty-state'
 import { LabelChip } from '@/components/layout/label-chip'
@@ -31,6 +30,7 @@ import {
 } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import { t } from '@/lib/i18n/messages/assignment'
+import { toastSuccess } from '@/lib/toast'
 import { createAssignmentAction, updateAssignmentAction } from '@/server/modules/courses/actions'
 import type { AssignmentVariantOption, PackageVersionOption } from './package-version-option'
 
@@ -236,7 +236,7 @@ export function AssignmentForm({
         return
       }
       reset(values)
-      toast.success(t('assignment.saved'))
+      toastSuccess(t('assignment.saved'))
       router.refresh()
       return
     }
@@ -252,7 +252,7 @@ export function AssignmentForm({
       setFormError(result.error.message)
       return
     }
-    toast.success(t('assignment.created', { label: result.data.label }))
+    toastSuccess(t('assignment.created', { label: result.data.label }))
     router.push(`/assignments/${result.data.id}` as Route)
     router.refresh()
   }

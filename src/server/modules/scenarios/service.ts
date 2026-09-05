@@ -99,7 +99,7 @@ import {
   type VersionSummaryView,
 } from './schema'
 import { validateExport } from './validate-export'
-import { validatePackage } from './validate'
+import { thinlyCarriedConcepts, validatePackage } from './validate'
 
 // `validatePackage` is the twelfth row of 10 §4's table and lives in `./validate.ts`, which is an
 // internal module file: the public `index.ts` may import only `service` and `schema` (04 §2), so the
@@ -441,11 +441,29 @@ const EMPTY_COUNTS: ElementCounts = {
  */
 const ETHICAL_DEFECT_FAMILY = 'unacceptable_route'
 
+/**
+ * What the version's own screen tells its author to look at (FR-190). Neither warning blocks a
+ * confirmation, which is the whole point of the mechanism: it says "this is unwise" where a rule
+ * would say "this is invalid".
+ *
+ * `READINESS_CONCEPT_SINGLE_ITEM` is the one authored property that decides how much of the
+ * Readiness Check's own marking a student is handed. The concept map is returned when the check
+ * closes and PRD §7.1 requires it, so a reading of correctness by concept is the product; a concept
+ * carried by one item narrows that reading to the item, which is per-item marking before the run is
+ * scored. `thinlyCarriedConcepts` states the floor and this is where an author hears about it
+ * (D-251). The shipped Meridian Roast fixture earns it — seven of its eleven concepts are carried
+ * by a single item — and keeps its confirmation, which is what a warning is for.
+ */
 function versionWarnings(version: repo.VersionFull): PackageWarningValue[] {
+  const warnings: PackageWarningValue[] = []
   const hasEthicalDefect = version.variants.some((variant) =>
     variant.claimStates.some((state) => state.failureFamily === ETHICAL_DEFECT_FAMILY),
   )
-  return hasEthicalDefect ? [] : ['FAMILY_LACKS_ETHICAL_DEFECT']
+  if (!hasEthicalDefect) warnings.push('FAMILY_LACKS_ETHICAL_DEFECT')
+  if (thinlyCarriedConcepts(version.readinessItems).length > 0) {
+    warnings.push('READINESS_CONCEPT_SINGLE_ITEM')
+  }
+  return warnings
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -2556,38 +2574,31 @@ function parseSnapshot(snapshot: repo.PackageSnapshot): PackageExport | null {
 
 /**
  * What a student may read of the package their run is on: the brief, the documents as the Evidence
- * Room shows them, and the named fields the brief asks for. Nothing else — no roles, no word counts,
- * no stakeholders, no claims, no answer space, no seed record, no question bank (08 §4, D-117).
+ * Room *lists* them, and the named fields the brief asks for. Nothing else — no roles, no word
+ * counts, no stakeholders, no claims, no answer space, no seed record, no question bank (08 §4,
+ * D-117).
  *
- * The projection is built by construction rather than by deleting keys from a wider object, so a
- * field added to a document row tomorrow cannot appear here by default; `student-view.ts` holds the
- * key sets the security test checks this answer against.
+ * **The withholding is the query, not a projection over it (D-252).** `findRunScenario` names the
+ * nine columns this view is made of, so the warranted stances, the evidence statuses, the failure
+ * families, the verification paths, the question bank and the readiness answer keys are never
+ * loaded — rather than loaded and then dropped here. That matters because this is the read behind
+ * `GET /runs/{runId}/workspace`, which a student's screen polls for the whole working period: an
+ * answer key that never enters the request cannot leave in a Sentry `extra` or a pino error field.
+ * The runs repository states the same discipline one module along for `scenario_documents`.
+ * `student-view.ts` holds the key sets the security test checks this answer — and the row behind
+ * it — against.
+ *
+ * The bodies are not here, and that is a rule rather than an economy (D-243): every document open
+ * is a trace event with a duration and a before-first-delegation flag (FR-022), so the body arrives
+ * from `runs.openDocument`, which writes the event in the transaction that answers it. A room
+ * delivered whole would make the reading segment of the clock timeline a record of clicks.
  */
 export async function getStudentScenario(
   actor: SessionUser,
   runId: string,
 ): Promise<StudentScenarioView> {
   const run = await requireRunOwner(actor, runId)
-  const versionId = await repo.findRunVersionId(run.organizationId, runId)
-  if (!versionId) notFound('run')
-
-  const version = await repo.findVersionForRun(run.organizationId, versionId)
-  if (!version) notFound('package version')
-
-  return {
-    brief: version.brief,
-    documents: version.documents.map((row) => ({
-      id: row.id,
-      key: row.key,
-      title: row.title,
-      author: row.author,
-      datedOn: row.datedOn,
-      body: row.body,
-    })),
-    namedFields: version.namedFields.map((row) => ({
-      key: row.key,
-      label: row.label,
-      unit: row.unit,
-    })),
-  }
+  const scenario = await repo.findRunScenario(run.organizationId, runId)
+  if (!scenario) notFound('run')
+  return scenario
 }

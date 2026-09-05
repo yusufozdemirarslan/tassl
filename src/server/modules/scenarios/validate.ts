@@ -142,6 +142,45 @@ export const READINESS_ITEM_COUNTS = {
 export const READINESS_ITEM_TOTAL = 16
 export const READINESS_OPTION_COUNT = 4
 
+/**
+ * How many items a readiness concept needs before the check's own result stops naming them (D-251).
+ *
+ * The concept map is what a student is told when the check closes, and PRD §7.1 requires it: a
+ * named concept and whether it is held, not held or unknown. It is therefore a reading of
+ * correctness by design — `held` means every item on the concept was answered correctly, whatever
+ * the concept's size. What the size decides is how *specific* that reading is. Over two items,
+ * `not_held` says the student missed something on the concept without saying which item; over one,
+ * `not_held` is that item, marked wrong, handed back before the run is scored — and sixteen items
+ * over sixteen concepts would make the map a literal answer sheet.
+ *
+ * Two is the floor, not a rule. `READINESS_SPLIT` places none, because the PRD fixes the item count
+ * and the 6/4/6 split and says nothing about how many concepts they cover, and because a package
+ * that spreads its concepts thin is unwise rather than invalid — the same shape of judgement D-083
+ * makes about a family with no ethical-shortcut defect. It reaches the author as the package
+ * warning `READINESS_CONCEPT_SINGLE_ITEM`, which never blocks a confirmation.
+ */
+export const READINESS_ITEMS_PER_CONCEPT_MIN = 2
+
+/**
+ * The concepts fewer than `READINESS_ITEMS_PER_CONCEPT_MIN` items carry, in the order they first
+ * appear in the check — which is the order the concept map lists them in, so an author reading the
+ * warning and an author reading a result see the same sequence.
+ *
+ * Pure and structural, like every rule in this file: a `readiness_items` row satisfies the argument
+ * and so does a literal in a test, and the generation step of Phase 12 can run it over model output
+ * before any row exists.
+ */
+export function thinlyCarriedConcepts(items: readonly { readonly conceptKey: string }[]): string[] {
+  const order: string[] = []
+  const counts = new Map<string, number>()
+  for (const item of items) {
+    const seen = counts.get(item.conceptKey)
+    if (seen === undefined) order.push(item.conceptKey)
+    counts.set(item.conceptKey, (seen ?? 0) + 1)
+  }
+  return order.filter((concept) => (counts.get(concept) ?? 0) < READINESS_ITEMS_PER_CONCEPT_MIN)
+}
+
 /** PRD §7.18 (1): the re-skin log records each renamed entity, altered number, restructured document. */
 export const RESKIN_LOG_MIN_ENTRIES = 3
 export const RESKIN_KINDS_REQUIRED = [
@@ -1039,6 +1078,11 @@ const RULES: readonly Rule[] = [
     // 10 §4: 16 readiness items split 6 foundation / 4 defect_concept / 6 ai_behavior, each with 4
     // options and an answer key naming one of them, and no stem repeating eight or more consecutive
     // words of a claim (PRD §7.1, AI-005).
+    //
+    // And no floor on items per concept, deliberately: how thinly the sixteen are spread decides
+    // how specific the concept map's reading of correctness is, which is a judgement about the
+    // package rather than a defect in it. `READINESS_ITEMS_PER_CONCEPT_MIN` states the floor and
+    // the package warning `READINESS_CONCEPT_SINGLE_ITEM` carries it to the author (D-251).
     code: 'READINESS_SPLIT',
     check: ({ version, claimById }) => {
       const items = version.readinessItems

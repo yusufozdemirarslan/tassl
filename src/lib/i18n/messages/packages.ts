@@ -40,6 +40,11 @@ export const packages = {
   'packages.warningEthicalShortcut': 'No ethical-shortcut defect',
   'packages.warningEthicalShortcutHelp':
     'No version of a marked family plants a defect that reaches a plausible result by an ethically or organizationally unacceptable route — the case students are least prepared for. Add one to a claim state in the next version. It does not stop you confirming a version or setting an assignment on it.',
+  // D-251: the concept map is what a student is told when the Readiness Check closes, so a concept
+  // carried by a single item makes that item's own marking the thing they are told.
+  'packages.warningReadinessConcept': 'A concept rests on one item',
+  'packages.warningReadinessConceptHelp':
+    'When the Readiness Check closes, the student is shown each concept and whether it is held, not held or unknown. A concept carried by a single item makes that status the item’s own marking, handed back before the run is scored. Give each concept at least two of the sixteen items in the next version. It does not stop you confirming a version or setting an assignment on it.',
 } as const
 
 /** `t` over this namespace alone; the key is still the full dotted key. */

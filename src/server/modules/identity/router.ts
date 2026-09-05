@@ -15,9 +15,7 @@ import { attachRouteSpec, getRouteSpec, type RegisteredRoute } from '@/server/ht
 import {
   meViewSchema,
   myAssignmentsPageSchema,
-  myRunsPageSchema,
   pageQuerySchema,
-  runsQuerySchema,
   updateProfileSchema,
   userExportSchema,
 } from './schema'
@@ -25,7 +23,6 @@ import {
   exportUserData,
   getCurrentUser,
   listMyAssignments as listMyAssignmentsService,
-  listMyRuns as listMyRunsService,
   requestAccountDeletion,
   updateProfile,
 } from './service'
@@ -77,17 +74,6 @@ export const listMyAssignments = defineRoute(
     },
   },
   async (ctx) => listMyAssignmentsService(actorOf(ctx), ctx.input.query),
-)
-
-export const listMyRuns = defineRoute(
-  {
-    auth: 'session',
-    input: { query: runsQuerySchema },
-    output: myRunsPageSchema,
-    rateLimit: { bucket: 'read' },
-    openapi: { operationId: 'listMyRuns', summary: 'My runs', tags: ['me'] },
-  },
-  async (ctx) => listMyRunsService(actorOf(ctx), ctx.input.query),
 )
 
 const deleteMeRoute = defineRoute(

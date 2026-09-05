@@ -213,8 +213,20 @@ export const RESKIN_KINDS = ['renamed_entity', 'altered_number', 'restructured_d
 export const ReskinKindSchema = z.enum(RESKIN_KINDS)
 export type ReskinKindValue = z.infer<typeof ReskinKindSchema>
 
-/** Family-level warnings shown on the packages list; a warning never blocks (D-083). */
-export const PACKAGE_WARNINGS = ['FAMILY_LACKS_ETHICAL_DEFECT'] as const
+/**
+ * What an author should look at before a package is used. A warning never blocks a confirmation
+ * (D-083) — that is what separates it from a `validatePackage` rule.
+ *
+ * `FAMILY_LACKS_ETHICAL_DEFECT` is about the family, so the packages list carries it and one
+ * version clears it for the whole row. `READINESS_CONCEPT_SINGLE_ITEM` is about one version's
+ * readiness items, so it appears on the version's own screen: a concept carried by a single item
+ * makes that item's correctness the concept map's status, returned to the student when the check
+ * closes and before the run is scored (D-251).
+ */
+export const PACKAGE_WARNINGS = [
+  'FAMILY_LACKS_ETHICAL_DEFECT',
+  'READINESS_CONCEPT_SINGLE_ITEM',
+] as const
 export const PackageWarningSchema = z.enum(PACKAGE_WARNINGS)
 export type PackageWarningValue = z.infer<typeof PackageWarningSchema>
 
@@ -1201,9 +1213,15 @@ export const ImportedPackageViewSchema = CreatedPackageViewSchema.extend({
 export type ImportedPackageView = Parsed<typeof ImportedPackageViewSchema>
 
 /**
- * What a student may read of a package (`getStudentScenario`): the brief, the documents as they
- * appear in the Evidence Room, and the named fields the brief asks for. Nothing else — no roles,
+ * What a student may read of a package (`getStudentScenario`): the brief, the documents as the
+ * Evidence Room *lists* them, and the named fields the brief asks for. Nothing else — no roles,
  * no stakeholders, no claims, no answer space (D-117).
+ *
+ * **A document body is not here.** FR-022 records which documents a student opened, in what order
+ * and for how long, and this shape is what the workspace reads when the room is drawn: a list
+ * carrying nine bodies would hand over the whole room in one response, and every `document_open`
+ * event written afterwards would be describing a click rather than a read. The body comes from
+ * `runs.openDocument`, which writes that event in the transaction that returns it (D-243).
  */
 export const StudentScenarioViewSchema = z.object({
   brief: z.string(),
@@ -1214,7 +1232,6 @@ export const StudentScenarioViewSchema = z.object({
       title: z.string(),
       author: z.string(),
       datedOn: isoDate,
-      body: z.string(),
     }),
   ),
   namedFields: z.array(z.object({ key: z.string(), label: z.string(), unit: ValueUnitSchema })),

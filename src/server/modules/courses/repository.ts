@@ -20,6 +20,7 @@ import {
   courseMappingChanges,
   courses,
   member,
+  runBands,
   runScores,
   runs,
   scenarioPackages,
@@ -111,10 +112,17 @@ export type AssignmentContext = {
   variant: ScenarioVariant
 }
 
-/** A run of an assignment as reviewers list it, with the newest course export version if any. */
+/**
+ * A run of an assignment as reviewers list it (UI-032): the run and its variant, who took it, how
+ * many of its seven bands carry a decision, and the newest course export written for it.
+ */
 export type AssignmentRunRow = {
+  id: string
+  createdAt: Date
   run: Run
+  variant: Pick<ScenarioVariant, 'id' | 'key'>
   student: UserSummary
+  decisionsMade: number
   latestExportVersion: number | null
 }
 
@@ -406,29 +414,54 @@ export async function findAssignmentWithContext(
   return rows[0] ?? null
 }
 
-/** Every run of the assignment with its student and the newest course export version. */
-export async function listRunsForAssignment(
+/**
+ * One page of the assignment's runs with the student, the variant, the band decisions taken so far
+ * and the newest course export version (07 §7 `GET /assignments/{id}/runs`, D-020).
+ *
+ * `decisionsMade` is a correlated count rather than a join: `run_bands` holds up to seven rows per
+ * run, and joining them would multiply every run row by its bands before the page limit applied.
+ */
+export async function pageRunsForAssignment(
   tenantId: string,
   assignmentId: string,
+  input: PageInput & { state?: Run['state'] | null | undefined } = {},
   dbx: DbOrTx = db,
-): Promise<AssignmentRunRow[]> {
+): Promise<Page<AssignmentRunRow>> {
+  const limit = clampLimit(input.limit)
+  const cursor = decodeCursor(input.cursor)
   const latestExport = dbx
     .select({ runId: courseExports.runId, version: max(courseExports.version).as('version') })
     .from(courseExports)
     .where(eq(courseExports.organizationId, tenantId))
     .groupBy(courseExports.runId)
     .as('latest_export')
-  return dbx
+  const rows = await dbx
     .select({
+      id: runs.id,
+      createdAt: runs.createdAt,
       run: runs,
+      variant: { id: scenarioVariants.id, key: scenarioVariants.key },
       student: { id: user.id, name: user.name, email: user.email },
+      decisionsMade: sql<number>`(
+        select count(*)::int from ${runBands}
+        where ${runBands.runId} = ${runs.id} and ${runBands.decision} is not null)`,
       latestExportVersion: latestExport.version,
     })
     .from(runs)
     .innerJoin(user, eq(user.id, runs.studentId))
+    .innerJoin(scenarioVariants, eq(scenarioVariants.id, runs.variantId))
     .leftJoin(latestExport, eq(latestExport.runId, runs.id))
-    .where(and(eq(runs.assignmentId, assignmentId), eq(runs.organizationId, tenantId)))
-    .orderBy(desc(runs.createdAt), desc(runs.id))
+    .where(
+      and(
+        eq(runs.assignmentId, assignmentId),
+        eq(runs.organizationId, tenantId),
+        input.state ? eq(runs.state, input.state) : undefined,
+        afterCursor({ createdAt: runs.createdAt, id: runs.id }, cursor),
+      ),
+    )
+    .orderBy(...cursorOrder({ createdAt: runs.createdAt, id: runs.id }))
+    .limit(limit + 1)
+  return toPage(rows, limit)
 }
 
 /** Assignments in the user's sections, each with the user's highest-attempt run on it. */

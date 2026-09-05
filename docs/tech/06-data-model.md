@@ -376,7 +376,7 @@ Unique `(package_version_id, element_type, element_id, revision)` (null element_
 | next_event_seq | integer | NN default 1 (sequence allocator, updated under row lock) |
 | created_at, updated_at | | |
 
-Unique `(assignment_id, student_id, attempt_no)`. Indexes: `(student_id, state)` (my runs), `(assignment_id)` (instructor list), `(state, scoring_status) where scoring_status = 'held'` (held queue), `(turn_due_at) where state = 'decision_locked'` (diagnostics).
+Unique `(assignment_id, student_id, attempt_no)`, and unique `(assignment_id, student_id) where state <> 'voided'` (`0013`, D-259): D-041 as a constraint — one live run per student per assignment, which a re-offer reaches by voiding the attempt it replaces first, and which a second Start press is refused by rather than racing past. Indexes: `(student_id, state)` (my runs), `(assignment_id)` (instructor list), `(state, scoring_status) where scoring_status = 'held'` (held queue), `(turn_due_at) where state = 'decision_locked'` (diagnostics).
 
 Clock derivation (D-042): `remaining_ms = working_clock_seconds*1000 − (now − working_started_at) + total_paused_ms + (paused_at ? now − paused_at : 0) + credited_ms − charged_ms` while `state in ('working','paused')`.
 
@@ -504,6 +504,7 @@ Unique `(run_id, dimension)`. `effective_band` is computed in code: `max(band_be
 - Hand-written migrations are created with `pnpm exec drizzle-kit generate --custom --name <slug>` (which registers a correctly numbered empty file in `drizzle/meta/_journal.json`) and then filled with SQL; a `.sql` file dropped into `drizzle/` by hand is never applied. They are used for: `0001_extensions_and_triggers` (`set_updated_at()`, `run_events` sequence helper), `0002_immutability` (role `tassl_app`, grants, `package_version_frozen` trigger family, `run_briefs_locked`), `0003_pgboss` is not needed (pg-boss migrates its own schema through `scripts/pgboss-migrate.ts`).
 - Database roles: migrations run as the owner role (Neon default `neondb_owner`; local `tassl`). The app connects as `tassl_app` in preview and production (created in `0002` with `LOGIN` and a password from `TASSL_APP_DB_PASSWORD`, which is set in Vercel by the Phase 2 step); locally the app also uses `tassl` for simplicity, so immutability grants are verified in CI with `tassl_app`.
 - Rollback: every migration file has a paired `drizzle/down/NNNN_<slug>.sql` written by hand for the contract step only; expand steps are safe to leave in place.
+- Delete actions (`0012_run_delete_cascade`, D-255): every foreign key referencing `runs.id` is `ON DELETE CASCADE`, which is what makes `deleteWalkthroughRun` (D-104) possible without widening a grant — a referential action runs with the owning table's privileges, so the 0009 revocations on `run_events`, `run_frames`, `run_turn_responses` and `run_addenda` stand and those rows can only go with their run. A new run-scoped table must declare `.references(() => runs.id, { onDelete: 'cascade' })`; `tests/integration/db/run-delete-cascade.test.ts` reads the catalogue and fails on one that does not. The two exceptions are `runs.re_offered_from_run_id` and `re_offered_to_run_id`, which join two runs and are `SET NULL`.
 
 ## 5. Seed data
 

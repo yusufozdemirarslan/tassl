@@ -5,3 +5,8 @@ cc4e668de6f2b12d1a27196dd75591284d12239d:src/server/db/seed.ts:generic-api-key:2
 # generic-api-key rule reads any hyphenated slug carrying digits as a credential. The line itself
 # now carries a `gitleaks:allow` marker, which covers the working tree but not the history.
 9651a27d4b6710aae67057bb2a0a190d835f1f6a:tests/unit/components/packages/seed-form.test.tsx:generic-api-key:186
+# The Idempotency-Key a test retries with, in the commit that introduced it. A key is a ULID the
+# client picks — high entropy by design, and read by the generic-api-key rule as a credential. The
+# lines themselves now carry `gitleaks:allow` for every future commit.
+2202bff229e866154a1456bdf7f2ef084c431ded:tests/integration/api/runs.test.ts:generic-api-key:170
+2202bff229e866154a1456bdf7f2ef084c431ded:tests/unit/http/idempotency.test.ts:generic-api-key:57
