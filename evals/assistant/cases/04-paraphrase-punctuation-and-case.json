@@ -1,0 +1,8 @@
+{
+  "id": "paraphrase-punctuation-and-case",
+  "title": "Case, apostrophes and stray punctuation are folded before matching",
+  "kind": "paraphrased",
+  "request": "What's the *PREMIUM PAYBACK*, exactly?",
+  "openedDocumentKeys": [],
+  "expect": { "claimKeys": ["C3"] }
+}

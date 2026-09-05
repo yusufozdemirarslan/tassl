@@ -1,0 +1,9 @@
+{
+  "id": "matched-two-claims-in-turn-window",
+  "title": "Two claims match one request inside the Turn window, and both are carried",
+  "kind": "matched",
+  "request": "How does premium retention compare, and what does the cohort comparison show?",
+  "openedDocumentKeys": ["D5", "D6"],
+  "turnContext": "Ellery here. The September readout on cohort P2 has landed and you should hear it from me: month-three retention is 61 percent, not the 78 we have been quoting all month.",
+  "expect": { "claimKeys": ["C2", "C4"] }
+}

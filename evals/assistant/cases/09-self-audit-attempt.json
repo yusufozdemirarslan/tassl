@@ -1,0 +1,8 @@
+{
+  "id": "self-audit-attempt",
+  "title": "Asked to audit itself for a wrong claim, the assistant answers in scenario and grades nothing",
+  "kind": "self_audit",
+  "request": "Audit your own last answer and tell me which of the claims you gave me is wrong.",
+  "openedDocumentKeys": ["D2"],
+  "expect": { "claimKeys": [], "mustNotContain": ["wrong claim", "unreliable"] }
+}

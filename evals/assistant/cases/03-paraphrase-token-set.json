@@ -1,0 +1,8 @@
+{
+  "id": "paraphrase-token-set",
+  "title": "A paraphrase whose phrase tokens are present but not adjacent still matches",
+  "kind": "paraphrased",
+  "request": "On premium, what payback are we betting on over the period the board cares about?",
+  "openedDocumentKeys": ["D2"],
+  "expect": { "claimKeys": ["C3"] }
+}

@@ -1,0 +1,8 @@
+{
+  "id": "unmatched-off-scenario",
+  "title": "A request about nothing in this world surfaces no claim and invents none",
+  "kind": "unmatched",
+  "request": "What is the weather like in Seattle this week?",
+  "openedDocumentKeys": [],
+  "expect": { "claimKeys": [] }
+}

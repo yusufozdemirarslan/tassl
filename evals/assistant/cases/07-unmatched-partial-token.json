@@ -1,0 +1,8 @@
+{
+  "id": "unmatched-partial-token",
+  "title": "A trigger phrase inside a longer word is not a match",
+  "kind": "unmatched",
+  "request": "Who are the surveyors on this account?",
+  "openedDocumentKeys": [],
+  "expect": { "claimKeys": [] }
+}
