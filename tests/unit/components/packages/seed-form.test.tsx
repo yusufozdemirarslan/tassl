@@ -183,7 +183,9 @@ describe('SeedForm (UI-041)', () => {
     expect(familyKey).toHaveValue('meridian-roast-a')
 
     await user.clear(familyKey)
-    await user.type(familyKey, 'meridian-roast-2027')
+    // A family key a person types, not a credential: gitleaks' generic-api-key rule reads any
+    // hyphenated slug carrying digits as one.
+    await user.type(familyKey, 'meridian-roast-2027') // gitleaks:allow
     await user.type(screen.getByLabelText(enUS['packageNew.titleLabel']), ' (revised)')
     expect(familyKey).toHaveValue('meridian-roast-2027')
   })
