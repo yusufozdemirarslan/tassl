@@ -3,6 +3,7 @@ import type { Route } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { AssignmentForm } from '@/components/features/courses/assignment-form'
+import { AssignmentRunsTable } from '@/components/features/courses/assignment-runs-table'
 import {
   toPackageVersionOptions,
   type PackageVersionOption,
@@ -14,7 +15,12 @@ import { Panel } from '@/components/layout/panel'
 import { buttonVariants } from '@/components/ui/button'
 import { isAppError } from '@/lib/errors'
 import { t } from '@/lib/i18n/t'
-import { getAssignment, getCourse, listConfirmedPackageVersions } from '@/server/modules/courses'
+import {
+  getAssignment,
+  getCourse,
+  listAssignmentRuns,
+  listConfirmedPackageVersions,
+} from '@/server/modules/courses'
 import { AssignmentIdParamsSchema } from '@/server/modules/courses/schema'
 import { getViewer } from '../../viewer'
 
@@ -69,13 +75,22 @@ export default async function AssignmentPage({ params }: PageProps<'/assignments
     title: assignment.packageTitle,
     version: assignment.packageVersion,
     calibrationStatus: 'uncalibrated',
-    variants: [{ id: assignment.variantId, key: assignment.variantKey }],
+    // The reader here is an instructor or a program lead, so the view names the variant; a student
+    // reading the same assignment is told what they are taking and not what it is (D-254).
+    variants:
+      assignment.variantKey === null
+        ? []
+        : [{ id: assignment.variantId, key: assignment.variantKey }],
     defaultWorkingClockSeconds:
       assignment.workingClockSeconds === null ? assignment.effectiveWorkingClockSeconds : null,
   }
   const packageVersions = confirmed.some((option) => option.id === assignment.packageVersionId)
     ? confirmed
     : [current, ...confirmed]
+
+  // Every run taken on this assignment, for the reviewer's table below the form (UI-032). The
+  // student's own list is `/runs`, which is a different projection for a different reader (08 §4).
+  const runs = await listAssignmentRuns(actor, assignmentId, { limit: 100 })
 
   return (
     <>
@@ -128,14 +143,32 @@ export default async function AssignmentPage({ params }: PageProps<'/assignments
           />
         </Panel>
 
-        {/* The runs table (student, attempt, state, decisions made, export version, replay and the
-            walkthrough delete) arrives with Phase 6, which is where runs first exist. */}
+        {/* UI-032's runs half. `listAssignmentRuns` refuses anyone who is not a reviewer of the
+            section, and the check above has already narrowed this screen to an instructor or a
+            program lead; the projection it returns is the reviewer's, which no student receives.
+            The delete is offered on a walkthrough assignment alone — a run that counts is voided
+            instead, which keeps the record (D-104). */}
         <Panel id="assignment-runs" title={t('assignment.runsTitle')} headingLevel={2}>
-          <EmptyState
-            headingLevel={3}
-            title={t('assignment.runsEmptyTitle')}
-            body={t('assignment.runsEmptyBody')}
-          />
+          {runs.items.length === 0 ? (
+            <EmptyState
+              headingLevel={3}
+              title={t('assignment.runsEmptyTitle')}
+              body={t('assignment.runsEmptyBody')}
+            />
+          ) : (
+            <AssignmentRunsTable
+              canDelete={assignment.isWalkthrough}
+              runs={runs.items.map((row) => ({
+                id: row.id,
+                studentName: row.studentName,
+                attemptNo: row.attemptNo,
+                state: row.state,
+                underReview: row.scoringStatus === 'held',
+                decisionsMade: row.decisionsMade,
+                latestExportVersion: row.latestExportVersion,
+              }))}
+            />
+          )}
         </Panel>
       </div>
     </>

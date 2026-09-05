@@ -139,6 +139,21 @@ function returned<T>(rows: T[]): T {
 // The run row
 // ---------------------------------------------------------------------------------------------
 
+/**
+ * The key of one variant of a package version, for the server's own accounting — the run's variant
+ * is on the run row, and the view a student reads no longer names it (D-254).
+ */
+export async function findVariantKey(
+  variantId: string,
+  dbx: DbOrTx = db,
+): Promise<'defective' | 'sound' | null> {
+  const [row] = await dbx
+    .select({ key: scenarioVariants.key })
+    .from(scenarioVariants)
+    .where(eq(scenarioVariants.id, variantId))
+  return row?.key ?? null
+}
+
 export async function insertRun(
   tenantId: string,
   values: RunInsert,

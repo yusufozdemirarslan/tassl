@@ -381,10 +381,13 @@ export async function startRun(actor: SessionUser, assignmentId: string): Promis
   // the count of runs this student has started anywhere, this one included, which `attempt_no`
   // cannot answer — it counts attempts on one assignment.
   const runIndex = await repo.countRunsForStudent(tenantId, actor.id)
+  // The variant the run was started on, read from the package rather than from the assignment view:
+  // that view stopped naming it, because a student may not know which one they drew (D-254).
+  const variantKey = (await repo.findVariantKey(assignment.variantId)) ?? 'defective'
   track(
     'run_started',
     {
-      ...runContext(run, assignment.variantKey),
+      ...runContext(run, variantKey),
       is_reoffer: run.reOfferedFromRunId !== null,
       run_index_for_student: runIndex,
     },

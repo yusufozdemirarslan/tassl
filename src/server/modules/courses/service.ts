@@ -763,7 +763,7 @@ export async function getAssignment(
   assignmentId: string,
 ): Promise<AssignmentView> {
   const context = await resolveAssignment(actor, assignmentId)
-  await requireAssignmentReader(actor, context)
+  const { reviewer } = await requireAssignmentReader(actor, context)
 
   const tenantId = context.course.organizationId
   const packageRow = await repo.findPackageVersion(tenantId, context.assignment.packageVersionId)
@@ -775,7 +775,11 @@ export async function getAssignment(
     sectionName: context.section.name,
     packageTitle: packageRow?.packageTitle ?? '',
     packageVersion: context.packageVersion.version,
-    variantKey: context.variant.key,
+    // Null for the student taking it: which variant they drew is whether a defect was planted,
+    // and 10 §11.3 bands Calibration on the defect-free variant as Professional for accepting
+    // everything — so the field a screen shows an instructor is a scoring exploit for a student
+    // (D-228, D-254).
+    variantKey: reviewer ? context.variant.key : null,
     effectiveWorkingClockSeconds:
       context.assignment.workingClockSeconds ?? context.packageVersion.workingClockSeconds,
     turnDelaySeconds: context.packageVersion.turnDelaySeconds,
@@ -784,13 +788,22 @@ export async function getAssignment(
   }
 }
 
-/** A member of the assignment's section, or the instructor of its course (07 §5, 08 §4). */
+/**
+ * A member of the assignment's section, or the instructor of its course (07 §5, 08 §4).
+ *
+ * It answers *which* of the two the reader is, because the assignment says more than a student may
+ * hear: the variant is the one field that tells them whether a defect was planted at all (D-228),
+ * and a reader who is only a student of the section is told what they are taking, not what it is.
+ */
 async function requireAssignmentReader(
   actor: SessionUser,
   context: repo.AssignmentContext,
-): Promise<void> {
-  if (await heldSectionRole(actor, context.section.id, SECTION_MEMBER_ROLES)) return
-  if (await instructsCourse(actor, context.course.id)) return
+): Promise<{ reviewer: boolean }> {
+  if (await instructsCourse(actor, context.course.id)) return { reviewer: true }
+  if (await heldSectionRole(actor, context.section.id, REVIEWER_ROLES)) return { reviewer: true }
+  if (await heldSectionRole(actor, context.section.id, SECTION_MEMBER_ROLES)) {
+    return { reviewer: false }
+  }
   forbidden()
 }
 
@@ -854,7 +867,11 @@ export async function listAssignmentRuns(
   input: RunsQuery = {},
 ): Promise<repo.Page<RunReviewSummary>> {
   const context = await resolveAssignment(actor, assignmentId)
-  await requireSectionRole(actor, context.section.id, REVIEWER_ROLES)
+  // The same two readers the assignment itself admits as a reviewer: a section instructor or TA,
+  // and the instructor of the course, who may not hold a row in every section they own. Guarding
+  // only on the section role refused a course's own instructor the runs on their own assignment.
+  const { reviewer } = await requireAssignmentReader(actor, context)
+  if (!reviewer) forbidden()
 
   const page = await repo.pageRunsForAssignment(context.course.organizationId, assignmentId, input)
   return {

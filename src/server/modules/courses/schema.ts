@@ -276,7 +276,8 @@ export const AssignmentViewSchema = AssignmentSchema.extend({
   sectionName: z.string(),
   packageTitle: z.string(),
   packageVersion: z.number().int(),
-  variantKey: VariantKeySchema,
+  /** Null unless the reader may see it: a student is never told which variant they drew (D-254). */
+  variantKey: VariantKeySchema.nullable(),
   effectiveWorkingClockSeconds: z.number().int(),
   /**
    * The package version's Turn delay. It has no assignment-level override — the delay is part of

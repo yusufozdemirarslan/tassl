@@ -574,11 +574,21 @@ describe('GET and PATCH /assignments/{assignmentId}', () => {
       courseId: fx.course.id,
       sectionName: 'A',
       packageVersion: 1,
-      variantKey: 'defective',
+      // Null for the student taking it: which variant they drew is whether a defect was planted
+      // at all, and this endpoint admits any member of the section (D-254).
+      variantKey: null,
       effectiveWorkingClockSeconds: 1500,
       effectiveWeight: 2.5,
       inUse: false,
     })
+
+    const asTeacher = await call(assignmentRoute.GET, {
+      path: `/assignments/${fx.assignment.id}`,
+      session: await asInstructor(),
+      params: { assignmentId: fx.assignment.id },
+    })
+    expect(asTeacher.status).toBe(200)
+    expect(asTeacher.body).toMatchObject({ variantKey: 'defective' })
   })
 
   it('updates the configuration, freezes it once a run exists, and refuses a student', async () => {

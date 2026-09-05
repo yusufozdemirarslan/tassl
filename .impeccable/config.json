@@ -8,10 +8,11 @@
         "value": "*",
         "files": [
           "src/components/layout/label-chip.tsx",
-          "src/components/features/packages/packages-table.tsx"
+          "src/components/features/packages/packages-table.tsx",
+          "src/components/features/run/run-status.tsx"
         ],
         "createdAt": "2026-09-03T07:52:48.928Z",
-        "reason": "Specified, not generated: docs/tech/16-performance-a11y-budgets.md §8.7 and DESIGN.md §Shapes require the draft/provisional/uncalibrated/warning/planted chip to be ink text with a 2 px coloured left border and a matching icon (D-122); it is a 20 px chip, not a card. `LabelChip` is the one implementation; the packages table entry covers the local `WarningChip` there until that call site moves to `LabelChip kind=\"warning\"`, and can be dropped when it does"
+        "reason": "Specified, not generated: docs/tech/16-performance-a11y-budgets.md §8.7 and DESIGN.md §Shapes require the draft/provisional/uncalibrated/warning/planted chip to be ink text with a 2 px coloured left border and a matching icon (D-122); it is a 20 px chip, not a card. `LabelChip` is the one implementation; the packages table entry covers the local `WarningChip` there until that call site moves to `LabelChip kind=\"warning\"`, and can be dropped when it does. The run-status entry covers `RunStateChip`, which wears the same 20 px chip shape because it is the same vocabulary on the same screens — it is a separate component only because it must be total over `runs.state` (a state added to the enum has to be a type error, not a blank chip), which `LabelChip`'s nine fixed product kinds cannot be"
       }
     ]
   }

@@ -3082,10 +3082,12 @@ paths:
                     minimum: -9007199254740991
                     maximum: 9007199254740991
                   variantKey:
-                    type: string
-                    enum:
-                      - defective
-                      - sound
+                    anyOf:
+                      - type: string
+                        enum:
+                          - defective
+                          - sound
+                      - type: "null"
                   effectiveWorkingClockSeconds:
                     type: integer
                     minimum: -9007199254740991
