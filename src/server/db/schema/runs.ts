@@ -152,6 +152,17 @@ export const runs = pgTable(
       t.studentId,
       t.attemptNo,
     ),
+    /**
+     * D-041, as a constraint rather than a hope: one run per student per assignment until it is
+     * voided. The attempt-number index above does not say that — two presses that arrive together
+     * can both pass the service's check and still take different numbers, because the check and
+     * the `max(attempt_no) + 1` are two reads: the second press sees no run, then sees the first
+     * one committed, computes attempt 2, and both rows stand. CI caught it doing exactly that
+     * (D-259). A voided run is excluded, because that is what makes a re-offer possible.
+     */
+    uniqueIndex('runs_assignment_id_student_id_live_uidx')
+      .on(t.assignmentId, t.studentId)
+      .where(sql`${t.state} <> 'voided'`),
     // My runs.
     index('runs_student_id_state_idx').on(t.studentId, t.state),
     // Instructor list.

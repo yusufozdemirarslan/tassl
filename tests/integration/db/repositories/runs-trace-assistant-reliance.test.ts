@@ -40,6 +40,7 @@ type Chain = {
   userId: string
   packageVersionId: string
   variantId: string
+  sectionId: string
   assignmentId: string
   claimId: string
   documentId: string
@@ -110,6 +111,7 @@ async function seedChain(): Promise<Chain> {
     userId,
     packageVersionId,
     variantId,
+    sectionId,
     assignmentId,
     claimId,
     documentId,
@@ -117,16 +119,74 @@ async function seedChain(): Promise<Chain> {
   }
 }
 
-async function seedRun(chain: Chain, attemptNo = 1) {
+/** Another seat, for a second run on the same assignment. */
+async function seedStudent(name: string): Promise<string> {
+  const userId = crypto.randomUUID()
+  await testSql`
+    insert into "user" (id, name, email, email_verified, created_at, updated_at)
+    values (${userId}, ${name}, ${`${userId}@example.test`}, true, now(), now())`
+  return userId
+}
+
+/** Another assignment in the same section, for a second run by the same student. */
+async function seedAssignment(chain: Chain, label: string): Promise<string> {
+  const assignmentId = crypto.randomUUID()
+  await testSql`
+    insert into assignments (id, organization_id, section_id, label, package_version_id, variant_id)
+    values (${assignmentId}, ${chain.organizationId}, ${chain.sectionId}, ${label},
+            ${chain.packageVersionId}, ${chain.variantId})`
+  return assignmentId
+}
+
+/**
+ * One run, by default the chain's student on the chain's assignment.
+ *
+ * Bumping `attemptNo` is not how a second run is made: one run per student per assignment is live
+ * at a time (D-041), which `runs_assignment_id_student_id_live_uidx` enforces (D-259). A second run
+ * belongs to another student (`seedStudent`), to another assignment (`seedAssignment`), or to a
+ * re-offer, which voids the attempt it replaces first — `reofferRun`.
+ */
+async function seedRun(
+  chain: Chain,
+  where: { studentId?: string; assignmentId?: string; attemptNo?: number } = {},
+) {
+  const { studentId = chain.userId, assignmentId = chain.assignmentId, attemptNo = 1 } = where
   return runsRepo.insertRun(chain.organizationId, {
-    assignmentId: chain.assignmentId,
-    studentId: chain.userId,
+    assignmentId,
+    studentId,
     packageVersionId: chain.packageVersionId,
     variantId: chain.variantId,
     attemptNo,
     workingClockSeconds: 1500,
     turnDelaySeconds: 90,
   })
+}
+
+/**
+ * The only way a student holds a second run on one assignment (FR-183, D-041): the re-offer voids
+ * the attempt it replaces *first*, and then writes the next one, the two rows pointing at each
+ * other. Returns the new attempt.
+ */
+async function reofferRun(
+  chain: Chain,
+  previous: { id: string; assignmentId: string; studentId: string; attemptNo: number },
+) {
+  await runsRepo.updateRun(chain.organizationId, previous.id, {
+    state: 'voided',
+    voidedAt: new Date(),
+  })
+  const next = await runsRepo.insertRun(chain.organizationId, {
+    assignmentId: previous.assignmentId,
+    studentId: previous.studentId,
+    packageVersionId: chain.packageVersionId,
+    variantId: chain.variantId,
+    attemptNo: previous.attemptNo + 1,
+    reOfferedFromRunId: previous.id,
+    workingClockSeconds: 1500,
+    turnDelaySeconds: 90,
+  })
+  await runsRepo.updateRun(chain.organizationId, previous.id, { reOfferedToRunId: next.id })
+  return next
 }
 
 const OTHER_TENANT = 'org_other_tenant'
@@ -297,8 +357,9 @@ describe('runs repository', () => {
     expect(await runsRepo.upsertBriefDraft(run.id, { recommendation: 'Delay' })).toBeUndefined()
     expect(await runsRepo.lockBrief(run.id, { lockedAt: new Date() })).toBeUndefined()
 
-    // A lock with no prior draft creates the row.
-    const other = await seedRun(chain, 2)
+    // A lock with no prior draft creates the row. That second run is the other seat on the same
+    // assignment, not a second attempt by this student: one live run per pair (D-041, D-259).
+    const other = await seedRun(chain, { studentId: await seedStudent('Seat Two') })
     const direct = await runsRepo.lockBrief(other.id, { recommendation: 'Hold', lockedAt })
     expect(direct).toMatchObject({ runId: other.id, recommendation: 'Hold', lockedAt })
 
@@ -342,19 +403,28 @@ describe('runs repository', () => {
 
   it('lists a student runs newest first with cursor pagination inside the tenant', async () => {
     const chain = await seedChain()
-    const first = await seedRun(chain, 1)
-    const second = await seedRun(chain, 2)
-    const third = await seedRun(chain, 3)
-    await runsRepo.updateRun(chain.organizationId, third.id, { state: 'voided' })
+    // The three runs a student can actually hold: a first attempt that was voided and re-offered,
+    // the attempt taken in its place, and a run on a second assignment. Two live runs on one
+    // assignment is not a state the product can reach (D-041, D-259).
+    const first = await seedRun(chain)
+    const second = await reofferRun(chain, first)
+    const secondAssignmentId = await seedAssignment(chain, 'Run 2')
+    const third = await seedRun(chain, { assignmentId: secondAssignmentId })
 
     const page1 = await runsRepo.listRunsForStudent(chain.organizationId, chain.userId, {
       limit: 2,
     })
     expect(page1.items.map((i) => i.run.id)).toEqual([third.id, second.id])
+    // The labels are per row, not per list: the newest run is the one on the second assignment.
     expect(page1.items[0]).toMatchObject({
       id: third.id,
-      assignment: { id: chain.assignmentId, label: 'Run 1', runType: 'decision' },
+      assignment: { id: secondAssignmentId, label: 'Run 2', runType: 'decision' },
       variant: { id: chain.variantId, key: 'defective' },
+    })
+    expect(page1.items[1]).toMatchObject({
+      id: second.id,
+      run: { attemptNo: 2, reOfferedFromRunId: first.id },
+      assignment: { id: chain.assignmentId, label: 'Run 1' },
     })
     expect(page1.nextCursor).toBeTruthy()
 
@@ -365,10 +435,11 @@ describe('runs repository', () => {
     expect(page2.items.map((i) => i.run.id)).toEqual([first.id])
     expect(page2.nextCursor).toBeNull()
 
+    // The voided attempt stays in the student's list and is the one the state filter finds.
     const voided = await runsRepo.listRunsForStudent(chain.organizationId, chain.userId, {
       state: 'voided',
     })
-    expect(voided.items.map((i) => i.run.id)).toEqual([third.id])
+    expect(voided.items.map((i) => i.run.id)).toEqual([first.id])
 
     const other = await runsRepo.listRunsForStudent(OTHER_TENANT, chain.userId)
     expect(other.items).toEqual([])

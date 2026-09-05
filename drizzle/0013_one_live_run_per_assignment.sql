@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "runs_assignment_id_student_id_live_uidx" ON "runs" USING btree ("assignment_id","student_id") WHERE "runs"."state" <> 'voided';

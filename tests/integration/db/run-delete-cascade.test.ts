@@ -129,6 +129,10 @@ async function createRunChain(): Promise<Chain> {
     return run!.id
   }
   const runId = await insertRun(1)
+  // A re-offer voids the attempt it replaces before writing the next one (FR-183, D-041): one run
+  // per student per assignment is live at a time, which `runs_assignment_id_student_id_live_uidx`
+  // enforces (D-259), so the pair is a voided attempt 1 and the attempt 2 that stands in its place.
+  await testSql`update runs set state = 'voided', voided_at = now() where id = ${runId}`
   const partnerRunId = await insertRun(2)
   // The re-offer pair, pointing both ways (10 §3): attempt 2 was offered in place of attempt 1.
   await testSql`update runs set re_offered_to_run_id = ${partnerRunId} where id = ${runId}`

@@ -376,7 +376,7 @@ Unique `(package_version_id, element_type, element_id, revision)` (null element_
 | next_event_seq | integer | NN default 1 (sequence allocator, updated under row lock) |
 | created_at, updated_at | | |
 
-Unique `(assignment_id, student_id, attempt_no)`. Indexes: `(student_id, state)` (my runs), `(assignment_id)` (instructor list), `(state, scoring_status) where scoring_status = 'held'` (held queue), `(turn_due_at) where state = 'decision_locked'` (diagnostics).
+Unique `(assignment_id, student_id, attempt_no)`, and unique `(assignment_id, student_id) where state <> 'voided'` (`0013`, D-259): D-041 as a constraint — one live run per student per assignment, which a re-offer reaches by voiding the attempt it replaces first, and which a second Start press is refused by rather than racing past. Indexes: `(student_id, state)` (my runs), `(assignment_id)` (instructor list), `(state, scoring_status) where scoring_status = 'held'` (held queue), `(turn_due_at) where state = 'decision_locked'` (diagnostics).
 
 Clock derivation (D-042): `remaining_ms = working_clock_seconds*1000 − (now − working_started_at) + total_paused_ms + (paused_at ? now − paused_at : 0) + credited_ms − charged_ms` while `state in ('working','paused')`.
 
