@@ -210,3 +210,17 @@ export function frameInvalid(field: string, reason: FrameInvalidReason): never {
 export function testRouteUnavailable(): never {
   throw new AppError('NOT_FOUND')
 }
+
+/**
+ * A run in `paused` with no open `run_pauses` row.
+ *
+ * It is not reachable: a run enters `paused` only through `pauseRun`, which writes the row in the
+ * transaction that transitions it. If it happens anyway the run's record is inconsistent, and a
+ * `resume` event pointing at no pause would make it worse rather than better — so this is a 500
+ * that reaches Sentry, not a refusal the student can act on.
+ */
+export function pauseRecordMissing(runId: string): never {
+  throw new AppError('INTERNAL_ERROR', 'This run is paused with no pause on record.', {
+    details: { runId },
+  })
+}

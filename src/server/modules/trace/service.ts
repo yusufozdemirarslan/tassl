@@ -212,6 +212,41 @@ async function requireOwnerOrReviewer(
 }
 
 /**
+ * What the run's **owner** may read of their room right now, or the refusal when the answer is
+ * nothing (`owner-view.ts`, D-233). Exported, because it is not the trace endpoint's question.
+ *
+ * Three endpoints hand a student their own room back: `GET /runs/{runId}/trace` (every event),
+ * `GET /runs/{runId}/delegations` (every request with the reply it got and the claims it raised)
+ * and `GET /runs/{runId}/claims` (the claim table with its stances). They differ in shape and in
+ * nothing else that matters here — a student in the defense who is refused the first and served the
+ * second has been handed back the room UI-026 takes away, and FR-120's "unaided" means nothing.
+ *
+ * So the three ask **one** function, over the one table in `owner-view.ts`, rather than keeping a
+ * state list each. Three copies is three chances to drift, and the drift is silent: nobody adding a
+ * run state or moving a boundary would think to look in the assistant module for a rule the trace
+ * module owns (D-279).
+ *
+ * The answer is the tier, not a boolean, because a caller that has fields of its own to gate needs
+ * to know whether the run is merely open or actually scored. `listEvents` uses it that way; the
+ * other two do not, and say why at their own call sites.
+ */
+export async function requireOwnerReadAccess(
+  tenantId: string,
+  runId: string,
+): Promise<Exclude<OwnerAccess, 'sealed'>> {
+  // Decided before the room is read, not after: a student in the defense never causes their
+  // delegations, claims or events to be loaded, so there is nothing in memory for a later mistake
+  // to serve.
+  const state = await findRunState(tenantId, runId)
+  // The caller's permission check already resolved the run inside this tenant, so a miss here is
+  // the run disappearing between two statements; NOT_FOUND is the same answer it would have given.
+  if (state === undefined) runNotFound()
+  const access = ownerAccessFor(state)
+  if (access === 'sealed') traceSealed(state)
+  return access
+}
+
+/**
  * The run's trace in sequence order, for its owner or a reviewer of its section (FR-007).
  *
  * The owner's `seq` is **renumbered densely**, 1..N over the events they can see, and is not the
@@ -235,14 +270,7 @@ export async function listEvents(actor: SessionUser, runId: string): Promise<Tra
     return record.map((event) => toView(event, event.seq, event.payload))
   }
 
-  // Decided before the trace is read, not after: a student in the defense never causes the room to
-  // be loaded, so there is nothing in memory for a later mistake to serve.
-  const state = await findRunState(organizationId, runId)
-  // The permission check already resolved the run inside this tenant, so a miss here is the run
-  // disappearing between two statements; NOT_FOUND is the same answer it would have given.
-  if (state === undefined) runNotFound()
-  const access: OwnerAccess = ownerAccessFor(state)
-  if (access === 'sealed') traceSealed(state)
+  const access = await requireOwnerReadAccess(organizationId, runId)
 
   const events = await listEventsForRun(runId)
   return events

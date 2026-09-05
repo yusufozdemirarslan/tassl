@@ -37,9 +37,23 @@ import { CLAIM_MARKER_PATTERN, claimMarker } from '@/server/llm/prompts/assistan
  * `text` is the model's own prose: guarded, and rewritten when a guard fires. `claim` is one
  * authored claim object placed by its marker: never read by a guard, never rewritten, and it carries
  * the author's text so that "never rewritten" has something to be true of.
+ *
+ * `authored` is the third case: package text a human confirmed (FR-194) that is *not* a claim
+ * object and so has no marker to render — today only the probe's scripted reversal (D-088), which
+ * `withScriptedReversal` splices in front of an assembled reply. It has a claim segment's standing
+ * under D-264 and neither guard reads it.
+ *
+ * It exists as its own kind for the reason the claim kind does. The reversal used to travel as a
+ * `text` segment, and was unguarded only because nothing happened to run a guard after it was
+ * spliced in — an exemption that was a property of the call order rather than of the data, which is
+ * exactly what the note at the top of this file describes going wrong once already. Both guards skip
+ * on `segment.type !== 'text'`, so saying what the segment *is* makes them skip it by construction,
+ * and a later caller that guards a reply after splicing cannot redact the author's words.
  */
 export type GuardSegment =
-  { type: 'text'; text: string } | { type: 'claim'; claimId: string; text: string }
+  | { type: 'text'; text: string }
+  | { type: 'claim'; claimId: string; text: string }
+  | { type: 'authored'; text: string }
 
 /** A surfaced claim, as the segmenter needs it: the marker's id and the text it must carry. */
 export type SegmentClaim = { id: string; text: string }
@@ -78,7 +92,7 @@ export function segmentReply(reply: string, claims: readonly SegmentClaim[]): Gu
   return segments
 }
 
-/** The model's own writing, which is all either guard ever reads. */
+/** The model's own writing, which is all either guard ever reads: not claims, not authored text. */
 export const proseOf = (segments: readonly GuardSegment[]): string[] =>
   segments.filter((segment) => segment.type === 'text').map((segment) => segment.text)
 
@@ -93,6 +107,6 @@ export const proseOf = (segments: readonly GuardSegment[]): string[] =>
 export const renderSegments = (segments: readonly GuardSegment[]): string =>
   segments
     .map((segment) =>
-      segment.type === 'text' ? segment.text : `${claimMarker(segment.claimId)} ${segment.text}`,
+      segment.type === 'claim' ? `${claimMarker(segment.claimId)} ${segment.text}` : segment.text,
     )
     .join('')

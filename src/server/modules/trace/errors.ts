@@ -39,18 +39,24 @@ export function runNotFound(): never {
 }
 
 /**
- * The run's own student asked for their trace in a state where it is closed to them
+ * The run's own student asked for the record of their room in a state where it is closed to them
  * (`owner-view.ts`): the defense, where the whole exercise is what they can say with nothing in
  * front of them but their own frame, brief, addendum and Turn response (UI-026), and any state a
  * run reaches that will never be scored.
  *
+ * It is not only the trace endpoint's refusal, which is why the message does not say "trace". Every
+ * owner read of the room goes through `requireOwnerReadAccess` and lands here: the trace, the
+ * Delegation Log (`GET /runs/{id}/delegations`) and the claim table (`GET /runs/{id}/claims`) are
+ * three views of one room, and a student who cannot have it in one tab cannot have it in another
+ * (D-279).
+ *
  * FORBIDDEN rather than NOT_FOUND: they own the run, they can see its state on their own screen,
  * and pretending it does not exist would be a lie they can already disprove. It is one of the
- * global codes 07 §1 lists, so the endpoint's contract is unchanged. `details.state` is the state
+ * global codes 07 §1 lists, so the endpoints' contracts are unchanged. `details.state` is the state
  * their own status poll is already showing them.
  */
 export function traceSealed(state: string): never {
-  throw new AppError('FORBIDDEN', 'This run’s trace is not open to you yet.', {
+  throw new AppError('FORBIDDEN', 'This run’s record is not open to you yet.', {
     details: { state },
   })
 }

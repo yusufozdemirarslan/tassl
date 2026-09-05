@@ -24,6 +24,7 @@ import {
   listMyRuns,
   lockFrame,
   openDocument,
+  resumeRun,
   skipReadiness,
   startRun,
   submitReadiness,
@@ -337,6 +338,28 @@ export const lockFrameRoute = defineRoute(
     },
   },
   async (ctx) => lockFrame(actorOf(ctx), ctx.input.params.runId, ctx.input.body),
+)
+
+/**
+ * `POST /runs/{runId}/resume` (07 §7, FR-001): the student takes the run off Paused.
+ *
+ * A `write`, not `run-events`: it changes the run's state and gives the clock its time back, and it
+ * happens once per outage. The screen behind it is the paused overlay, which is the only control
+ * the workspace offers while a component failure is being waited out.
+ */
+export const resumeRunRoute = defineRoute(
+  {
+    auth: 'session',
+    input: { params: RunIdParamsSchema },
+    output: RunSummarySchema,
+    rateLimit: { bucket: 'write' },
+    openapi: {
+      operationId: 'resumeRun',
+      summary: 'Resume from Paused (clock credited)',
+      tags: TAGS,
+    },
+  },
+  async (ctx) => resumeRun(actorOf(ctx), ctx.input.params.runId),
 )
 
 // ---------------------------------------------------------------------------------------------

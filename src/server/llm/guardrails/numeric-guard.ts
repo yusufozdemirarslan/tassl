@@ -10,7 +10,24 @@
 // the student has opened. In `flag` mode (the default) an unsupported number stays on screen with a
 // marker, and the delegation event records it — which is the honest behaviour, because the student's
 // job is to notice, and because over-blocking would break the assistant's ability to quote. In
-// `block` mode it is replaced with `[figure withheld]`.
+// `block` mode the figure itself is taken out and only the marker is left.
+//
+// THE MARKER IS IN THE PROSE, NOT BESIDE IT (D-281)
+//
+// D-068 asks for two different things about one flagged figure, addressed to two different readers:
+// the delegation event records it for the faculty seat, *and* it is "rendered with a subtle marker"
+// for the student. The first is `unverified`, which travels as structured data and is reviewer-only
+// (D-269). The second cannot travel that way — a student's `DelegationView` carries no
+// `unverifiedNumbers` list and their trace payload gates the same field `after_scored` — so the
+// marker travels where the reply itself travels: inside the text, in the shape `[[claim:<id>]]`
+// already uses. `renderSegments` keeps it in `response_text`, so the Delegation Log and the replay
+// show the reply the student saw rather than a cleaner one.
+//
+// Marking a figure is not a hint about defect status (FR-056). It says where a number came from,
+// never whether it is right, and a defective claim's figures are *sourced* — they are in the claim's
+// own text, which no guard reads (`segments.ts`) — so the marker cannot tell a defective claim from
+// a sound one. What it does say is the thing FR-025 makes the student answerable for: a figure that
+// matches no claim and no document is the assistant's assumption, and defending it is theirs.
 //
 // "Same number" is a question about value, not spelling: `1,200`, `1200`, `$1,200`, `1200.00` and
 // `1200%` all normalise to `1200`. Currency symbols and percent signs are not part of the number,
@@ -31,7 +48,22 @@ export type NumericGuardResult = {
   mode: NumericGuardMode
 }
 
-export const WITHHELD = '[figure withheld]'
+/**
+ * The marker an unsourced figure is wrapped in, in the shape `assistant-reply@1` fixes for a claim.
+ *
+ * The payload is the figure exactly as the model spelled it, so `1,200` stays `1,200` and the
+ * sentence reads as it was written. An **empty** payload is `block` mode: the digits are gone from
+ * the reply, and the workspace draws the withheld label in their place. The one word of display copy
+ * therefore stays in `en-US.ts` where every UI string lives, and this file writes no English at all.
+ */
+export const figureMarker = (figure: string): string => `[[figure:${figure}]]`
+
+/**
+ * Global, so `matchAll` and `String.split` walk every marker; `[^\]]` keeps one marker from spanning
+ * two; `*` rather than `+` because `block` mode's payload is empty. Restated in
+ * `assistant-panel.tsx`, which cannot import from `src/server` (the `boundaries` policy).
+ */
+export const FIGURE_MARKER_PATTERN = /\[\[figure:([^\]]*)\]\]/g
 
 /** How much prose is kept around a flagged number so the replay reads as a sentence. */
 const CONTEXT_RADIUS = 60
@@ -93,14 +125,25 @@ const contextAround = (text: string, at: number, length: number): string => {
 }
 
 /**
- * Checks the model's prose against the allowed set (§3, D-068).
+ * Checks the model's prose against the allowed set (§3, D-068, D-281).
  *
  * Claim segments are skipped: they carry authored package text placed by a marker (`segments.ts`),
- * which is the one thing in the reply the assistant is allowed to quote, figures and all.
+ * which is the one thing in the reply the assistant is allowed to quote, figures and all. That is
+ * also what keeps a marker out of authored text (D-264) — the package's own words are never scanned,
+ * so nothing can be wrapped inside them.
  *
- * In `block` mode the whole numeric literal is replaced, not just the unsupported digits, so the
- * sentence never reads as a different figure than the one that was withheld. Replacement runs right
- * to left so earlier offsets stay valid, and the flagged list is returned in reading order.
+ * **Both modes mark; they differ in what is left inside the marker.** `flag` keeps the figure and
+ * puts a marker round it, so the student reads the sentence the assistant wrote and can see which
+ * number in it came from nowhere. `block` keeps the marker and drops the figure. The whole numeric
+ * literal goes, not just the unsupported digits, so the sentence never reads as a different figure
+ * than the one that was withheld. Replacement runs right to left so earlier offsets stay valid, and
+ * the flagged list is returned in reading order.
+ *
+ * **A marker the model wrote itself is taken apart first.** `[[figure:` is four characters any
+ * provider can emit — quoting a document, echoing an earlier reply — and a reply that arrived
+ * carrying one would either nest markers or hand a student a mark this guard never made. Unwrapping
+ * it to its own contents leaves the number in the prose, where it is checked like any other, so
+ * every marker in a stored reply is this function's.
  */
 export function numericGuard(
   segments: readonly GuardSegment[],
@@ -112,22 +155,25 @@ export function numericGuard(
   const guarded = segments.map((segment): GuardSegment => {
     if (segment.type !== 'text') return segment
 
-    const offenders = [...segment.text.matchAll(NUMBER)].filter(
+    const prose = segment.text.replace(FIGURE_MARKER_PATTERN, '$1')
+    const offenders = [...prose.matchAll(NUMBER)].filter(
       (match) => !allowed.has(normalizeNumber(match[0])),
     )
-    if (offenders.length === 0) return segment
+    if (offenders.length === 0) {
+      return prose === segment.text ? segment : { type: 'text', text: prose }
+    }
 
     for (const match of offenders) {
       unverified.push({
         value: normalizeNumber(match[0]),
-        context: contextAround(segment.text, match.index, match[0].length),
+        context: contextAround(prose, match.index, match[0].length),
       })
     }
-    if (mode !== 'block') return segment
 
-    let text = segment.text
+    let text = prose
     for (const match of [...offenders].reverse()) {
-      text = `${text.slice(0, match.index)}${WITHHELD}${text.slice(match.index + match[0].length)}`
+      const marked = figureMarker(mode === 'block' ? '' : match[0])
+      text = `${text.slice(0, match.index)}${marked}${text.slice(match.index + match[0].length)}`
     }
     return { type: 'text', text }
   })

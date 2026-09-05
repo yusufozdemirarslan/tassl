@@ -34,8 +34,14 @@ import { getLogger } from '@/server/http/request-context'
 import { surfaceDocumentClaims } from '@/server/modules/reliance'
 import { getStudentScenario } from '@/server/modules/scenarios'
 import { getInstitutionSettings, listMyInstitutions } from '@/server/modules/tenancy'
-import { append } from '@/server/modules/trace'
-import { isInTurnWindow } from './clock'
+import { append, type TraceRun } from '@/server/modules/trace'
+import {
+  credit,
+  isInTurnWindow,
+  pause as clockPause,
+  resume as clockResume,
+  type ClockRun,
+} from './clock'
 import {
   assignmentNotOpen,
   documentNotInRoom,
@@ -43,6 +49,7 @@ import {
   frameInvalid,
   illegalTransition,
   notSectionStudent,
+  pauseRecordMissing,
   readinessClosed,
   readinessItemNotFound,
   readinessNotOpen,
@@ -78,6 +85,7 @@ import type {
   DocumentOpened,
   LockFrame,
   LockFrameInput,
+  PauseCauseValue,
   ReadinessResult,
   ReadinessView,
   RunRowForSummary,
@@ -895,10 +903,14 @@ export async function getRunWorkspace(actor: SessionUser, runId: string): Promis
   }
   if (!WORKSPACE_STATES.includes(run.state)) workspaceNotOpen(run.state)
 
-  const [scenario, frame, opens] = await Promise.all([
+  const [scenario, frame, opens, pause] = await Promise.all([
     getStudentScenario(actor, runId),
     repo.findFrame(runId),
     repo.listOpenDocumentOpens(runId),
+    // Only when the run is actually paused: an open pause row and a state of `paused` are the same
+    // fact, and reading the row for every poll of a running run is a query that always answers
+    // nothing.
+    run.state === 'paused' ? repo.findOpenPause(runId) : Promise.resolve(undefined),
   ])
 
   return {
@@ -928,6 +940,7 @@ export async function getRunWorkspace(actor: SessionUser, runId: string): Promis
           lockedAt: frame.lockedAt.toISOString(),
         }
       : null,
+    pause: pause ? { cause: pause.cause, pausedAt: pause.pausedAt.toISOString() } : null,
     capabilities: {
       canOpenDocuments: ROOM_STATES.includes(run.state),
       canLockFrame: run.state === 'framing',
@@ -1231,6 +1244,228 @@ export async function lockFrame(
       tenantId,
       runId,
       { ...moved.patch, confidenceAtFrame: frame.confidence },
+      tx,
+    )
+    if (!next) runNotFound()
+    return next
+  })
+
+  return toRunSummary(updated)
+}
+
+// ---------------------------------------------------------------------------------------------
+// Pause and resume (FR-001, 10 §6, 10 §10, D-133)
+//
+// "When the assistant, a document, or an interrogation action fails to return, the run enters
+// Paused, the working clock (or Turn window) stops, and the cost charged for the failed action is
+// credited back on resume." It is one of the PRD's standing rules, and it is the reason this
+// section exists in the module that owns the clock rather than in each module that can fail.
+//
+// The three functions below are the seam other modules reach it through, and they come in two
+// shapes for a reason 08 §5 fixes.
+//
+//   * `pauseRun`, `lockRunForMutation` and `noteFirstDelegation` take a transaction and a run row
+//     rather than an actor, exactly like `trace.append` and `reliance.surfaceClaims`: they are
+//     called from inside another module's mutation, which has already named its actor, run its
+//     permission helper, and taken the run row's lock. None of them is reachable from a route.
+//   * `resumeRun` takes an actor, because the student presses Resume (07 §7). It is an ordinary
+//     service function and starts with its guard.
+// ---------------------------------------------------------------------------------------------
+
+/**
+ * The run columns a pause reads and writes: the trace's three, the clock's, and the state the
+ * transition table is applied to.
+ *
+ * Structural rather than the Drizzle row, for the reason `reliance.SurfacingRun` is: a caller in
+ * another module holds a `Run` from `lockRunForMutation` and this says which parts of it are used.
+ */
+export type PausingRun = TraceRun & ClockRun & { state: RunStateValue }
+
+export type PauseOptions = {
+  /** The delegation whose failure caused it, when there was one (06 §3.4, FR-001). */
+  relatedDelegationId?: string | null
+  /**
+   * What the resume gives back to the clock (10 §10): a delegation 0, an interrogation action its
+   * cost, an escalation 300,000 ms.
+   *
+   * It is recorded at the pause rather than computed at the resume because this is where the number
+   * is known — the caller is the code that just charged it — and because `run_pauses.credited_ms`
+   * is then the whole answer to "what did this outage cost the student", readable without
+   * reconstructing which action was in flight.
+   */
+  creditMs?: number
+  actorId?: string | null
+  at?: Date
+}
+
+/**
+ * The locked run row a mutation in another module may act on: `select … for update`, with every
+ * timer that has already fired applied to it (rule 4 of this file's header).
+ *
+ * Handing this out rather than the raw `findRunForUpdate` is what keeps the timer rule total. A
+ * module that locked the row itself would be applying its own rules to a run that should already
+ * have auto-locked, and the defect would show up as a delegation answered after the clock ran out.
+ */
+export async function lockRunForMutation(
+  tx: repo.Tx,
+  tenantId: string,
+  runId: string,
+  now: Date = new Date(),
+): Promise<repo.Run> {
+  const locked = await repo.findRunForUpdate(tenantId, runId, tx)
+  if (!locked) runNotFound()
+  return materializeTimersTx(tx, locked, now)
+}
+
+/**
+ * Stamps `first_delegation_at` the first time the assistant is used (10 §7), and answers the row.
+ *
+ * It writes no event, because nothing happened in the run that the `delegation` event does not
+ * already say. The column exists for the flag on the other side: `document_open` records
+ * `before_first_delegation`, which is FR-022's measure of reading the room rather than asking about
+ * it, and that flag is read off this column at the instant the document is opened.
+ */
+export async function noteFirstDelegation(
+  tx: repo.Tx,
+  run: repo.Run,
+  at: Date = new Date(),
+): Promise<repo.Run> {
+  if (run.firstDelegationAt !== null) return run
+  const updated = await repo.updateRun(run.organizationId, run.id, { firstDelegationAt: at }, tx)
+  if (!updated) runNotFound()
+  return updated
+}
+
+/**
+ * Reads and clears `flags.forced_failure_armed` (FR-118), and says whether it was set.
+ *
+ * The test control that arms it is `forceAssistantFailure`, which an instructor presses from the
+ * replay (Phase 8). It is consumed here rather than read, so one arming produces one outage: an
+ * instructor demonstrating the standing rule to a class gets a paused run and a resume, not an
+ * assistant that fails on every request until somebody remembers to turn it off.
+ *
+ * It lives in this module because `runs.flags` is this module's column and 12 §8.1 keeps the whole
+ * container out of every student view — the flag says something about the run that its own student
+ * may not read, and the fewer places that touch it the better.
+ */
+export async function consumeForcedAssistantFailure(
+  tx: repo.Tx,
+  run: repo.Run,
+): Promise<{ run: repo.Run; armed: boolean }> {
+  if (run.flags.forced_failure_armed !== true) return { run, armed: false }
+  const flags = { ...run.flags }
+  delete flags.forced_failure_armed
+  const updated = await repo.updateRun(run.organizationId, run.id, { flags }, tx)
+  if (!updated) runNotFound()
+  return { run: updated, armed: true }
+}
+
+/**
+ * Stops the clock on a component failure (FR-001, 10 §10) and records why.
+ *
+ * Three writes in the caller's transaction: the `run_pauses` row that says what failed, the `pause`
+ * event, and the transition — `working → paused`, or `turn_open → paused` when the failure lands
+ * inside the Turn window (D-133). The clock stops in both cases because both readings add the open
+ * paused span back (`clock.ts`), so nothing here has to know which clock was running.
+ *
+ * It does not decide *whether* to pause: the caller has already failed, and a pause on a run that is
+ * not in one of those two states is `ILLEGAL_TRANSITION` from the table rather than a silent no-op.
+ */
+export async function pauseRun(
+  tx: repo.Tx,
+  run: PausingRun,
+  cause: PauseCauseValue,
+  options: PauseOptions = {},
+): Promise<repo.Run> {
+  const at = options.at ?? new Date()
+  const moved = transition(run, 'paused', { cause: 'component_failure', at })
+
+  const pause = await repo.insertPause(
+    run.id,
+    {
+      cause,
+      pausedAt: at,
+      creditedMs: Math.max(0, Math.round(options.creditMs ?? 0)),
+      relatedDelegationId: options.relatedDelegationId ?? null,
+    },
+    tx,
+  )
+
+  await append(
+    tx,
+    run,
+    'pause',
+    {
+      pause_id: pause.id,
+      cause,
+      related_delegation_id: options.relatedDelegationId ?? null,
+    },
+    { actorId: options.actorId ?? null, occurredAt: at },
+  )
+  await append(tx, run, 'lifecycle', moved.payload, {
+    actorId: options.actorId ?? null,
+    occurredAt: at,
+  })
+
+  const updated = await repo.updateRun(
+    run.organizationId,
+    run.id,
+    { ...moved.patch, ...clockPause(run, at) },
+    tx,
+  )
+  if (!updated) runNotFound()
+  return updated
+}
+
+/**
+ * `POST /runs/{runId}/resume` (07 §7, FR-001): the student takes the run back off Paused.
+ *
+ * The clock is given back the span the pause took — into `total_paused_ms` on the working clock, or
+ * by moving `turn_window_ends_at` out when the failure landed inside the Turn window (D-133) — and
+ * the failed component's cost is credited on top. **For a delegation that cost is zero**, and that
+ * is not an omission: a delegation charges no clock at all (10 §7), so there is nothing to give
+ * back, and the `resume` event says so with `clock_credited_ms: 0`. What the student gets back is
+ * the wall-clock time the outage took, which is the whole of what it took from them.
+ *
+ * The run returns to the state it paused from, which the clock's own reading answers: a run paused
+ * with the Turn delivered and its response not yet locked was in the window (D-133).
+ */
+export async function resumeRun(actor: SessionUser, runId: string): Promise<RunSummary> {
+  const scope = await requireRunOwner(actor, runId)
+  const tenantId = scope.organizationId
+
+  const updated = await repo.withTransaction(async (tx) => {
+    const run = await lockRunForMutation(tx, tenantId, runId)
+    if (run.state !== 'paused') illegalTransition(run.state, 'working')
+
+    const pause = await repo.findOpenPause(runId, tx)
+    // A run reaches `paused` only through `pauseRun`, which writes the row in the same transaction,
+    // so an open pause is always there. If it is not, the run's record is inconsistent and a
+    // `resume` event with no pause to point at would make it worse.
+    if (!pause) pauseRecordMissing(runId)
+
+    const now = new Date()
+    const target: RunStateValue = isInTurnWindow(run) ? 'turn_open' : 'working'
+    const moved = transition(run, target, { cause: 'resumed', at: now })
+
+    const { patch: clockPatch, pausedMs } = clockResume(run, now)
+    const creditedMs = Math.max(0, pause.creditedMs)
+    const creditPatch = credit(run, creditedMs)
+
+    await repo.resumePause(runId, pause.id, { resumedAt: now, creditedMs }, tx)
+    await append(
+      tx,
+      run,
+      'resume',
+      { pause_id: pause.id, paused_ms: pausedMs, clock_credited_ms: creditedMs },
+      { actorId: actor.id, occurredAt: now },
+    )
+    await append(tx, run, 'lifecycle', moved.payload, { actorId: actor.id, occurredAt: now })
+
+    const next = await repo.updateRun(
+      tenantId,
+      runId,
+      { ...moved.patch, ...clockPatch, ...creditPatch },
       tx,
     )
     if (!next) runNotFound()

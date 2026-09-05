@@ -3,12 +3,17 @@
 // The rule the product depends on: the assistant may quote a figure it was given and may not invent
 // one. So the two halves of this file are "the same number spelled differently is the same number"
 // — otherwise the guard would flag every legitimate quotation and the marker would mean nothing —
-// and "a number from nowhere is reported, and in block mode withheld".
+// and "a number from nowhere is reported and marked, and in block mode taken out as well".
+//
+// D-281 is why the marking half matters here rather than only in the panel: both modes now rewrite
+// the prose, so the mark is in `response_text` and the student, the Delegation Log and the replay
+// read one reply. The cases that keep it honest are the two that assert nothing is marked — a
+// figure the room sources, and any figure inside a claim segment.
 import { describe, expect, it } from 'vitest'
 import { env } from '@/server/config'
 import {
-  WITHHELD,
   allowedNumbers,
+  figureMarker,
   normalizeNumber,
   numbersIn,
   numericGuard,
@@ -65,16 +70,30 @@ describe('numericGuard', () => {
     ])
   })
 
-  it('passes a grouped, percent or currency spelling of an allowed number', () => {
+  /**
+   * The test the whole marker rests on (D-281): a sourced figure is not marked.
+   *
+   * A marked figure is a statement about provenance, and it is only ever *about* provenance while
+   * the room's own numbers come out of here untouched. Every spelling a source's number can take —
+   * grouped, percent, currency, and a claim's carried value the text rounded — is here, because a
+   * guard that marked any of them would be marking the assistant for quoting the package, and a
+   * student would learn to distrust the quotations rather than the inventions.
+   */
+  it('marks nothing when the room sources the figure, in any spelling of it', () => {
     const result = numericGuard(
       [text('That is 78 percent of subscribers and $500,000 of budget.')],
       allowed,
       'flag',
     )
     expect(result.unverified).toEqual([])
+    expect(result.segments).toEqual([
+      text('That is 78 percent of subscribers and $500,000 of budget.'),
+    ])
+    const sourced = result.segments[0]
+    expect(sourced?.type === 'text' && sourced.text.includes('[[figure:')).toBe(false)
   })
 
-  it('flags a number the sources do not support, with the sentence around it', () => {
+  it('marks a number the sources do not support in place, and reports the sentence around it', () => {
     const result = numericGuard(
       [text('Blending the cohorts gives a payback of 14 months.')],
       allowed,
@@ -82,29 +101,69 @@ describe('numericGuard', () => {
     )
     expect(result.unverified).toHaveLength(1)
     expect(result.unverified[0]?.value).toBe('14')
+    // The reviewer's context is the sentence as it was written, without the marker in it.
     expect(result.unverified[0]?.context).toContain('payback of 14 months')
-    // flag mode leaves the text exactly as the model wrote it (D-068).
-    expect(result.segments[0]).toEqual(text('Blending the cohorts gives a payback of 14 months.'))
+    // flag mode keeps the figure the model wrote, spelling and all, inside the marker (D-281).
+    expect(result.segments[0]).toEqual(
+      text(`Blending the cohorts gives a payback of ${figureMarker('14')} months.`),
+    )
   })
 
-  it('replaces the whole literal in block mode, and reports it too', () => {
+  it('keeps a grouped figure’s own spelling inside the marker', () => {
+    const result = numericGuard([text('That is 1,240 subscribers.')], allowed, 'flag')
+    expect(result.segments[0]).toEqual(text(`That is ${figureMarker('1,240')} subscribers.`))
+    expect(result.unverified.map((n) => n.value)).toEqual(['1240'])
+  })
+
+  it('takes the whole literal out in block mode, leaving the mark, and reports it too', () => {
     const result = numericGuard(
       [text('A payback of 14.5 months and 78 percent retention.')],
       allowed,
       'block',
     )
     expect(result.segments[0]).toEqual(
-      text(`A payback of ${WITHHELD} months and 78 percent retention.`),
+      text(`A payback of ${figureMarker('')} months and 78 percent retention.`),
     )
     expect(result.unverified.map((n) => n.value)).toEqual(['14.5'])
+    // The digits are gone: block mode withholds the figure, it does not merely annotate it.
+    const guarded = result.segments[0]
+    expect(guarded?.type === 'text' && guarded.text.includes('14.5')).toBe(false)
   })
 
   it('replaces every offender in one segment without disturbing the offsets of the others', () => {
     const result = numericGuard([text('It is 14 or 15 or maybe 16.')], allowed, 'block')
+    const withheld = figureMarker('')
     expect(result.segments[0]).toEqual(
-      text(`It is ${WITHHELD} or ${WITHHELD} or maybe ${WITHHELD}.`),
+      text(`It is ${withheld} or ${withheld} or maybe ${withheld}.`),
     )
     expect(result.unverified.map((n) => n.value)).toEqual(['14', '15', '16'])
+  })
+
+  it('marks each offender in one segment in flag mode, each with its own figure', () => {
+    const result = numericGuard([text('It is 14 or 15 or maybe 16.')], allowed, 'flag')
+    expect(result.segments[0]).toEqual(
+      text(`It is ${figureMarker('14')} or ${figureMarker('15')} or maybe ${figureMarker('16')}.`),
+    )
+  })
+
+  /**
+   * A marker in a stored reply is always the guard's own (D-281).
+   *
+   * `[[figure:` is four characters a provider can write — quoting a document, echoing a reply it was
+   * shown — and a marker that arrived with the model would hand a student a mark nothing checked.
+   * It is unwrapped to its contents, which are then guarded like any other prose: an unsourced
+   * number comes back marked, and a sourced one comes back plain.
+   */
+  it('unwraps a marker the model wrote itself and guards what was inside it', () => {
+    const result = numericGuard(
+      [text('It is [[figure:14]] months, on [[figure:78]] percent retention.')],
+      allowed,
+      'flag',
+    )
+    expect(result.segments[0]).toEqual(
+      text(`It is ${figureMarker('14')} months, on 78 percent retention.`),
+    )
+    expect(result.unverified.map((n) => n.value)).toEqual(['14'])
   })
 
   it('never checks or rewrites a claim segment: authored text is the one thing it may quote', () => {
@@ -121,6 +180,9 @@ describe('numericGuard', () => {
     const result = numericGuard(segments, new Set<string>(), 'block')
     expect(result.segments).toEqual(segments)
     expect(result.unverified).toEqual([])
+    // And so a marker can never land inside the package's own words (D-264, D-281): the guard is
+    // not asked to be careful with authored text, it is never given it.
+    expect(JSON.stringify(result.segments)).not.toContain('[[figure:')
   })
 
   it('takes the carried value of a claim as allowed, whatever the claim text rounded it to', () => {

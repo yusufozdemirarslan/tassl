@@ -23,6 +23,7 @@ import {
   closeDocument,
   lockFrame,
   openDocument,
+  resumeRun,
   skipReadiness,
   startRun,
   submitReadiness,
@@ -167,4 +168,25 @@ export const lockFrameAction = defineAction(
     revalidate: [RUNS, runRoot(runId), workRoot(runId)],
   }),
   { name: 'lockFrameAction' },
+)
+
+// ---------------------------------------------------------------------------------------------
+// Pause and resume (07 §7, FR-001)
+// ---------------------------------------------------------------------------------------------
+
+/**
+ * Takes the run off Paused and gives the clock back the time the outage took (FR-001).
+ *
+ * It revalidates the workspace as well as the run: the paused overlay is drawn from the run's state
+ * and the workspace's `pause`, and both change here. There is no `pauseRunAction` beside it — a run
+ * is paused by a component failing, never by anyone asking for it, so the pause has no control and
+ * no entry point outside the failure branches that write it.
+ */
+export const resumeRunAction = defineAction(
+  RunIdParamsSchema,
+  async ({ runId }, ctx) => ({
+    data: await resumeRun(ctx.actor, runId),
+    revalidate: [RUNS, runRoot(runId), workRoot(runId)],
+  }),
+  { name: 'resumeRunAction' },
 )

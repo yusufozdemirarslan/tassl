@@ -321,14 +321,44 @@ export const WorkspaceCapabilitiesSchema = z.object({
 })
 export type WorkspaceCapabilities = z.infer<typeof WorkspaceCapabilitiesSchema>
 
+/** `run_pauses.cause` (06 §3.4): the four component failures that stop the clock (FR-001). */
+export const PauseCauseSchema = z.enum([
+  'assistant_failure',
+  'document_failure',
+  'action_failure',
+  'connection',
+])
+export type PauseCauseValue = z.infer<typeof PauseCauseSchema>
+
+/**
+ * The pause the run is sitting in, for the overlay that offers the Resume control (UI-023).
+ *
+ * The cause and the instant, and nothing about what failed underneath it: the paused overlay tells
+ * a student that a component did not answer, that their clock is stopped and that nothing is lost.
+ * Which delegation it was is on the reviewer's replay (`pause.related_delegation_id`); to the
+ * student it is one sentence and a button, because there is nothing else they can do about it.
+ */
+export const PauseSchema = z.object({
+  cause: PauseCauseSchema,
+  pausedAt: z.iso.datetime(),
+})
+export type PauseView = z.infer<typeof PauseSchema>
+
 /**
  * `GET /runs/{runId}/workspace` (07 §7, §10): the room as its student sees it.
  *
- * 07 §10's `RunWorkspace` also lists `delegations`, `claims`, `briefDraft`, `addendum`,
- * `declarations`, `pause` and `turn`. Each arrives with the phase that makes it true — the
- * assistant and the log in Phase 7, the claims and the brief draft in Phase 8, the pause and the
- * Turn in Phases 8 and 9 — and none is declared here as an empty array in the meantime: a field
- * that is always empty is a shape a reader has to learn to disbelieve.
+ * 07 §10's `RunWorkspace` also lists `delegations`, `claims`, `briefDraft`, `addendum` and `turn`.
+ * Each arrives with the phase that makes it true — the brief draft and the addendum in Phase 8, the
+ * Turn in Phase 9 — and none is declared here as an empty array in the meantime: a field that is
+ * always empty is a shape a reader has to learn to disbelieve.
+ *
+ * The Delegation Log and the claims are the exception, and they are absent for a different reason:
+ * they exist from Step 7.3, and they are read by `GET /runs/{runId}/delegations` and
+ * `GET /runs/{runId}/claims`, which the workspace screen composes beside this one. Folding them in
+ * here would make the `runs` service import the `assistant` module, which already imports `runs` —
+ * a cycle, and the same one `courses.listAssignmentRuns` avoids by reaching `./summary` (D-268).
+ * `declarations` is absent for the same reason: a declaration is a trace event and nothing else
+ * (FR-061), so the screen that wants the list reads it from the trace.
  */
 export const RunWorkspaceSchema = z.object({
   run: RunSummarySchema,
@@ -338,6 +368,8 @@ export const RunWorkspaceSchema = z.object({
   openDocuments: z.array(OpenDocumentSchema),
   /** Null while the run is framing; the locked frame from the moment it is locked (FR-041). */
   frame: FrameSchema.nullable(),
+  /** The open pause, when the run is in `paused`; null otherwise (FR-001, UI-023). */
+  pause: PauseSchema.nullable(),
   capabilities: WorkspaceCapabilitiesSchema,
 })
 export type RunWorkspace = z.infer<typeof RunWorkspaceSchema>
