@@ -68,8 +68,8 @@
 - [x] 6.2 Runs module: state machine, clock, limits, start, policy acknowledgement
 - [x] 6.3 Readiness Check service
 - [x] 6.4 Evidence Room opens and the frame
-- [ ] 6.5 Student screens: runs list, policy display, readiness, run frame and clock, workspace (framing)
-- [ ] Phase 6 exit criteria
+- [x] 6.5 Student screens: runs list, policy display, readiness, run frame and clock, workspace (framing)
+- [x] Phase 6 exit criteria
 
 ## Phase 7 — Assistant and delegation log (`build-plan/phase-07-assistant-and-delegation.md`)
 - [ ] 7.1 LlmProvider interface, registry, mock provider, structured helper, call logging
