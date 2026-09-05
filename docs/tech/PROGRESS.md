@@ -79,7 +79,7 @@
 - [ ] Phase 7 exit criteria
 
 ## Phase 8 — Reliance, interrogation, escalation, Decision Lock (`build-plan/phase-08-reliance-and-lock.md`)
-- [ ] 8.1 Reliance service: stances, actions, escalations, relied-on detection, lock-gate query
+- [x] 8.1 Reliance service: stances, actions, escalations, relied-on detection, lock-gate query
 - [ ] 8.2 Brief draft, lock gate, Decision Lock, addendum, auto-lock, pause and resume, test control
 - [ ] 8.3 Screens: stance controls, action results, escalation dialog, brief editor, lock dialogs, addendum, locked page
 - [ ] Phase 8 exit criteria
