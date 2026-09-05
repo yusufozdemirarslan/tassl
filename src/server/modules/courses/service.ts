@@ -16,10 +16,9 @@
 //      and the condition it names cannot drift apart.
 //   4. Analytics fire after the writing transaction commits (17 §5.4), never inside it.
 //
-// Four functions of 10 §3 are deliberately absent: `previewMappingChange`, `changeMapping` and
+// Three functions of 10 §3 are deliberately absent: `previewMappingChange`, `changeMapping` and
 // `recomputeExports` belong to Phase 11 (FR-206, D-095 — `updateCoursePolicy` here accepts a
-// mapping only while no run is confirmed), and `listAssignmentRuns` belongs to Phase 6, which owns
-// the run states it summarizes.
+// mapping only while no run is confirmed).
 import { isAppError } from '@/lib/errors'
 import { t } from '@/lib/i18n/t'
 import { track } from '@/server/analytics/track'
@@ -33,6 +32,14 @@ import {
 } from '@/server/auth/permissions'
 import type { SessionUser } from '@/server/auth/types'
 import { audit } from '@/server/modules/admin'
+// `toRunSummary` is the runs module's projection of a run row, and `listAssignmentRuns` below
+// answers with it so that the reviewer's table and the student's own poll report one shape. It is
+// imported from that module's own files rather than through its index because the runs service
+// imports *this* one for the assignment behind a run: going through the index would make the two a
+// cycle, which is the same reading — and the same resolution — as the trace module's import of the
+// run clock (10 §10). Both files it reaches are free of anything but their own module.
+import type { RunReviewSummary, RunsQuery } from '@/server/modules/runs/schema'
+import { toRunSummary } from '@/server/modules/runs/summary'
 import { getInstitutionSettings, listMyInstitutions } from '@/server/modules/tenancy'
 import {
   assignmentInUse,
@@ -78,6 +85,9 @@ const COURSE_READERS: readonly OrganizationRole[] = ['instructor', 'program_lead
 
 /** Section roles that may read the assignment and its policy display (07 §5 "S (section member)"). */
 const SECTION_MEMBER_ROLES: readonly SectionRole[] = ['student', 'instructor', 'ta']
+
+/** Section roles that read another student's run (08 §4 "Reviewer"). */
+const REVIEWER_ROLES: readonly SectionRole[] = ['instructor', 'ta']
 
 /** The fields of an assignment a started run freezes (10 §3 `ASSIGNMENT_IN_USE`). */
 const STRUCTURAL_ASSIGNMENT_FIELDS = [
@@ -753,7 +763,7 @@ export async function getAssignment(
   assignmentId: string,
 ): Promise<AssignmentView> {
   const context = await resolveAssignment(actor, assignmentId)
-  await requireAssignmentReader(actor, context)
+  const { reviewer } = await requireAssignmentReader(actor, context)
 
   const tenantId = context.course.organizationId
   const packageRow = await repo.findPackageVersion(tenantId, context.assignment.packageVersionId)
@@ -765,21 +775,35 @@ export async function getAssignment(
     sectionName: context.section.name,
     packageTitle: packageRow?.packageTitle ?? '',
     packageVersion: context.packageVersion.version,
-    variantKey: context.variant.key,
+    // Null for the student taking it: which variant they drew is whether a defect was planted,
+    // and 10 §11.3 bands Calibration on the defect-free variant as Professional for accepting
+    // everything — so the field a screen shows an instructor is a scoring exploit for a student
+    // (D-228, D-254).
+    variantKey: reviewer ? context.variant.key : null,
     effectiveWorkingClockSeconds:
       context.assignment.workingClockSeconds ?? context.packageVersion.workingClockSeconds,
+    turnDelaySeconds: context.packageVersion.turnDelaySeconds,
     effectiveWeight: numOrNull(context.assignment.weight) ?? num(context.course.defaultRunWeight),
     inUse: started > 0,
   }
 }
 
-/** A member of the assignment's section, or the instructor of its course (07 §5, 08 §4). */
+/**
+ * A member of the assignment's section, or the instructor of its course (07 §5, 08 §4).
+ *
+ * It answers *which* of the two the reader is, because the assignment says more than a student may
+ * hear: the variant is the one field that tells them whether a defect was planted at all (D-228),
+ * and a reader who is only a student of the section is told what they are taking, not what it is.
+ */
 async function requireAssignmentReader(
   actor: SessionUser,
   context: repo.AssignmentContext,
-): Promise<void> {
-  if (await heldSectionRole(actor, context.section.id, SECTION_MEMBER_ROLES)) return
-  if (await instructsCourse(actor, context.course.id)) return
+): Promise<{ reviewer: boolean }> {
+  if (await instructsCourse(actor, context.course.id)) return { reviewer: true }
+  if (await heldSectionRole(actor, context.section.id, REVIEWER_ROLES)) return { reviewer: true }
+  if (await heldSectionRole(actor, context.section.id, SECTION_MEMBER_ROLES)) {
+    return { reviewer: false }
+  }
   forbidden()
 }
 
@@ -821,6 +845,50 @@ export async function listMyAssignments(
   if (!tenantId) return { items: [], nextCursor: null }
   const page = await repo.pageAssignmentsForStudent(tenantId, actor.id, input)
   return { items: page.items.map(toStudentAssignment), nextCursor: page.nextCursor }
+}
+
+// ---------------------------------------------------------------------------------------------
+// The assignment's runs (UI-032, 07 §7)
+// ---------------------------------------------------------------------------------------------
+
+/**
+ * `GET /assignments/{assignmentId}/runs`: every run taken on the assignment, for a reviewer of its
+ * section — an instructor or a TA (08 §4 "Read another student's run"). A student is refused here
+ * even for their own run: this list names every student who has taken the assignment, and 07 §7
+ * gives them `/me/runs` instead.
+ *
+ * The run itself is projected by the `runs` module (`toRunSummary`), so the reviewer's table and
+ * the student's own poll report a state, a clock and a next step in one shape, and neither can
+ * drift from the state machine that produced them.
+ */
+export async function listAssignmentRuns(
+  actor: SessionUser,
+  assignmentId: string,
+  input: RunsQuery = {},
+): Promise<repo.Page<RunReviewSummary>> {
+  const context = await resolveAssignment(actor, assignmentId)
+  // The same two readers the assignment itself admits as a reviewer: a section instructor or TA,
+  // and the instructor of the course, who may not hold a row in every section they own. Guarding
+  // only on the section role refused a course's own instructor the runs on their own assignment.
+  const { reviewer } = await requireAssignmentReader(actor, context)
+  if (!reviewer) forbidden()
+
+  const page = await repo.pageRunsForAssignment(context.course.organizationId, assignmentId, input)
+  return {
+    items: page.items.map((row) => ({
+      ...toRunSummary(row.run),
+      studentId: row.student.id,
+      studentName: row.student.name,
+      // `RunSummary` carries no variant — it is the shape the run's own student reads, and which
+      // variant they drew is the one thing about the scenario they may not know before scoring
+      // (12 §8, D-228). The reviewer's row adds it, because a re-offer runs the other variant of
+      // the family and so a run's variant cannot be read off its assignment.
+      variantKey: row.variant.key,
+      decisionsMade: row.decisionsMade,
+      latestExportVersion: row.latestExportVersion,
+    })),
+    nextCursor: page.nextCursor,
+  }
 }
 
 // ---------------------------------------------------------------------------------------------

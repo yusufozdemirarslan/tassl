@@ -32,10 +32,28 @@ export type RunRecordSnapshot = {
 /** `course_exports.file`: the course-form TraceExport (10-backend-spec-modules.md §10). */
 export type CourseExportFile = Record<string, unknown>
 
+/**
+ * Both tables here follow the run (D-255), and they are the two worth arguing about, because both
+ * are things that may already have been handed to someone.
+ *
+ * `run_records` is keyed *by* the run: the snapshot has no identity of its own and every reader
+ * reaches it by `run_id`, so a record kept past its run is a row nothing in the product can address.
+ * What the student downloaded is theirs and is not in this table.
+ *
+ * `course_exports` is the harder one. It is the provenance ledger for grade input — append-only,
+ * versioned, with `reason` and `created_by` (D-087, 12 §5, FR-184) — and the instinct is to keep it.
+ * It follows the run anyway, for three reasons. Its `run_id` is `NOT NULL` and half of
+ * `(run_id, version)`, so surviving would mean an export attributed to nothing. D-104 confines the
+ * delete to `is_walkthrough` assignments, and FR-235 says walkthrough records are kept or deleted at
+ * the builder's discretion and never enter a pilot dataset — a demonstration export was never the
+ * gradebook's record. And the append-only *grant* is untouched: `tassl_app` still cannot DELETE or
+ * UPDATE a row here, so no code path can un-say an export of a run that still exists; only the
+ * cascade, running as the table owner, may take one, and only with the run it belongs to.
+ */
 export const runRecords = pgTable('run_records', {
   runId: uuid('run_id')
     .primaryKey()
-    .references(() => runs.id),
+    .references(() => runs.id, { onDelete: 'cascade' }),
   snapshot: jsonb('snapshot').$type<RunRecordSnapshot>().notNull(),
   hiddenFromExport: boolean('hidden_from_export').notNull().default(false),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
@@ -51,7 +69,7 @@ export const courseExports = pgTable(
       .references(() => organization.id),
     runId: uuid('run_id')
       .notNull()
-      .references(() => runs.id),
+      .references(() => runs.id, { onDelete: 'cascade' }),
     assignmentId: uuid('assignment_id')
       .notNull()
       .references(() => assignments.id),

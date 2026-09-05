@@ -1,6 +1,7 @@
 // defineRoute(): docs/tech/10-backend-spec.md §2, 13-observability-ops.md §2.5, 08-auth-authz.md §2.7.
-// Order: request context → auth → CSRF header → params/query/body → rate limit → handler →
-// output validation → JSON with x-request-id and Cache-Control: no-store → error envelope.
+// Order: request context → auth → CSRF header → params/query/body → rate limit → idempotent replay
+// → handler → receipt → output validation → JSON with x-request-id and Cache-Control: no-store →
+// error envelope.
 import { createHash, timingSafeEqual } from 'node:crypto'
 import type { Logger } from 'pino'
 import { z, type ZodType } from 'zod'
@@ -9,6 +10,12 @@ import { getSession, requireSession } from '@/server/auth/session'
 import type { SessionUser } from '@/server/auth/types'
 import { env } from '@/server/config'
 import { toErrorParts } from '@/server/http/errors'
+import {
+  hasIdempotencyReceipt,
+  idempotencyStorageKey,
+  readIdempotencyKey,
+  writeIdempotencyReceipt,
+} from '@/server/http/idempotency'
 import {
   attachRouteSpec,
   registerRoute,
@@ -41,6 +48,20 @@ export type RouteSpec<P, Q, B, O> = {
     bucket: RateLimitBucket
     /** Defaults to the actor id, or the client IP for anonymous requests. */
     key?: (ctx: RouteContext<RouteInput<P, Q, B>>) => string
+  }
+  /**
+   * Declares the route one of 07 §7's *idempotent* rows: it accepts an `Idempotency-Key` header,
+   * and a repeat within 24 h answers with what the first call produced instead of creating a second
+   * resource (07 §1, 10 §11).
+   *
+   * `replay` is how the route says what "the same resource" is — for a Start, the run this actor
+   * already has on the assignment. It runs only when the key has a live receipt, and it must apply
+   * the same permission checks the handler does, because a key is client-supplied and proves
+   * nothing on its own. Answering `null` means the resource is gone (voided, deleted) or was never
+   * created, and the handler runs as if the key had not been sent.
+   */
+  idempotency?: {
+    replay: (ctx: RouteContext<RouteInput<P, Q, B>>) => Promise<O | null>
   }
   openapi: { operationId: string; summary: string; tags: string[]; status?: number }
 }
@@ -128,6 +149,9 @@ export function defineRoute<P = undefined, Q = undefined, B = undefined, O = unk
   }
   registerRoute(registered)
 
+  // Hoisted so the request path reads one binding rather than re-narrowing `spec.idempotency`.
+  const idempotency = spec.idempotency ?? null
+
   const routeHandler: RouteHandler = async (request, routeCtx) => {
     const startedAt = Date.now()
     const requestId = getOrCreateRequestId(request.headers)
@@ -193,8 +217,38 @@ export function defineRoute<P = undefined, Q = undefined, B = undefined, O = unk
           })
         }
 
-        // Handler and output
-        const result = await handler(ctx)
+        // Idempotency (07 §1): on a route that declares it, a repeat within 24 h answers with what
+        // the first call produced. Only such a route reads the header at all — everywhere else an
+        // `Idempotency-Key` is a header the endpoint does not use, and validating one would be a
+        // refusal the client cannot act on. The store is untouched when no key is sent.
+        const rawKey = idempotency ? readIdempotencyKey(request) : null
+        const storageKey =
+          rawKey && actor ? idempotencyStorageKey(actor.id, registered.operationId, rawKey) : null
+        const original =
+          idempotency && storageKey && (await hasIdempotencyReceipt(storageKey))
+            ? await idempotency.replay(ctx)
+            : null
+
+        let result: O
+        if (original !== null) {
+          store.logger.info({ event: 'idempotent_replay' }, 'idempotency key replayed')
+          result = original
+        } else {
+          result = await handler(ctx)
+          // The receipt is written only now, so a refusal leaves nothing to replay. It is never a
+          // reason to fail a request that already succeeded: the resource exists either way, and a
+          // lost receipt only costs the next retry its replay.
+          if (storageKey) {
+            await writeIdempotencyReceipt(storageKey).catch((error: unknown) => {
+              store.logger.warn(
+                { event: 'idempotency_receipt_failed', err: error },
+                'idempotency receipt not written',
+              )
+            })
+          }
+        }
+
+        // Output
         const validated = spec.output.safeParse(result)
         if (!validated.success) {
           if (env.APP_ENV !== 'production') {

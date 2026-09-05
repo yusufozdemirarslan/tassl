@@ -7,6 +7,9 @@
 import { z } from 'zod'
 import { AppError } from '@/lib/errors'
 import type { SessionUser } from '@/server/auth/types'
+// The reviewer's run list answers with the runs module's own view (see `listAssignmentRuns` in
+// ./service.ts for why it is reached directly rather than through that module's index).
+import { RunReviewSummaryPageSchema, RunsQuerySchema } from '@/server/modules/runs/schema'
 import { defineRoute, type RouteContext, type RouteHandler } from '@/server/http/define-route'
 import { attachRouteSpec, getRouteSpec, type RegisteredRoute } from '@/server/http/openapi-registry'
 import {
@@ -18,6 +21,7 @@ import {
   getAssignment,
   getCourse,
   getPolicyDisplay,
+  listAssignmentRuns,
   listCourses,
   listSectionMembers,
   removeSectionMember,
@@ -246,6 +250,21 @@ export const updateAssignmentRoute = defineRoute(
     },
   },
   async (ctx) => updateAssignment(actorOf(ctx), ctx.input.params.assignmentId, ctx.input.body),
+)
+
+export const listAssignmentRunsRoute = defineRoute(
+  {
+    auth: 'session',
+    input: { params: AssignmentIdParamsSchema, query: RunsQuerySchema },
+    output: RunReviewSummaryPageSchema,
+    rateLimit: { bucket: 'read' },
+    openapi: {
+      operationId: 'listAssignmentRuns',
+      summary: 'Runs on an assignment (reviewers)',
+      tags: TAGS,
+    },
+  },
+  async (ctx) => listAssignmentRuns(actorOf(ctx), ctx.input.params.assignmentId, ctx.input.query),
 )
 
 export const getPolicyDisplayRoute = defineRoute(

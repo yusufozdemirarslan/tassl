@@ -16,6 +16,7 @@ import {
   VARIANT_KEYS,
   type PackageExport,
 } from '@/server/modules/scenarios/schema'
+import { READINESS_ITEM_TOTAL, thinlyCarriedConcepts } from '@/server/modules/scenarios/validate'
 import { validateExport } from '@/server/modules/scenarios/validate-export'
 
 /**
@@ -91,5 +92,36 @@ describe('the Meridian Roast fixture package', () => {
         .map((state) => `${variant.key}:${state.claimKey}`),
     )
     expect(defective).toEqual(['defective:C3'])
+  })
+
+  /**
+   * Stated rather than fixed, and stated here so it is not discovered by a student (D-251).
+   *
+   * Seven of the fixture's eleven readiness concepts are carried by a single item, so for those
+   * seven the concept map the student is shown when the check closes *is* that item's own marking —
+   * `held` if they answered it correctly, `not_held` if they did not — before the run is scored.
+   * That is a property of the authored package, not a defect in the code: `READINESS_SPLIT` fixes
+   * sixteen items and the 6/4/6 split and places no floor on items per concept, and the shipped
+   * package still confirms. What it earns is the warning, which is exactly what a warning is for.
+   *
+   * If a later edit spreads the sixteen items differently, this test is where the count changes.
+   */
+  it('spreads sixteen items over eleven concepts, seven of them carried by one item (D-251)', () => {
+    const byConcept = new Map<string, number>()
+    for (const item of parsed.readinessItems) {
+      byConcept.set(item.conceptKey, (byConcept.get(item.conceptKey) ?? 0) + 1)
+    }
+
+    expect(parsed.readinessItems).toHaveLength(READINESS_ITEM_TOTAL)
+    expect(byConcept.size).toBe(11)
+    expect(thinlyCarriedConcepts(parsed.readinessItems)).toEqual([
+      'cohort_retention',
+      'price_tier_positioning',
+      'survey_error',
+      'ai_sycophancy',
+      'ai_confabulation',
+      'ai_provenance',
+      'ai_escalation',
+    ])
   })
 })

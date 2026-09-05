@@ -6,6 +6,15 @@
 // trigger (attached in the step's hand-written migration), so no `$onUpdate`. Append-only tables
 // (`run_events`, `run_actions`, `run_escalations`, `run_pauses`) and the locked artifacts
 // (`run_frames`, `run_addenda`, `run_turn_responses`) carry no `updated_at`.
+//
+// Delete behaviour (D-255, migration `0012_run_delete_cascade`): every reference to `runs.id` from
+// a table that only exists because the run does is `ON DELETE CASCADE`, which is what makes
+// `courses.deleteWalkthroughRun` (D-104) possible at all. It takes nothing away from NFR-005: the
+// `tassl_app` grants of migration 0009 still refuse the role UPDATE and DELETE on `run_events`,
+// `run_frames`, `run_turn_responses` and `run_addenda`, and a referential action runs with the
+// table owner's privileges rather than the deleting role's. Nobody may rewrite a record; an
+// instructor may discard a whole walkthrough run. The one pair that does not cascade is the
+// re-offer link on `runs` itself, below.
 import { sql } from 'drizzle-orm'
 import {
   type AnyPgColumn,
@@ -111,8 +120,18 @@ export const runs = pgTable(
     voidedAt: timestamp('voided_at', { withTimezone: true }),
     /** D-120: the free-text note lives in the `run_voided` event payload, not here. */
     voidReason: voidReason('void_reason'),
-    reOfferedFromRunId: uuid('re_offered_from_run_id').references((): AnyPgColumn => runs.id),
-    reOfferedToRunId: uuid('re_offered_to_run_id').references((): AnyPgColumn => runs.id),
+    /**
+     * The re-offer pair is two runs, not a run and a child of it, so these two are the only
+     * references to `runs.id` that do **not** cascade (D-255). Deleting a walkthrough run must
+     * never reach across into the other attempt of the pair — the one the student is taking now —
+     * so the surviving run keeps its row and loses only the pointer to the one that was discarded.
+     */
+    reOfferedFromRunId: uuid('re_offered_from_run_id').references((): AnyPgColumn => runs.id, {
+      onDelete: 'set null',
+    }),
+    reOfferedToRunId: uuid('re_offered_to_run_id').references((): AnyPgColumn => runs.id, {
+      onDelete: 'set null',
+    }),
     scoringStatus: scoringStatus('scoring_status').notNull().default('idle'),
     confidenceAtFrame: integer('confidence_at_frame'),
     confidenceAtLock: integer('confidence_at_lock'),
@@ -167,7 +186,7 @@ export const runEvents = pgTable(
     id: bigint('id', { mode: 'number' }).generatedAlwaysAsIdentity().primaryKey(),
     runId: uuid('run_id')
       .notNull()
-      .references(() => runs.id),
+      .references(() => runs.id, { onDelete: 'cascade' }),
     seq: integer('seq').notNull(),
     type: runEventType('type').notNull(),
     occurredAt: timestamp('occurred_at', { withTimezone: true }).notNull(),
@@ -204,7 +223,7 @@ export type ReadinessConceptResult = {
 export const runReadinessResults = pgTable('run_readiness_results', {
   runId: uuid('run_id')
     .primaryKey()
-    .references(() => runs.id),
+    .references(() => runs.id, { onDelete: 'cascade' }),
   submittedAt: timestamp('submitted_at', { withTimezone: true }),
   skipped: boolean('skipped').notNull().default(false),
   concepts: jsonb('concepts').$type<ReadinessConceptResult[]>().notNull(),
@@ -221,7 +240,7 @@ export const runReadinessAnswers = pgTable(
     id: uuid('id').defaultRandom().primaryKey(),
     runId: uuid('run_id')
       .notNull()
-      .references(() => runs.id),
+      .references(() => runs.id, { onDelete: 'cascade' }),
     itemId: uuid('item_id')
       .notNull()
       .references(() => readinessItems.id),
@@ -247,7 +266,7 @@ export const runDocumentOpens = pgTable(
     id: uuid('id').defaultRandom().primaryKey(),
     runId: uuid('run_id')
       .notNull()
-      .references(() => runs.id),
+      .references(() => runs.id, { onDelete: 'cascade' }),
     documentId: uuid('document_id')
       .notNull()
       .references(() => scenarioDocuments.id),
@@ -275,7 +294,7 @@ export const runFrames = pgTable(
   {
     runId: uuid('run_id')
       .primaryKey()
-      .references(() => runs.id),
+      .references(() => runs.id, { onDelete: 'cascade' }),
     decision: text('decision').notNull(),
     assumptions: text('assumptions').array().notNull(),
     position: text('position').notNull(),
@@ -305,7 +324,7 @@ export const runDelegations = pgTable(
     id: uuid('id').defaultRandom().primaryKey(),
     runId: uuid('run_id')
       .notNull()
-      .references(() => runs.id),
+      .references(() => runs.id, { onDelete: 'cascade' }),
     seq: integer('seq').notNull(),
     requestText: text('request_text').notNull(),
     /** Empty until the stream completes; a failed stream leaves it empty and sets `failed`. */
@@ -345,7 +364,7 @@ export const runClaims = pgTable(
     id: uuid('id').defaultRandom().primaryKey(),
     runId: uuid('run_id')
       .notNull()
-      .references(() => runs.id),
+      .references(() => runs.id, { onDelete: 'cascade' }),
     claimId: uuid('claim_id')
       .notNull()
       .references(() => scenarioClaims.id),
@@ -398,7 +417,7 @@ export const runActions = pgTable(
     id: uuid('id').defaultRandom().primaryKey(),
     runId: uuid('run_id')
       .notNull()
-      .references(() => runs.id),
+      .references(() => runs.id, { onDelete: 'cascade' }),
     claimId: uuid('claim_id')
       .notNull()
       .references(() => scenarioClaims.id),
@@ -427,7 +446,7 @@ export const runEscalations = pgTable(
     id: uuid('id').defaultRandom().primaryKey(),
     runId: uuid('run_id')
       .notNull()
-      .references(() => runs.id),
+      .references(() => runs.id, { onDelete: 'cascade' }),
     claimId: uuid('claim_id')
       .notNull()
       .references(() => scenarioClaims.id),
@@ -464,7 +483,7 @@ export const runBriefs = pgTable(
   {
     runId: uuid('run_id')
       .primaryKey()
-      .references(() => runs.id),
+      .references(() => runs.id, { onDelete: 'cascade' }),
     recommendation: text('recommendation').notNull().default(''),
     rationale: text('rationale').notNull().default(''),
     assumptions: text('assumptions')
@@ -497,7 +516,7 @@ export type NewRunBrief = typeof runBriefs.$inferInsert
 export const runAddenda = pgTable('run_addenda', {
   runId: uuid('run_id')
     .primaryKey()
-    .references(() => runs.id),
+    .references(() => runs.id, { onDelete: 'cascade' }),
   /** ≤ 50 words (enforced in Zod). */
   text: text('text').notNull(),
   createdAt: createdAt(),
@@ -515,7 +534,7 @@ export const runTurnResponses = pgTable(
   {
     runId: uuid('run_id')
       .primaryKey()
-      .references(() => runs.id),
+      .references(() => runs.id, { onDelete: 'cascade' }),
     response: turnResponse('response').notNull(),
     justification: text('justification'),
     confidence: integer('confidence'),
@@ -540,13 +559,16 @@ export const runDefenseQuestions = pgTable(
     id: uuid('id').defaultRandom().primaryKey(),
     runId: uuid('run_id')
       .notNull()
-      .references(() => runs.id),
+      .references(() => runs.id, { onDelete: 'cascade' }),
     questionId: uuid('question_id')
       .notNull()
       .references(() => defenseQuestions.id),
     seq: integer('seq').notNull(),
     renderedText: text('rendered_text').notNull(),
-    followUpOf: uuid('follow_up_of').references((): AnyPgColumn => runDefenseQuestions.id),
+    /** Cascades with its parent question: a follow-up to a question that is gone asks nothing. */
+    followUpOf: uuid('follow_up_of').references((): AnyPgColumn => runDefenseQuestions.id, {
+      onDelete: 'cascade',
+    }),
     /** The trace event whose payload the question was rendered from, when it was selected by one. */
     selectingEventSeq: integer('selecting_event_seq'),
     askedAt: timestamp('asked_at', { withTimezone: true }).notNull(),
@@ -565,10 +587,12 @@ export const runDefenseAnswers = pgTable(
     id: uuid('id').defaultRandom().primaryKey(),
     runId: uuid('run_id')
       .notNull()
-      .references(() => runs.id),
+      .references(() => runs.id, { onDelete: 'cascade' }),
+    // The answer belongs to its question as much as to its run, and both cascade, so the run's
+    // delete never depends on which of the two child tables Postgres empties first (D-255).
     runDefenseQuestionId: uuid('run_defense_question_id')
       .notNull()
-      .references(() => runDefenseQuestions.id),
+      .references(() => runDefenseQuestions.id, { onDelete: 'cascade' }),
     text: text('text').notNull(),
     durationMs: integer('duration_ms').notNull(),
     answeredAt: timestamp('answered_at', { withTimezone: true }).notNull(),
@@ -593,7 +617,7 @@ export const runPauses = pgTable(
     id: uuid('id').defaultRandom().primaryKey(),
     runId: uuid('run_id')
       .notNull()
-      .references(() => runs.id),
+      .references(() => runs.id, { onDelete: 'cascade' }),
     cause: pauseCause('cause').notNull(),
     pausedAt: timestamp('paused_at', { withTimezone: true }).notNull(),
     resumedAt: timestamp('resumed_at', { withTimezone: true }),

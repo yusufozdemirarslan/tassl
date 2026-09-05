@@ -58,8 +58,6 @@ export const pageQuerySchema = z.strictObject({
   limit: z.coerce.number().int().min(1).max(100).optional(),
 })
 
-export const runsQuerySchema = pageQuerySchema.extend({ state: runStateSchema.optional() })
-
 /** `{ items, nextCursor }` around any item schema. */
 export function pageOf<T extends z.ZodType>(item: T) {
   return z.object({ items: z.array(item), nextCursor: z.string().nullable() })
@@ -121,8 +119,9 @@ export const confirmAccountDeletionSchema = z.object({
 // ---------------------------------------------------------------------------------------------
 
 /**
- * A student's run as the runs list shows it. The clock, the Turn window, and the links are added
- * when the run modules land (Phase 6); everything here is read from the run row today.
+ * A run in the account's data export (SYS-004). `/me/runs` is the runs module's list and answers
+ * with its own `RunSummary` (07 §10); this is the export's own shape, and it stays here because the
+ * export is the identity module's — Phase 10 replaces it with the record-form trace of FR-243.
  */
 export const runSummarySchema = z.object({
   id: z.uuid(),
@@ -165,7 +164,6 @@ export const studentAssignmentSchema = z.object({
 })
 
 export const myAssignmentsPageSchema = pageOf(studentAssignmentSchema)
-export const myRunsPageSchema = pageOf(runSummarySchema)
 
 // ---------------------------------------------------------------------------------------------
 // Export (SYS-004, 08 §2.9)
@@ -234,7 +232,6 @@ export type MeView = z.infer<typeof meViewSchema>
 export type UpdateProfileInput = z.infer<typeof updateProfileSchema>
 export type ConfirmAccountDeletionInput = z.infer<typeof confirmAccountDeletionSchema>
 export type PageQuery = z.infer<typeof pageQuerySchema>
-export type RunsQuery = z.infer<typeof runsQuerySchema>
 export type RunRef = z.infer<typeof runRefSchema>
 export type RunSummary = z.infer<typeof runSummarySchema>
 export type StudentAssignment = z.infer<typeof studentAssignmentSchema>

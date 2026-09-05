@@ -9,14 +9,15 @@
 //     so the suite reads the ids of that version instead of writing a stand-in of its own. They are
 //     database-generated, so they are looked up here and left in a file for the workers.
 //
-//   the purge — nothing in the product deletes a course, a section, or an assignment, so the rows
-//     the instructor specs create are taken back out here. Running it at the start as well as in
-//     the teardown is what makes a repeated run against the same database idempotent: a run that
+//   the purge — nothing in the product deletes a course, a section, an assignment or a started
+//     run, so the rows the specs create are taken back out here. Running it at the start as well as
+//     in the teardown is what makes a repeated run against the same database idempotent: a run that
 //     crashed between the two leaves nothing behind for the next one to trip over.
 //
 // The purge goes straight to the database because nothing in the product deletes these rows; every
-// row it touches is confined to the seeded institution and named with SUITE_PREFIX, so it can never
-// reach the walkthrough course and assignments the other specs read.
+// row it touches is confined to the seeded institution and reached from a course named with
+// SUITE_PREFIX, so it can never touch the walkthrough course, its assignments, or the runs taken on
+// them. `assertSeededCourseUntouched` states that in full and enforces it.
 import 'dotenv/config'
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { dirname } from 'node:path'
@@ -24,6 +25,8 @@ import { and, asc, eq, inArray, like, sql } from 'drizzle-orm'
 import { client, db } from '@/server/db/client'
 import {
   assignments,
+  claimNeutralizations,
+  courseExports,
   courses,
   invitation,
   organization,
@@ -32,6 +35,26 @@ import {
   elementConfirmations,
   namedFields,
   readinessItems,
+  runActions,
+  runAddenda,
+  runBands,
+  runBriefs,
+  runClaims,
+  runDebriefAnswers,
+  runDefenseAnswers,
+  runDefenseQuestions,
+  runDelegations,
+  runDocumentOpens,
+  runEscalations,
+  runEvents,
+  runFrames,
+  runPauses,
+  runReadinessAnswers,
+  runReadinessResults,
+  runRecords,
+  runScores,
+  runTurnResponses,
+  runs,
   scenarioClaims,
   scenarioDocuments,
   scenarioPackages,
@@ -58,6 +81,12 @@ const SEED_ORGANIZATION_SLUG = 'walkthrough'
 /** The family key `src/server/db/seed.ts` imports the fixture under (06 §5 item 4). */
 const SEED_PACKAGE_FAMILY_KEY = 'meridian-roast'
 
+/**
+ * The seeded course (`SEED_COURSE.name` in `src/server/db/seed.ts`, 06 §5 item 3), named here for
+ * one purpose: to assert that the purge below never reaches it. See `assertSeededCourseUntouched`.
+ */
+const SEED_COURSE_NAME = 'Marketing Strategy Walkthrough'
+
 /** The seeded institution, or the sentence that says the database was never seeded. */
 export async function walkthroughOrganizationId(): Promise<string> {
   const [row] = await db
@@ -73,9 +102,10 @@ export async function walkthroughOrganizationId(): Promise<string> {
 }
 
 /**
- * Removes every row the instructor specs create: the courses they name with SUITE_PREFIX, the
- * sections, memberships and assignments hanging off them, and the invitations the roster spec
- * sends. Deletion runs child-first because no foreign key in 06 §3.2 cascades.
+ * Removes every row the suite's specs create: the courses they name with SUITE_PREFIX, the
+ * sections, memberships and assignments hanging off them, the runs the student specs take on those
+ * assignments, and the invitations the roster spec sends. Deletion runs child-first because no
+ * foreign key in 06 §3.2 or §3.4 cascades.
  */
 export async function purgeSuiteData(organizationId: string): Promise<void> {
   const courseRows = await db
@@ -85,12 +115,19 @@ export async function purgeSuiteData(organizationId: string): Promise<void> {
   const courseIds = courseRows.map((row) => row.id)
 
   if (courseIds.length > 0) {
+    await assertSeededCourseUntouched(organizationId, courseIds)
     const sectionRows = await db
       .select({ id: sections.id })
       .from(sections)
       .where(inArray(sections.courseId, courseIds))
     const sectionIds = sectionRows.map((row) => row.id)
     if (sectionIds.length > 0) {
+      const assignmentRows = await db
+        .select({ id: assignments.id })
+        .from(assignments)
+        .where(inArray(assignments.sectionId, sectionIds))
+      const assignmentIds = assignmentRows.map((row) => row.id)
+      if (assignmentIds.length > 0) await purgeRuns(assignmentIds)
       await db.delete(assignments).where(inArray(assignments.sectionId, sectionIds))
       await db.delete(sectionMemberships).where(inArray(sectionMemberships.sectionId, sectionIds))
       await db.delete(sections).where(inArray(sections.id, sectionIds))
@@ -108,6 +145,113 @@ export async function purgeSuiteData(organizationId: string): Promise<void> {
     )
 
   await purgeSuitePackages(organizationId)
+}
+
+/**
+ * What keeps the seeded walkthrough out of reach of everything above, stated as an assertion rather
+ * than left as a claim.
+ *
+ * Three things protect it, and this checks the first because the other two follow from it:
+ *
+ *   1. **The name.** Every course the suite creates is named through `suiteName()`
+ *      (./fixture-package.ts), which prefixes `SUITE_PREFIX` — "E2E Phase 4". The seeded course is
+ *      `SEED_COURSE.name`, "Marketing Strategy Walkthrough" (06 §5 item 3), and the only rows this
+ *      file resolves are the ones matching `like(courses.name, 'E2E Phase 4%')` in the seeded
+ *      institution. No seeded name can match that pattern.
+ *   2. **The path.** Sections, memberships, assignments and runs are never selected by a name or a
+ *      label of their own: each is resolved from the ids above — sections from `courseIds`,
+ *      assignments from `sectionIds`, runs from `assignmentIds`. A row the walk cannot reach from a
+ *      suite-named course is a row this file cannot see, so section "A", the assignment "Decision
+ *      Run 1 (walkthrough)" and every run taken on it are outside the walk by construction.
+ *   3. **The tenant.** Every query is also bound to the seeded institution's id, so a course of the
+ *      same name in another organization is out of reach as well.
+ *
+ * Deleting a course was harmless enough to leave at a comment. Deleting a *run* is not: it is a
+ * student's work, and the walkthrough assignment's runs are what the PRD's own demo is taken on. So
+ * rule 1 is enforced here, and the purge stops rather than proceeding if it is ever broken.
+ */
+async function assertSeededCourseUntouched(
+  organizationId: string,
+  courseIds: readonly string[],
+): Promise<void> {
+  const seeded = await db
+    .select({ id: courses.id })
+    .from(courses)
+    .where(and(eq(courses.organizationId, organizationId), eq(courses.name, SEED_COURSE_NAME)))
+  const reached = seeded.filter((row) => courseIds.includes(row.id))
+  if (reached.length > 0) {
+    throw new Error(
+      `The e2e purge resolved the seeded course "${SEED_COURSE_NAME}" (${reached
+        .map((row) => row.id)
+        .join(
+          ', ',
+        )}) as one of its own. It would delete the walkthrough assignment and every run ` +
+        `taken on it. Nothing was deleted. Check that SUITE_PREFIX ("${SUITE_PREFIX}") is still a ` +
+        'prefix no seeded row carries.',
+    )
+  }
+}
+
+/**
+ * The runs the student specs take, and everything hanging off one.
+ *
+ * `deleteWalkthroughRun` (D-104) is the one control in the product meant to remove a run, and the
+ * database used to refuse it: migration 0005 declared every run child table `ON DELETE no action`,
+ * so `DELETE FROM runs` raised 23503 for a run that had done anything at all. That is why a run
+ * started on the seeded walkthrough assignment could never be taken back out, and why the student
+ * specs start theirs on an assignment of their own (`createStudentAssignment` in
+ * ./instructor/api.ts) — which is a row this file owns. Migration `0012_run_delete_cascade` (D-255)
+ * has since made every child of a run cascade, so the explicit child deletes below are no longer
+ * needed and the `runs` delete alone would empty all of them; they are left in place because this
+ * purge also runs against databases a suite did not create, and deleting what it means to delete
+ * costs nothing.
+ *
+ * The order below is the reference order: what points at something else goes before what it points
+ * at. Two edges are easy to miss — `run_defense_answers` names its question, and
+ * `run_claims.neutralization_id` names a `claim_neutralizations` row (the FK deferred to migration
+ * 0008 by D-163) — so both children go before their parents. `course_exports` names the run *and*
+ * the assignment, so it goes before either. The whole set of tables with a foreign key to `runs.id`
+ * is listed rather than only the five Phase 6 writes, because a phase that starts writing one of
+ * the others must not silently stop the purge.
+ */
+async function purgeRuns(assignmentIds: readonly string[]): Promise<void> {
+  const runRows = await db
+    .select({ id: runs.id })
+    .from(runs)
+    .where(inArray(runs.assignmentId, [...assignmentIds]))
+  const runIds = runRows.map((row) => row.id)
+  if (runIds.length === 0) return
+
+  await db.delete(courseExports).where(inArray(courseExports.runId, runIds))
+  await db.delete(runRecords).where(inArray(runRecords.runId, runIds))
+  await db.delete(runDebriefAnswers).where(inArray(runDebriefAnswers.runId, runIds))
+  await db.delete(runScores).where(inArray(runScores.runId, runIds))
+  await db.delete(runBands).where(inArray(runBands.runId, runIds))
+  await db.delete(runDefenseAnswers).where(inArray(runDefenseAnswers.runId, runIds))
+  await db.delete(runDefenseQuestions).where(inArray(runDefenseQuestions.runId, runIds))
+  await db.delete(runTurnResponses).where(inArray(runTurnResponses.runId, runIds))
+  await db.delete(runAddenda).where(inArray(runAddenda.runId, runIds))
+  await db.delete(runBriefs).where(inArray(runBriefs.runId, runIds))
+  await db.delete(runPauses).where(inArray(runPauses.runId, runIds))
+  await db.delete(runEscalations).where(inArray(runEscalations.runId, runIds))
+  await db.delete(runActions).where(inArray(runActions.runId, runIds))
+  await db.delete(runClaims).where(inArray(runClaims.runId, runIds))
+  await db.delete(claimNeutralizations).where(inArray(claimNeutralizations.runId, runIds))
+  await db.delete(runDelegations).where(inArray(runDelegations.runId, runIds))
+  await db.delete(runFrames).where(inArray(runFrames.runId, runIds))
+  await db.delete(runDocumentOpens).where(inArray(runDocumentOpens.runId, runIds))
+  await db.delete(runReadinessAnswers).where(inArray(runReadinessAnswers.runId, runIds))
+  await db.delete(runReadinessResults).where(inArray(runReadinessResults.runId, runIds))
+  await db.delete(runEvents).where(inArray(runEvents.runId, runIds))
+
+  // A re-offer names the run it replaces (FR-183, Phase 11). Both ends are inside `runIds` here, so
+  // the delete below would resolve anyway — but only because the two rows go in one statement, and
+  // that is too subtle a thing to rely on. The pointers are cleared first instead.
+  await db
+    .update(runs)
+    .set({ reOfferedFromRunId: null, reOfferedToRunId: null })
+    .where(inArray(runs.id, runIds))
+  await db.delete(runs).where(inArray(runs.id, runIds))
 }
 
 /**

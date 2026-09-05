@@ -8,6 +8,9 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { asUser, testSql, truncateAll } from '@tests/setup/integration'
 
 type Router = typeof import('@/server/modules/identity/router')
+// `/me/runs` is served by the runs module (Phase 6, step 6.2): the address stayed under `/me`, the
+// list moved to the module that owns run state, exactly as `/me/assignments` belongs to `courses`.
+type RunsRouter = typeof import('@/server/modules/runs/router')
 type Factories = typeof import('@tests/factories')
 type Walkthrough = Awaited<ReturnType<Factories['buildWalkthroughFixture']>>
 
@@ -15,6 +18,7 @@ const ROUTE_CTX = { params: Promise.resolve({}) }
 const BASE = 'http://localhost/api/v1'
 
 let router: Router
+let runsRouter: RunsRouter
 let fixture: Walkthrough
 let studentHeaders: Headers
 let leaverHeaders: Headers
@@ -33,6 +37,7 @@ function mutate(headers: Headers, init: RequestInit = {}): RequestInit {
 beforeAll(async () => {
   await truncateAll()
   router = await import('@/server/modules/identity/router')
+  runsRouter = await import('@/server/modules/runs/router')
   const f: Factories = await import('@tests/factories')
   fixture = await f.buildWalkthroughFixture()
   const orgId = fixture.organization.id
@@ -158,7 +163,7 @@ describe('GET /me/assignments and GET /me/runs', () => {
   })
 
   it('answers with an empty page of runs before any run exists', async () => {
-    const res = await router.listMyRuns(
+    const res = await runsRouter.listMyRunsRoute(
       new Request(`${BASE}/me/runs`, { headers: studentHeaders }),
       ROUTE_CTX,
     )
@@ -167,7 +172,7 @@ describe('GET /me/assignments and GET /me/runs', () => {
   })
 
   it('rejects an unknown query parameter', async () => {
-    const res = await router.listMyRuns(
+    const res = await runsRouter.listMyRunsRoute(
       new Request(`${BASE}/me/runs?state=working&sneaky=1`, { headers: studentHeaders }),
       ROUTE_CTX,
     )

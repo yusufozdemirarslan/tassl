@@ -245,7 +245,7 @@ describe('rail derivation (UI-008)', () => {
 
 describe('HomeRunsPanel (UI-009)', () => {
   it('explains how an institution arrives when the person has no membership', () => {
-    render(<HomeRunsPanel hasMembership={false} />)
+    render(<HomeRunsPanel hasMembership={false} rows={[]} />)
     expect(screen.getByRole('heading', { level: 2, name: 'Your runs' })).toBeInTheDocument()
     expect(
       screen.getByRole('heading', { level: 3, name: 'Waiting for an invitation' }),
@@ -255,7 +255,7 @@ describe('HomeRunsPanel (UI-009)', () => {
   })
 
   it('says nothing is assigned yet once the person belongs to an institution', () => {
-    render(<HomeRunsPanel hasMembership />)
+    render(<HomeRunsPanel hasMembership rows={[]} />)
     expect(
       screen.getByRole('heading', { level: 3, name: enUS['home.emptyTitle'] }),
     ).toBeInTheDocument()

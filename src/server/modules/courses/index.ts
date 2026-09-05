@@ -10,6 +10,7 @@ export {
   getAssignment,
   getCourse,
   getPolicyDisplay,
+  listAssignmentRuns,
   listConfirmedPackageVersions,
   listCourses,
   listMyAssignments,

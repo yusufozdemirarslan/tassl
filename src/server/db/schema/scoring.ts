@@ -45,7 +45,7 @@ export const runBands = pgTable(
     id: uuid('id').defaultRandom().primaryKey(),
     runId: uuid('run_id')
       .notNull()
-      .references(() => runs.id),
+      .references(() => runs.id, { onDelete: 'cascade' }),
     dimension: dimension('dimension').notNull(),
     draftBand: band('draft_band'),
     draftStatus: draftStatus('draft_status').notNull(),
@@ -84,7 +84,7 @@ export const runBands = pgTable(
 export const runScores = pgTable('run_scores', {
   runId: uuid('run_id')
     .primaryKey()
-    .references(() => runs.id),
+    .references(() => runs.id, { onDelete: 'cascade' }),
   rubricVersion: text('rubric_version').notNull(),
   graphs: jsonb('graphs').$type<RunScoreGraphs>().notNull(),
   falseChallengeRate: numeric('false_challenge_rate', { precision: 5, scale: 4 }),
@@ -108,7 +108,7 @@ export const claimNeutralizations = pgTable(
     id: uuid('id').defaultRandom().primaryKey(),
     runId: uuid('run_id')
       .notNull()
-      .references(() => runs.id),
+      .references(() => runs.id, { onDelete: 'cascade' }),
     claimId: uuid('claim_id')
       .notNull()
       .references(() => scenarioClaims.id),
@@ -126,7 +126,7 @@ export const claimNeutralizations = pgTable(
 export const runDebriefAnswers = pgTable('run_debrief_answers', {
   runId: uuid('run_id')
     .primaryKey()
-    .references(() => runs.id),
+    .references(() => runs.id, { onDelete: 'cascade' }),
   stanceToChange: text('stance_to_change').notNull(),
   doDifferently: text('do_differently').notNull(),
   answeredAt: timestamp('answered_at', { withTimezone: true }).notNull(),

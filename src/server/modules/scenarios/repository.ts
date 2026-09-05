@@ -454,7 +454,15 @@ export async function findVersionFull(tenantId: string, versionId: string, dbx: 
 
 export type VersionFull = NonNullable<Awaited<ReturnType<typeof findVersionFull>>>
 
-/** The version with every element the run engine needs; the seed record never leaves authoring. */
+/**
+ * The version with every element the run engine needs; the seed record never leaves authoring.
+ *
+ * **Not the student's read.** This loads the warranted stances, the evidence statuses, the failure
+ * families, the verification paths, the question bank with its expected-answer notes and the probe's
+ * scripted reversal — everything 12 §8.1 withholds until a run is scored. It is for server-side
+ * work that needs them (surfacing a claim, selecting a question, scoring); anything a student
+ * receives is read by `findRunScenario` below (D-252).
+ */
 export async function findVersionForRun(tenantId: string, versionId: string, dbx: DbOrTx = db) {
   return dbx.query.scenarioPackageVersions.findFirst({
     where: and(
@@ -478,6 +486,90 @@ export async function findVersionForRun(tenantId: string, versionId: string, dbx
 }
 
 export type VersionForRun = NonNullable<Awaited<ReturnType<typeof findVersionForRun>>>
+
+// ---------------------------------------------------------------------------------------------
+// The student's read of the package their run is on (`getStudentScenario`, D-117, D-252)
+//
+// Rooted at the run row for the reason `runs/repository.ts` gives for `scenario_documents`: the
+// question is about *this run* — which package it is on, what its brief says, which documents its
+// room holds — and the join that answers it starts at the run, which is also where the tenant
+// filter lives.
+//
+// Both reads name their columns, and that is the point of them. `GET /runs/{runId}/workspace` is
+// the read a student's screen polls for the whole working period; loading the version whole to pick
+// three fields off it would materialize the warranted stances, the failure families, the question
+// bank and the answer keys into the request that answers it, where any Sentry `extra` or pino error
+// carrying the in-flight object would carry the answer key with it. Naming eleven columns means the
+// rest are never loaded, rather than loaded and then dropped by a projection somewhere above.
+// ---------------------------------------------------------------------------------------------
+
+/** One document of the room as the Evidence Room *lists* it: no body, nothing authored about it. */
+export type RunScenarioDocument = Pick<
+  ScenarioDocument,
+  'id' | 'key' | 'title' | 'author' | 'datedOn'
+>
+
+/** One named field the Decision Brief asks for (FR-021). */
+export type RunScenarioNamedField = Pick<NamedField, 'key' | 'label' | 'unit'>
+
+/** Everything a student may read of their package, and nothing else (`StudentScenarioView`). */
+export type RunScenario = {
+  brief: string
+  documents: RunScenarioDocument[]
+  namedFields: RunScenarioNamedField[]
+}
+
+const RUN_SCENARIO_DOCUMENT_COLUMNS = {
+  id: scenarioDocuments.id,
+  key: scenarioDocuments.key,
+  title: scenarioDocuments.title,
+  author: scenarioDocuments.author,
+  datedOn: scenarioDocuments.datedOn,
+} as const
+
+const RUN_SCENARIO_NAMED_FIELD_COLUMNS = {
+  key: namedFields.key,
+  label: namedFields.label,
+  unit: namedFields.unit,
+} as const
+
+/**
+ * The brief, the room as a list, and the named fields, for the run's own package version;
+ * `undefined` when the run is not in the tenant, which is the same answer as a run that is not
+ * there at all (08 §4).
+ */
+export async function findRunScenario(
+  tenantId: string,
+  runId: string,
+  dbx: DbOrTx = db,
+): Promise<RunScenario | undefined> {
+  const inTenant = and(eq(runs.organizationId, tenantId), eq(runs.id, runId))
+
+  const [version] = await dbx
+    .select({ brief: scenarioPackageVersions.brief })
+    .from(runs)
+    .innerJoin(scenarioPackageVersions, eq(scenarioPackageVersions.id, runs.packageVersionId))
+    .where(inTenant)
+    .limit(1)
+  if (!version) return undefined
+
+  const [documents, fields] = await Promise.all([
+    dbx
+      .select(RUN_SCENARIO_DOCUMENT_COLUMNS)
+      .from(runs)
+      .innerJoin(scenarioDocuments, eq(scenarioDocuments.packageVersionId, runs.packageVersionId))
+      .where(inTenant)
+      .orderBy(scenarioDocuments.position, scenarioDocuments.key),
+    dbx
+      .select(RUN_SCENARIO_NAMED_FIELD_COLUMNS)
+      .from(runs)
+      .innerJoin(namedFields, eq(namedFields.packageVersionId, runs.packageVersionId))
+      .where(inTenant)
+      .orderBy(namedFields.position, namedFields.key),
+  ])
+
+  return { brief: version.brief, documents, namedFields: fields }
+}
 
 /**
  * One live package of the institution (`GET /packages/{packageId}`, 07 §6). A soft-deleted row is
@@ -695,20 +787,6 @@ export async function findUserSummaries(
     .select({ id: user.id, name: user.name })
     .from(user)
     .where(inArray(user.id, [...userIds]))
-}
-
-/** The package version a run was started on (`getStudentScenario`); undefined outside the tenant. */
-export async function findRunVersionId(
-  tenantId: string,
-  runId: string,
-  dbx: DbOrTx = db,
-): Promise<string | undefined> {
-  const rows = await dbx
-    .select({ packageVersionId: runs.packageVersionId })
-    .from(runs)
-    .where(and(eq(runs.id, runId), eq(runs.organizationId, tenantId)))
-    .limit(1)
-  return rows[0]?.packageVersionId
 }
 
 /** Appends a decision; without an explicit `revision` it takes the next one for that element. */

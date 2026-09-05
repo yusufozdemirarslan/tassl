@@ -70,6 +70,10 @@ const WARNINGS: Record<PackageWarningValue, { label: () => string; help: () => s
     label: () => t('packages.warningEthicalShortcut'),
     help: () => t('packages.warningEthicalShortcutHelp'),
   },
+  READINESS_CONCEPT_SINGLE_ITEM: {
+    label: () => t('packages.warningReadinessConcept'),
+    help: () => t('packages.warningReadinessConceptHelp'),
+  },
 }
 
 /**

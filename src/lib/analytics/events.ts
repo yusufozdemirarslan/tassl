@@ -37,6 +37,18 @@ export const ElementType = z.enum([
 const packageContext = { package_id: Uuid, package_version_id: Uuid, version: z.int().positive() }
 const pkg = <T extends z.ZodRawShape>(shape: T) => z.strictObject({ ...packageContext, ...shape })
 
+/** The run an event is about (17 §3 `R`); every AN-003 event and the two run AN-002 events carry it. */
+const runContext = {
+  run_id: Uuid,
+  assignment_id: Uuid,
+  package_version_id: Uuid,
+  variant: Variant,
+  mode: z.enum(['guided', 'standard', 'open']),
+  attempt_no: z.int().positive(),
+  is_walkthrough: z.boolean(),
+}
+const run = <T extends z.ZodRawShape>(shape: T) => z.strictObject({ ...runContext, ...shape })
+
 export const EVENTS = {
   // AN-002 activation
   sign_up_completed: z.strictObject({ method: z.enum(['password', 'google']) }),
@@ -72,6 +84,16 @@ export const EVENTS = {
     working_clock_seconds: z.int().positive(),
     weight_overridden: z.boolean(),
     ms_since_first_sign_in: Int,
+  }),
+
+  // AN-002 activation, the run half (17 §3.1). `run_started` fires where the run row is written and
+  // `policy_displayed` where its trace event is — see D-223; both are the student's Begin, one
+  // screen apart. `weight_percent` is what the run is worth in the course, never a student's mark.
+  run_started: run({ is_reoffer: z.boolean(), run_index_for_student: z.int().positive() }),
+  policy_displayed: run({
+    outside_ai_policy: OutsideAiPolicy,
+    weight_percent: z.number(),
+    mapping_is_default: z.boolean(),
   }),
 
   // AN-001 authoring operating measures (17 §3.2, FR-198). `generation_step_completed` arrives with

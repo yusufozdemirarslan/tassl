@@ -14,7 +14,11 @@ test.describe('error pages (UI-007)', () => {
   test('the app shell renders the home empty state with a working skip link', async ({ page }) => {
     await signInAs(page, 'student1')
     await expect(page.getByRole('heading', { level: 1, name: 'Home' })).toBeVisible()
-    await expect(page.getByRole('heading', { level: 3, name: 'Nothing to do yet' })).toBeVisible()
+    // Step 6.5 gave the panel something to say: a seated student is shown the assignments they can
+    // start, and the seeded section carries three (06 §5 item 5). The empty state this spec used to
+    // read belongs to a seat with nothing assigned, which student1 no longer is.
+    await expect(page.getByRole('heading', { level: 2, name: 'Your runs' })).toBeVisible()
+    await expect(page.getByText('Decision Run 1 (walkthrough)')).toBeVisible()
 
     // WebKit does not put links in the Tab order by default, so focus the link directly: it must
     // be the first anchor in the document, become visible when focused, and jump to main.

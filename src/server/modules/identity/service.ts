@@ -15,10 +15,10 @@ import { createMemoryRateLimiter, type RateLimiter } from '@/server/rate-limit/m
 import { createPostgresRateLimiter } from '@/server/rate-limit/sliding-window'
 import { audit } from '@/server/modules/admin'
 // `/me/assignments` is the courses module's list behind an identity route (10 §3
-// `listMyAssignments`), so it is called through that module's public interface. `/me/runs` still
-// reads the runs repository directly: that module has no service until Phase 6 (D-173).
+// `listMyAssignments`), so it is called through that module's public interface. `/me/runs` was the
+// same debt in reverse (D-173) and is now the runs module's own route: identity holds nothing about
+// a run, so there is nothing left here to serve it through.
 import { listMyAssignments as listAssignmentsForActor } from '@/server/modules/courses'
-import { listRunsForStudent, type RunListItem } from '@/server/modules/runs/repository'
 import { exportRateLimited, userDeleted } from './errors'
 import {
   anonymizeUserReferences,
@@ -57,8 +57,6 @@ import {
   type OrganizationRole,
   type PageQuery,
   type PlatformRole,
-  type RunSummary,
-  type RunsQuery,
   type SectionRole,
   type StudentAssignment,
   type UpdateProfileInput,
@@ -148,37 +146,18 @@ function toMeView(row: User, actor: SessionUser, membershipRows: MembershipRow[]
   }
 }
 
-function toRunSummary(item: RunListItem): RunSummary {
-  const { run } = item
-  return {
-    id: run.id,
-    assignmentId: run.assignmentId,
-    attemptNo: run.attemptNo,
-    state: run.state,
-    mode: run.mode,
-    variantKey: item.variant.key,
-    isWalkthrough: run.isWalkthrough,
-    scoringStatus: run.scoringStatus,
-    label: item.assignment.label,
-    createdAt: iso(run.createdAt),
-    lockedAt: isoOrNull(run.decisionLockedAt),
-    scoredAt: isoOrNull(run.scoredAt),
-  }
-}
+// ---------------------------------------------------------------------------------------------
+// Reads
+// ---------------------------------------------------------------------------------------------
 
 /**
- * The institution the `/me` lists read. The active organization is the session's when it has one;
- * otherwise the first institution the person belongs to, so a student who has never used the
- * switcher still sees their work. Someone with no membership has nothing to list.
+ * The institution an audit row is attributed to: the session's active organization when it has one,
+ * otherwise the first the person belongs to. Someone with no membership has none.
  */
 function resolveTenant(actor: SessionUser, memberships: MembershipRow[]): string | null {
   if (actor.activeOrganizationId) return actor.activeOrganizationId
   return memberships[0]?.organizationId ?? null
 }
-
-// ---------------------------------------------------------------------------------------------
-// Reads
-// ---------------------------------------------------------------------------------------------
 
 export async function getCurrentUser(actor: SessionUser): Promise<MeView> {
   const row = await requireActiveUser(actor)
@@ -197,23 +176,6 @@ export async function listMyAssignments(
 ): Promise<Page<StudentAssignment>> {
   await requireActiveUser(actor)
   return listAssignmentsForActor(actor, input)
-}
-
-/** The actor's own runs (07-api-spec.md §3); reviewers read runs through the review endpoints. */
-export async function listMyRuns(
-  actor: SessionUser,
-  input: RunsQuery = {},
-): Promise<Page<RunSummary>> {
-  await requireActiveUser(actor)
-  const memberships = await listMembershipsForUser(actor.id)
-  const tenantId = resolveTenant(actor, memberships)
-  if (!tenantId) return { items: [], nextCursor: null }
-  const page = await listRunsForStudent(tenantId, actor.id, {
-    ...(input.cursor !== undefined ? { cursor: input.cursor } : {}),
-    ...(input.limit !== undefined ? { limit: input.limit } : {}),
-    ...(input.state !== undefined ? { state: input.state } : {}),
-  })
-  return { items: page.items.map(toRunSummary), nextCursor: page.nextCursor }
 }
 
 // ---------------------------------------------------------------------------------------------

@@ -376,6 +376,26 @@ describe('assignments (FR-200)', () => {
     })
   })
 
+  it('does not tell the student taking an assignment which variant it is (D-254)', async () => {
+    // withAssignment already seats the student in the section.
+    const { assignment } = await withAssignment(fx)
+
+    // The variant is whether a defect was planted at all, and 10 §11.3 bands Calibration on the
+    // defect-free variant as Professional for accepting everything — so the field an instructor
+    // reads to configure the assignment is a scoring exploit for the person taking it.
+    const asStudent = await courses.getAssignment(actorFor(fx.student, fx.orgA), assignment.id)
+    expect(asStudent.variantKey).toBeNull()
+    // Everything they need to take it, they are still told.
+    expect(asStudent).toMatchObject({
+      label: 'Decision Run 1',
+      packageVersion: 1,
+      effectiveWorkingClockSeconds: 1500,
+    })
+
+    const asTeacher = await courses.getAssignment(fx.teacher, assignment.id)
+    expect(asTeacher.variantKey).toBe('defective')
+  })
+
   it('refuses a draft version and a variant that belongs to another version', async () => {
     const { section } = await withAssignment(fx)
 

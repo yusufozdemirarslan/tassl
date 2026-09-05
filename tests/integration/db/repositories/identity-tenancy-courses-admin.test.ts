@@ -555,7 +555,7 @@ describe('courses repository', () => {
     expect(await courses.updateAssignment(tenant.orgId, assignment.id, { label: 'Y' })).toBeNull()
   })
 
-  it('lists the runs of an assignment with the student and the newest export version', async () => {
+  it('pages the runs of an assignment with the student, variant, decisions and export version', async () => {
     const tenant = await createTenant()
     const student = await createUser('Student')
     const { pkg, assignment } = await createCourseChain(tenant)
@@ -569,18 +569,21 @@ describe('courses repository', () => {
         values (${tenant.orgId}, ${exported}, ${assignment.id}, ${version}, '{}'::jsonb, 'initial')`
     }
 
-    const rows = await courses.listRunsForAssignment(tenant.orgId, assignment.id)
-    expect(rows).toHaveLength(2)
-    const byId = new Map(rows.map((r) => [r.run.id, r]))
+    const page = await courses.pageRunsForAssignment(tenant.orgId, assignment.id)
+    expect(page.items).toHaveLength(2)
+    expect(page.nextCursor).toBeNull()
+    const byId = new Map(page.items.map((row) => [row.run.id, row]))
     expect(byId.get(exported)).toMatchObject({
       run: { attemptNo: 1, state: 'recorded' },
       student: { id: student, name: 'Student' },
+      variant: { key: 'defective' },
+      decisionsMade: 0,
       latestExportVersion: 2,
     })
     expect(byId.get(fresh)).toMatchObject({ run: { attemptNo: 2 }, latestExportVersion: null })
 
     const other = await createTenant()
-    expect(await courses.listRunsForAssignment(other.orgId, assignment.id)).toEqual([])
+    expect((await courses.pageRunsForAssignment(other.orgId, assignment.id)).items).toEqual([])
   })
 
   it('lists a student’s assignments with the latest attempt on each', async () => {
