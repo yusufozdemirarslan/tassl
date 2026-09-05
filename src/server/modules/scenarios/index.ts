@@ -19,6 +19,7 @@ export {
   getStudentScenario,
   importPackage,
   listPackages,
+  listVersionElements,
   regenerateVersion,
   updateElement,
   validatePackage,

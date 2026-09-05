@@ -7,7 +7,10 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 import { cn } from '@/lib/cn'
-import { t } from '@/lib/i18n/t'
+// The stance namespace alone, not the composed catalogue: this mark is drawn inside the element
+// confirmation workspace (UI-043), which is a Client Component, and a `@/lib/i18n/t` here would
+// send all twenty-eight namespaces to the browser to label five chips (16 §3.4).
+import { t } from '@/lib/i18n/messages/stance'
 import type { StanceValue } from '@/server/modules/scenarios/schema'
 
 // The one mark for a stance, wherever a stance is shown (09 §3 reserves `features/run` for the

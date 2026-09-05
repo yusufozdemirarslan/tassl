@@ -706,6 +706,70 @@ describe('createPackageFromSeed (FR-190)', () => {
 // confirmVersion refuses in the order 10 §4 gives (FR-192, FR-027)
 // ---------------------------------------------------------------------------------------------
 
+describe('listVersionElements (UI-043)', () => {
+  it('answers with every element of the version and the decision standing on it', async () => {
+    const { versionId } = await draftPackage()
+
+    const elements = await scenarios.listVersionElements(fx.author, versionId)
+    expect(elements).toHaveLength(ELEMENT_COUNT)
+    // Nothing is decided yet, so every element says so; the workspace opens on the first of them.
+    expect(elements.every((element) => element.confirmation === null)).toBe(true)
+
+    // Every element the version holds, addressed the way updateElement addresses it.
+    const types = new Set(elements.map((element) => element.elementType))
+    expect(types).toContain('brief')
+    expect(types).toContain('document')
+    expect(types).toContain('claim')
+    expect(types).toContain('variant_claim_state')
+    expect(types).toContain('readiness_item')
+    expect(types).toContain('seed_reskin')
+
+    const brief = elements.find((element) => element.elementType === 'brief')
+    expect(brief?.elementId).toBeNull() // a singleton is filed under a null id, as its row is
+
+    // A singleton is addressed the way a route addresses it, with the sentinel id: the row keeps
+    // null, and `SINGLETON_ELEMENT_ID` is what stands in for it on the wire (06 §3.3).
+    const [first] = elements
+    await scenarios.decideElement(
+      fx.author,
+      versionId,
+      first!.elementType,
+      first!.elementId ?? SINGLETON_ELEMENT_ID,
+      {
+        decision: 'confirmed',
+        note: '',
+        openedAt: new Date(Date.now() - 4_000).toISOString(),
+      },
+    )
+    const afterDecision = await scenarios.listVersionElements(fx.author, versionId)
+    expect(afterDecision[0]?.confirmation).toMatchObject({ decision: 'confirmed' })
+  })
+
+  it("is the write side's gate, not the version reader's: a teaching assistant is refused", async () => {
+    const { versionId } = await draftPackage()
+    const ta = await f.createUser('lifecycle-ta')
+    await f.addMember(fx.orgId, ta.id, 'teaching_assistant')
+
+    // A TA reads a package on UI-044 and never in the room where it is signed: the seed record is
+    // one of these elements (FR-028), and every action the workspace offers would refuse them.
+    await expect(
+      scenarios.listVersionElements(actorFor(ta, fx.orgId), versionId),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' })
+  })
+
+  it('answers NOT_FOUND for a version another institution owns', async () => {
+    const { versionId } = await draftPackage()
+    const otherOrg = (await f.createInstitution('lifecycle-other')).organization.id
+    const stranger = await f.createUser('lifecycle-stranger')
+    await f.addMember(otherOrg, stranger.id, 'instructor')
+
+    // Never FORBIDDEN: an id from another institution must not be probeable for existence (08 §4).
+    await expect(
+      scenarios.listVersionElements(actorFor(stranger, otherOrg), versionId),
+    ).rejects.toMatchObject({ code: 'NOT_FOUND' })
+  })
+})
+
 describe('confirmVersion refuses in the order 10 §4 gives', () => {
   it('names every element still waiting on a decision', async () => {
     const { versionId } = await draftPackage()

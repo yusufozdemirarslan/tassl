@@ -20,7 +20,7 @@
 import 'dotenv/config'
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { dirname } from 'node:path'
-import { and, asc, eq, inArray, like } from 'drizzle-orm'
+import { and, asc, eq, inArray, like, sql } from 'drizzle-orm'
 import { client, db } from '@/server/db/client'
 import {
   assignments,
@@ -115,9 +115,12 @@ export async function purgeSuiteData(organizationId: string): Promise<void> {
  * out here by title, and only ever under SUITE_PREFIX — the seeded Meridian Roast package carries
  * no prefix, so it cannot be reached from here.
  *
- * A version's elements have no cascade, so they go first, then the versions, then the family. The
- * confirmed ones are frozen by the triggers of migration 0004, which refuse an UPDATE and not a
- * DELETE, so a confirmed version can be removed but never edited.
+ * A version's elements have no cascade, so they go first, then the versions, then the family — and
+ * a confirmed version has to be thawed before any of that is possible. The triggers of migration
+ * 0004 refuse a DELETE on an element exactly as firmly as an UPDATE (`package_element_frozen`,
+ * `variant_claim_state_frozen` fire on all three), so its elements cannot go while `confirmed_at`
+ * is set, and the version itself cannot go while those elements still point at it. `thaw` below
+ * breaks that circle for the suite's own versions and nothing else.
  */
 async function purgeSuitePackages(organizationId: string): Promise<void> {
   const packageRows = await db
@@ -139,6 +142,7 @@ async function purgeSuitePackages(organizationId: string): Promise<void> {
   const versionIds = versionRows.map((row) => row.id)
 
   if (versionIds.length > 0) {
+    await thaw(versionIds)
     // Element rows in reference order: what points at something else goes before what it points at.
     const variantRows = await db
       .select({ id: scenarioVariants.id })
@@ -177,6 +181,37 @@ async function purgeSuitePackages(organizationId: string): Promise<void> {
     await db.delete(scenarioPackageVersions).where(inArray(scenarioPackageVersions.id, versionIds))
   }
   await db.delete(scenarioPackages).where(inArray(scenarioPackages.id, packageIds))
+}
+
+/**
+ * Clears `confirmed_at` on the suite's own package versions, which is what every element trigger of
+ * migration 0004 reads before it refuses a write.
+ *
+ * `package_version_frozen` is what would otherwise refuse to let that column be cleared — it allows
+ * an UPDATE to touch only `status`, `review_requested_at`, `review_reason` and `updated_at` once a
+ * version is confirmed — so it is switched off for the length of this one statement and switched
+ * back on in a `finally`. Nothing weaker works: the freeze cannot be lifted through the product
+ * (NFR-004 means it never is), the version row cannot be deleted before its elements, and its
+ * elements cannot be deleted before the freeze is lifted.
+ *
+ * The step 5.5 confirm-workspace spec is the first to leave a confirmed package behind. Without
+ * this the next purge — which is the first thing `globalSetup` does — raises `VERSION_FROZEN`, and
+ * the whole suite stops starting until someone resets the database by hand.
+ */
+async function thaw(versionIds: readonly string[]): Promise<void> {
+  await db.execute(
+    sql`ALTER TABLE scenario_package_versions DISABLE TRIGGER package_version_frozen`,
+  )
+  try {
+    await db
+      .update(scenarioPackageVersions)
+      .set({ status: 'draft', confirmedAt: null })
+      .where(inArray(scenarioPackageVersions.id, [...versionIds]))
+  } finally {
+    await db.execute(
+      sql`ALTER TABLE scenario_package_versions ENABLE TRIGGER package_version_frozen`,
+    )
+  }
 }
 
 /** Writes the confirmed fixture version once; a second run finds it and leaves it alone. */

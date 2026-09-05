@@ -1513,6 +1513,56 @@ async function deciderNames(
 }
 
 // ---------------------------------------------------------------------------------------------
+// listVersionElements (FR-192): the confirmation workspace's read
+// ---------------------------------------------------------------------------------------------
+
+/**
+ * Every element of a draft version, in the order the workspace lists them, each with the values its
+ * input schema takes and the decision that currently stands on it (UI-043).
+ *
+ * `getPackageVersion` answers what a version *is* — counts, record, measures — and `exportPackage`
+ * answers what it *says*, addressed by element key. Neither is enough to edit one: an element is
+ * patched by `(elementType, elementId)`, and an element id appears in neither view. This is that
+ * third read, and it is deliberately the shape `updateElement` already answers with, so the
+ * workspace can swap the element it just saved into the list it is holding.
+ *
+ * Authors and instructors only. The seed record is one of the elements here (FR-028), and every
+ * action the workspace can take refuses anyone else, so the gate is the write side's, not the
+ * version reader's: a TA reads a package on UI-044, never in the room where it is signed.
+ */
+export async function listVersionElements(
+  actor: SessionUser,
+  versionId: string,
+): Promise<ElementView[]> {
+  const scope = await resolveVersion(actor, versionId)
+  const role = await requireVisibleMembership(actor, scope.tenantId, 'package version')
+  if (!PACKAGE_AUTHOR_ROLES.includes(role)) forbidden()
+
+  const confirmations = await repo.listConfirmations(versionId)
+  const decisions = indexDecisions(confirmations)
+  const names = await deciderNames(confirmations, null)
+
+  const elements: ElementView[] = []
+  for (const unit of elementUnits(scope.version)) {
+    // `elementUnits` files a singleton under a null id, which is how its confirmation row is
+    // keyed; `locateElement` addresses it the way a route does.
+    const found = locateElement(
+      scope.version,
+      unit.elementType,
+      unit.elementId ?? SINGLETON_ELEMENT_ID,
+    )
+    if (!found) continue
+    const latest = decisions.latest.get(confirmationKey(unit.elementType, unit.elementId))
+    elements.push({
+      ...unit,
+      values: found.values,
+      confirmation: latest ? toConfirmationView(latest, names) : null,
+    })
+  }
+  return elements
+}
+
+// ---------------------------------------------------------------------------------------------
 // getClaimObject (FR-180)
 // ---------------------------------------------------------------------------------------------
 

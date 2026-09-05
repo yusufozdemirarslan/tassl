@@ -25,6 +25,7 @@ import { packages } from './messages/packages'
 import { packageNew } from './messages/package-new'
 import { packageImport } from './messages/package-import'
 import { packageVersion } from './messages/package-version'
+import { packageConfirm } from './messages/package-confirm'
 import { claimObject } from './messages/claim-object'
 
 export const enUS = {
@@ -50,6 +51,7 @@ export const enUS = {
   ...packageNew,
   ...packageImport,
   ...packageVersion,
+  ...packageConfirm,
   ...claimObject,
 } as const
 
