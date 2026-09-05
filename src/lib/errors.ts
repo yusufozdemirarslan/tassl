@@ -39,6 +39,19 @@ export const ERROR_STATUS = {
   READINESS_SKIP_NOT_ALLOWED: 409,
   FRAME_INVALID: 400,
   RUN_LOCKED: 409,
+  // `RUN_PAUSED` is 10 §6's refusal "for writes other than resume". Its first raiser is the
+  // `reliance` module, whose stances, actions and escalations are the first in-run writes a paused
+  // clock has to refuse; `runs` raises it too from Phase 8's Decision Lock. It is one code with one
+  // meaning, which is why it lives here rather than in either module.
+  RUN_PAUSED: 409,
+  // reliance (10 §8): the six refusals a stance, an interrogation action or an escalation can meet.
+  // `CLOCK_EXPIRED` and `TURN_WINDOW_EXPIRED` are the seventh and eighth and belong to the clock
+  // above, because the clock is what runs out (D-132).
+  CLAIM_NOT_SURFACED: 409,
+  ACTION_NOT_AVAILABLE: 409,
+  ESCALATION_LIMIT_REACHED: 409,
+  ESCALATION_STATEMENT_INVALID: 400,
+  STANCE_INVALID: 400,
   // assistant (10 §7): the four refusals a delegation can meet. `ASSISTANT_UNAVAILABLE` is the
   // only one that changes the run — the component failure of FR-001 pauses it and stops the clock —
   // so it is a 503 rather than a 500: the student is told to wait and resume, not that they broke
@@ -93,6 +106,13 @@ export const DEFAULT_MESSAGES: Record<ErrorCode, string> = {
   READINESS_SKIP_NOT_ALLOWED: 'The check can only be skipped after a submission has failed.',
   FRAME_INVALID: 'The frame is not ready to lock.',
   RUN_LOCKED: 'This run’s decision is locked, so it can no longer be changed.',
+  RUN_PAUSED: 'The run is paused and the clock is stopped. Resume it to carry on.',
+  CLAIM_NOT_SURFACED: 'That claim has not come up in this run yet.',
+  ACTION_NOT_AVAILABLE: 'That check is not available on this claim.',
+  ESCALATION_LIMIT_REACHED: 'You have used both of the escalations this run offers.',
+  ESCALATION_STATEMENT_INVALID:
+    'Say in one sentence what you cannot evaluate: at least three words, up to 280 characters.',
+  STANCE_INVALID: 'That is not one of the five stances.',
   ASSISTANT_LOCKED: 'The assistant is not available at this point in the run.',
   ASSISTANT_REQUEST_TOO_LONG: 'That request is too long. Shorten it and send it again.',
   ASSISTANT_UNAVAILABLE:

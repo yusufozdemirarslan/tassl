@@ -130,6 +130,12 @@ const OPERATION_IDS = [
   'updateDelegation',
   'declareOutsideTool',
   'listRunClaims',
+  // Step 8.1 (07 §7): the three acts a student performs on a surfaced claim. Each is addressed by a
+  // run id and a claim id, and the run's owner guard answers every denied row before the claim id
+  // is looked up at all — so the ids below name nothing on this run and no row depends on another.
+  'setStance',
+  'runAction',
+  'escalate',
   'resumeRun',
   'deleteWalkthroughRun',
   'listPackages',
@@ -517,6 +523,11 @@ describe('authorization matrix (08 §4)', () => {
     const declarationRoute =
       await import('@/app/api/v1/runs/[runId]/outside-tool-declaration/route')
     const runClaimsRoute = await import('@/app/api/v1/runs/[runId]/claims/route')
+    const stanceRoute = await import('@/app/api/v1/runs/[runId]/claims/[claimId]/stance/route')
+    const claimActionsRoute =
+      await import('@/app/api/v1/runs/[runId]/claims/[claimId]/actions/route')
+    const escalationRoute =
+      await import('@/app/api/v1/runs/[runId]/claims/[claimId]/escalation/route')
     const resumeRoute = await import('@/app/api/v1/runs/[runId]/resume/route')
     const orgPackages = await import('@/app/api/v1/institutions/[orgId]/packages/route')
     const packagesImport = await import('@/app/api/v1/institutions/[orgId]/packages/import/route')
@@ -893,6 +904,43 @@ describe('authorization matrix (08 §4)', () => {
             path: `/runs/${ownRun}/claims`,
             session: await sessionFor(seat),
             params: { runId: ownRun },
+          }),
+      },
+      setStance: {
+        route: 'PUT /runs/{runId}/claims/{claimId}/stance',
+        // The claim id names no claim on this run, so the allowed row meets `CLAIM_NOT_SURFACED`
+        // (409) — which is an allow: 08 §4 gives the run's own student every in-run capability, and
+        // what the claim is is the module's rule, not a permission. Every denied row is refused by
+        // the owner guard before either is read.
+        run: async (seat) =>
+          call(stanceRoute.PUT, {
+            method: 'PUT',
+            path: `/runs/${ownRun}/claims/${MISSING_UUID}/stance`,
+            session: await sessionFor(seat),
+            params: { runId: ownRun, claimId: MISSING_UUID },
+            body: { stance: 'accept' },
+          }),
+      },
+      runAction: {
+        route: 'POST /runs/{runId}/claims/{claimId}/actions',
+        run: async (seat) =>
+          call(claimActionsRoute.POST, {
+            method: 'POST',
+            path: `/runs/${ownRun}/claims/${MISSING_UUID}/actions`,
+            session: await sessionFor(seat),
+            params: { runId: ownRun, claimId: MISSING_UUID },
+            body: { type: 'source_trace' },
+          }),
+      },
+      escalate: {
+        route: 'POST /runs/{runId}/claims/{claimId}/escalation',
+        run: async (seat) =>
+          call(escalationRoute.POST, {
+            method: 'POST',
+            path: `/runs/${ownRun}/claims/${MISSING_UUID}/escalation`,
+            session: await sessionFor(seat),
+            params: { runId: ownRun, claimId: MISSING_UUID },
+            body: { statement: 'I cannot evaluate this claim from here.' },
           }),
       },
       resumeRun: {

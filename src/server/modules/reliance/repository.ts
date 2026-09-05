@@ -1,16 +1,29 @@
 // Module `reliance` — repository (docs/tech/10-backend-spec-modules.md §8; tables run_claims,
 // run_actions, run_escalations, 06 §3.4). The stance matrix rows, the interrogation actions, and the
-// escalations of one run. None of these tables carries organization_id; every function is scoped
-// through the run id the service already resolved in the tenant. `relied_on` is a generated column
+// escalations of one run. None of those three carries organization_id; each is scoped through the
+// run id the service already resolved in the tenant. `relied_on` is a generated column
 // (`cardinality(relied_on_via) > 0`), so reliance is written only through `relied_on_via`.
-import { and, asc, count, eq, inArray, isNull, sql } from 'drizzle-orm'
+//
+// Four reads and one write go to tables this module does not own, and each has a reason. The
+// authored side — `scenario_claims`, `variant_claim_states`, `named_fields`, and one column of
+// `scenario_package_versions` — is read here for the reason D-242 gives, and every one of those
+// queries names its columns so the answer key is never selected (12 §8). The run row is read for
+// the two columns a claim view needs and written for the two columns a clock charge touches
+// (D-286). The three that reach a tenant-scoped table — `scenario_package_versions` and `runs` —
+// take `tenantId` first and filter on it, like every tenant-scoped repository function (D-006).
+import { and, asc, count, desc, eq, inArray, isNull, sql } from 'drizzle-orm'
 import { AppError } from '@/lib/errors'
 import { db } from '@/server/db/client'
 import {
+  namedFields,
   runActions,
   runClaims,
   runEscalations,
+  runs,
   scenarioClaims,
+  scenarioPackageVersions,
+  variantClaimStates,
+  type NamedField,
   type NewRunAction,
   type NewRunClaim,
   type NewRunEscalation,
@@ -18,13 +31,15 @@ import {
   type RunClaim,
   type RunEscalation,
   type ScenarioClaim,
+  type VerificationPaths,
 } from '@/server/db/schema'
 import type { DbOrTx } from '@/server/db/tx'
 
 // The service layer may not import `src/server/db` (04 §2), so the handles and row types it names
 // reach it through here, the one file in this module that may.
+export { withTransaction } from '@/server/db/tx'
 export type { DbOrTx, Tx } from '@/server/db/tx'
-export type { RunAction, RunClaim, RunEscalation, ScenarioClaim }
+export type { NamedField, RunAction, RunClaim, RunEscalation, ScenarioClaim, VerificationPaths }
 
 /** How a claim came to count as relied on (06 §3.4 `relied_on_via`). */
 export type ReliedOnVia = 'log_mark' | 'named_field' | 'turn_window'
@@ -49,6 +64,20 @@ export type ReliedOnUpdate = { via: ReliedOnVia; usedMarked?: boolean }
 export type ActionInsert = Omit<NewRunAction, 'id' | 'runId' | 'createdAt'>
 export type ActionFilter = { claimId?: string }
 export type EscalationInsert = Omit<NewRunEscalation, 'id' | 'runId' | 'createdAt'>
+
+/** The two `runs` columns a read of the claim table needs: which package, and which variant. */
+export type RunPackage = { packageVersionId: string; variantId: string }
+
+/**
+ * The clock columns an interrogation action or an escalation writes (10 §10, D-132).
+ *
+ * It is the shape `runs.clock.chargeCost` answers with, narrowed to the two members a *charge* can
+ * touch: the working clock's `charged_ms`, and the Turn window's end instant. Structural rather
+ * than imported, because a repository may reach the database and `src/lib` and nothing else — and
+ * a charge that could also write `paused_at` or `credited_ms` from here would be a second way to
+ * pause or credit a run, beside the one `runs` owns.
+ */
+export type ClockCharge = { chargedMs?: number; turnWindowEndsAt?: Date }
 
 // ---------------------------------------------------------------------------------------------
 // scenario_claims — the authored claims of the run's package version
@@ -145,6 +174,20 @@ export async function listRunClaims(
       ),
     )
     .orderBy(asc(runClaims.surfacedAt), asc(scenarioClaims.position), asc(scenarioClaims.key))
+}
+
+/** One surfaced claim with its scenario claim — the pair every mutation here reads. */
+export async function findRunClaimWithClaim(
+  runId: string,
+  claimId: string,
+  dbx: DbOrTx = db,
+): Promise<RunClaimWithClaim | undefined> {
+  const [row] = await dbx
+    .select({ runClaim: runClaims, claim: scenarioClaims })
+    .from(runClaims)
+    .innerJoin(scenarioClaims, eq(scenarioClaims.id, runClaims.claimId))
+    .where(and(eq(runClaims.runId, runId), eq(runClaims.claimId, claimId)))
+  return row
 }
 
 /** The run's row for one scenario claim, by the claim id the API uses. */
@@ -257,4 +300,152 @@ export async function countCountedEscalations(runId: string, dbx: DbOrTx = db): 
     .from(runEscalations)
     .where(and(eq(runEscalations.runId, runId), eq(runEscalations.countsAgainstLimit, true)))
   return Number(row?.total ?? 0)
+}
+
+/**
+ * The run's escalations, newest first.
+ *
+ * Newest first because the claim view shows one reply per claim and the latest is the one the
+ * student is looking at; `desc(createdAt)` with the id as the tiebreak keeps that answer stable
+ * when two escalations share an instant, which a polled list needs (D-274).
+ */
+export async function listEscalations(runId: string, dbx: DbOrTx = db): Promise<RunEscalation[]> {
+  return dbx
+    .select()
+    .from(runEscalations)
+    .where(eq(runEscalations.runId, runId))
+    .orderBy(desc(runEscalations.createdAt), desc(runEscalations.id))
+}
+
+// ---------------------------------------------------------------------------------------------
+// The authored side: verification paths, the general escalation reply, the named fields
+//
+// Read here rather than through the `scenarios` module for the reason D-242 gives, and with one
+// rule that is not a matter of taste: **the answer key is never selected.**
+// `variant_claim_states` carries `evidence_status`, `failure_family`, `warranted_stance` and
+// `planted` in the same row as `verification_paths`, and every query below names its columns, so
+// what a student's claim view is built from cannot contain them — a payload cannot leak a field
+// the query never fetched (12 §8, D-265, D-117).
+// ---------------------------------------------------------------------------------------------
+
+/**
+ * The confirmed verification paths of the run's variant, by claim id (FR-070, FR-071).
+ *
+ * The whole variant in one read: the claim list is polled while the student works, and a path
+ * lookup per claim would be one query per card.
+ */
+export async function listVerificationPaths(
+  variantId: string,
+  dbx: DbOrTx = db,
+): Promise<Map<string, VerificationPaths>> {
+  const rows = await dbx
+    .select({ claimId: variantClaimStates.claimId, paths: variantClaimStates.verificationPaths })
+    .from(variantClaimStates)
+    .where(eq(variantClaimStates.variantId, variantId))
+  return new Map(rows.map((row) => [row.claimId, row.paths]))
+}
+
+/** One claim's confirmed verification paths on the run's variant. */
+export async function findVerificationPaths(
+  variantId: string,
+  claimId: string,
+  dbx: DbOrTx = db,
+): Promise<VerificationPaths | undefined> {
+  const [row] = await dbx
+    .select({ paths: variantClaimStates.verificationPaths })
+    .from(variantClaimStates)
+    .where(
+      and(eq(variantClaimStates.variantId, variantId), eq(variantClaimStates.claimId, claimId)),
+    )
+  return row?.paths
+}
+
+/**
+ * The version's general colleague reply (FR-091), which answers an escalation on a claim with no
+ * authored reply of its own.
+ *
+ * One column, never the version row: 12 §8.1 keeps the general reply out of every student view, and
+ * it reaches a student only as the answer to an escalation they raised. `scenario_package_versions`
+ * is tenant-scoped (06 §3.2), so the tenant id comes first and the query filters on it — the run
+ * this is asked for names the version, and a run and its package belong to one institution.
+ */
+export async function findGeneralEscalationReply(
+  tenantId: string,
+  versionId: string,
+  dbx: DbOrTx = db,
+): Promise<string | undefined> {
+  const [row] = await dbx
+    .select({ reply: scenarioPackageVersions.generalEscalationReply })
+    .from(scenarioPackageVersions)
+    .where(
+      and(
+        eq(scenarioPackageVersions.id, versionId),
+        eq(scenarioPackageVersions.organizationId, tenantId),
+      ),
+    )
+  return row?.reply
+}
+
+/** The version's named brief fields in authored order, with the unit each is entered in (FR-101). */
+export async function listVersionNamedFields(
+  versionId: string,
+  dbx: DbOrTx = db,
+): Promise<NamedField[]> {
+  return dbx
+    .select()
+    .from(namedFields)
+    .where(eq(namedFields.packageVersionId, versionId))
+    .orderBy(asc(namedFields.position), asc(namedFields.key))
+}
+
+// ---------------------------------------------------------------------------------------------
+// The run row: which package it draws from, and the clock a check charges (10 §10, D-132)
+// ---------------------------------------------------------------------------------------------
+
+/**
+ * The two run columns a claim read needs: which version's claims, and which variant's paths.
+ *
+ * Tenant-scoped, so the tenant id comes first: a run row carries `organization_id`, and this is the
+ * one read in this module that goes to it. A mutation does not need it — `lockRunForMutation` has
+ * already handed over the whole locked row.
+ */
+export async function findRunPackage(
+  tenantId: string,
+  runId: string,
+  dbx: DbOrTx = db,
+): Promise<RunPackage | undefined> {
+  const [row] = await dbx
+    .select({ packageVersionId: runs.packageVersionId, variantId: runs.variantId })
+    .from(runs)
+    .where(and(eq(runs.organizationId, tenantId), eq(runs.id, runId)))
+  return row
+}
+
+/**
+ * Writes the clock charge an interrogation action or an escalation cost (FR-072, D-132).
+ *
+ * **It is called before the result is returned, and that ordering is the requirement**: FR-072 puts
+ * the deduction at the moment the action starts, and `trace.append` stamps `clock_remaining_ms`
+ * from the run row as the transaction has it — so a charge written after the event would record the
+ * clock the student had before they spent it.
+ *
+ * This module writes the column rather than asking the `runs` module to, because the `runs` service
+ * already calls this one when a document is opened and reaching back through its public index would
+ * close the two into an import cycle (D-286). The arithmetic still belongs to `runs`:
+ * `runs/clock.ts`'s `chargeCost` decides *what* to write, including the cap that lets an action
+ * begun with one minute left cost one minute, and this writes exactly that patch and nothing else.
+ */
+export async function applyClockCharge(
+  tenantId: string,
+  runId: string,
+  charge: ClockCharge,
+  dbx: DbOrTx = db,
+): Promise<void> {
+  if (charge.chargedMs === undefined && charge.turnWindowEndsAt === undefined) return
+  const [row] = await dbx
+    .update(runs)
+    .set(charge)
+    .where(and(eq(runs.organizationId, tenantId), eq(runs.id, runId)))
+    .returning({ id: runs.id })
+  if (!row) throw new AppError('INTERNAL_ERROR', 'The clock charge matched no run.')
 }

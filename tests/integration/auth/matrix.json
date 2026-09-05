@@ -1920,6 +1920,126 @@
     "expected": "deny"
   },
   {
+    "operationId": "setStance",
+    "role": "student",
+    "expected": "allow"
+  },
+  {
+    "operationId": "setStance",
+    "role": "instructor",
+    "expected": "deny"
+  },
+  {
+    "operationId": "setStance",
+    "role": "ta",
+    "expected": "deny"
+  },
+  {
+    "operationId": "setStance",
+    "role": "author",
+    "expected": "deny"
+  },
+  {
+    "operationId": "setStance",
+    "role": "program_lead",
+    "expected": "deny"
+  },
+  {
+    "operationId": "setStance",
+    "role": "editor",
+    "expected": "deny"
+  },
+  {
+    "operationId": "setStance",
+    "role": "admin",
+    "expected": "deny"
+  },
+  {
+    "operationId": "setStance",
+    "role": "outsider",
+    "expected": "deny"
+  },
+  {
+    "operationId": "runAction",
+    "role": "student",
+    "expected": "allow"
+  },
+  {
+    "operationId": "runAction",
+    "role": "instructor",
+    "expected": "deny"
+  },
+  {
+    "operationId": "runAction",
+    "role": "ta",
+    "expected": "deny"
+  },
+  {
+    "operationId": "runAction",
+    "role": "author",
+    "expected": "deny"
+  },
+  {
+    "operationId": "runAction",
+    "role": "program_lead",
+    "expected": "deny"
+  },
+  {
+    "operationId": "runAction",
+    "role": "editor",
+    "expected": "deny"
+  },
+  {
+    "operationId": "runAction",
+    "role": "admin",
+    "expected": "deny"
+  },
+  {
+    "operationId": "runAction",
+    "role": "outsider",
+    "expected": "deny"
+  },
+  {
+    "operationId": "escalate",
+    "role": "student",
+    "expected": "allow"
+  },
+  {
+    "operationId": "escalate",
+    "role": "instructor",
+    "expected": "deny"
+  },
+  {
+    "operationId": "escalate",
+    "role": "ta",
+    "expected": "deny"
+  },
+  {
+    "operationId": "escalate",
+    "role": "author",
+    "expected": "deny"
+  },
+  {
+    "operationId": "escalate",
+    "role": "program_lead",
+    "expected": "deny"
+  },
+  {
+    "operationId": "escalate",
+    "role": "editor",
+    "expected": "deny"
+  },
+  {
+    "operationId": "escalate",
+    "role": "admin",
+    "expected": "deny"
+  },
+  {
+    "operationId": "escalate",
+    "role": "outsider",
+    "expected": "deny"
+  },
+  {
     "operationId": "resumeRun",
     "role": "student",
     "expected": "allow"

@@ -868,6 +868,15 @@ function toClaimCard(claim: SurfacedClaim): ClaimView {
     stance: claim.stance,
     previousStance: claim.previousStance,
     stanceSetAt: claim.stanceSetAt,
+    // The card carries the stance control, the actions menu and the Escalate control (UI-023), so
+    // it carries what those three need: the actions already run on the claim, the actions it
+    // offers, the reply to an escalation the student raised, and the run's escalation budget.
+    // Not the claim's authored `escalatable`, which is on neither this shape nor any other (D-244).
+    actions: claim.actions,
+    availableActions: claim.availableActions,
+    escalation: claim.escalation,
+    canEscalate: claim.canEscalate,
+    remainingEscalations: claim.remainingEscalations,
     usedMarked: claim.usedMarked,
     reliedOn: claim.reliedOn,
   }

@@ -9989,6 +9989,73 @@ paths:
                           format: date-time
                           pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z))$
                         - type: "null"
+                    actions:
+                      type: array
+                      items:
+                        type: object
+                        properties:
+                          actionId:
+                            type: string
+                            format: uuid
+                            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                          type:
+                            type: string
+                            enum:
+                              - source_trace
+                              - replication_check
+                              - decomposition_check
+                          clockCostMs:
+                            type: integer
+                            minimum: 0
+                            maximum: 9007199254740991
+                          result:
+                            type: object
+                            propertyNames:
+                              type: string
+                            additionalProperties: {}
+                          inTurnWindow:
+                            type: boolean
+                        required:
+                          - actionId
+                          - type
+                          - clockCostMs
+                          - result
+                          - inTurnWindow
+                        additionalProperties: false
+                    availableActions:
+                      type: array
+                      items:
+                        type: string
+                        enum:
+                          - source_trace
+                          - replication_check
+                          - decomposition_check
+                    escalation:
+                      anyOf:
+                        - type: object
+                          properties:
+                            responseText:
+                              type: string
+                            clockCostMs:
+                              type: integer
+                              minimum: 0
+                              maximum: 9007199254740991
+                            remainingEscalations:
+                              type: integer
+                              minimum: 0
+                              maximum: 2
+                          required:
+                            - responseText
+                            - clockCostMs
+                            - remainingEscalations
+                          additionalProperties: false
+                        - type: "null"
+                    canEscalate:
+                      type: boolean
+                    remainingEscalations:
+                      type: integer
+                      minimum: 0
+                      maximum: 2
                     usedMarked:
                       type: boolean
                     reliedOn:
@@ -10003,6 +10070,11 @@ paths:
                     - stance
                     - previousStance
                     - stanceSetAt
+                    - actions
+                    - availableActions
+                    - escalation
+                    - canEscalate
+                    - remainingEscalations
                     - usedMarked
                     - reliedOn
                   additionalProperties: false
@@ -10023,29 +10095,81 @@ paths:
       operationId: runAction
       summary: Run an interrogation action
       parameters:
-        - $ref: "#/components/parameters/runId"
-        - $ref: "#/components/parameters/claimId"
-        - $ref: "#/components/parameters/requestedWith"
+        - in: path
+          name: runId
+          schema:
+            type: string
+            format: uuid
+            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+          required: true
+        - in: path
+          name: claimId
+          schema:
+            type: string
+            format: uuid
+            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+          required: true
       requestBody:
         required: true
         content:
           application/json:
             schema:
               type: object
-              required:
-                - type
               properties:
                 type:
-                  $ref: "#/components/schemas/ActionType"
+                  type: string
+                  enum:
+                    - source_trace
+                    - replication_check
+                    - decomposition_check
+              required:
+                - type
       responses:
         "200":
           description: OK
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ActionResult"
-        "409":
-          $ref: "#/components/responses/Conflict"
+                type: object
+                properties:
+                  actionId:
+                    type: string
+                    format: uuid
+                    pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                  type:
+                    type: string
+                    enum:
+                      - source_trace
+                      - replication_check
+                      - decomposition_check
+                  clockCostMs:
+                    type: integer
+                    minimum: 0
+                    maximum: 9007199254740991
+                  result:
+                    type: object
+                    propertyNames:
+                      type: string
+                    additionalProperties: {}
+                  inTurnWindow:
+                    type: boolean
+                required:
+                  - actionId
+                  - type
+                  - clockCostMs
+                  - result
+                  - inTurnWindow
+                additionalProperties: false
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "429":
+          $ref: "#/components/responses/RateLimited"
   /runs/{runId}/claims/{claimId}/escalation:
     post:
       tags:
@@ -10053,31 +10177,66 @@ paths:
       operationId: escalate
       summary: Escalate a claim
       parameters:
-        - $ref: "#/components/parameters/runId"
-        - $ref: "#/components/parameters/claimId"
-        - $ref: "#/components/parameters/requestedWith"
+        - in: path
+          name: runId
+          schema:
+            type: string
+            format: uuid
+            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+          required: true
+        - in: path
+          name: claimId
+          schema:
+            type: string
+            format: uuid
+            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+          required: true
       requestBody:
         required: true
         content:
           application/json:
             schema:
               type: object
-              required:
-                - statement
               properties:
                 statement:
                   type: string
                   minLength: 1
                   maxLength: 280
+              required:
+                - statement
       responses:
         "200":
           description: OK
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/EscalationResult"
-        "409":
-          $ref: "#/components/responses/Conflict"
+                type: object
+                properties:
+                  responseText:
+                    type: string
+                  clockCostMs:
+                    type: integer
+                    minimum: 0
+                    maximum: 9007199254740991
+                  remainingEscalations:
+                    type: integer
+                    minimum: 0
+                    maximum: 2
+                required:
+                  - responseText
+                  - clockCostMs
+                  - remainingEscalations
+                additionalProperties: false
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "429":
+          $ref: "#/components/responses/RateLimited"
   /runs/{runId}/claims/{claimId}/stance:
     put:
       tags:
@@ -10085,29 +10244,193 @@ paths:
       operationId: setStance
       summary: Set a stance
       parameters:
-        - $ref: "#/components/parameters/runId"
-        - $ref: "#/components/parameters/claimId"
-        - $ref: "#/components/parameters/requestedWith"
+        - in: path
+          name: runId
+          schema:
+            type: string
+            format: uuid
+            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+          required: true
+        - in: path
+          name: claimId
+          schema:
+            type: string
+            format: uuid
+            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+          required: true
       requestBody:
         required: true
         content:
           application/json:
             schema:
               type: object
-              required:
-                - stance
               properties:
                 stance:
-                  $ref: "#/components/schemas/Stance"
+                  type: string
+                  enum:
+                    - accept
+                    - verify
+                    - challenge
+                    - reject
+                    - escalate
+              required:
+                - stance
       responses:
         "200":
           description: OK
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ClaimView"
-        "409":
-          $ref: "#/components/responses/Conflict"
+                type: object
+                properties:
+                  id:
+                    type: string
+                    format: uuid
+                    pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                  key:
+                    type: string
+                    minLength: 1
+                  text:
+                    type: string
+                    minLength: 1
+                  surfacedBy:
+                    type: string
+                    enum:
+                      - delegation
+                      - document
+                      - turn
+                      - student
+                  surfacedAt:
+                    type: string
+                    format: date-time
+                    pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z))$
+                  inTurnWindow:
+                    type: boolean
+                  stance:
+                    anyOf:
+                      - type: string
+                        enum:
+                          - accept
+                          - verify
+                          - challenge
+                          - reject
+                          - escalate
+                      - type: "null"
+                  previousStance:
+                    anyOf:
+                      - type: string
+                        enum:
+                          - accept
+                          - verify
+                          - challenge
+                          - reject
+                          - escalate
+                      - type: "null"
+                  stanceSetAt:
+                    anyOf:
+                      - type: string
+                        format: date-time
+                        pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z))$
+                      - type: "null"
+                  actions:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        actionId:
+                          type: string
+                          format: uuid
+                          pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                        type:
+                          type: string
+                          enum:
+                            - source_trace
+                            - replication_check
+                            - decomposition_check
+                        clockCostMs:
+                          type: integer
+                          minimum: 0
+                          maximum: 9007199254740991
+                        result:
+                          type: object
+                          propertyNames:
+                            type: string
+                          additionalProperties: {}
+                        inTurnWindow:
+                          type: boolean
+                      required:
+                        - actionId
+                        - type
+                        - clockCostMs
+                        - result
+                        - inTurnWindow
+                      additionalProperties: false
+                  availableActions:
+                    type: array
+                    items:
+                      type: string
+                      enum:
+                        - source_trace
+                        - replication_check
+                        - decomposition_check
+                  escalation:
+                    anyOf:
+                      - type: object
+                        properties:
+                          responseText:
+                            type: string
+                          clockCostMs:
+                            type: integer
+                            minimum: 0
+                            maximum: 9007199254740991
+                          remainingEscalations:
+                            type: integer
+                            minimum: 0
+                            maximum: 2
+                        required:
+                          - responseText
+                          - clockCostMs
+                          - remainingEscalations
+                        additionalProperties: false
+                      - type: "null"
+                  canEscalate:
+                    type: boolean
+                  remainingEscalations:
+                    type: integer
+                    minimum: 0
+                    maximum: 2
+                  usedMarked:
+                    type: boolean
+                  reliedOn:
+                    type: boolean
+                required:
+                  - id
+                  - key
+                  - text
+                  - surfacedBy
+                  - surfacedAt
+                  - inTurnWindow
+                  - stance
+                  - previousStance
+                  - stanceSetAt
+                  - actions
+                  - availableActions
+                  - escalation
+                  - canEscalate
+                  - remainingEscalations
+                  - usedMarked
+                  - reliedOn
+                additionalProperties: false
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "429":
+          $ref: "#/components/responses/RateLimited"
   /runs/{runId}/debrief:
     get:
       tags:

@@ -338,6 +338,25 @@ export const workspace = {
   'workspace.pausedResume': 'Resume the run',
   'workspace.pausedResuming': 'Resuming…',
   'workspace.pausedFailed': 'The run did not resume. Try it again.',
+
+  // ---------------------------------------------------------------------------------------------
+  // Stances, interrogation actions and escalations (FR-070 to FR-074, FR-080, FR-090 to FR-093)
+  //
+  // Two rules govern every sentence here, and both are the product invariant of CLAUDE.md.
+  //
+  //   * **Nothing says whether a claim is right.** FR-073 is explicit that Tassl never says a claim
+  //     is wrong, so no refusal, hint or label below characterises a claim, its evidence, or the
+  //     stance it deserves. A check shows what the author wrote and stops there.
+  //   * **Nothing says what the author authored about *this* claim.** Which claims carry an
+  //     escalation reply is the map the run is asking the student to draw (D-244), so the escalation
+  //     sentences speak about the run's own two escalations and never about the claim.
+  // ---------------------------------------------------------------------------------------------
+  'workspace.claimNotSurfaced':
+    'That claim has not come up in this run yet, so there is nothing to take a position on.',
+  'workspace.claimsNotOpen':
+    'Claims are yours to work on from the moment your frame is locked until you lock your decision, and again during the Turn.',
+  'workspace.actionNotAvailable':
+    'This claim does not offer that check. The ones it does offer are on the claim card.',
 } as const
 
 /** `t` over this namespace alone; the key is still the full dotted key. */

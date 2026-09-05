@@ -2,16 +2,24 @@
 // thin `src/app/api/v1/**/route.ts`, which is what Next.js mounts and what `pnpm openapi:generate`
 // reads. No business logic lives here: the wrapper validates and the service decides.
 //
-// One route today. 07 §7 gives this module five — the claim list, the stance, the interrogation
-// action, the escalation and the lock gate's refusal — and the other four arrive in Phase 8 with
-// the rules that answer them. A route with no rule behind it would be a shape a client could learn
-// and then have taken away.
-import { z } from 'zod'
+// Four of 07 §7's five rows: the claim list, the stance, the interrogation action and the
+// escalation. The fifth is the Decision Lock, which is the `runs` module's endpoint and refuses
+// with this module's gate query (`findUnstancedReliedOn`, FR-084).
 import { AppError } from '@/lib/errors'
 import type { SessionUser } from '@/server/auth/types'
 import { defineRoute, type RouteContext } from '@/server/http/define-route'
-import { listRunClaims } from './service'
-import { ClaimViewSchema, RunIdParamsSchema } from './schema'
+import { escalate, listRunClaims, runAction, setStance } from './service'
+import {
+  ActionResultSchema,
+  ClaimListSchema,
+  ClaimParamsSchema,
+  ClaimViewSchema,
+  EscalateSchema,
+  EscalationResultSchema,
+  RunActionSchema,
+  RunIdParamsSchema,
+  SetStanceSchema,
+} from './schema'
 
 const TAGS = ['runs']
 
@@ -36,7 +44,7 @@ export const listRunClaimsRoute = defineRoute(
   {
     auth: 'session',
     input: { params: RunIdParamsSchema },
-    output: z.array(ClaimViewSchema),
+    output: ClaimListSchema,
     rateLimit: { bucket: 'read' },
     openapi: {
       operationId: 'listRunClaims',
@@ -45,4 +53,70 @@ export const listRunClaimsRoute = defineRoute(
     },
   },
   async (ctx) => listRunClaims(actorOf(ctx), ctx.input.params.runId),
+)
+
+/**
+ * `PUT /runs/{runId}/claims/{claimId}/stance` (07 §7, FR-080).
+ *
+ * `run-events` rather than `write`: a stance is one of the small, frequent in-run writes 10 §4 sizes
+ * that bucket for — a student works through five claims and changes their mind on two of them.
+ *
+ * `PUT` because a stance is idempotent in the shape a `PUT` promises: the same stance sent twice
+ * leaves the claim where it was. What it is not is *silent* — the second send writes its own
+ * `stance_set` event, because the trace records what the student did and not only where they ended.
+ */
+export const setStanceRoute = defineRoute(
+  {
+    auth: 'session',
+    input: { params: ClaimParamsSchema, body: SetStanceSchema },
+    output: ClaimViewSchema,
+    rateLimit: { bucket: 'run-events' },
+    openapi: { operationId: 'setStance', summary: 'Set a stance', tags: TAGS },
+  },
+  async (ctx) => {
+    const { runId, claimId } = ctx.input.params
+    return setStance(actorOf(ctx), runId, claimId, ctx.input.body.stance)
+  },
+)
+
+/**
+ * `POST /runs/{runId}/claims/{claimId}/actions` (07 §7, FR-070 to FR-073).
+ *
+ * `write` rather than `run-events`, and the difference is what the request costs: an action spends
+ * a minute of the student's clock, so the tighter bucket is also the one that makes a runaway
+ * client visible before it has spent the run.
+ */
+export const runActionRoute = defineRoute(
+  {
+    auth: 'session',
+    input: { params: ClaimParamsSchema, body: RunActionSchema },
+    output: ActionResultSchema,
+    rateLimit: { bucket: 'write' },
+    openapi: { operationId: 'runAction', summary: 'Run an interrogation action', tags: TAGS },
+  },
+  async (ctx) => {
+    const { runId, claimId } = ctx.input.params
+    return runAction(actorOf(ctx), runId, claimId, ctx.input.body.type)
+  },
+)
+
+/**
+ * `POST /runs/{runId}/claims/{claimId}/escalation` (07 §7, FR-090 to FR-092).
+ *
+ * The output is `EscalationResultSchema`, which is the student's form of the row and is missing two
+ * of its columns on purpose (D-116). `defineRoute` validates what it answers against this schema,
+ * so a service that started returning `responseId` would fail here rather than on a screen.
+ */
+export const escalateRoute = defineRoute(
+  {
+    auth: 'session',
+    input: { params: ClaimParamsSchema, body: EscalateSchema },
+    output: EscalationResultSchema,
+    rateLimit: { bucket: 'write' },
+    openapi: { operationId: 'escalate', summary: 'Escalate a claim', tags: TAGS },
+  },
+  async (ctx) => {
+    const { runId, claimId } = ctx.input.params
+    return escalate(actorOf(ctx), runId, claimId, ctx.input.body)
+  },
 )

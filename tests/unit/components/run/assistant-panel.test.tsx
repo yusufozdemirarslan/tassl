@@ -34,6 +34,11 @@ const CLAIM: ClaimView = {
   stance: null,
   previousStance: null,
   stanceSetAt: null,
+  actions: [],
+  availableActions: ['source_trace'],
+  escalation: null,
+  canEscalate: true,
+  remainingEscalations: 2,
   usedMarked: false,
   reliedOn: false,
 }
