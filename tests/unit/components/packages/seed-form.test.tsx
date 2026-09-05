@@ -187,7 +187,7 @@ describe('SeedForm (UI-041)', () => {
     // hyphenated slug carrying digits as one.
     await user.type(familyKey, 'meridian-roast-2027') // gitleaks:allow
     await user.type(screen.getByLabelText(enUS['packageNew.titleLabel']), ' (revised)')
-    expect(familyKey).toHaveValue('meridian-roast-2027')
+    expect(familyKey).toHaveValue('meridian-roast-2027') // gitleaks:allow
   })
 
   it('counts a pasted seed case in one step rather than a character at a time', async () => {
