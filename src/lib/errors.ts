@@ -29,6 +29,15 @@ export const ERROR_STATUS = {
   PACKAGE_INVALID: 422,
   LICENSE_NOT_CONFIRMED: 400,
   IMPORT_INVALID: 400,
+  // runs (10 §6, §10): the codes the lifecycle and the clock refuse with. The rest of the module's
+  // list — the frame, the brief, the Turn and the test controls — arrive with the steps that throw
+  // them, so a code and its one call site land together.
+  RUN_ACTIVE_EXISTS: 409,
+  ILLEGAL_TRANSITION: 409,
+  CLOCK_EXPIRED: 409,
+  TURN_WINDOW_EXPIRED: 409,
+  // trace (10 §10)
+  SEQUENCE_CONFLICT: 500,
   LLM_BUDGET_EXCEEDED: 402,
   LLM_PROVIDER_ERROR: 502,
   LLM_CIRCUIT_OPEN: 503,
@@ -66,6 +75,11 @@ export const DEFAULT_MESSAGES: Record<ErrorCode, string> = {
   LICENSE_NOT_CONFIRMED:
     'A package can only be built from a seed whose license permits adaptation.',
   IMPORT_INVALID: 'That file is not a Tassl package export.',
+  RUN_ACTIVE_EXISTS: 'You already have a run on this assignment.',
+  ILLEGAL_TRANSITION: 'This run has already moved past that step.',
+  CLOCK_EXPIRED: 'The working clock has run out.',
+  TURN_WINDOW_EXPIRED: 'The Turn window has closed.',
+  SEQUENCE_CONFLICT: 'Something went wrong on our side.',
   LLM_BUDGET_EXCEEDED: 'The assistant budget for this period has been used up.',
   LLM_PROVIDER_ERROR: 'The assistant provider did not respond correctly.',
   LLM_CIRCUIT_OPEN: 'The assistant is temporarily unavailable.',

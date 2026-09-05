@@ -278,6 +278,13 @@ export const AssignmentViewSchema = AssignmentSchema.extend({
   packageVersion: z.number().int(),
   variantKey: VariantKeySchema,
   effectiveWorkingClockSeconds: z.number().int(),
+  /**
+   * The package version's Turn delay. It has no assignment-level override — the delay is part of
+   * the scenario, not of how a section is taught — and it is here because `runs.startRun` copies it
+   * onto the run beside the working clock (10 §6), so both numbers a run is judged under come from
+   * the one function that already resolved the assignment.
+   */
+  turnDelaySeconds: z.number().int(),
   effectiveWeight: z.number(),
   inUse: z.boolean(),
 })

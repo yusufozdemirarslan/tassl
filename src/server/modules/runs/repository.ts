@@ -4,7 +4,7 @@
 // every function that touches it takes `tenantId` first and filters on `organizationId`; the child
 // tables (run_frames, run_briefs, …) have no organization_id and are scoped through the run id the
 // service already resolved. The database handle is always the last parameter (10 §6).
-import { and, eq, isNull, sql } from 'drizzle-orm'
+import { and, desc, eq, isNull, ne, sql } from 'drizzle-orm'
 import { AppError } from '@/lib/errors'
 import { db } from '@/server/db/client'
 import {
@@ -49,6 +49,13 @@ import {
   type ScenarioVariant,
 } from '@/server/db/schema'
 import type { DbOrTx } from '@/server/db/tx'
+
+// The service layer may not import `src/server/db` (04 §2), so the handles and row types it needs
+// to name reach it through here, the one file in this module that may.
+export type { DbOrTx, Tx } from '@/server/db/tx'
+export { withTransaction } from '@/server/db/tx'
+export type { Page, PageInput } from '@/server/db/pagination'
+export type { Run }
 
 // ---------------------------------------------------------------------------------------------
 // Input and result shapes (rows come straight from the schema; nothing is spread into new shapes)
@@ -228,6 +235,77 @@ export async function nextAttemptNo(
       ),
     )
   return Number(row?.next ?? 1)
+}
+
+/**
+ * The student's live run on the assignment, if there is one: the highest attempt that is not
+ * voided (D-041). `startRun` refuses a second one (`RUN_ACTIVE_EXISTS`); a re-offer voids the old
+ * run first and then writes the new one itself, so it never meets this.
+ */
+export async function findActiveRunForStudent(
+  tenantId: string,
+  assignmentId: string,
+  studentId: string,
+  dbx: DbOrTx = db,
+): Promise<Run | undefined> {
+  const [row] = await dbx
+    .select()
+    .from(runs)
+    .where(
+      and(
+        eq(runs.organizationId, tenantId),
+        eq(runs.assignmentId, assignmentId),
+        eq(runs.studentId, studentId),
+        ne(runs.state, 'voided'),
+      ),
+    )
+    .orderBy(desc(runs.attemptNo))
+    .limit(1)
+  return row
+}
+
+/**
+ * Every run the student has started in the institution, voided ones included. It is the analytics
+ * property `run_index_for_student` (17 §3.1) and nothing else: a count across assignments, which
+ * `attempt_no` cannot answer because that counts attempts on one.
+ */
+export async function countRunsForStudent(
+  tenantId: string,
+  studentId: string,
+  dbx: DbOrTx = db,
+): Promise<number> {
+  const [row] = await dbx
+    .select({ total: sql<number>`count(*)::int` })
+    .from(runs)
+    .where(and(eq(runs.organizationId, tenantId), eq(runs.studentId, studentId)))
+  return row?.total ?? 0
+}
+
+/**
+ * One run with the labels a `RunSummary` carries — the single-row form of `listRunsForStudent`.
+ * `undefined` when the run is not in the tenant, which is how a cross-tenant id stays a 404.
+ */
+export async function findRunWithLabels(
+  tenantId: string,
+  runId: string,
+  dbx: DbOrTx = db,
+): Promise<RunListItem | undefined> {
+  const [row] = await dbx
+    .select({
+      id: runs.id,
+      createdAt: runs.createdAt,
+      run: runs,
+      assignment: { id: assignments.id, label: assignments.label, runType: assignments.runType },
+      variant: { id: scenarioVariants.id, key: scenarioVariants.key },
+    })
+    .from(runs)
+    .innerJoin(
+      assignments,
+      and(eq(assignments.id, runs.assignmentId), eq(assignments.organizationId, tenantId)),
+    )
+    .innerJoin(scenarioVariants, eq(scenarioVariants.id, runs.variantId))
+    .where(and(eq(runs.organizationId, tenantId), eq(runs.id, runId)))
+  return row
 }
 
 // ---------------------------------------------------------------------------------------------

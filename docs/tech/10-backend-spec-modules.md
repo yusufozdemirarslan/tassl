@@ -251,8 +251,8 @@ Errors: `DEFENSE_NOT_OPEN` (409), `QUESTION_ALREADY_ANSWERED` (409), `DEFENSE_IN
 
 | Service function | Rules |
 |---|---|
-| `append(tx, run, type, payload, { actorId?, occurredAt? })` | Uses `run.next_event_seq` (row locked), stores `clock_remaining_ms` from `remainingMs(run, occurredAt)` (or window remaining), increments the allocator |
-| `listEvents(actor, runId)` | Reviewers, owner (owner view redacts `draft_band.quotes`? No: the student sees quotes in the debrief; the owner view omits nothing except reviewer notes marked private, of which there are none) |
+| `append(tx, run, type, payload, { actorId?, occurredAt? })` | Takes `run.next_event_seq` (row locked) by compare-and-set and increments the allocator. `clock_remaining_ms` is `remainingMs` (or the window remaining) of the run row **as the transaction returns it from that same statement**, never of the caller's copy: a mutation that charges a cost or transitions before appending must stamp the post-write reading, and `TraceRun` therefore carries only `id`, `organization_id` and `next_event_seq`, so a stale clock is not a value a caller can pass |
+| `listEvents(actor, runId)` | A reviewer receives the trace exactly as written, sequence included — it is the record. The owner's view is governed by `owner-view.ts` and three rules: (a) **run state** — `open` for `assigned`…`turn_open`, `sealed` for `turn_locked`, `defense_pending`, `defense_complete`, `voided` and the future-state states (FORBIDDEN; the defense is what the student can say with no room in front of them, UI-026), `scored` for `scored`, `confirmed`, `recorded`; (b) **fields**, picked (never deleted, 12 §8) from a per-type table the compiler requires to classify every payload field as `owner`, `after_scored` (D-117's "never before the run is scored") or `reviewer_only`; (c) **sequence**, renumbered densely 1..N over the events they can see, because `probe_fired` is withheld and the stored numbering would leave a hole exactly where the probe fired (FR-053, D-088) — for the same reason `defense_question.selecting_event_seq`, `draft_band.evidence_event_seqs` and `draft_band.quotes` are `reviewer_only`. This replaces the earlier "the owner view omits nothing", which was never true |
 | `buildExport(runId, form: 'course' | 'record'): TraceExport` | Header, events, claim table, computed fields; `course` adds `weight`, `mapping`, `points`; `record` omits them at every depth: the header `policy` is reduced to `{ outside_ai_policy }` and the `policy_displayed` event payload to `{ outside_ai_policy, run_type, counts_statement }`, and the FR-170 test asserts no `weight`, `mapping`, or `points` key anywhere in the record form (FR-243) |
 | `TraceExportSchema` | Zod; `x-tassl-extensions` lists the build-added event types (FR-241) |
 
@@ -297,9 +297,11 @@ Export header (FR-240): `run_id, package_id, package_version, variant_key, mode,
 
 Claim table rows: `claim_id, claim_version (package version), key, evidence_status, failure_family, importance, consequence_level, warranted_stance, stance_taken, stance_taken_at, previous_stance, actions: [type], relied_on, relied_on_via, neutralized, inconsistency_credited, readiness_context`. In the record form the same table is present (the PRD says the record carries the claim table).
 
-Repository: `insertEvent`, `listEventsForRun`, `listEventsByType`.
+Repository: `insertEvent`, `allocateSeq` (compare-and-set on `runs.next_event_seq`, returning the sequence and the run's clock columns), `findRunState`, `listEventsForRun`, `listEventsByType`.
 
-Errors: `SEQUENCE_CONFLICT` (500, retried once inside the transaction wrapper).
+Errors: `SEQUENCE_CONFLICT` (500, **not** retried). The gapless sequence comes from the compare-and-set in `allocateSeq` plus the fact that a rolled-back transaction takes its allocation with it; the run row lock is what makes a contending mutation *wait* and arrive with a fresh allocator rather than fail. So a mutation that held the lock cannot raise this, and every case that does is a caller defect — an append without `findRunForUpdate`, or a second append from a stale copy of the row. `withTransaction` has no retry and gains none: re-running an arbitrary side-effecting callback to paper over a caller defect would hide it, and this is a 500 so it reaches Sentry and gets read. The earlier "retried once inside the transaction wrapper" described a retry that never existed.
+
+`FORBIDDEN` (403) when the run's own student asks for the trace in a `sealed` state (see `listEvents` above); it is one of the global codes of 07 §1, so the endpoint's contract in 07 §7 is unchanged.
 
 ## 11. `scoring`
 

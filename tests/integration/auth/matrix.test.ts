@@ -109,6 +109,10 @@ const OPERATION_IDS = [
   'getAssignment',
   'updateAssignment',
   'getPolicyDisplay',
+  'startRun',
+  'listAssignmentRuns',
+  'getRun',
+  'acknowledgePolicy',
   'deleteWalkthroughRun',
   'listPackages',
   'createPackageFromSeed',
@@ -203,6 +207,8 @@ let defectiveVariantId: string
 let addable: UserRow
 let removable: Record<Seat, UserRow>
 let walkthroughRuns: Record<Seat, string>
+/** The `student` seat's own run, in `assigned`, for the two rows addressed by run id. */
+let ownRun: string
 
 /**
  * The packages fixture (Step 5.2): a *draft* package of institution A holding one claim. It is a
@@ -429,6 +435,22 @@ describe('authorization matrix (08 §4)', () => {
     removable = removableBuilt as Record<Seat, UserRow>
     walkthroughRuns = runsBuilt as Record<Seat, string>
 
+    // `getRun` and `acknowledgePolicy` are addressed by run id, and the only seat 08 §4 allows
+    // either to is the run's owner, so the run belongs to the `student` seat. It sits in
+    // `assigned`, which is the one state `acknowledgePolicy` moves out of — the allowed row does
+    // the moving, and every other row is refused before the state is ever read.
+    ownRun = (
+      await runsRepository.insertRun(orgA, {
+        assignmentId: walkthroughAssignment,
+        studentId: seats.student.id,
+        packageVersionId,
+        variantId: soundVariantId,
+        state: 'assigned',
+        workingClockSeconds: 1500,
+        turnDelaySeconds: 90,
+      })
+    ).id
+
     const scenariosRepository = await import('@/server/modules/scenarios/repository')
     const authored = await f.createPackageVersion(orgA, 'matrix-authored', {
       createdBy: seats.instructor.id,
@@ -469,6 +491,8 @@ describe('authorization matrix (08 §4)', () => {
     const policyDisplay =
       await import('@/app/api/v1/assignments/[assignmentId]/policy-display/route')
     const runDetail = await import('@/app/api/v1/runs/[runId]/route')
+    const assignmentRunsRoute = await import('@/app/api/v1/assignments/[assignmentId]/runs/route')
+    const policyAckRoute = await import('@/app/api/v1/runs/[runId]/policy-ack/route')
     const orgPackages = await import('@/app/api/v1/institutions/[orgId]/packages/route')
     const packagesImport = await import('@/app/api/v1/institutions/[orgId]/packages/import/route')
     const packageDetail = await import('@/app/api/v1/packages/[packageId]/route')
@@ -743,6 +767,48 @@ describe('authorization matrix (08 §4)', () => {
             path: `/assignments/${assignment}/policy-display`,
             session: await sessionFor(seat),
             params: { assignmentId: assignment },
+          }),
+      },
+      startRun: {
+        route: 'POST /assignments/{assignmentId}/runs',
+        // On the assignment that counts, where `ownRun` is not: the one allowed row really creates
+        // a run (201) rather than meeting RUN_ACTIVE_EXISTS, so the cell is proven by the act.
+        run: async (seat) =>
+          call(assignmentRunsRoute.POST, {
+            method: 'POST',
+            path: `/assignments/${assignment}/runs`,
+            session: await sessionFor(seat),
+            params: { assignmentId: assignment },
+          }),
+      },
+      listAssignmentRuns: {
+        route: 'GET /assignments/{assignmentId}/runs',
+        run: async (seat) =>
+          call(assignmentRunsRoute.GET, {
+            path: `/assignments/${assignment}/runs`,
+            session: await sessionFor(seat),
+            params: { assignmentId: assignment },
+          }),
+      },
+      getRun: {
+        route: 'GET /runs/{runId}',
+        run: async (seat) =>
+          call(runDetail.GET, {
+            path: `/runs/${ownRun}`,
+            session: await sessionFor(seat),
+            params: { runId: ownRun },
+          }),
+      },
+      acknowledgePolicy: {
+        route: 'POST /runs/{runId}/policy-ack',
+        // The one allowed row moves the run to `readiness`; every denied row is refused by the
+        // owner check long before the state matters, so no row depends on another.
+        run: async (seat) =>
+          call(policyAckRoute.POST, {
+            method: 'POST',
+            path: `/runs/${ownRun}/policy-ack`,
+            session: await sessionFor(seat),
+            params: { runId: ownRun },
           }),
       },
       deleteWalkthroughRun: {

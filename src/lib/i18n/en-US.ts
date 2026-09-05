@@ -27,6 +27,7 @@ import { packageImport } from './messages/package-import'
 import { packageVersion } from './messages/package-version'
 import { packageConfirm } from './messages/package-confirm'
 import { claimObject } from './messages/claim-object'
+import { run } from './messages/run'
 
 export const enUS = {
   ...landing,
@@ -53,6 +54,7 @@ export const enUS = {
   ...packageVersion,
   ...packageConfirm,
   ...claimObject,
+  ...run,
 } as const
 
 export type MessageKey = keyof typeof enUS
