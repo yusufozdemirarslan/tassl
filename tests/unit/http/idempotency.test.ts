@@ -54,7 +54,7 @@ describe('readIdempotencyKey', () => {
 })
 
 describe('idempotencyStorageKey (10 §11)', () => {
-  const KEY = '01J8Z4S8Q5B3F1V6E9K2N7M0TA'
+  const KEY = '01J8Z4S8Q5B3F1V6E9K2N7M0TA' // gitleaks:allow
 
   it('is namespaced by actor and by operation, and carries the key only as a hash', () => {
     const mine = idempotencyStorageKey('user-1', 'startRun', KEY)

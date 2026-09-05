@@ -167,7 +167,7 @@ describe('POST /assignments/{assignmentId}/runs', () => {
   // 07 §1: "`Idempotency-Key` header accepted on the routes marked *idempotent*; a repeat within
   // 24 h returns the original result". 07 §7 marks this row idempotent (10 §11 names the store).
   describe('Idempotency-Key', () => {
-    const KEY = '01J8Z4S8Q5B3F1V6E9K2N7M0TA'
+    const KEY = '01J8Z4S8Q5B3F1V6E9K2N7M0TA' // gitleaks:allow
 
     it('hands a retry the run the first call created instead of RUN_ACTIVE_EXISTS', async () => {
       const first = await start(fx.student, { 'idempotency-key': KEY })
