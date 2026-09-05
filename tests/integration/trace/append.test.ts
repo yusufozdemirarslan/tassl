@@ -268,6 +268,27 @@ describe('what an event records', () => {
     expect(event.clockRemainingMs).toBeNull()
   })
 
+  it('bounds how far past zero a clock is recorded, so an abandoned run can still be written to', async () => {
+    // Nothing moves a run out of `working` until Phase 9's auto-lock applier, so a run left open
+    // keeps counting down. The column is an `integer`: unbounded, twenty-six days of overrun makes
+    // every append fail on a 22003 and the run can no longer be locked, closed or voided (D-253).
+    const twentySixDaysLater = new Date(FRAME_LOCKED_AT.getTime() + 26 * 24 * 60 * 60 * 1000)
+    const event = await appendAt(
+      { state: 'working', workingStartedAt: FRAME_LOCKED_AT },
+      twentySixDaysLater,
+    )
+    expect(event.clockRemainingMs).toBe(-86_400_000)
+  })
+
+  it('records an overrun inside the bound exactly', async () => {
+    const oneHourPastZero = new Date(FRAME_LOCKED_AT.getTime() + 1_500_000 + 3_600_000)
+    const event = await appendAt(
+      { state: 'working', workingStartedAt: FRAME_LOCKED_AT },
+      oneHourPastZero,
+    )
+    expect(event.clockRemainingMs).toBe(-3_600_000)
+  })
+
   it('stamps the clock as the transaction has it, not as the caller read it (D-042)', async () => {
     await runsRepo.updateRun(fx.orgId, fx.run.id, {
       state: 'working',

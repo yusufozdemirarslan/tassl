@@ -900,6 +900,49 @@ describe('confirmVersion refuses in the order 10 §4 gives', () => {
 })
 
 // ---------------------------------------------------------------------------------------------
+// The warnings the version view carries (FR-190, D-083, D-251)
+//
+// A warning is the mechanism for telling an author something is unwise without refusing their
+// package, so both halves have to be true at once: the warning appears, and the package still
+// confirms. The second half is what separates it from a `validatePackage` rule.
+// ---------------------------------------------------------------------------------------------
+
+describe('the author is warned when a readiness concept rests on one item (D-251)', () => {
+  it('warns on the concept, leaves the rules alone, and still confirms the version', async () => {
+    const { versionId } = await draftPackage()
+
+    // `fillDraft` spreads the sixteen items over four concepts, four items each, so the concept map
+    // a student gets back never narrows to a single item: nothing to warn about.
+    const spread = await scenarios.getPackageVersion(fx.author, versionId)
+    expect(spread.warnings).toEqual(['FAMILY_LACKS_ETHICAL_DEFECT'])
+
+    // One item moved onto a concept of its own. That concept's map status — held, not held or
+    // unknown — is now this item's own marking, returned when the check closes and before the run
+    // is scored (FR-012, PRD §7.1), which is the whole of what the warning is about.
+    const version = await repo.findVersionFull(fx.orgId, versionId)
+    const lonely = version?.readinessItems.find((row) => row.key === 'R1')
+    expect(lonely, 'the filled draft has no readiness item R1').toBeDefined()
+    await scenarios.updateElement(fx.author, versionId, 'readiness_item', lonely!.id, {
+      conceptKey: 'ai_escalation',
+    })
+
+    const thin = await scenarios.getPackageVersion(fx.author, versionId)
+    expect(thin.warnings).toEqual(['FAMILY_LACKS_ETHICAL_DEFECT', 'READINESS_CONCEPT_SINGLE_ITEM'])
+
+    // And it is a warning: no rule fired, and the version confirms with the warning standing.
+    expect(thin.validation).toEqual({ ok: true, failures: [] })
+    await decideEveryElement(versionId)
+    const confirmed = await scenarios.confirmVersion(fx.author, versionId, {
+      teachingNoteChecked: true,
+    })
+    expect(confirmed.status).toBe('confirmed')
+    expect((await scenarios.getPackageVersion(fx.author, versionId)).warnings).toContain(
+      'READINESS_CONCEPT_SINGLE_ITEM',
+    )
+  })
+})
+
+// ---------------------------------------------------------------------------------------------
 // Confirming freezes the version (NFR-004)
 // ---------------------------------------------------------------------------------------------
 

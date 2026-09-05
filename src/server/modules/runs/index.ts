@@ -12,24 +12,49 @@
 // writing entry point outside the permission helpers every other mutation here starts with (08 §5).
 // It stays internal, behind the reads and mutations below, each of which names its actor first
 // (D-230).
+// `advanceRunClock` and `assertTestEnvironment` are absent for the same reason: they exist only
+// under `APP_ENV=test` (D-109), and the module's public interface is what the product is made of.
+// The one caller is the route, which reaches the router as every endpoint does.
 export {
   acknowledgePolicy,
+  answerReadinessItem,
+  closeDocument,
   findMyRunOnAssignment,
+  getReadiness,
+  getReadinessResult,
   getRun,
   getRunStatus,
+  getRunWorkspace,
   listMyRuns,
+  lockFrame,
+  openDocument,
+  skipReadiness,
   startRun,
+  submitReadiness,
   toRunSummary,
 } from './service'
 
 export type {
+  AnswerReadinessItemInput,
   Clock,
+  DocumentOpened,
+  DocumentSummary,
+  Frame,
+  LockFrame,
+  LockFrameInput,
+  OpenDocument,
   PageQuery,
+  ReadinessConceptStatusValue,
+  ReadinessItemView,
+  ReadinessResult,
+  ReadinessView,
   RunReviewSummary,
   RunRowForSummary,
   RunStateValue,
   RunStatus,
   RunSummary,
+  RunWorkspace,
   RunsQuery,
   VariantKeyValue,
+  WorkspaceCapabilities,
 } from './schema'

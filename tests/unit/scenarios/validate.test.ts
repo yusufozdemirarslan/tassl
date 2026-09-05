@@ -12,7 +12,9 @@ import { describe, expect, it } from 'vitest'
 import type { VersionFull } from '@/server/modules/scenarios/repository'
 import type { ValidationResult } from '@/server/modules/scenarios/schema'
 import {
+  READINESS_ITEMS_PER_CONCEPT_MIN,
   VALIDATION_RULE_CODES,
+  thinlyCarriedConcepts,
   validatePackage,
   type PackageValidationFailure,
   type PackageValidationResult,
@@ -1502,6 +1504,57 @@ describe('READINESS_SPLIT', () => {
     expect(codes(version)).toEqual(['READINESS_SPLIT'])
     expect(failure(version, 'READINESS_SPLIT')).toMatchObject({ elementIds: ['item-1'] })
     expect(failure(version, 'READINESS_SPLIT').message).toContain('Item R1 (repeating C1)')
+  })
+})
+
+// ---------------------------------------------------------------------------------------------
+// The floor `READINESS_SPLIT` deliberately does not enforce (D-251)
+//
+// How thinly the sixteen items are spread over concepts is not a defect in a package, so it is not
+// a rule: it is what decides how specific the concept map's reading of correctness is, and it
+// reaches the author as the package warning `READINESS_CONCEPT_SINGLE_ITEM`. The rule and the floor
+// are tested apart because they answer different questions — `codes()` below must stay empty for a
+// package the floor would flag, or the warning would have become a block.
+// ---------------------------------------------------------------------------------------------
+
+describe('thinlyCarriedConcepts (READINESS_CONCEPT_SINGLE_ITEM)', () => {
+  const on = (...concepts: string[]) => concepts.map((conceptKey) => ({ conceptKey }))
+
+  it('names a concept carried by one item, whose map status is that item’s own marking', () => {
+    expect(thinlyCarriedConcepts(on('payback', 'payback', 'survey_error'))).toEqual([
+      'survey_error',
+    ])
+  })
+
+  it('names none when every concept carries the floor of two', () => {
+    expect(READINESS_ITEMS_PER_CONCEPT_MIN).toBe(2)
+    expect(thinlyCarriedConcepts(on('payback', 'segmentation', 'payback', 'segmentation'))).toEqual(
+      [],
+    )
+  })
+
+  it('names sixteen concepts for sixteen items — the answer sheet the floor exists to catch', () => {
+    const oneEach = Array.from({ length: 16 }, (_unused, index) => ({ conceptKey: `c${index}` }))
+    expect(thinlyCarriedConcepts(oneEach)).toHaveLength(16)
+  })
+
+  it('lists them in the order the check first reaches them, which is the map’s order', () => {
+    expect(thinlyCarriedConcepts(on('b', 'a', 'c', 'a', 'd'))).toEqual(['b', 'c', 'd'])
+  })
+
+  it('answers nothing for a check with no items, rather than inventing a concept', () => {
+    expect(thinlyCarriedConcepts([])).toEqual([])
+  })
+
+  it('is a floor and not a rule: a package it flags still breaks nothing', () => {
+    // Every item of `validVersion()` on its own concept would be the worst case the floor names,
+    // and `validatePackage` must still pass it — a warning that blocked a confirmation would be a
+    // rule wearing a warning's name (D-083, D-251).
+    const version = validVersion()
+    const concepts = version.readinessItems.map((_unused, index) => ({ conceptKey: `c${index}` }))
+
+    expect(thinlyCarriedConcepts(concepts)).toHaveLength(16)
+    expect(codes(version)).toEqual([])
   })
 })
 

@@ -29,13 +29,16 @@ export const ERROR_STATUS = {
   PACKAGE_INVALID: 422,
   LICENSE_NOT_CONFIRMED: 400,
   IMPORT_INVALID: 400,
-  // runs (10 §6, §10): the codes the lifecycle and the clock refuse with. The rest of the module's
-  // list — the frame, the brief, the Turn and the test controls — arrive with the steps that throw
-  // them, so a code and its one call site land together.
+  // runs (10 §6, §10): the codes the lifecycle, the clock and the frame refuse with. The rest of
+  // the module's list — the brief, the Turn and the test controls — arrive with the steps that
+  // throw them, so a code and its one call site land together.
   RUN_ACTIVE_EXISTS: 409,
   ILLEGAL_TRANSITION: 409,
   CLOCK_EXPIRED: 409,
   TURN_WINDOW_EXPIRED: 409,
+  READINESS_SKIP_NOT_ALLOWED: 409,
+  FRAME_INVALID: 400,
+  RUN_LOCKED: 409,
   // trace (10 §10)
   SEQUENCE_CONFLICT: 500,
   LLM_BUDGET_EXCEEDED: 402,
@@ -79,6 +82,9 @@ export const DEFAULT_MESSAGES: Record<ErrorCode, string> = {
   ILLEGAL_TRANSITION: 'This run has already moved past that step.',
   CLOCK_EXPIRED: 'The working clock has run out.',
   TURN_WINDOW_EXPIRED: 'The Turn window has closed.',
+  READINESS_SKIP_NOT_ALLOWED: 'The check can only be skipped after a submission has failed.',
+  FRAME_INVALID: 'The frame is not ready to lock.',
+  RUN_LOCKED: 'This run’s decision is locked, so it can no longer be changed.',
   SEQUENCE_CONFLICT: 'Something went wrong on our side.',
   LLM_BUDGET_EXCEEDED: 'The assistant budget for this period has been used up.',
   LLM_PROVIDER_ERROR: 'The assistant provider did not respond correctly.',

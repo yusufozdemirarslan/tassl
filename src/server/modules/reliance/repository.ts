@@ -3,7 +3,7 @@
 // escalations of one run. None of these tables carries organization_id; every function is scoped
 // through the run id the service already resolved in the tenant. `relied_on` is a generated column
 // (`cardinality(relied_on_via) > 0`), so reliance is written only through `relied_on_via`.
-import { and, asc, count, eq, isNull, sql } from 'drizzle-orm'
+import { and, asc, count, eq, inArray, isNull, sql } from 'drizzle-orm'
 import { AppError } from '@/lib/errors'
 import { db } from '@/server/db/client'
 import {
@@ -20,6 +20,11 @@ import {
   type ScenarioClaim,
 } from '@/server/db/schema'
 import type { DbOrTx } from '@/server/db/tx'
+
+// The service layer may not import `src/server/db` (04 §2), so the handles and row types it names
+// reach it through here, the one file in this module that may.
+export type { DbOrTx, Tx } from '@/server/db/tx'
+export type { RunAction, RunClaim, RunEscalation, ScenarioClaim }
 
 /** How a claim came to count as relied on (06 §3.4 `relied_on_via`). */
 export type ReliedOnVia = 'log_mark' | 'named_field' | 'turn_window'
@@ -44,6 +49,50 @@ export type ReliedOnUpdate = { via: ReliedOnVia; usedMarked?: boolean }
 export type ActionInsert = Omit<NewRunAction, 'id' | 'runId' | 'createdAt'>
 export type ActionFilter = { claimId?: string }
 export type EscalationInsert = Omit<NewRunEscalation, 'id' | 'runId' | 'createdAt'>
+
+// ---------------------------------------------------------------------------------------------
+// scenario_claims — the authored claims of the run's package version
+//
+// Read here rather than through the `scenarios` module for the reason D-242 gives: surfacing asks
+// which claims of *this version* a document carries, and the answer is one indexed read on the
+// table this module already joins for every claim view.
+// ---------------------------------------------------------------------------------------------
+
+/** Narrow a version's claims: by id (what a delegation matched) or by the document they come from. */
+export type VersionClaimFilter = {
+  ids?: readonly string[]
+  /** `scenario_claims.source_document_id`, with `source_kind = 'document'` (FR-031). */
+  sourceDocumentId?: string
+}
+
+/**
+ * The version's claims matching the filter, in authored order. An empty `ids` list answers nothing
+ * rather than everything: `inArray` with no values is not a filter, and surfacing an empty match
+ * must surface nothing.
+ */
+export async function listVersionClaims(
+  versionId: string,
+  filter: VersionClaimFilter,
+  dbx: DbOrTx = db,
+): Promise<ScenarioClaim[]> {
+  if (filter.ids && filter.ids.length === 0) return []
+  return dbx
+    .select()
+    .from(scenarioClaims)
+    .where(
+      and(
+        eq(scenarioClaims.packageVersionId, versionId),
+        filter.ids ? inArray(scenarioClaims.id, [...filter.ids]) : undefined,
+        filter.sourceDocumentId
+          ? and(
+              eq(scenarioClaims.sourceKind, 'document'),
+              eq(scenarioClaims.sourceDocumentId, filter.sourceDocumentId),
+            )
+          : undefined,
+      ),
+    )
+    .orderBy(asc(scenarioClaims.position), asc(scenarioClaims.key))
+}
 
 // ---------------------------------------------------------------------------------------------
 // run_claims — the stance matrix (DATA-034)

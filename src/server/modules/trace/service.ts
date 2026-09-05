@@ -74,8 +74,27 @@ export type AppendOptions = {
  * one it happened to be holding.
  */
 function clockReadingFor(clock: TraceClock, at: Date): number | null {
-  return isInTurnWindow(clock) ? remainingWindowMs(clock, at) : remainingMs(clock, at)
+  const reading = isInTurnWindow(clock) ? remainingWindowMs(clock, at) : remainingMs(clock, at)
+  return reading === null ? null : boundedReading(reading)
 }
+
+/**
+ * How far past its zero a clock is allowed to be recorded as, and why there is a bound at all.
+ *
+ * `run_events.clock_remaining_ms` is an `integer`, and a run whose clock has run out keeps ticking
+ * down until something moves it on — which in this build is the auto-lock applier Phase 9 brings.
+ * Left unbounded, a run abandoned in `working` passes int4 twenty-five days later and then *every*
+ * append fails on a Postgres 22003 the screen has no code to act on: the run cannot be locked,
+ * cannot be closed, cannot be voided. The same shape D-249 found in a document open, in the column
+ * beside it.
+ *
+ * A day is the bound for the same reason it is there: a clock more than a day past zero is not a
+ * long sitting, it is an absence, and the event's own `occurred_at` still says how long. Overrun
+ * inside a day — every real one — is recorded exactly (D-253).
+ */
+const CLOCK_OVERRUN_FLOOR_MS = -86_400_000
+
+const boundedReading = (ms: number): number => Math.max(CLOCK_OVERRUN_FLOOR_MS, ms)
 
 /**
  * Appends one event to the run's trace and returns the row.

@@ -4,16 +4,45 @@
 //
 // `GET /runs/{runId}` is the one route in the codebase that answers something other than JSON, so
 // it is the one with a wrapper of its own — see `withRunVersion` below.
+import { z } from 'zod'
 import { AppError } from '@/lib/errors'
 import type { SessionUser } from '@/server/auth/types'
 import { defineRoute, type RouteContext, type RouteHandler } from '@/server/http/define-route'
+import { toErrorResponse } from '@/server/http/errors'
 import { attachRouteSpec, getRouteSpec, type RegisteredRoute } from '@/server/http/openapi-registry'
-import { acknowledgePolicy, findMyRunOnAssignment, getRun, listMyRuns, startRun } from './service'
+import { getOrCreateRequestId } from '@/server/logging/request-id'
 import {
+  acknowledgePolicy,
+  advanceRunClock,
+  answerReadinessItem,
+  assertTestEnvironment,
+  closeDocument,
+  findMyRunOnAssignment,
+  getReadiness,
+  getRun,
+  getRunWorkspace,
+  listMyRuns,
+  lockFrame,
+  openDocument,
+  skipReadiness,
+  startRun,
+  submitReadiness,
+} from './service'
+import {
+  AdvanceClockSchema,
+  AnswerReadinessItemSchema,
   AssignmentIdParamsSchema,
+  DocumentOpenParamsSchema,
+  DocumentOpenedSchema,
+  DocumentParamsSchema,
+  LockFrameInputSchema,
+  ReadinessItemParamsSchema,
+  ReadinessResultSchema,
+  ReadinessViewSchema,
   RunIdParamsSchema,
   RunSummaryPageSchema,
   RunSummarySchema,
+  RunWorkspaceSchema,
   RunsQuerySchema,
 } from './schema'
 
@@ -30,6 +59,20 @@ function specOf(handler: RouteHandler): RegisteredRoute {
   const spec = getRouteSpec(handler)
   if (!spec) throw new AppError('INTERNAL_ERROR', 'Route spec missing.')
   return spec
+}
+
+/** 204 with no body (07 §7): the wrapper's 200 becomes an empty response, errors pass through. */
+function noContent(handler: RouteHandler, description: string): RouteHandler {
+  return attachRouteSpec(
+    async (request, routeCtx) => {
+      const response = await handler(request, routeCtx)
+      if (response.status !== 200) return response
+      const headers = new Headers(response.headers)
+      headers.delete('content-type')
+      return new Response(null, { status: 204, headers })
+    },
+    { ...specOf(handler), status: 204, description },
+  )
 }
 
 /**
@@ -138,3 +181,204 @@ export const listMyRunsRoute = defineRoute(
   },
   async (ctx) => listMyRuns(actorOf(ctx), ctx.input.query),
 )
+
+// ---------------------------------------------------------------------------------------------
+// The Readiness Check (07 §7, FR-010 to FR-018)
+//
+// Four rows, and one property that holds across all of them: no response defined here has a field
+// for whether an answer was right. `ReadinessViewSchema` carries the student's own answers and no
+// item key; `ReadinessResultSchema` carries named concepts and no total. The answer row is a 204,
+// which is the strongest form of the same rule — there is no body to put a verdict in (FR-012).
+// ---------------------------------------------------------------------------------------------
+
+export const getReadinessRoute = defineRoute(
+  {
+    auth: 'session',
+    input: { params: RunIdParamsSchema },
+    output: ReadinessViewSchema,
+    rateLimit: { bucket: 'read' },
+    openapi: {
+      operationId: 'getReadiness',
+      summary: 'Readiness items and remaining time',
+      tags: TAGS,
+    },
+  },
+  async (ctx) => getReadiness(actorOf(ctx), ctx.input.params.runId),
+)
+
+const answerReadinessItemJson = defineRoute(
+  {
+    auth: 'session',
+    input: { params: ReadinessItemParamsSchema, body: AnswerReadinessItemSchema },
+    output: z.object({}),
+    // Sixteen items answered and re-answered in eight minutes is the bucket 10 §4 sizes for the
+    // in-run writes, not the sixty-a-minute one meant for the acts that change a run's state.
+    rateLimit: { bucket: 'run-events' },
+    openapi: { operationId: 'answerReadinessItem', summary: 'Answer an item', tags: TAGS },
+  },
+  async (ctx) => {
+    const { runId, itemId } = ctx.input.params
+    await answerReadinessItem(actorOf(ctx), runId, itemId, ctx.input.body)
+    return {}
+  },
+)
+
+export const answerReadinessItemRoute = noContent(answerReadinessItemJson, 'Recorded')
+
+export const submitReadinessRoute = defineRoute(
+  {
+    auth: 'session',
+    input: { params: RunIdParamsSchema },
+    output: ReadinessResultSchema,
+    rateLimit: { bucket: 'write' },
+    openapi: {
+      operationId: 'submitReadiness',
+      summary: 'Submit the Readiness Check',
+      tags: TAGS,
+    },
+  },
+  async (ctx) => submitReadiness(actorOf(ctx), ctx.input.params.runId),
+)
+
+export const skipReadinessRoute = defineRoute(
+  {
+    auth: 'session',
+    input: { params: RunIdParamsSchema },
+    output: ReadinessResultSchema,
+    rateLimit: { bucket: 'write' },
+    openapi: {
+      operationId: 'skipReadiness',
+      summary: 'Skip after a failure to complete',
+      tags: TAGS,
+    },
+  },
+  async (ctx) => skipReadiness(actorOf(ctx), ctx.input.params.runId),
+)
+
+// ---------------------------------------------------------------------------------------------
+// The workspace: the Evidence Room and the frame (07 §7, FR-020 to FR-024, FR-040)
+//
+// The two open-tracking rows are on the `run-events` bucket rather than `write` (10 §4): a student
+// reading nine documents opens and closes them far more often than they change the run's state, and
+// the client sends a close on unmount, on `visibilitychange` and on `beforeunload`. The frame is a
+// `write`: it happens once.
+// ---------------------------------------------------------------------------------------------
+
+export const getRunWorkspaceRoute = defineRoute(
+  {
+    auth: 'session',
+    input: { params: RunIdParamsSchema },
+    output: RunWorkspaceSchema,
+    rateLimit: { bucket: 'read' },
+    openapi: {
+      operationId: 'getRunWorkspace',
+      summary: 'The brief, the Evidence Room, and the frame',
+      tags: TAGS,
+    },
+  },
+  async (ctx) => getRunWorkspace(actorOf(ctx), ctx.input.params.runId),
+)
+
+/**
+ * The one route that hands over a document body, and it is a POST because it writes: the response
+ * and the `document_open` event are one transaction, so a body cannot be read without the run
+ * recording that it was (FR-022).
+ */
+export const openDocumentRoute = defineRoute(
+  {
+    auth: 'session',
+    input: { params: DocumentParamsSchema },
+    output: DocumentOpenedSchema,
+    rateLimit: { bucket: 'run-events' },
+    openapi: {
+      operationId: 'openDocument',
+      summary: 'Open a document in the Evidence Room',
+      tags: TAGS,
+    },
+  },
+  async (ctx) => {
+    const { runId, documentId } = ctx.input.params
+    return openDocument(actorOf(ctx), runId, documentId)
+  },
+)
+
+const closeDocumentJson = defineRoute(
+  {
+    auth: 'session',
+    input: { params: DocumentOpenParamsSchema },
+    output: z.object({}),
+    rateLimit: { bucket: 'run-events' },
+    openapi: { operationId: 'closeDocument', summary: 'Close a document', tags: TAGS },
+  },
+  async (ctx) => {
+    const { runId, openId } = ctx.input.params
+    await closeDocument(actorOf(ctx), runId, openId)
+    return {}
+  },
+)
+
+export const closeDocumentRoute = noContent(closeDocumentJson, 'Recorded')
+
+/**
+ * `LockFrameInputSchema` is the wire shape and `LockFrameSchema` the rule, applied by the service:
+ * a frame that breaks one answers `FRAME_INVALID` naming the field (10 §6), which is what the form
+ * binds its error to, rather than the generic validation failure a route-level refinement produces.
+ */
+export const lockFrameRoute = defineRoute(
+  {
+    auth: 'session',
+    input: { params: RunIdParamsSchema, body: LockFrameInputSchema },
+    output: RunSummarySchema,
+    rateLimit: { bucket: 'write' },
+    openapi: {
+      operationId: 'lockFrame',
+      summary: 'Lock the frame and start the working clock',
+      tags: TAGS,
+    },
+  },
+  async (ctx) => lockFrame(actorOf(ctx), ctx.input.params.runId, ctx.input.body),
+)
+
+// ---------------------------------------------------------------------------------------------
+// Test control (D-109) — `APP_ENV=test` only, and absent from OpenAPI
+// ---------------------------------------------------------------------------------------------
+
+const advanceClockJson = defineRoute(
+  {
+    auth: 'session',
+    input: { params: RunIdParamsSchema, body: AdvanceClockSchema },
+    output: RunSummarySchema,
+    rateLimit: { bucket: 'write' },
+    openapi: {
+      operationId: 'advanceRunClock',
+      summary: 'Shift a run’s clock backwards (test only)',
+      tags: TAGS,
+    },
+  },
+  async (ctx) => advanceRunClock(actorOf(ctx), ctx.input.params.runId, ctx.input.body),
+)
+
+/**
+ * `POST /api/v1/test/runs/{runId}/advance-clock` (D-109, 07 §7's test-only line).
+ *
+ * Two things make it safe to have in the tree at all.
+ *
+ * It is **not documented**: unlike every other handler here it is not passed through
+ * `attachRouteSpec`, so `scripts/openapi-generate.ts` — which reads the spec off the exported
+ * handler — cannot see it, and `docs/tech/openapi.yaml` never gains an operation for a route that
+ * exists only in a test process.
+ *
+ * And it is **closed before anything else runs**: the environment is checked here, ahead of the
+ * session lookup `defineRoute` would do first, so outside a test process the path answers the same
+ * 404 an unmounted route does rather than 401 — an unauthenticated caller learns nothing from it.
+ * `advanceRunClock` checks the same gate again before it touches a row, because a guard that lives
+ * only in a route is a guard one refactor away from being gone.
+ */
+export const advanceClockRoute: RouteHandler = async (request, routeCtx) => {
+  try {
+    assertTestEnvironment()
+  } catch (error) {
+    return toErrorResponse(error, getOrCreateRequestId(request.headers))
+  }
+  return advanceClockJson(request, routeCtx)
+}
