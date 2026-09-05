@@ -64,8 +64,8 @@
 - [x] Phase 5 exit criteria
 
 ## Phase 6 — Run core (`build-plan/phase-06-run-core.md`)
-- [ ] 6.1 Trace module: append, sequencing, reading
-- [ ] 6.2 Runs module: state machine, clock, limits, start, policy acknowledgement
+- [x] 6.1 Trace module: append, sequencing, reading
+- [x] 6.2 Runs module: state machine, clock, limits, start, policy acknowledgement
 - [ ] 6.3 Readiness Check service
 - [ ] 6.4 Evidence Room opens and the frame
 - [ ] 6.5 Student screens: runs list, policy display, readiness, run frame and clock, workspace (framing)
