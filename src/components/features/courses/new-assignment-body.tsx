@@ -9,7 +9,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { t } from '@/lib/i18n/t'
+import { t } from '@/lib/i18n/messages/courses'
 import { AssignmentForm } from './assignment-form'
 import type { PackageVersionOption } from './package-version-option'
 

@@ -1,7 +1,7 @@
 'use client'
 
 import { Building2, ChevronDown, CircleUserRound, Loader2Icon } from 'lucide-react'
-import { t } from '@/lib/i18n/t'
+import { t } from '@/lib/i18n/messages/shell'
 
 // The visible half of the header's two menu triggers (UI-008). Each is rendered twice: once as the
 // plain button the shell paints before the menu's code has arrived (./deferred-menu) and once as

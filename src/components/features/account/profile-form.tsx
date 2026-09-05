@@ -8,10 +8,15 @@ import { object, type output } from 'zod/mini'
 import { toast } from 'sonner'
 import { Field, FieldDescription, FieldError, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
-import { t } from '@/lib/i18n/t'
 import { nameField } from '@/lib/auth/form-fields'
+import { auth } from '@/lib/i18n/messages/auth'
+import { settings } from '@/lib/i18n/messages/settings'
+import { scopedT } from '@/lib/i18n/scoped'
 import { updateProfileAction } from '@/server/modules/identity/actions'
 import { FormAlert, SubmitButton } from './form-feedback'
+
+// A settings screen whose one field is the name the auth screens already word and validate.
+const t = scopedT(auth, settings)
 
 // UI-010 Profile (SYS-003). The rule is the same one `updateProfileSchema` enforces at the action
 // and at `PATCH /me`, built here from the shared `nameField` so the bound has one source (D-186):

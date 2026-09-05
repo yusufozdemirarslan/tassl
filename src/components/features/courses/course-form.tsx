@@ -10,7 +10,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog'
-import { t } from '@/lib/i18n/t'
+import { t } from '@/lib/i18n/messages/courses'
 import { DeferredFormFallback, useDeferredModule } from './deferred-form'
 
 // UI-030 → "New course". Two fields, because those are the two a course cannot exist without: the

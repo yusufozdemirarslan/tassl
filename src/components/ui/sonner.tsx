@@ -10,7 +10,7 @@ import {
   Loader2Icon,
 } from 'lucide-react'
 
-import { t } from '@/lib/i18n/t'
+import { t } from '@/lib/i18n/messages/ui'
 
 // One theme only (D-025): the toaster is always light and takes the product tokens. globals.css
 // gives [data-sonner-toast] the Plex face and the float shadow.

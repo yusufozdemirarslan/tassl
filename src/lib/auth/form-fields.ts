@@ -1,6 +1,6 @@
 import { email, maxLength, minLength, string, trim } from 'zod/mini'
 
-import { t } from '@/lib/i18n/t'
+import { t } from '@/lib/i18n/messages/auth'
 
 /**
  * The field shapes the five public authentication forms share (UI-001 to UI-004). The bounds live

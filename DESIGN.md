@@ -249,6 +249,14 @@ Weights shipped: Serif 500 and 600; Sans 400, 500, 600; Mono 400 and 500 with `f
 - **Label / meta** (Sans 500, 13px, 20px): buttons, chips, table headers, metadata; sentence case, never uppercase tracking.
 - **Mono** (Mono 400/500, 14px, 20px) and **Mono dense** (12px, 18px): trace data, keys, request ids, the clock, matrix cells and timeline labels.
 
+**The Descending-Heading Rule.** Below a panel's Title the levels step down in size only, never in colour: **h3** is
+Subtitle (Serif 500, 20/28); **h4** is Serif 500 at the reading size (16/26); **h5** is Sans 600, 14/22, in ink. A
+heading is never `--ink-muted`, and never smaller than the prose it introduces — a section title set in muted meta
+above full-size body reads as a caption for the paragraph rather than a heading over it. The rung below h5 is not a
+heading at all but a bold-body paragraph (Sans 500, 14/22, ink). Components whose heading style is fixed — `Panel`,
+`EmptyState`, `ErrorState`, `IllustrativeSample` — keep taking a `headingLevel` for the document outline and keep
+their own style; this rule governs prose headings written inside a section.
+
 ### Named Rules
 
 **The Tabular Clock Rule.** Anything that counts (the clock, word counts, confidence) uses Mono with tabular figures so digits never shift.
@@ -299,7 +307,7 @@ Every component takes its strings from `t()`, is keyboard operable, and shows th
 
 ### Chips
 
-- **Label chips** (`draft`, `confirmed`, `uncalibrated`, `walkthrough`, `provisional`, `unreviewed`, `sample`): 2 px radius, 13/20 weight 500 ink text, a soft fill (`--amber-soft`, `--green-soft`, `--primary-soft`, `--paper-sunken`), a 2 px left border and a 16 px icon in the strong color.
+- **Label chips** (`draft`, `confirmed`, `uncalibrated`, `walkthrough`, `provisional`, `unreviewed`, `sample`, `warning`, `planted`): 2 px radius, 13/20 weight 500 ink text, a soft fill (`--amber-soft`, `--green-soft`, `--primary-soft`, `--paper-sunken`, and `--red-soft` for `planted` alone — the one label that names something an author placed for a student to find), a 2 px left border and a 16 px icon in the strong color.
 - **Stance chips:** pill, 40 px tall, `--paper-raised` fill with a hairline border at rest; when selected the fill is the stance color's wash and the border and icon are the stance color; the text stays ink. Five chips behave as a radio group.
 - **Badge** (shadcn primitive): the same shape as a label chip (24 px tall, 2 px radius, 13/20 weight 500, soft fill with the strong color for text or border, no glow); product labels use `LabelChip`, Badge is for counts and ad-hoc tags.
 

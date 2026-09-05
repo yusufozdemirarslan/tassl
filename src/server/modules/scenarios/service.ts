@@ -416,6 +416,24 @@ function countElements(version: repo.VersionFull): ElementCounts {
 }
 
 /**
+ * How many documents a version holds, how many claims, how many of them the variants disagree
+ * about: a count is a fact about the contents, not about the cost of authoring them. A seat that
+ * reads "measures only" is told the version contains nothing it may read, so the counts are emptied
+ * with the rest of the content (08 §4) — otherwise the screen names the size of every part of a
+ * package in the same breath as refusing to show any of it.
+ */
+const EMPTY_COUNTS: ElementCounts = {
+  documents: 0,
+  stakeholders: 0,
+  answerSpacePositions: 0,
+  namedFields: 0,
+  claims: 0,
+  variants: 0,
+  defenseQuestions: 0,
+  readinessItems: 0,
+}
+
+/**
  * D-083: the PRD asks every family to include an ethical-shortcut defect and gives the build family
  * exactly one defect, a stale-evidence one. The two rules cannot both hold, so the shortfall is a
  * warning on the list rather than a block. `unacceptable_route` is the failure family that carries
@@ -1421,9 +1439,10 @@ async function buildVersionView(
 
   // 08 §4: the program lead's row on this line reads "measures only". They are admitted to how long
   // confirmation took and who signed the version, because that is institutional accounting — not to
-  // the brief, the counterfactual, the element-by-element record, or the rule failures, which name
-  // where the defects are. The fields are emptied rather than dropped so one shape serves the
-  // endpoint, and `restricted` is what lets the screen say so instead of drawing a blank package.
+  // the brief, the counterfactual, the element-by-element record, the counts of what it holds, or
+  // the rule failures, which name where the defects are. The fields are emptied rather than dropped
+  // so one shape serves the endpoint, and `restricted` is what lets the screen say so instead of
+  // drawing a blank package.
   const content = VERSION_CONTENT_ROLES.includes(role)
 
   return {
@@ -1444,7 +1463,7 @@ async function buildVersionView(
     teachingNoteChecked: version.teachingNoteChecked,
     confirmedAt: isoOrNull(version.confirmedAt),
     confirmedBy: version.confirmedBy,
-    counts: countElements(version),
+    counts: content ? countElements(version) : EMPTY_COUNTS,
     confirmationRecord: content ? confirmations.map((row) => toConfirmationView(row, names)) : [],
     authoringRecord: toAuthoringRecord(version, confirmations, names),
     measures: {

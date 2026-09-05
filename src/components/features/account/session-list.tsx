@@ -7,8 +7,15 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { authClient } from '@/lib/auth-client'
 import { formatDateTime } from '@/lib/format/date-time'
-import { t } from '@/lib/i18n/t'
+import { auth } from '@/lib/i18n/messages/auth'
+import { settings } from '@/lib/i18n/messages/settings'
+import { ui } from '@/lib/i18n/messages/ui'
+import { scopedT } from '@/lib/i18n/scoped'
 import { FormAlert } from './form-feedback'
+
+// A settings screen that loads in the browser: the loading word is shared (ui), and a refusal from
+// Better Auth is worded the way the auth screens word it.
+const t = scopedT(auth, settings, ui)
 
 // UI-010 Security → "Signed-in devices". Better Auth owns sessions, so the list is read in the
 // browser from `authClient.listSessions()`; the current session is marked by matching its token

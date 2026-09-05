@@ -2,7 +2,7 @@
 
 import { FormAlert } from '@/components/features/account/form-feedback'
 import type { DeferredStatus } from '@/lib/hooks/use-deferred-module'
-import { t } from '@/lib/i18n/t'
+import { t } from '@/lib/i18n/messages/ui'
 
 // B4 / NFR-013 (16 §3.2). A form that only exists once a dialog is open is not part of what the
 // route paints, so it should not be part of what the route downloads: react-hook-form, the

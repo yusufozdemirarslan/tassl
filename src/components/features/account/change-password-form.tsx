@@ -10,8 +10,35 @@ import { Field, FieldError, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
 import { authClient } from '@/lib/auth-client'
 import { currentPasswordField, newPasswordField } from '@/lib/auth/form-fields'
-import { t } from '@/lib/i18n/t'
-import { FormAlert, SubmitButton, passwordChangeMessage } from './form-feedback'
+import { auth } from '@/lib/i18n/messages/auth'
+import { settings } from '@/lib/i18n/messages/settings'
+import { scopedT } from '@/lib/i18n/scoped'
+import { FormAlert, SubmitButton } from './form-feedback'
+
+// The panel is a settings screen written out of the shared password vocabulary.
+const t = scopedT(auth, settings)
+
+/**
+ * What Better Auth's client hands back on a refusal (08 §2): `{ status, code?, message? }`, never a
+ * throw. The mapping is small and says what the person can do about it; anything else is the
+ * generic sentence rather than a raw library string.
+ *
+ * It lives beside its one caller rather than in `./form-feedback`, which sixteen screens import for
+ * its chrome: a namespace read there is a namespace every one of them ships (B4).
+ */
+function passwordChangeMessage(error: { code?: string | undefined; status: number }): string {
+  if (error.status === 429) return t('auth.error.rateLimitedNoSeconds')
+  switch (error.code) {
+    case 'INVALID_PASSWORD':
+    case 'INVALID_EMAIL_OR_PASSWORD':
+      return t('settings.security.wrongPassword')
+    case 'PASSWORD_TOO_SHORT':
+    case 'PASSWORD_TOO_LONG':
+      return t('auth.validation.passwordLength')
+    default:
+      return t('auth.error.generic')
+  }
+}
 
 // UI-010 Security (08 §2.8): the current password is required, the new one is 12 to 128 characters
 // with no composition rules, and a successful change revokes every other session — which is stated

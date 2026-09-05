@@ -30,7 +30,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
-import { t } from '@/lib/i18n/t'
+import { t } from '@/lib/i18n/messages/assignment'
 import { createAssignmentAction, updateAssignmentAction } from '@/server/modules/courses/actions'
 import type { AssignmentVariantOption, PackageVersionOption } from './package-version-option'
 

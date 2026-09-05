@@ -1,4 +1,4 @@
-import { t } from '@/lib/i18n/t'
+import { t } from '@/lib/i18n/messages/ui'
 
 // One timestamp format for the whole product (D-177). It is deliberately fixed to UTC: the same
 // string is produced by the server render and by the hydration that follows it, so a `<time>` in a

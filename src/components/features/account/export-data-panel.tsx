@@ -4,8 +4,13 @@ import { useState } from 'react'
 import { DownloadIcon, Loader2Icon } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
-import { t } from '@/lib/i18n/t'
+import { identity } from '@/lib/i18n/messages/identity'
+import { settings } from '@/lib/i18n/messages/settings'
+import { scopedT } from '@/lib/i18n/scoped'
 import { FormAlert } from './form-feedback'
+
+// The panel is a settings screen; the downloaded file's name belongs to the identity module.
+const t = scopedT(identity, settings)
 
 // UI-010 Data → "Download my data" (SYS-004). The export is a route, not an action, because it
 // answers with a file: `POST /api/v1/me/export` sets `content-disposition`, and the browser is

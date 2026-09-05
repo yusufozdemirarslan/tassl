@@ -27,10 +27,22 @@ import {
   courses,
   invitation,
   organization,
+  answerSpacePositions,
+  defenseQuestions,
+  elementConfirmations,
+  namedFields,
+  readinessItems,
+  scenarioClaims,
+  scenarioDocuments,
   scenarioPackages,
   scenarioPackageVersions,
+  scenarioTurns,
   scenarioVariants,
   sectionMemberships,
+  seedRecords,
+  stakeholders,
+  sycophancyProbes,
+  variantClaimStates,
   sections,
 } from '@/server/db/schema'
 import {
@@ -94,6 +106,77 @@ export async function purgeSuiteData(organizationId: string): Promise<void> {
         like(invitation.email, `${SUITE_INVITE_PREFIX}%`),
       ),
     )
+
+  await purgeSuitePackages(organizationId)
+}
+
+/**
+ * The packages the author specs create. Nothing in the product deletes a package, so they are taken
+ * out here by title, and only ever under SUITE_PREFIX — the seeded Meridian Roast package carries
+ * no prefix, so it cannot be reached from here.
+ *
+ * A version's elements have no cascade, so they go first, then the versions, then the family. The
+ * confirmed ones are frozen by the triggers of migration 0004, which refuse an UPDATE and not a
+ * DELETE, so a confirmed version can be removed but never edited.
+ */
+async function purgeSuitePackages(organizationId: string): Promise<void> {
+  const packageRows = await db
+    .select({ id: scenarioPackages.id })
+    .from(scenarioPackages)
+    .where(
+      and(
+        eq(scenarioPackages.organizationId, organizationId),
+        like(scenarioPackages.title, `${SUITE_PREFIX}%`),
+      ),
+    )
+  const packageIds = packageRows.map((row) => row.id)
+  if (packageIds.length === 0) return
+
+  const versionRows = await db
+    .select({ id: scenarioPackageVersions.id })
+    .from(scenarioPackageVersions)
+    .where(inArray(scenarioPackageVersions.packageId, packageIds))
+  const versionIds = versionRows.map((row) => row.id)
+
+  if (versionIds.length > 0) {
+    // Element rows in reference order: what points at something else goes before what it points at.
+    const variantRows = await db
+      .select({ id: scenarioVariants.id })
+      .from(scenarioVariants)
+      .where(inArray(scenarioVariants.packageVersionId, versionIds))
+    const variantIds = variantRows.map((row) => row.id)
+    if (variantIds.length > 0) {
+      await db.delete(variantClaimStates).where(inArray(variantClaimStates.variantId, variantIds))
+    }
+    await db
+      .delete(elementConfirmations)
+      .where(inArray(elementConfirmations.packageVersionId, versionIds))
+    await db.delete(sycophancyProbes).where(inArray(sycophancyProbes.packageVersionId, versionIds))
+    await db.delete(scenarioTurns).where(inArray(scenarioTurns.packageVersionId, versionIds))
+    await db.delete(defenseQuestions).where(inArray(defenseQuestions.packageVersionId, versionIds))
+    await db.delete(readinessItems).where(inArray(readinessItems.packageVersionId, versionIds))
+    await db.delete(scenarioClaims).where(inArray(scenarioClaims.packageVersionId, versionIds))
+    await db.delete(scenarioVariants).where(inArray(scenarioVariants.packageVersionId, versionIds))
+    await db.delete(namedFields).where(inArray(namedFields.packageVersionId, versionIds))
+    await db
+      .delete(answerSpacePositions)
+      .where(inArray(answerSpacePositions.packageVersionId, versionIds))
+    // A superseded document names its successor, so the reference is cleared before the rows go —
+    // and the role with it, because `scenario_documents_superseded_by_check` refuses a row that is
+    // still superseded with no successor. Clearing only the pointer aborted the whole purge, and
+    // with it the setup and teardown of every spec (found by the Step 5.4 critique).
+    await db
+      .update(scenarioDocuments)
+      .set({ role: 'supporting', supersededByDocumentId: null, stakeholderId: null })
+      .where(inArray(scenarioDocuments.packageVersionId, versionIds))
+    await db
+      .delete(scenarioDocuments)
+      .where(inArray(scenarioDocuments.packageVersionId, versionIds))
+    await db.delete(stakeholders).where(inArray(stakeholders.packageVersionId, versionIds))
+    await db.delete(seedRecords).where(inArray(seedRecords.packageVersionId, versionIds))
+    await db.delete(scenarioPackageVersions).where(inArray(scenarioPackageVersions.id, versionIds))
+  }
+  await db.delete(scenarioPackages).where(inArray(scenarioPackages.id, packageIds))
 }
 
 /** Writes the confirmed fixture version once; a second run finds it and leaves it alone. */

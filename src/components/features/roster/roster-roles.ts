@@ -1,11 +1,14 @@
-import { t } from '@/lib/i18n/t'
+import { role } from '@/lib/i18n/messages/role'
+import { roster } from '@/lib/i18n/messages/roster'
+import { scopedT } from '@/lib/i18n/scoped'
 import type { SectionRoleValue } from '@/server/modules/courses/schema'
 import type { OrganizationRoleValue } from '@/server/modules/tenancy/schema'
 
 // The two role vocabularies UI-031 works in, written once because the screen and the invitation
 // dialog behind it both read them and the dialog is a separate chunk (B4, see ./roster-dialogs).
 // Types only from the module schemas: the labels are strings, and no Zod runtime crosses into the
-// browser (D-186).
+// browser (D-186). One vocabulary per namespace, so the file reads both.
+const t = scopedT(role, roster)
 
 /** The section roles a roster row can hold (`section_memberships.role`, 08 §3). */
 export const SECTION_ROLES = ['student', 'instructor', 'ta'] as const

@@ -11,7 +11,7 @@ import { Field, FieldDescription, FieldError, FieldLabel } from '@/components/ui
 import { Input } from '@/components/ui/input'
 import { authClient } from '@/lib/auth-client'
 import { NAME_MAX_LENGTH, emailField, nameField, newPasswordField } from '@/lib/auth/form-fields'
-import { t } from '@/lib/i18n/t'
+import { t } from '@/lib/i18n/messages/auth'
 import {
   FormAlert,
   SubmitButton,

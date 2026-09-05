@@ -2,7 +2,7 @@
 
 import { Building2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { t } from '@/lib/i18n/t'
+import { t } from '@/lib/i18n/messages/shell'
 import { useDeferredMenu } from './deferred-menu'
 import { InstitutionTriggerContent, institutionTriggerClassName } from './header-menu-triggers'
 

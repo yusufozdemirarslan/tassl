@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import { cn } from '@/lib/cn'
-import { t } from '@/lib/i18n/t'
+import { t } from '@/lib/i18n/messages/error'
 
 type ErrorStateProps = {
   title?: string

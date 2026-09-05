@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { authClient } from '@/lib/auth-client'
-import { t } from '@/lib/i18n/t'
+import { t } from '@/lib/i18n/messages/auth'
 import { FormAlert, callAuth, mapAuthError, type AuthFormError } from './auth-feedback'
 
 /**

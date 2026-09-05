@@ -67,15 +67,21 @@ function settleBeforeNavigating(page: Page): Page {
   const wasCancelled = (error: unknown): boolean =>
     error instanceof Error && error.message.includes('NS_BINDING_ABORTED')
 
+  /** One first try and two retries: enough for a refresh that lands in two waves, bounded so a page that cancels every load still fails. */
+  const ATTEMPTS = 3
+
   const navigate = async <T>(attempt: () => Promise<T>): Promise<T> => {
-    await settle()
-    let answer: T
-    try {
-      answer = await attempt()
-    } catch (error) {
-      if (!wasCancelled(error)) throw error
+    let answer: T | undefined
+    for (let tries = 1; ; tries += 1) {
       await settle()
-      answer = await attempt()
+      try {
+        answer = await attempt()
+        break
+      } catch (error) {
+        // A cancelled load did not happen, so asking again asserts nothing that was not asked for.
+        // Anything else is the spec's own failure and is raised where it was thrown.
+        if (!wasCancelled(error) || tries >= ATTEMPTS) throw error
+      }
     }
     // And once more on arrival: 'load' fires before React attaches, and a value typed into a field
     // the form does not own yet is a value it never sees — the field looks filled and the submit

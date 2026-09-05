@@ -12,8 +12,23 @@ import { cn } from '@/lib/cn'
 // label plus the 4 px of `py-1` comes to 28 px and the minimum is what shows — and a wrapped
 // second line grows the control instead. `max-w-full` keeps a long label inside its container even
 // though the button never shrinks below its content.
+//
+// Two treatments for a control that cannot act, because they are two different states:
+//
+// `disabled` is the browser's own — removed from the tab order, announced as unavailable, and
+// exempt from contrast (WCAG 1.4.3 "inactive user interface components"). It keeps DESIGN.md's
+// 45 % opacity.
+//
+// `aria-disabled` is the one this product reaches for wherever the control must stay reachable and
+// carry its reason (the lock button while a claim is unstanced, "Create and generate" on UI-041, a
+// submit while its request is in flight). That control is still focusable and still read aloud, so
+// the inactive-component exemption is a poor fit for it — and 45 % opacity measured 2.14:1 on the
+// secondary variant's teal label, which nobody can read. It instead takes the sunken well and
+// muted ink the rest of the product uses for "present, not available now": ink-muted on
+// paper-sunken is 6.5:1, and the fill, not the fade, is what says it cannot act. The hover and
+// active fills are pinned back to the same well so a press changes nothing.
 const buttonVariants = cva(
-  "group/button inline-flex max-w-full shrink-0 items-center justify-center gap-2 rounded-md border border-transparent text-center text-meta font-medium transition-colors duration-150 ease-out select-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus disabled:pointer-events-none disabled:opacity-45 aria-disabled:opacity-45 aria-invalid:border-destructive [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+  "group/button inline-flex max-w-full shrink-0 items-center justify-center gap-2 rounded-md border border-transparent text-center text-meta font-medium transition-colors duration-150 ease-out select-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus disabled:pointer-events-none disabled:opacity-45 aria-disabled:cursor-default aria-disabled:bg-paper-sunken aria-disabled:text-ink-muted aria-disabled:hover:bg-paper-sunken aria-disabled:active:bg-paper-sunken aria-invalid:border-destructive [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
   {
     variants: {
       variant: {

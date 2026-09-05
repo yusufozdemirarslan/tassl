@@ -21,7 +21,7 @@ import { EmptyState } from '@/components/layout/empty-state'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/cn'
 import { formatDateTime } from '@/lib/format/date-time'
-import { t } from '@/lib/i18n/t'
+import { t } from '@/lib/i18n/messages/notifications'
 import {
   listNotificationsAction,
   markAllNotificationsReadAction,

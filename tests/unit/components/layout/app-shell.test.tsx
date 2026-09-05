@@ -183,6 +183,7 @@ describe('rail derivation (UI-008)', () => {
       'home',
       'courses',
       'review',
+      'packages',
     ])
     expect(permittedRailKeys({ roles: ['teaching_assistant'], platformRole: 'none' })).toEqual([
       'home',
@@ -198,18 +199,23 @@ describe('rail derivation (UI-008)', () => {
     ])
   })
 
-  it('adds Packages for a platform editor and Admin for a platform admin', () => {
+  it('offers Packages on the seat that authors them, not on a platform role', () => {
+    // 08 §4 gives the platform editor the author column "in any org where the editor has a
+    // scenario_author membership", and `listPackages` refuses anyone without that seat, so the
+    // platform role alone offers nothing — a rail link the service turns away is worse than none.
     expect(permittedRailKeys({ roles: [], platformRole: 'tassl_scenario_editor' })).toEqual([
       'home',
-      'packages',
     ])
+    expect(
+      permittedRailKeys({ roles: ['scenario_author'], platformRole: 'tassl_scenario_editor' }),
+    ).toEqual(['home', 'packages'])
     expect(permittedRailKeys({ roles: [], platformRole: 'admin' })).toEqual(['home', 'admin'])
   })
 
   it('unions the roles held across institutions, without repeating a destination', () => {
     expect(
       permittedRailKeys({ roles: ['student', 'instructor', 'instructor'], platformRole: 'none' }),
-    ).toEqual(['home', 'runs', 'courses', 'review'])
+    ).toEqual(['home', 'runs', 'courses', 'review', 'packages'])
   })
 
   it('renders only the destinations whose routes exist, so no rail link can 404', () => {
@@ -217,11 +223,12 @@ describe('rail derivation (UI-008)', () => {
       roles: ['student', 'instructor', 'scenario_author'],
       platformRole: 'admin',
     })
-    // Runs, Review, Packages, and Admin are permitted for these roles but have no route yet;
-    // Courses landed with step 4.2 (UI-030), so it is the second destination that renders.
+    // Runs, Review and Admin are permitted for these roles but have no route yet; Courses landed
+    // with step 4.2 (UI-030) and Packages with step 5.4 (UI-040), so those two render.
     expect(items).toEqual([
       { href: '/home', label: enUS['nav.home'], icon: 'home' },
       { href: '/courses', label: enUS['nav.courses'], icon: 'courses' },
+      { href: '/packages', label: enUS['nav.packages'], icon: 'packages' },
     ])
   })
 

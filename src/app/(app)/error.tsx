@@ -4,7 +4,7 @@ import { useEffect } from 'react'
 import { ErrorState } from '@/components/layout/error-state'
 import { Panel } from '@/components/layout/panel'
 import { Button } from '@/components/ui/button'
-import { t } from '@/lib/i18n/t'
+import { t } from '@/lib/i18n/messages/error'
 
 // Error boundary for pages inside the app shell (09 §1: "shell skeleton; boundary"). The shell,
 // its skip link, and focus management stay mounted; the page area shows the error state. The

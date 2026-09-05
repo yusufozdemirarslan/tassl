@@ -1,15 +1,17 @@
 import {
   BadgeCheck,
   EyeOff,
+  Flag,
   FlaskConical,
   Footprints,
   Hourglass,
   PencilLine,
   ScanSearch,
+  TriangleAlert,
   type LucideIcon,
 } from 'lucide-react'
 import { cn } from '@/lib/cn'
-import { t } from '@/lib/i18n/t'
+import { t } from '@/lib/i18n/messages/label'
 
 export type LabelKind =
   | 'draft'
@@ -20,9 +22,18 @@ export type LabelKind =
   | 'unreviewed'
   /** The FR-254 "Illustrative sample data" label carried by IllustrativeSample. */
   | 'sample'
+  /**
+   * Something the author should look at before this package is used (the authoring warnings of
+   * FR-190). The wording is the warning's own, so this kind is the one that expects `label`.
+   */
+  | 'warning'
+  /** The one consequential defect an author planted in a variant (`DEFECTIVE_VARIANT_PLANT`). */
+  | 'planted'
 
 // Ink text on a soft wash with the strong color as border and icon only (DESIGN.md: the
-// Amber-Is-Not-Text rule). Amber marks draft, provisional, uncalibrated, and sample states.
+// Amber-Is-Not-Text rule). Amber marks draft, provisional, uncalibrated, sample, and warning
+// states; red marks the planted defect, which is the one fact on a package screen that changes
+// what the reader does next.
 const STYLES: Record<LabelKind, { icon: LucideIcon; className: string }> = {
   draft: { icon: PencilLine, className: 'bg-amber-soft border-amber [&_svg]:text-amber' },
   provisional: { icon: Hourglass, className: 'bg-amber-soft border-amber [&_svg]:text-amber' },
@@ -37,6 +48,8 @@ const STYLES: Record<LabelKind, { icon: LucideIcon; className: string }> = {
     icon: EyeOff,
     className: 'bg-paper-sunken border-line-strong [&_svg]:text-ink-muted',
   },
+  warning: { icon: TriangleAlert, className: 'bg-amber-soft border-amber [&_svg]:text-amber' },
+  planted: { icon: Flag, className: 'bg-red-soft border-red [&_svg]:text-red' },
 }
 
 const TEXT: Record<LabelKind, () => string> = {
@@ -47,9 +60,21 @@ const TEXT: Record<LabelKind, () => string> = {
   provisional: () => t('label.provisional'),
   unreviewed: () => t('label.unreviewed'),
   sample: () => t('sample.label'),
+  warning: () => t('label.warning'),
+  planted: () => t('label.planted'),
 }
 
-export function LabelChip({ kind, className }: { kind: LabelKind; className?: string }) {
+export function LabelChip({
+  kind,
+  label,
+  className,
+}: {
+  kind: LabelKind
+  /** Wording that varies with the thing being labelled (one warning of several); the kind's own
+   *  word otherwise. A chip is never drawn without text. */
+  label?: string
+  className?: string
+}) {
   const { icon: Icon, className: kindClass } = STYLES[kind]
   return (
     <span
@@ -61,7 +86,7 @@ export function LabelChip({ kind, className }: { kind: LabelKind; className?: st
       )}
     >
       <Icon aria-hidden="true" className="size-4" />
-      {TEXT[kind]()}
+      {label ?? TEXT[kind]()}
     </span>
   )
 }

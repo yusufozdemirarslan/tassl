@@ -26,7 +26,15 @@ export function permittedRailKeys({ roles, platformRole }: RailAudience): RailKe
   if (has('student')) keys.push('runs')
   if (has('instructor') || has('program_lead')) keys.push('courses')
   if (has('instructor') || has('teaching_assistant')) keys.push('review')
-  if (has('scenario_author') || platformRole === 'tassl_scenario_editor') keys.push('packages')
+  // Packages: an instructor authors and confirms them exactly as a scenario author does — 08 §4
+  // gives both the author column, `requireAuthorOnPackage` admits both, and the seeded instructor
+  // is the authority who confirmed the fixture. Offering the destination only to the dedicated
+  // seat hid the shelf from the person who owns it.
+  // A platform editor is not admitted by the platform role alone: 08 §4 gives them the author
+  // column "in any org where the editor has a scenario_author membership", and `listPackages`
+  // refuses anyone without that seat. Offering a destination the service turns away is worse than
+  // not offering it, so the membership decides here too.
+  if (has('instructor') || has('scenario_author')) keys.push('packages')
   if (platformRole === 'admin') keys.push('admin')
   return keys
 }
@@ -38,17 +46,18 @@ export function permittedRailKeys({ roles, platformRole }: RailAudience): RailKe
  *
  *   runs      → Phase 6, step 6.5  (`/runs`)
  *   review    → Phase 11, step 11.4 (`/review`)
- *   packages  → Phase 5, step 5.4  (`/packages`)
  *   admin     → Phase 13, step 13.5 (`/admin`)
  *
- * `/courses` landed with Phase 4, step 4.2 (UI-030), so an instructor or a program lead is now
- * offered it; `permittedRailKeys` above is what decides who sees it.
+ * `/courses` landed with Phase 4, step 4.2 (UI-030) and `/packages` with Phase 5, step 5.4
+ * (UI-040), so an instructor is now offered both; `permittedRailKeys` above is what decides who
+ * sees them.
  *
  * Notifications and Settings are not rail items: they live in the bell and the account menu.
  */
 const READY: Partial<Record<RailKey, RailItem>> = {
   home: { href: '/home', label: t('nav.home'), icon: 'home' },
   courses: { href: '/courses', label: t('nav.courses'), icon: 'courses' },
+  packages: { href: '/packages', label: t('nav.packages'), icon: 'packages' },
 }
 
 export function railFor(audience: RailAudience): RailItem[] {
