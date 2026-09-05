@@ -20,11 +20,13 @@
 //     here would make one rule two, and going through the runs module's public index would make
 //     these two modules a cycle, because the runs service calls this one when a document is opened.
 //   * `trace` — surfacing inside the Turn window writes a `claim_used` event (D-077), and every run
-//     mutation appends its event in the transaction that made it (CLAUDE.md).
+//     mutation appends its event in the transaction that made it (CLAUDE.md). The same module owns
+//     the other rule this file needs: what a run's own student may read of their room in a given
+//     state, which the claim table asks rather than restates (`requireOwnerReadAccess`, D-279).
 import { requireRunOwner } from '@/server/auth/permissions'
 import type { SessionUser } from '@/server/auth/types'
 import { isInTurnWindow, type ClockRun } from '@/server/modules/runs/clock'
-import { append, type TraceRun } from '@/server/modules/trace'
+import { append, requireOwnerReadAccess, type TraceRun } from '@/server/modules/trace'
 import * as repo from './repository'
 import type { ClaimView, SurfacedByValue } from './schema'
 
@@ -35,8 +37,104 @@ import type { ClaimView, SurfacedByValue } from './schema'
  */
 export type SurfacingRun = TraceRun & ClockRun & { packageVersionId: string }
 
-/** What a surfacing answers: the claims it wrote a row for, and the ones already in the room. */
-export type SurfacedClaim = { claimId: string; key: string; text: string; inserted: boolean }
+/**
+ * What a surfacing answers: each claim as the student reads it, and whether *this* call put it in
+ * front of them.
+ *
+ * It is a `ClaimView` and not a summary of one because of what the caller does with it. A
+ * delegation's reply carries a claim card per surfaced claim (07 §7's `segment` event), and the card
+ * is a `ClaimView` — so building one here, from the row this transaction just wrote, is what keeps
+ * the stream from having to re-read the claims it has just surfaced through a projection that would
+ * answer the state *before* the surfacing in a concurrent read.
+ *
+ * `inserted` is the difference between "the student has just met this claim" and "the student has
+ * met it before and it came up again" (10 §7).
+ */
+export type SurfacedClaim = ClaimView & { inserted: boolean }
+
+/**
+ * One surfaced claim as its own student reads it, built by picking from two rows (12 §8).
+ *
+ * The single place a `ClaimView` is constructed. `scenario_claims` carries the trigger phrases, the
+ * carried values, the escalation reply and the author's rationale, and `variant_claim_states` next
+ * to it carries the warranted stance and the planted flag; none of it is in the shape below. Having
+ * one constructor rather than one per read is what makes that a fact about the codebase rather than
+ * a property each caller has to keep.
+ */
+const toClaimView = (runClaim: repo.RunClaim, claim: repo.ScenarioClaim): ClaimView => ({
+  id: claim.id,
+  key: claim.key,
+  text: claim.text,
+  surfacedBy: runClaim.surfacedBy,
+  surfacedAt: runClaim.surfacedAt.toISOString(),
+  inTurnWindow: runClaim.inTurnWindow,
+  stance: runClaim.stance,
+  previousStance: runClaim.previousStance,
+  stanceSetAt: runClaim.stanceSetAt?.toISOString() ?? null,
+  usedMarked: runClaim.usedMarked,
+  reliedOn: runClaim.reliedOn,
+})
+
+// ---------------------------------------------------------------------------------------------
+// Reliance (FR-084, FR-101, D-077)
+// ---------------------------------------------------------------------------------------------
+
+/**
+ * Records that the run relied on a claim, and writes the `claim_used` event that says how (10 §8).
+ *
+ * The three routes are the three ways a student can lean on a claim without saying so in a stance:
+ * marking it used in the Delegation Log (FR-060), naming its value in a brief field (FR-101), and
+ * being handed it inside the Turn window (D-077). All three feed the same rule at the Decision
+ * Lock — a claim relied on without a stance refuses the lock (FR-084) — which is why they are one
+ * function rather than three, and why `relied_on_via` accumulates rather than being replaced.
+ *
+ * **Reliance is not taken back.** `usedMarked` follows the student's control, so unticking "used"
+ * clears the mark; `relied_on_via` keeps `log_mark`, because the student told us they leaned on the
+ * claim and the lock gate is what makes them take a position on it. A reversible route would be a
+ * way to walk past the gate rather than through it (D-270).
+ *
+ * Idempotent: a second call for the same route writes no second event, so a log control pressed
+ * twice records one act. The caller is told whether it was the first.
+ */
+export async function markClaimUsed(
+  tx: repo.Tx,
+  run: SurfacingRun,
+  claimId: string,
+  via: repo.ReliedOnVia,
+  options: {
+    delegationId?: string
+    fieldKey?: string
+    usedMarked?: boolean
+    actorId?: string | null
+    at?: Date
+  } = {},
+): Promise<{ recorded: boolean }> {
+  const existing = await repo.findRunClaim(run.id, claimId, tx)
+  if (!existing) return { recorded: false }
+
+  const already = existing.reliedOnVia.includes(via)
+  await repo.updateReliedOn(
+    run.id,
+    claimId,
+    { via, ...(options.usedMarked === undefined ? {} : { usedMarked: options.usedMarked }) },
+    tx,
+  )
+  if (already) return { recorded: false }
+
+  await append(
+    tx,
+    run,
+    'claim_used',
+    {
+      claim_id: claimId,
+      via,
+      ...(options.fieldKey === undefined ? {} : { field_key: options.fieldKey }),
+      ...(options.delegationId === undefined ? {} : { delegation_id: options.delegationId }),
+    },
+    { actorId: options.actorId ?? null, occurredAt: options.at ?? new Date() },
+  )
+  return { recorded: true }
+}
 
 // ---------------------------------------------------------------------------------------------
 // Surfacing (FR-031, D-077)
@@ -78,7 +176,7 @@ export async function surfaceClaims(
   // so several claims surfaced in one transaction take their numbers in the order they were
   // surfaced (NFR-005).
   for (const claim of claims) {
-    const { inserted } = await repo.upsertRunClaim(
+    const { runClaim, inserted } = await repo.upsertRunClaim(
       run.id,
       {
         claimId: claim.id,
@@ -89,17 +187,14 @@ export async function surfaceClaims(
       },
       tx,
     )
-    if (inWindow) {
-      await repo.updateReliedOn(run.id, claim.id, { via: 'turn_window' }, tx)
-      await append(
-        tx,
-        run,
-        'claim_used',
-        { claim_id: claim.id, via: 'turn_window' },
-        { occurredAt: at },
-      )
-    }
-    surfaced.push({ claimId: claim.id, key: claim.key, text: claim.text, inserted })
+    if (inWindow) await markClaimUsed(tx, run, claim.id, 'turn_window', { at })
+
+    // Re-read when the window marked it relied on, so the view the caller shows the student is the
+    // row as this transaction leaves it rather than as `upsertRunClaim` found it.
+    const current = inWindow
+      ? ((await repo.findRunClaim(run.id, claim.id, tx)) ?? runClaim)
+      : runClaim
+    surfaced.push({ ...toClaimView(current, claim), inserted })
   }
   return surfaced
 }
@@ -148,27 +243,27 @@ export async function surfaceDocumentClaims(
  * values, the escalation reply and the author's rationale, and `variant_claim_states` next to it
  * carries the warranted stance and whether the claim is the planted defect; none of it is in the
  * shape below, and none of it is loaded by this query (12 §8, D-117).
+ *
+ * **Which claims, and whether any at all, are two questions.** The second one is the run's state,
+ * and it is not this module's to answer twice: the claim table with its stances is the room, the
+ * defense is what a student can say without the room (UI-026, FR-120), and `trace.listEvents` and
+ * `assistant.listDelegations` refuse there off one table in `trace/owner-view.ts` (D-233). This
+ * read asks that same table through `requireOwnerReadAccess` rather than keeping a third list of
+ * states that would drift from the other two in silence (D-279).
+ *
+ * The tier it answers is not used here: a `ClaimView` has no field that opens at `scored` — the
+ * warranted stance and the evidence status are never in it, in any state, for anybody — so sealed
+ * or not sealed is the whole of the question.
  */
 export async function listRunClaims(actor: SessionUser, runId: string): Promise<ClaimView[]> {
-  // The only refusal this read can make, and it is not this module's: a run the actor does not own
+  // The refusal this read makes first is not this module's either: a run the actor does not own
   // answers NOT_FOUND rather than FORBIDDEN, because 08 §4 gives a student no read of another
   // student's run at all — saying the id resolves is already more than they may know. There is no
   // `errors.ts` in this module yet for the same reason: 10 §8's six codes belong to the stances and
   // the interrogation actions, and each will land with the rule that raises it (Phase 8).
-  await requireRunOwner(actor, runId)
+  const scope = await requireRunOwner(actor, runId)
+  await requireOwnerReadAccess(scope.organizationId, runId)
 
   const rows = await repo.listRunClaims(runId)
-  return rows.map(({ runClaim, claim }) => ({
-    id: claim.id,
-    key: claim.key,
-    text: claim.text,
-    surfacedBy: runClaim.surfacedBy,
-    surfacedAt: runClaim.surfacedAt.toISOString(),
-    inTurnWindow: runClaim.inTurnWindow,
-    stance: runClaim.stance,
-    previousStance: runClaim.previousStance,
-    stanceSetAt: runClaim.stanceSetAt?.toISOString() ?? null,
-    usedMarked: runClaim.usedMarked,
-    reliedOn: runClaim.reliedOn,
-  }))
+  return rows.map(({ runClaim, claim }) => toClaimView(runClaim, claim))
 }

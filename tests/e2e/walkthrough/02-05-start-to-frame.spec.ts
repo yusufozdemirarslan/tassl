@@ -505,9 +505,10 @@ test('walkthrough steps 2 to 5: policy display, Readiness Check, Evidence Room, 
   await expect(page.getByRole('timer', { name: 'Working clock' })).toHaveText(
     /^[0-9]{2}:[0-5][0-9]$/,
   )
-  await expect(page.locator('#assistant-panel')).toContainText(
-    'Your frame is locked, so the assistant is unlocked.',
-  )
+  // The panel that carried one sentence through the framing period now carries the request box,
+  // and nothing was said about what was written (FR-041). What the assistant answers is the
+  // working period's own walkthrough (`06-working-period.spec.ts`).
+  await expect(page.locator('#assistant-panel').getByLabel('Your request')).toBeVisible()
 
   // The editing controls are gone, and they stay gone on a fresh load of the same address (FR-043).
   await expect(lockButton).toHaveCount(0)

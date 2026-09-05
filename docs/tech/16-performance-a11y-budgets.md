@@ -75,7 +75,7 @@ Authenticated-page lab values: `tests/e2e/perf/web-vitals.spec.ts` signs in as `
 
 | Route group | Budget (gzip JavaScript the route adds to the floor) | Includes |
 |---|---|---|
-| Run routes: `/runs/[runId]/{start,readiness,readiness/result,work,locked,turn,defense,debrief}`, `/runs/[runId]`, `/review/runs/[runId]`, `/records/[runId]` | ≤ 250,000 bytes | root main files + `(app)` layout + run layout + page chunks |
+| Run routes: `/runs/[runId]/{start,readiness,readiness/result,work,locked,turn,defense,debrief}`, `/runs/[runId]`, `/review/runs/[runId]`, `/records/[runId]` | ≤ 130,000 bytes (measured max 98,501, `/runs/[runId]/work`) | root main files + `(app)` layout + run layout + page chunks |
 | Public pages: `/sign-in`, `/sign-up`, `/verify-email`, `/forgot-password`, `/reset-password`, `/privacy`, `/terms` | ≤ 110,000 bytes (measured max 103,058) | root main files + `(public)` layout + page chunks |
 | Every other route | ≤ 175,000 bytes (measured max 170,303, `/settings/security`) | root main files + ancestor layouts + page chunks |
 
@@ -92,6 +92,7 @@ Authenticated-page lab values: `tests/e2e/perf/web-vitals.spec.ts` signs in as `
 - `@ai-sdk/react` is imported only by the assistant panel (`src/components/features/assistant/*`), which is loaded by the `work` and `turn` pages only.
 - `posthog-js` and `@sentry/nextjs` client code load from `src/instrumentation-client.ts` (counted in the root main files; the two together must stay under 90,000 bytes gzip, verified by the same script as part of every route's total).
 - No client component imports `src/server/*` (boundaries lint, `04-repo-structure.md` §2), so server-only libraries never reach a bundle.
+- A route that draws more than one screen reaches the screen-specific subtrees through `next/dynamic` from a `'use client'` shim, never through a plain import (D-282). `entryJSFiles` is the static union of a page's client modules, so a run in `framing` would otherwise pay for the assistant panel and the Delegation Log and a run in `working` for `react-hook-form` and its resolver: `src/components/features/run/deferred-panels.tsx` re-exports `FrameForm`, `AssistantPanel`, `DelegationLog` and `DeclarationControl`, and `/runs/[runId]/work` falls from 172,773 to 98,501 bytes. The shim must be a Client Component — a Server Component that dynamically imports a Client Component gets no code splitting — and `ssr` keeps its default `true`, so the panels are still in the first HTML per §2.2 and hydration alone waits. No `loading` fallback is passed: it is the fallback that creates the Suspense boundary, and an empty box of a guessed height is not a placeholder §2.4 allows. `PausedOverlay` is excluded by name: it is portalled, renders nothing server-side, and FR-001 does not allow a chunk fetch in front of the news that the clock stopped — under Turbopack there is no `react-loadable-manifest.json`, so `next/dynamic` cannot preload it from the HTML.
 
 ### 3.3 Graph loading contract
 
@@ -129,13 +130,18 @@ import vm from 'node:vm'
 import { gzipSync } from 'node:zlib'
 
 const NEXT = join(process.cwd(), '.next')
+
+/** React 19 + the Next 16 client runtime (`rootMainFiles`), 130,897 bytes gzip on 2026-09-04 (D-187). */
+const FRAMEWORK_FLOOR_MAX_BYTES = 175_000
+
+/** Bytes a route may add on top of the floor: its layouts, its page, and their client components. */
 const budgets: Array<{ pattern: RegExp; maxBytes: number; label: string }> = [
-  { pattern: /^\/\(app\)\/runs\/\[runId\](\/|$)/, maxBytes: 250_000, label: 'run route' },
-  { pattern: /^\/\(app\)\/review\/runs\/\[runId\]$/, maxBytes: 250_000, label: 'run route' },
-  { pattern: /^\/\(app\)\/records\/\[runId\]$/, maxBytes: 250_000, label: 'run route' },
-  { pattern: /^\/\(public\)\//, maxBytes: 180_000, label: 'public page' },
-  // The gallery renders every primitive at once; 300 KB here and in lighthouserc.json (D-156).
-  { pattern: /^\/dev\//, maxBytes: 300_000, label: 'dev gallery' },
+  { pattern: /^\/\(app\)\/runs\/\[runId\](\/|$)/, maxBytes: 130_000, label: 'run route' },
+  { pattern: /^\/\(app\)\/review\/runs\/\[runId\]$/, maxBytes: 130_000, label: 'run route' },
+  { pattern: /^\/\(app\)\/records\/\[runId\]$/, maxBytes: 130_000, label: 'run route' },
+  { pattern: /^\/\(public\)\//, maxBytes: 110_000, label: 'public page' },
+  // The gallery renders every primitive at once (D-156); lighthouserc.json carries the total.
+  { pattern: /^\/dev\//, maxBytes: 205_000, label: 'dev gallery' },
   { pattern: /.*/, maxBytes: 175_000, label: 'other route' },
 ]
 

@@ -1,0 +1,8 @@
+{
+  "id": "paraphrase-diacritics",
+  "title": "NFKD normalisation matches a request typed with diacritics",
+  "kind": "paraphrased",
+  "request": "Prémium paybáck — how long?",
+  "openedDocumentKeys": [],
+  "expect": { "claimKeys": ["C3"] }
+}

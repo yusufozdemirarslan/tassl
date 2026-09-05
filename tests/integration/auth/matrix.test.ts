@@ -75,6 +75,15 @@ type MatrixRow = { operationId: string; role: Seat; expected: Expected }
 /** 08 §4 is proven by refusal, so these three statuses — and only these — count as a denial. */
 const DENY_STATUSES = new Set([401, 403, 404])
 
+/**
+ * A well-formed uuid that names nothing.
+ *
+ * `updateDelegation` is addressed by a delegation id, and the matrix is about who may reach the
+ * endpoint rather than about what is behind it: a row that had to create a delegation first would
+ * make the allowed seat's answer depend on a delegation the denied seats never made.
+ */
+const MISSING_UUID = '00000000-0000-4000-8000-000000000000'
+
 const ROWS = matrixTable as MatrixRow[]
 
 const rowsFor = (operationId: string): MatrixRow[] =>
@@ -113,6 +122,15 @@ const OPERATION_IDS = [
   'listAssignmentRuns',
   'getRun',
   'acknowledgePolicy',
+  // Step 7.3 (07 §7): the assistant, the Delegation Log, the declaration, the claim list, and the
+  // resume. Every one of them is addressed by run id and decided by the run's own guard, so each
+  // row is answered before the run's state is ever read — no row here depends on another.
+  'delegate',
+  'listDelegations',
+  'updateDelegation',
+  'declareOutsideTool',
+  'listRunClaims',
+  'resumeRun',
   'deleteWalkthroughRun',
   'listPackages',
   'createPackageFromSeed',
@@ -493,6 +511,13 @@ describe('authorization matrix (08 §4)', () => {
     const runDetail = await import('@/app/api/v1/runs/[runId]/route')
     const assignmentRunsRoute = await import('@/app/api/v1/assignments/[assignmentId]/runs/route')
     const policyAckRoute = await import('@/app/api/v1/runs/[runId]/policy-ack/route')
+    const delegationsRoute = await import('@/app/api/v1/runs/[runId]/delegations/route')
+    const delegationRoute =
+      await import('@/app/api/v1/runs/[runId]/delegations/[delegationId]/route')
+    const declarationRoute =
+      await import('@/app/api/v1/runs/[runId]/outside-tool-declaration/route')
+    const runClaimsRoute = await import('@/app/api/v1/runs/[runId]/claims/route')
+    const resumeRoute = await import('@/app/api/v1/runs/[runId]/resume/route')
     const orgPackages = await import('@/app/api/v1/institutions/[orgId]/packages/route')
     const packagesImport = await import('@/app/api/v1/institutions/[orgId]/packages/import/route')
     const packageDetail = await import('@/app/api/v1/packages/[packageId]/route')
@@ -807,6 +832,77 @@ describe('authorization matrix (08 §4)', () => {
           call(policyAckRoute.POST, {
             method: 'POST',
             path: `/runs/${ownRun}/policy-ack`,
+            session: await sessionFor(seat),
+            params: { runId: ownRun },
+          }),
+      },
+      delegate: {
+        route: 'POST /runs/{runId}/delegations',
+        // `ownRun` sits in `assigned`, so the allowed row meets `ASSISTANT_LOCKED` (409) rather than
+        // an answer — which is an allow: 08 §4 gives the run's own student every in-run capability,
+        // and the state is the assistant's rule, not a permission. Every denied row is refused by
+        // the owner guard before the state is read.
+        run: async (seat) =>
+          call(delegationsRoute.POST, {
+            method: 'POST',
+            path: `/runs/${ownRun}/delegations`,
+            session: await sessionFor(seat),
+            params: { runId: ownRun },
+            body: { request: 'What is the premium payback?' },
+          }),
+      },
+      listDelegations: {
+        route: 'GET /runs/{runId}/delegations',
+        // Stu, Rev (07 §7): the run's own student and the instructor and TA of its section.
+        run: async (seat) =>
+          call(delegationsRoute.GET, {
+            path: `/runs/${ownRun}/delegations`,
+            session: await sessionFor(seat),
+            params: { runId: ownRun },
+          }),
+      },
+      updateDelegation: {
+        route: 'PATCH /runs/{runId}/delegations/{delegationId}',
+        // The id names no delegation on this run; the allowed row is refused for the state it is in
+        // long before that is looked up, and every other row by the owner guard before either.
+        run: async (seat) =>
+          call(delegationRoute.PATCH, {
+            method: 'PATCH',
+            path: `/runs/${ownRun}/delegations/${MISSING_UUID}`,
+            session: await sessionFor(seat),
+            params: { runId: ownRun, delegationId: MISSING_UUID },
+            body: { why: 'A note about a delegation.' },
+          }),
+      },
+      declareOutsideTool: {
+        route: 'POST /runs/{runId}/outside-tool-declaration',
+        run: async (seat) =>
+          call(declarationRoute.POST, {
+            method: 'POST',
+            path: `/runs/${ownRun}/outside-tool-declaration`,
+            session: await sessionFor(seat),
+            params: { runId: ownRun },
+            body: { purpose: 'Used a spreadsheet to recompute payback.' },
+          }),
+      },
+      listRunClaims: {
+        route: 'GET /runs/{runId}/claims',
+        // The owner alone: a reviewer replays a scored run (FR-180), never a running one.
+        run: async (seat) =>
+          call(runClaimsRoute.GET, {
+            path: `/runs/${ownRun}/claims`,
+            session: await sessionFor(seat),
+            params: { runId: ownRun },
+          }),
+      },
+      resumeRun: {
+        route: 'POST /runs/{runId}/resume',
+        // The run is not paused, so the allowed row meets `ILLEGAL_TRANSITION` (409) — an allow,
+        // and one that leaves the run exactly where every other row expects to find it.
+        run: async (seat) =>
+          call(resumeRoute.POST, {
+            method: 'POST',
+            path: `/runs/${ownRun}/resume`,
             session: await sessionFor(seat),
             params: { runId: ownRun },
           }),

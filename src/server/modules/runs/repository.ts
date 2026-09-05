@@ -60,7 +60,7 @@ import type { DbOrTx } from '@/server/db/tx'
 export type { DbOrTx, Tx } from '@/server/db/tx'
 export { withTransaction } from '@/server/db/tx'
 export type { Page, PageInput } from '@/server/db/pagination'
-export type { Run, RunDocumentOpen, RunFrame }
+export type { Run, RunDocumentOpen, RunFrame, RunPause }
 
 // ---------------------------------------------------------------------------------------------
 // Input and result shapes (rows come straight from the schema; nothing is spread into new shapes)
@@ -662,6 +662,25 @@ export async function insertPause(
     .values({ ...values, runId })
     .returning()
   return returned(rows)
+}
+
+/**
+ * The pause the run is currently sitting in, or `undefined` when it is not paused.
+ *
+ * "Open" is `resumed_at is null`, which is the same predicate `resumePause` closes on, so the row
+ * this returns is the row the resume will act on. A run has at most one open pause: a pause is
+ * written by the transition into `paused`, and nothing pauses a paused run.
+ */
+export async function findOpenPause(
+  runId: string,
+  dbx: DbOrTx = db,
+): Promise<RunPause | undefined> {
+  const [row] = await dbx
+    .select()
+    .from(runPauses)
+    .where(and(eq(runPauses.runId, runId), isNull(runPauses.resumedAt)))
+    .orderBy(desc(runPauses.pausedAt))
+  return row
 }
 
 /** Sets `resumed_at` and the credit on one open pause; `undefined` when it is not open. */

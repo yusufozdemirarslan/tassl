@@ -1,346 +1,1962 @@
 [
-  { "operationId": "listInstitutions", "role": "student", "expected": "allow" },
-  { "operationId": "listInstitutions", "role": "instructor", "expected": "allow" },
-  { "operationId": "listInstitutions", "role": "ta", "expected": "allow" },
-  { "operationId": "listInstitutions", "role": "author", "expected": "allow" },
-  { "operationId": "listInstitutions", "role": "program_lead", "expected": "allow" },
-  { "operationId": "listInstitutions", "role": "editor", "expected": "allow" },
-  { "operationId": "listInstitutions", "role": "admin", "expected": "allow" },
-  { "operationId": "listInstitutions", "role": "outsider", "expected": "allow" },
-  { "operationId": "createInstitution", "role": "student", "expected": "deny" },
-  { "operationId": "createInstitution", "role": "instructor", "expected": "deny" },
-  { "operationId": "createInstitution", "role": "ta", "expected": "deny" },
-  { "operationId": "createInstitution", "role": "author", "expected": "deny" },
-  { "operationId": "createInstitution", "role": "program_lead", "expected": "deny" },
-  { "operationId": "createInstitution", "role": "editor", "expected": "deny" },
-  { "operationId": "createInstitution", "role": "admin", "expected": "allow" },
-  { "operationId": "createInstitution", "role": "outsider", "expected": "deny" },
-  { "operationId": "getInstitution", "role": "student", "expected": "allow" },
-  { "operationId": "getInstitution", "role": "instructor", "expected": "allow" },
-  { "operationId": "getInstitution", "role": "ta", "expected": "allow" },
-  { "operationId": "getInstitution", "role": "author", "expected": "allow" },
-  { "operationId": "getInstitution", "role": "program_lead", "expected": "allow" },
-  { "operationId": "getInstitution", "role": "editor", "expected": "allow" },
-  { "operationId": "getInstitution", "role": "admin", "expected": "deny" },
-  { "operationId": "getInstitution", "role": "outsider", "expected": "deny" },
-  { "operationId": "updateInstitutionSettings", "role": "student", "expected": "deny" },
-  { "operationId": "updateInstitutionSettings", "role": "instructor", "expected": "deny" },
-  { "operationId": "updateInstitutionSettings", "role": "ta", "expected": "deny" },
-  { "operationId": "updateInstitutionSettings", "role": "author", "expected": "deny" },
-  { "operationId": "updateInstitutionSettings", "role": "program_lead", "expected": "allow" },
-  { "operationId": "updateInstitutionSettings", "role": "editor", "expected": "deny" },
-  { "operationId": "updateInstitutionSettings", "role": "admin", "expected": "allow" },
-  { "operationId": "updateInstitutionSettings", "role": "outsider", "expected": "deny" },
-  { "operationId": "inviteMember", "role": "student", "expected": "deny" },
-  { "operationId": "inviteMember", "role": "instructor", "expected": "allow" },
-  { "operationId": "inviteMember", "role": "ta", "expected": "deny" },
-  { "operationId": "inviteMember", "role": "author", "expected": "deny" },
-  { "operationId": "inviteMember", "role": "program_lead", "expected": "allow" },
-  { "operationId": "inviteMember", "role": "editor", "expected": "deny" },
-  { "operationId": "inviteMember", "role": "admin", "expected": "deny" },
-  { "operationId": "inviteMember", "role": "outsider", "expected": "deny" },
-  { "operationId": "acceptInvitation", "role": "student", "expected": "allow" },
-  { "operationId": "acceptInvitation", "role": "instructor", "expected": "allow" },
-  { "operationId": "acceptInvitation", "role": "ta", "expected": "allow" },
-  { "operationId": "acceptInvitation", "role": "author", "expected": "allow" },
-  { "operationId": "acceptInvitation", "role": "program_lead", "expected": "allow" },
-  { "operationId": "acceptInvitation", "role": "editor", "expected": "allow" },
-  { "operationId": "acceptInvitation", "role": "admin", "expected": "allow" },
-  { "operationId": "acceptInvitation", "role": "outsider", "expected": "allow" },
-  { "operationId": "listAgreements", "role": "student", "expected": "deny" },
-  { "operationId": "listAgreements", "role": "instructor", "expected": "deny" },
-  { "operationId": "listAgreements", "role": "ta", "expected": "deny" },
-  { "operationId": "listAgreements", "role": "author", "expected": "deny" },
-  { "operationId": "listAgreements", "role": "program_lead", "expected": "allow" },
-  { "operationId": "listAgreements", "role": "editor", "expected": "allow" },
-  { "operationId": "listAgreements", "role": "admin", "expected": "allow" },
-  { "operationId": "listAgreements", "role": "outsider", "expected": "deny" },
-  { "operationId": "createAgreement", "role": "student", "expected": "deny" },
-  { "operationId": "createAgreement", "role": "instructor", "expected": "deny" },
-  { "operationId": "createAgreement", "role": "ta", "expected": "deny" },
-  { "operationId": "createAgreement", "role": "author", "expected": "deny" },
-  { "operationId": "createAgreement", "role": "program_lead", "expected": "allow" },
-  { "operationId": "createAgreement", "role": "editor", "expected": "deny" },
-  { "operationId": "createAgreement", "role": "admin", "expected": "allow" },
-  { "operationId": "createAgreement", "role": "outsider", "expected": "deny" },
-  { "operationId": "updateAgreement", "role": "student", "expected": "deny" },
-  { "operationId": "updateAgreement", "role": "instructor", "expected": "deny" },
-  { "operationId": "updateAgreement", "role": "ta", "expected": "deny" },
-  { "operationId": "updateAgreement", "role": "author", "expected": "deny" },
-  { "operationId": "updateAgreement", "role": "program_lead", "expected": "allow" },
-  { "operationId": "updateAgreement", "role": "editor", "expected": "deny" },
-  { "operationId": "updateAgreement", "role": "admin", "expected": "allow" },
-  { "operationId": "updateAgreement", "role": "outsider", "expected": "deny" },
-  { "operationId": "getMe", "role": "student", "expected": "allow" },
-  { "operationId": "getMe", "role": "instructor", "expected": "allow" },
-  { "operationId": "getMe", "role": "ta", "expected": "allow" },
-  { "operationId": "getMe", "role": "author", "expected": "allow" },
-  { "operationId": "getMe", "role": "program_lead", "expected": "allow" },
-  { "operationId": "getMe", "role": "editor", "expected": "allow" },
-  { "operationId": "getMe", "role": "admin", "expected": "allow" },
-  { "operationId": "getMe", "role": "outsider", "expected": "allow" },
-  { "operationId": "updateMe", "role": "student", "expected": "allow" },
-  { "operationId": "updateMe", "role": "instructor", "expected": "allow" },
-  { "operationId": "updateMe", "role": "ta", "expected": "allow" },
-  { "operationId": "updateMe", "role": "author", "expected": "allow" },
-  { "operationId": "updateMe", "role": "program_lead", "expected": "allow" },
-  { "operationId": "updateMe", "role": "editor", "expected": "allow" },
-  { "operationId": "updateMe", "role": "admin", "expected": "allow" },
-  { "operationId": "updateMe", "role": "outsider", "expected": "allow" },
-  { "operationId": "deleteMe", "role": "student", "expected": "allow" },
-  { "operationId": "deleteMe", "role": "instructor", "expected": "allow" },
-  { "operationId": "deleteMe", "role": "ta", "expected": "allow" },
-  { "operationId": "deleteMe", "role": "author", "expected": "allow" },
-  { "operationId": "deleteMe", "role": "program_lead", "expected": "allow" },
-  { "operationId": "deleteMe", "role": "editor", "expected": "allow" },
-  { "operationId": "deleteMe", "role": "admin", "expected": "allow" },
-  { "operationId": "deleteMe", "role": "outsider", "expected": "allow" },
-  { "operationId": "exportMe", "role": "student", "expected": "allow" },
-  { "operationId": "exportMe", "role": "instructor", "expected": "allow" },
-  { "operationId": "exportMe", "role": "ta", "expected": "allow" },
-  { "operationId": "exportMe", "role": "author", "expected": "allow" },
-  { "operationId": "exportMe", "role": "program_lead", "expected": "allow" },
-  { "operationId": "exportMe", "role": "editor", "expected": "allow" },
-  { "operationId": "exportMe", "role": "admin", "expected": "allow" },
-  { "operationId": "exportMe", "role": "outsider", "expected": "allow" },
-  { "operationId": "listMyAssignments", "role": "student", "expected": "allow" },
-  { "operationId": "listMyAssignments", "role": "instructor", "expected": "allow" },
-  { "operationId": "listMyAssignments", "role": "ta", "expected": "allow" },
-  { "operationId": "listMyAssignments", "role": "author", "expected": "allow" },
-  { "operationId": "listMyAssignments", "role": "program_lead", "expected": "allow" },
-  { "operationId": "listMyAssignments", "role": "editor", "expected": "allow" },
-  { "operationId": "listMyAssignments", "role": "admin", "expected": "allow" },
-  { "operationId": "listMyAssignments", "role": "outsider", "expected": "allow" },
-  { "operationId": "listMyRuns", "role": "student", "expected": "allow" },
-  { "operationId": "listMyRuns", "role": "instructor", "expected": "allow" },
-  { "operationId": "listMyRuns", "role": "ta", "expected": "allow" },
-  { "operationId": "listMyRuns", "role": "author", "expected": "allow" },
-  { "operationId": "listMyRuns", "role": "program_lead", "expected": "allow" },
-  { "operationId": "listMyRuns", "role": "editor", "expected": "allow" },
-  { "operationId": "listMyRuns", "role": "admin", "expected": "allow" },
-  { "operationId": "listMyRuns", "role": "outsider", "expected": "allow" },
-  { "operationId": "listCourses", "role": "student", "expected": "allow" },
-  { "operationId": "listCourses", "role": "instructor", "expected": "allow" },
-  { "operationId": "listCourses", "role": "ta", "expected": "allow" },
-  { "operationId": "listCourses", "role": "author", "expected": "allow" },
-  { "operationId": "listCourses", "role": "program_lead", "expected": "allow" },
-  { "operationId": "listCourses", "role": "editor", "expected": "allow" },
-  { "operationId": "listCourses", "role": "admin", "expected": "deny" },
-  { "operationId": "listCourses", "role": "outsider", "expected": "deny" },
-  { "operationId": "createCourse", "role": "student", "expected": "deny" },
-  { "operationId": "createCourse", "role": "instructor", "expected": "allow" },
-  { "operationId": "createCourse", "role": "ta", "expected": "deny" },
-  { "operationId": "createCourse", "role": "author", "expected": "deny" },
-  { "operationId": "createCourse", "role": "program_lead", "expected": "deny" },
-  { "operationId": "createCourse", "role": "editor", "expected": "deny" },
-  { "operationId": "createCourse", "role": "admin", "expected": "deny" },
-  { "operationId": "createCourse", "role": "outsider", "expected": "deny" },
-  { "operationId": "getCourse", "role": "student", "expected": "allow" },
-  { "operationId": "getCourse", "role": "instructor", "expected": "allow" },
-  { "operationId": "getCourse", "role": "ta", "expected": "allow" },
-  { "operationId": "getCourse", "role": "author", "expected": "deny" },
-  { "operationId": "getCourse", "role": "program_lead", "expected": "allow" },
-  { "operationId": "getCourse", "role": "editor", "expected": "deny" },
-  { "operationId": "getCourse", "role": "admin", "expected": "deny" },
-  { "operationId": "getCourse", "role": "outsider", "expected": "deny" },
-  { "operationId": "updateCoursePolicy", "role": "student", "expected": "deny" },
-  { "operationId": "updateCoursePolicy", "role": "instructor", "expected": "allow" },
-  { "operationId": "updateCoursePolicy", "role": "ta", "expected": "deny" },
-  { "operationId": "updateCoursePolicy", "role": "author", "expected": "deny" },
-  { "operationId": "updateCoursePolicy", "role": "program_lead", "expected": "deny" },
-  { "operationId": "updateCoursePolicy", "role": "editor", "expected": "deny" },
-  { "operationId": "updateCoursePolicy", "role": "admin", "expected": "deny" },
-  { "operationId": "updateCoursePolicy", "role": "outsider", "expected": "deny" },
-  { "operationId": "createSection", "role": "student", "expected": "deny" },
-  { "operationId": "createSection", "role": "instructor", "expected": "allow" },
-  { "operationId": "createSection", "role": "ta", "expected": "deny" },
-  { "operationId": "createSection", "role": "author", "expected": "deny" },
-  { "operationId": "createSection", "role": "program_lead", "expected": "deny" },
-  { "operationId": "createSection", "role": "editor", "expected": "deny" },
-  { "operationId": "createSection", "role": "admin", "expected": "deny" },
-  { "operationId": "createSection", "role": "outsider", "expected": "deny" },
-  { "operationId": "listSectionMembers", "role": "student", "expected": "deny" },
-  { "operationId": "listSectionMembers", "role": "instructor", "expected": "allow" },
-  { "operationId": "listSectionMembers", "role": "ta", "expected": "deny" },
-  { "operationId": "listSectionMembers", "role": "author", "expected": "deny" },
-  { "operationId": "listSectionMembers", "role": "program_lead", "expected": "allow" },
-  { "operationId": "listSectionMembers", "role": "editor", "expected": "deny" },
-  { "operationId": "listSectionMembers", "role": "admin", "expected": "deny" },
-  { "operationId": "listSectionMembers", "role": "outsider", "expected": "deny" },
-  { "operationId": "addSectionMember", "role": "student", "expected": "deny" },
-  { "operationId": "addSectionMember", "role": "instructor", "expected": "allow" },
-  { "operationId": "addSectionMember", "role": "ta", "expected": "deny" },
-  { "operationId": "addSectionMember", "role": "author", "expected": "deny" },
-  { "operationId": "addSectionMember", "role": "program_lead", "expected": "deny" },
-  { "operationId": "addSectionMember", "role": "editor", "expected": "deny" },
-  { "operationId": "addSectionMember", "role": "admin", "expected": "deny" },
-  { "operationId": "addSectionMember", "role": "outsider", "expected": "deny" },
-  { "operationId": "removeSectionMember", "role": "student", "expected": "deny" },
-  { "operationId": "removeSectionMember", "role": "instructor", "expected": "allow" },
-  { "operationId": "removeSectionMember", "role": "ta", "expected": "deny" },
-  { "operationId": "removeSectionMember", "role": "author", "expected": "deny" },
-  { "operationId": "removeSectionMember", "role": "program_lead", "expected": "deny" },
-  { "operationId": "removeSectionMember", "role": "editor", "expected": "deny" },
-  { "operationId": "removeSectionMember", "role": "admin", "expected": "deny" },
-  { "operationId": "removeSectionMember", "role": "outsider", "expected": "deny" },
-  { "operationId": "createAssignment", "role": "student", "expected": "deny" },
-  { "operationId": "createAssignment", "role": "instructor", "expected": "allow" },
-  { "operationId": "createAssignment", "role": "ta", "expected": "deny" },
-  { "operationId": "createAssignment", "role": "author", "expected": "deny" },
-  { "operationId": "createAssignment", "role": "program_lead", "expected": "deny" },
-  { "operationId": "createAssignment", "role": "editor", "expected": "deny" },
-  { "operationId": "createAssignment", "role": "admin", "expected": "deny" },
-  { "operationId": "createAssignment", "role": "outsider", "expected": "deny" },
-  { "operationId": "getAssignment", "role": "student", "expected": "allow" },
-  { "operationId": "getAssignment", "role": "instructor", "expected": "allow" },
-  { "operationId": "getAssignment", "role": "ta", "expected": "allow" },
-  { "operationId": "getAssignment", "role": "author", "expected": "deny" },
-  { "operationId": "getAssignment", "role": "program_lead", "expected": "deny" },
-  { "operationId": "getAssignment", "role": "editor", "expected": "deny" },
-  { "operationId": "getAssignment", "role": "admin", "expected": "deny" },
-  { "operationId": "getAssignment", "role": "outsider", "expected": "deny" },
-  { "operationId": "updateAssignment", "role": "student", "expected": "deny" },
-  { "operationId": "updateAssignment", "role": "instructor", "expected": "allow" },
-  { "operationId": "updateAssignment", "role": "ta", "expected": "deny" },
-  { "operationId": "updateAssignment", "role": "author", "expected": "deny" },
-  { "operationId": "updateAssignment", "role": "program_lead", "expected": "deny" },
-  { "operationId": "updateAssignment", "role": "editor", "expected": "deny" },
-  { "operationId": "updateAssignment", "role": "admin", "expected": "deny" },
-  { "operationId": "updateAssignment", "role": "outsider", "expected": "deny" },
-  { "operationId": "getPolicyDisplay", "role": "student", "expected": "allow" },
-  { "operationId": "getPolicyDisplay", "role": "instructor", "expected": "allow" },
-  { "operationId": "getPolicyDisplay", "role": "ta", "expected": "allow" },
-  { "operationId": "getPolicyDisplay", "role": "author", "expected": "deny" },
-  { "operationId": "getPolicyDisplay", "role": "program_lead", "expected": "deny" },
-  { "operationId": "getPolicyDisplay", "role": "editor", "expected": "deny" },
-  { "operationId": "getPolicyDisplay", "role": "admin", "expected": "deny" },
-  { "operationId": "getPolicyDisplay", "role": "outsider", "expected": "deny" },
-  { "operationId": "startRun", "role": "student", "expected": "allow" },
-  { "operationId": "startRun", "role": "instructor", "expected": "deny" },
-  { "operationId": "startRun", "role": "ta", "expected": "deny" },
-  { "operationId": "startRun", "role": "author", "expected": "deny" },
-  { "operationId": "startRun", "role": "program_lead", "expected": "deny" },
-  { "operationId": "startRun", "role": "editor", "expected": "deny" },
-  { "operationId": "startRun", "role": "admin", "expected": "deny" },
-  { "operationId": "startRun", "role": "outsider", "expected": "deny" },
-  { "operationId": "listAssignmentRuns", "role": "student", "expected": "deny" },
-  { "operationId": "listAssignmentRuns", "role": "instructor", "expected": "allow" },
-  { "operationId": "listAssignmentRuns", "role": "ta", "expected": "allow" },
-  { "operationId": "listAssignmentRuns", "role": "author", "expected": "deny" },
-  { "operationId": "listAssignmentRuns", "role": "program_lead", "expected": "deny" },
-  { "operationId": "listAssignmentRuns", "role": "editor", "expected": "deny" },
-  { "operationId": "listAssignmentRuns", "role": "admin", "expected": "deny" },
-  { "operationId": "listAssignmentRuns", "role": "outsider", "expected": "deny" },
-  { "operationId": "getRun", "role": "student", "expected": "allow" },
-  { "operationId": "getRun", "role": "instructor", "expected": "allow" },
-  { "operationId": "getRun", "role": "ta", "expected": "allow" },
-  { "operationId": "getRun", "role": "author", "expected": "deny" },
-  { "operationId": "getRun", "role": "program_lead", "expected": "deny" },
-  { "operationId": "getRun", "role": "editor", "expected": "deny" },
-  { "operationId": "getRun", "role": "admin", "expected": "deny" },
-  { "operationId": "getRun", "role": "outsider", "expected": "deny" },
-  { "operationId": "acknowledgePolicy", "role": "student", "expected": "allow" },
-  { "operationId": "acknowledgePolicy", "role": "instructor", "expected": "deny" },
-  { "operationId": "acknowledgePolicy", "role": "ta", "expected": "deny" },
-  { "operationId": "acknowledgePolicy", "role": "author", "expected": "deny" },
-  { "operationId": "acknowledgePolicy", "role": "program_lead", "expected": "deny" },
-  { "operationId": "acknowledgePolicy", "role": "editor", "expected": "deny" },
-  { "operationId": "acknowledgePolicy", "role": "admin", "expected": "deny" },
-  { "operationId": "acknowledgePolicy", "role": "outsider", "expected": "deny" },
-  { "operationId": "deleteWalkthroughRun", "role": "student", "expected": "deny" },
-  { "operationId": "deleteWalkthroughRun", "role": "instructor", "expected": "allow" },
-  { "operationId": "deleteWalkthroughRun", "role": "ta", "expected": "deny" },
-  { "operationId": "deleteWalkthroughRun", "role": "author", "expected": "deny" },
-  { "operationId": "deleteWalkthroughRun", "role": "program_lead", "expected": "deny" },
-  { "operationId": "deleteWalkthroughRun", "role": "editor", "expected": "deny" },
-  { "operationId": "deleteWalkthroughRun", "role": "admin", "expected": "deny" },
-  { "operationId": "deleteWalkthroughRun", "role": "outsider", "expected": "deny" },
-  { "operationId": "listPackages", "role": "student", "expected": "deny" },
-  { "operationId": "listPackages", "role": "instructor", "expected": "allow" },
-  { "operationId": "listPackages", "role": "ta", "expected": "deny" },
-  { "operationId": "listPackages", "role": "author", "expected": "allow" },
-  { "operationId": "listPackages", "role": "program_lead", "expected": "deny" },
-  { "operationId": "listPackages", "role": "editor", "expected": "allow" },
-  { "operationId": "listPackages", "role": "admin", "expected": "deny" },
-  { "operationId": "listPackages", "role": "outsider", "expected": "deny" },
-  { "operationId": "createPackageFromSeed", "role": "student", "expected": "deny" },
-  { "operationId": "createPackageFromSeed", "role": "instructor", "expected": "allow" },
-  { "operationId": "createPackageFromSeed", "role": "ta", "expected": "deny" },
-  { "operationId": "createPackageFromSeed", "role": "author", "expected": "allow" },
-  { "operationId": "createPackageFromSeed", "role": "program_lead", "expected": "deny" },
-  { "operationId": "createPackageFromSeed", "role": "editor", "expected": "allow" },
-  { "operationId": "createPackageFromSeed", "role": "admin", "expected": "deny" },
-  { "operationId": "createPackageFromSeed", "role": "outsider", "expected": "deny" },
-  { "operationId": "importPackage", "role": "student", "expected": "deny" },
-  { "operationId": "importPackage", "role": "instructor", "expected": "allow" },
-  { "operationId": "importPackage", "role": "ta", "expected": "deny" },
-  { "operationId": "importPackage", "role": "author", "expected": "allow" },
-  { "operationId": "importPackage", "role": "program_lead", "expected": "deny" },
-  { "operationId": "importPackage", "role": "editor", "expected": "allow" },
-  { "operationId": "importPackage", "role": "admin", "expected": "deny" },
-  { "operationId": "importPackage", "role": "outsider", "expected": "deny" },
-  { "operationId": "getPackage", "role": "student", "expected": "deny" },
-  { "operationId": "getPackage", "role": "instructor", "expected": "allow" },
-  { "operationId": "getPackage", "role": "ta", "expected": "allow" },
-  { "operationId": "getPackage", "role": "author", "expected": "allow" },
-  { "operationId": "getPackage", "role": "program_lead", "expected": "deny" },
-  { "operationId": "getPackage", "role": "editor", "expected": "allow" },
-  { "operationId": "getPackage", "role": "admin", "expected": "deny" },
-  { "operationId": "getPackage", "role": "outsider", "expected": "deny" },
-  { "operationId": "getPackageVersion", "role": "student", "expected": "deny" },
-  { "operationId": "getPackageVersion", "role": "instructor", "expected": "allow" },
-  { "operationId": "getPackageVersion", "role": "ta", "expected": "allow" },
-  { "operationId": "getPackageVersion", "role": "author", "expected": "allow" },
-  { "operationId": "getPackageVersion", "role": "program_lead", "expected": "allow" },
-  { "operationId": "getPackageVersion", "role": "editor", "expected": "allow" },
-  { "operationId": "getPackageVersion", "role": "admin", "expected": "deny" },
-  { "operationId": "getPackageVersion", "role": "outsider", "expected": "deny" },
-  { "operationId": "exportPackageVersion", "role": "student", "expected": "deny" },
-  { "operationId": "exportPackageVersion", "role": "instructor", "expected": "allow" },
-  { "operationId": "exportPackageVersion", "role": "ta", "expected": "allow" },
-  { "operationId": "exportPackageVersion", "role": "author", "expected": "allow" },
-  { "operationId": "exportPackageVersion", "role": "program_lead", "expected": "deny" },
-  { "operationId": "exportPackageVersion", "role": "editor", "expected": "allow" },
-  { "operationId": "exportPackageVersion", "role": "admin", "expected": "deny" },
-  { "operationId": "exportPackageVersion", "role": "outsider", "expected": "deny" },
-  { "operationId": "getClaimObject", "role": "student", "expected": "deny" },
-  { "operationId": "getClaimObject", "role": "instructor", "expected": "allow" },
-  { "operationId": "getClaimObject", "role": "ta", "expected": "allow" },
-  { "operationId": "getClaimObject", "role": "author", "expected": "allow" },
-  { "operationId": "getClaimObject", "role": "program_lead", "expected": "deny" },
-  { "operationId": "getClaimObject", "role": "editor", "expected": "allow" },
-  { "operationId": "getClaimObject", "role": "admin", "expected": "deny" },
-  { "operationId": "getClaimObject", "role": "outsider", "expected": "deny" },
-  { "operationId": "updateElement", "role": "student", "expected": "deny" },
-  { "operationId": "updateElement", "role": "instructor", "expected": "allow" },
-  { "operationId": "updateElement", "role": "ta", "expected": "deny" },
-  { "operationId": "updateElement", "role": "author", "expected": "allow" },
-  { "operationId": "updateElement", "role": "program_lead", "expected": "deny" },
-  { "operationId": "updateElement", "role": "editor", "expected": "allow" },
-  { "operationId": "updateElement", "role": "admin", "expected": "deny" },
-  { "operationId": "updateElement", "role": "outsider", "expected": "deny" },
-  { "operationId": "decideElement", "role": "student", "expected": "deny" },
-  { "operationId": "decideElement", "role": "instructor", "expected": "allow" },
-  { "operationId": "decideElement", "role": "ta", "expected": "deny" },
-  { "operationId": "decideElement", "role": "author", "expected": "allow" },
-  { "operationId": "decideElement", "role": "program_lead", "expected": "deny" },
-  { "operationId": "decideElement", "role": "editor", "expected": "deny" },
-  { "operationId": "decideElement", "role": "admin", "expected": "deny" },
-  { "operationId": "decideElement", "role": "outsider", "expected": "deny" },
-  { "operationId": "confirmPackageVersion", "role": "student", "expected": "deny" },
-  { "operationId": "confirmPackageVersion", "role": "instructor", "expected": "allow" },
-  { "operationId": "confirmPackageVersion", "role": "ta", "expected": "deny" },
-  { "operationId": "confirmPackageVersion", "role": "author", "expected": "allow" },
-  { "operationId": "confirmPackageVersion", "role": "program_lead", "expected": "deny" },
-  { "operationId": "confirmPackageVersion", "role": "editor", "expected": "deny" },
-  { "operationId": "confirmPackageVersion", "role": "admin", "expected": "deny" },
-  { "operationId": "confirmPackageVersion", "role": "outsider", "expected": "deny" },
-  { "operationId": "regeneratePackageVersion", "role": "student", "expected": "deny" },
-  { "operationId": "regeneratePackageVersion", "role": "instructor", "expected": "allow" },
-  { "operationId": "regeneratePackageVersion", "role": "ta", "expected": "deny" },
-  { "operationId": "regeneratePackageVersion", "role": "author", "expected": "allow" },
-  { "operationId": "regeneratePackageVersion", "role": "program_lead", "expected": "deny" },
-  { "operationId": "regeneratePackageVersion", "role": "editor", "expected": "allow" },
-  { "operationId": "regeneratePackageVersion", "role": "admin", "expected": "deny" },
-  { "operationId": "regeneratePackageVersion", "role": "outsider", "expected": "deny" }
+  {
+    "operationId": "listInstitutions",
+    "role": "student",
+    "expected": "allow"
+  },
+  {
+    "operationId": "listInstitutions",
+    "role": "instructor",
+    "expected": "allow"
+  },
+  {
+    "operationId": "listInstitutions",
+    "role": "ta",
+    "expected": "allow"
+  },
+  {
+    "operationId": "listInstitutions",
+    "role": "author",
+    "expected": "allow"
+  },
+  {
+    "operationId": "listInstitutions",
+    "role": "program_lead",
+    "expected": "allow"
+  },
+  {
+    "operationId": "listInstitutions",
+    "role": "editor",
+    "expected": "allow"
+  },
+  {
+    "operationId": "listInstitutions",
+    "role": "admin",
+    "expected": "allow"
+  },
+  {
+    "operationId": "listInstitutions",
+    "role": "outsider",
+    "expected": "allow"
+  },
+  {
+    "operationId": "createInstitution",
+    "role": "student",
+    "expected": "deny"
+  },
+  {
+    "operationId": "createInstitution",
+    "role": "instructor",
+    "expected": "deny"
+  },
+  {
+    "operationId": "createInstitution",
+    "role": "ta",
+    "expected": "deny"
+  },
+  {
+    "operationId": "createInstitution",
+    "role": "author",
+    "expected": "deny"
+  },
+  {
+    "operationId": "createInstitution",
+    "role": "program_lead",
+    "expected": "deny"
+  },
+  {
+    "operationId": "createInstitution",
+    "role": "editor",
+    "expected": "deny"
+  },
+  {
+    "operationId": "createInstitution",
+    "role": "admin",
+    "expected": "allow"
+  },
+  {
+    "operationId": "createInstitution",
+    "role": "outsider",
+    "expected": "deny"
+  },
+  {
+    "operationId": "getInstitution",
+    "role": "student",
+    "expected": "allow"
+  },
+  {
+    "operationId": "getInstitution",
+    "role": "instructor",
+    "expected": "allow"
+  },
+  {
+    "operationId": "getInstitution",
+    "role": "ta",
+    "expected": "allow"
+  },
+  {
+    "operationId": "getInstitution",
+    "role": "author",
+    "expected": "allow"
+  },
+  {
+    "operationId": "getInstitution",
+    "role": "program_lead",
+    "expected": "allow"
+  },
+  {
+    "operationId": "getInstitution",
+    "role": "editor",
+    "expected": "allow"
+  },
+  {
+    "operationId": "getInstitution",
+    "role": "admin",
+    "expected": "deny"
+  },
+  {
+    "operationId": "getInstitution",
+    "role": "outsider",
+    "expected": "deny"
+  },
+  {
+    "operationId": "updateInstitutionSettings",
+    "role": "student",
+    "expected": "deny"
+  },
+  {
+    "operationId": "updateInstitutionSettings",
+    "role": "instructor",
+    "expected": "deny"
+  },
+  {
+    "operationId": "updateInstitutionSettings",
+    "role": "ta",
+    "expected": "deny"
+  },
+  {
+    "operationId": "updateInstitutionSettings",
+    "role": "author",
+    "expected": "deny"
+  },
+  {
+    "operationId": "updateInstitutionSettings",
+    "role": "program_lead",
+    "expected": "allow"
+  },
+  {
+    "operationId": "updateInstitutionSettings",
+    "role": "editor",
+    "expected": "deny"
+  },
+  {
+    "operationId": "updateInstitutionSettings",
+    "role": "admin",
+    "expected": "allow"
+  },
+  {
+    "operationId": "updateInstitutionSettings",
+    "role": "outsider",
+    "expected": "deny"
+  },
+  {
+    "operationId": "inviteMember",
+    "role": "student",
+    "expected": "deny"
+  },
+  {
+    "operationId": "inviteMember",
+    "role": "instructor",
+    "expected": "allow"
+  },
+  {
+    "operationId": "inviteMember",
+    "role": "ta",
+    "expected": "deny"
+  },
+  {
+    "operationId": "inviteMember",
+    "role": "author",
+    "expected": "deny"
+  },
+  {
+    "operationId": "inviteMember",
+    "role": "program_lead",
+    "expected": "allow"
+  },
+  {
+    "operationId": "inviteMember",
+    "role": "editor",
+    "expected": "deny"
+  },
+  {
+    "operationId": "inviteMember",
+    "role": "admin",
+    "expected": "deny"
+  },
+  {
+    "operationId": "inviteMember",
+    "role": "outsider",
+    "expected": "deny"
+  },
+  {
+    "operationId": "acceptInvitation",
+    "role": "student",
+    "expected": "allow"
+  },
+  {
+    "operationId": "acceptInvitation",
+    "role": "instructor",
+    "expected": "allow"
+  },
+  {
+    "operationId": "acceptInvitation",
+    "role": "ta",
+    "expected": "allow"
+  },
+  {
+    "operationId": "acceptInvitation",
+    "role": "author",
+    "expected": "allow"
+  },
+  {
+    "operationId": "acceptInvitation",
+    "role": "program_lead",
+    "expected": "allow"
+  },
+  {
+    "operationId": "acceptInvitation",
+    "role": "editor",
+    "expected": "allow"
+  },
+  {
+    "operationId": "acceptInvitation",
+    "role": "admin",
+    "expected": "allow"
+  },
+  {
+    "operationId": "acceptInvitation",
+    "role": "outsider",
+    "expected": "allow"
+  },
+  {
+    "operationId": "listAgreements",
+    "role": "student",
+    "expected": "deny"
+  },
+  {
+    "operationId": "listAgreements",
+    "role": "instructor",
+    "expected": "deny"
+  },
+  {
+    "operationId": "listAgreements",
+    "role": "ta",
+    "expected": "deny"
+  },
+  {
+    "operationId": "listAgreements",
+    "role": "author",
+    "expected": "deny"
+  },
+  {
+    "operationId": "listAgreements",
+    "role": "program_lead",
+    "expected": "allow"
+  },
+  {
+    "operationId": "listAgreements",
+    "role": "editor",
+    "expected": "allow"
+  },
+  {
+    "operationId": "listAgreements",
+    "role": "admin",
+    "expected": "allow"
+  },
+  {
+    "operationId": "listAgreements",
+    "role": "outsider",
+    "expected": "deny"
+  },
+  {
+    "operationId": "createAgreement",
+    "role": "student",
+    "expected": "deny"
+  },
+  {
+    "operationId": "createAgreement",
+    "role": "instructor",
+    "expected": "deny"
+  },
+  {
+    "operationId": "createAgreement",
+    "role": "ta",
+    "expected": "deny"
+  },
+  {
+    "operationId": "createAgreement",
+    "role": "author",
+    "expected": "deny"
+  },
+  {
+    "operationId": "createAgreement",
+    "role": "program_lead",
+    "expected": "allow"
+  },
+  {
+    "operationId": "createAgreement",
+    "role": "editor",
+    "expected": "deny"
+  },
+  {
+    "operationId": "createAgreement",
+    "role": "admin",
+    "expected": "allow"
+  },
+  {
+    "operationId": "createAgreement",
+    "role": "outsider",
+    "expected": "deny"
+  },
+  {
+    "operationId": "updateAgreement",
+    "role": "student",
+    "expected": "deny"
+  },
+  {
+    "operationId": "updateAgreement",
+    "role": "instructor",
+    "expected": "deny"
+  },
+  {
+    "operationId": "updateAgreement",
+    "role": "ta",
+    "expected": "deny"
+  },
+  {
+    "operationId": "updateAgreement",
+    "role": "author",
+    "expected": "deny"
+  },
+  {
+    "operationId": "updateAgreement",
+    "role": "program_lead",
+    "expected": "allow"
+  },
+  {
+    "operationId": "updateAgreement",
+    "role": "editor",
+    "expected": "deny"
+  },
+  {
+    "operationId": "updateAgreement",
+    "role": "admin",
+    "expected": "allow"
+  },
+  {
+    "operationId": "updateAgreement",
+    "role": "outsider",
+    "expected": "deny"
+  },
+  {
+    "operationId": "getMe",
+    "role": "student",
+    "expected": "allow"
+  },
+  {
+    "operationId": "getMe",
+    "role": "instructor",
+    "expected": "allow"
+  },
+  {
+    "operationId": "getMe",
+    "role": "ta",
+    "expected": "allow"
+  },
+  {
+    "operationId": "getMe",
+    "role": "author",
+    "expected": "allow"
+  },
+  {
+    "operationId": "getMe",
+    "role": "program_lead",
+    "expected": "allow"
+  },
+  {
+    "operationId": "getMe",
+    "role": "editor",
+    "expected": "allow"
+  },
+  {
+    "operationId": "getMe",
+    "role": "admin",
+    "expected": "allow"
+  },
+  {
+    "operationId": "getMe",
+    "role": "outsider",
+    "expected": "allow"
+  },
+  {
+    "operationId": "updateMe",
+    "role": "student",
+    "expected": "allow"
+  },
+  {
+    "operationId": "updateMe",
+    "role": "instructor",
+    "expected": "allow"
+  },
+  {
+    "operationId": "updateMe",
+    "role": "ta",
+    "expected": "allow"
+  },
+  {
+    "operationId": "updateMe",
+    "role": "author",
+    "expected": "allow"
+  },
+  {
+    "operationId": "updateMe",
+    "role": "program_lead",
+    "expected": "allow"
+  },
+  {
+    "operationId": "updateMe",
+    "role": "editor",
+    "expected": "allow"
+  },
+  {
+    "operationId": "updateMe",
+    "role": "admin",
+    "expected": "allow"
+  },
+  {
+    "operationId": "updateMe",
+    "role": "outsider",
+    "expected": "allow"
+  },
+  {
+    "operationId": "deleteMe",
+    "role": "student",
+    "expected": "allow"
+  },
+  {
+    "operationId": "deleteMe",
+    "role": "instructor",
+    "expected": "allow"
+  },
+  {
+    "operationId": "deleteMe",
+    "role": "ta",
+    "expected": "allow"
+  },
+  {
+    "operationId": "deleteMe",
+    "role": "author",
+    "expected": "allow"
+  },
+  {
+    "operationId": "deleteMe",
+    "role": "program_lead",
+    "expected": "allow"
+  },
+  {
+    "operationId": "deleteMe",
+    "role": "editor",
+    "expected": "allow"
+  },
+  {
+    "operationId": "deleteMe",
+    "role": "admin",
+    "expected": "allow"
+  },
+  {
+    "operationId": "deleteMe",
+    "role": "outsider",
+    "expected": "allow"
+  },
+  {
+    "operationId": "exportMe",
+    "role": "student",
+    "expected": "allow"
+  },
+  {
+    "operationId": "exportMe",
+    "role": "instructor",
+    "expected": "allow"
+  },
+  {
+    "operationId": "exportMe",
+    "role": "ta",
+    "expected": "allow"
+  },
+  {
+    "operationId": "exportMe",
+    "role": "author",
+    "expected": "allow"
+  },
+  {
+    "operationId": "exportMe",
+    "role": "program_lead",
+    "expected": "allow"
+  },
+  {
+    "operationId": "exportMe",
+    "role": "editor",
+    "expected": "allow"
+  },
+  {
+    "operationId": "exportMe",
+    "role": "admin",
+    "expected": "allow"
+  },
+  {
+    "operationId": "exportMe",
+    "role": "outsider",
+    "expected": "allow"
+  },
+  {
+    "operationId": "listMyAssignments",
+    "role": "student",
+    "expected": "allow"
+  },
+  {
+    "operationId": "listMyAssignments",
+    "role": "instructor",
+    "expected": "allow"
+  },
+  {
+    "operationId": "listMyAssignments",
+    "role": "ta",
+    "expected": "allow"
+  },
+  {
+    "operationId": "listMyAssignments",
+    "role": "author",
+    "expected": "allow"
+  },
+  {
+    "operationId": "listMyAssignments",
+    "role": "program_lead",
+    "expected": "allow"
+  },
+  {
+    "operationId": "listMyAssignments",
+    "role": "editor",
+    "expected": "allow"
+  },
+  {
+    "operationId": "listMyAssignments",
+    "role": "admin",
+    "expected": "allow"
+  },
+  {
+    "operationId": "listMyAssignments",
+    "role": "outsider",
+    "expected": "allow"
+  },
+  {
+    "operationId": "listMyRuns",
+    "role": "student",
+    "expected": "allow"
+  },
+  {
+    "operationId": "listMyRuns",
+    "role": "instructor",
+    "expected": "allow"
+  },
+  {
+    "operationId": "listMyRuns",
+    "role": "ta",
+    "expected": "allow"
+  },
+  {
+    "operationId": "listMyRuns",
+    "role": "author",
+    "expected": "allow"
+  },
+  {
+    "operationId": "listMyRuns",
+    "role": "program_lead",
+    "expected": "allow"
+  },
+  {
+    "operationId": "listMyRuns",
+    "role": "editor",
+    "expected": "allow"
+  },
+  {
+    "operationId": "listMyRuns",
+    "role": "admin",
+    "expected": "allow"
+  },
+  {
+    "operationId": "listMyRuns",
+    "role": "outsider",
+    "expected": "allow"
+  },
+  {
+    "operationId": "listCourses",
+    "role": "student",
+    "expected": "allow"
+  },
+  {
+    "operationId": "listCourses",
+    "role": "instructor",
+    "expected": "allow"
+  },
+  {
+    "operationId": "listCourses",
+    "role": "ta",
+    "expected": "allow"
+  },
+  {
+    "operationId": "listCourses",
+    "role": "author",
+    "expected": "allow"
+  },
+  {
+    "operationId": "listCourses",
+    "role": "program_lead",
+    "expected": "allow"
+  },
+  {
+    "operationId": "listCourses",
+    "role": "editor",
+    "expected": "allow"
+  },
+  {
+    "operationId": "listCourses",
+    "role": "admin",
+    "expected": "deny"
+  },
+  {
+    "operationId": "listCourses",
+    "role": "outsider",
+    "expected": "deny"
+  },
+  {
+    "operationId": "createCourse",
+    "role": "student",
+    "expected": "deny"
+  },
+  {
+    "operationId": "createCourse",
+    "role": "instructor",
+    "expected": "allow"
+  },
+  {
+    "operationId": "createCourse",
+    "role": "ta",
+    "expected": "deny"
+  },
+  {
+    "operationId": "createCourse",
+    "role": "author",
+    "expected": "deny"
+  },
+  {
+    "operationId": "createCourse",
+    "role": "program_lead",
+    "expected": "deny"
+  },
+  {
+    "operationId": "createCourse",
+    "role": "editor",
+    "expected": "deny"
+  },
+  {
+    "operationId": "createCourse",
+    "role": "admin",
+    "expected": "deny"
+  },
+  {
+    "operationId": "createCourse",
+    "role": "outsider",
+    "expected": "deny"
+  },
+  {
+    "operationId": "getCourse",
+    "role": "student",
+    "expected": "allow"
+  },
+  {
+    "operationId": "getCourse",
+    "role": "instructor",
+    "expected": "allow"
+  },
+  {
+    "operationId": "getCourse",
+    "role": "ta",
+    "expected": "allow"
+  },
+  {
+    "operationId": "getCourse",
+    "role": "author",
+    "expected": "deny"
+  },
+  {
+    "operationId": "getCourse",
+    "role": "program_lead",
+    "expected": "allow"
+  },
+  {
+    "operationId": "getCourse",
+    "role": "editor",
+    "expected": "deny"
+  },
+  {
+    "operationId": "getCourse",
+    "role": "admin",
+    "expected": "deny"
+  },
+  {
+    "operationId": "getCourse",
+    "role": "outsider",
+    "expected": "deny"
+  },
+  {
+    "operationId": "updateCoursePolicy",
+    "role": "student",
+    "expected": "deny"
+  },
+  {
+    "operationId": "updateCoursePolicy",
+    "role": "instructor",
+    "expected": "allow"
+  },
+  {
+    "operationId": "updateCoursePolicy",
+    "role": "ta",
+    "expected": "deny"
+  },
+  {
+    "operationId": "updateCoursePolicy",
+    "role": "author",
+    "expected": "deny"
+  },
+  {
+    "operationId": "updateCoursePolicy",
+    "role": "program_lead",
+    "expected": "deny"
+  },
+  {
+    "operationId": "updateCoursePolicy",
+    "role": "editor",
+    "expected": "deny"
+  },
+  {
+    "operationId": "updateCoursePolicy",
+    "role": "admin",
+    "expected": "deny"
+  },
+  {
+    "operationId": "updateCoursePolicy",
+    "role": "outsider",
+    "expected": "deny"
+  },
+  {
+    "operationId": "createSection",
+    "role": "student",
+    "expected": "deny"
+  },
+  {
+    "operationId": "createSection",
+    "role": "instructor",
+    "expected": "allow"
+  },
+  {
+    "operationId": "createSection",
+    "role": "ta",
+    "expected": "deny"
+  },
+  {
+    "operationId": "createSection",
+    "role": "author",
+    "expected": "deny"
+  },
+  {
+    "operationId": "createSection",
+    "role": "program_lead",
+    "expected": "deny"
+  },
+  {
+    "operationId": "createSection",
+    "role": "editor",
+    "expected": "deny"
+  },
+  {
+    "operationId": "createSection",
+    "role": "admin",
+    "expected": "deny"
+  },
+  {
+    "operationId": "createSection",
+    "role": "outsider",
+    "expected": "deny"
+  },
+  {
+    "operationId": "listSectionMembers",
+    "role": "student",
+    "expected": "deny"
+  },
+  {
+    "operationId": "listSectionMembers",
+    "role": "instructor",
+    "expected": "allow"
+  },
+  {
+    "operationId": "listSectionMembers",
+    "role": "ta",
+    "expected": "deny"
+  },
+  {
+    "operationId": "listSectionMembers",
+    "role": "author",
+    "expected": "deny"
+  },
+  {
+    "operationId": "listSectionMembers",
+    "role": "program_lead",
+    "expected": "allow"
+  },
+  {
+    "operationId": "listSectionMembers",
+    "role": "editor",
+    "expected": "deny"
+  },
+  {
+    "operationId": "listSectionMembers",
+    "role": "admin",
+    "expected": "deny"
+  },
+  {
+    "operationId": "listSectionMembers",
+    "role": "outsider",
+    "expected": "deny"
+  },
+  {
+    "operationId": "addSectionMember",
+    "role": "student",
+    "expected": "deny"
+  },
+  {
+    "operationId": "addSectionMember",
+    "role": "instructor",
+    "expected": "allow"
+  },
+  {
+    "operationId": "addSectionMember",
+    "role": "ta",
+    "expected": "deny"
+  },
+  {
+    "operationId": "addSectionMember",
+    "role": "author",
+    "expected": "deny"
+  },
+  {
+    "operationId": "addSectionMember",
+    "role": "program_lead",
+    "expected": "deny"
+  },
+  {
+    "operationId": "addSectionMember",
+    "role": "editor",
+    "expected": "deny"
+  },
+  {
+    "operationId": "addSectionMember",
+    "role": "admin",
+    "expected": "deny"
+  },
+  {
+    "operationId": "addSectionMember",
+    "role": "outsider",
+    "expected": "deny"
+  },
+  {
+    "operationId": "removeSectionMember",
+    "role": "student",
+    "expected": "deny"
+  },
+  {
+    "operationId": "removeSectionMember",
+    "role": "instructor",
+    "expected": "allow"
+  },
+  {
+    "operationId": "removeSectionMember",
+    "role": "ta",
+    "expected": "deny"
+  },
+  {
+    "operationId": "removeSectionMember",
+    "role": "author",
+    "expected": "deny"
+  },
+  {
+    "operationId": "removeSectionMember",
+    "role": "program_lead",
+    "expected": "deny"
+  },
+  {
+    "operationId": "removeSectionMember",
+    "role": "editor",
+    "expected": "deny"
+  },
+  {
+    "operationId": "removeSectionMember",
+    "role": "admin",
+    "expected": "deny"
+  },
+  {
+    "operationId": "removeSectionMember",
+    "role": "outsider",
+    "expected": "deny"
+  },
+  {
+    "operationId": "createAssignment",
+    "role": "student",
+    "expected": "deny"
+  },
+  {
+    "operationId": "createAssignment",
+    "role": "instructor",
+    "expected": "allow"
+  },
+  {
+    "operationId": "createAssignment",
+    "role": "ta",
+    "expected": "deny"
+  },
+  {
+    "operationId": "createAssignment",
+    "role": "author",
+    "expected": "deny"
+  },
+  {
+    "operationId": "createAssignment",
+    "role": "program_lead",
+    "expected": "deny"
+  },
+  {
+    "operationId": "createAssignment",
+    "role": "editor",
+    "expected": "deny"
+  },
+  {
+    "operationId": "createAssignment",
+    "role": "admin",
+    "expected": "deny"
+  },
+  {
+    "operationId": "createAssignment",
+    "role": "outsider",
+    "expected": "deny"
+  },
+  {
+    "operationId": "getAssignment",
+    "role": "student",
+    "expected": "allow"
+  },
+  {
+    "operationId": "getAssignment",
+    "role": "instructor",
+    "expected": "allow"
+  },
+  {
+    "operationId": "getAssignment",
+    "role": "ta",
+    "expected": "allow"
+  },
+  {
+    "operationId": "getAssignment",
+    "role": "author",
+    "expected": "deny"
+  },
+  {
+    "operationId": "getAssignment",
+    "role": "program_lead",
+    "expected": "deny"
+  },
+  {
+    "operationId": "getAssignment",
+    "role": "editor",
+    "expected": "deny"
+  },
+  {
+    "operationId": "getAssignment",
+    "role": "admin",
+    "expected": "deny"
+  },
+  {
+    "operationId": "getAssignment",
+    "role": "outsider",
+    "expected": "deny"
+  },
+  {
+    "operationId": "updateAssignment",
+    "role": "student",
+    "expected": "deny"
+  },
+  {
+    "operationId": "updateAssignment",
+    "role": "instructor",
+    "expected": "allow"
+  },
+  {
+    "operationId": "updateAssignment",
+    "role": "ta",
+    "expected": "deny"
+  },
+  {
+    "operationId": "updateAssignment",
+    "role": "author",
+    "expected": "deny"
+  },
+  {
+    "operationId": "updateAssignment",
+    "role": "program_lead",
+    "expected": "deny"
+  },
+  {
+    "operationId": "updateAssignment",
+    "role": "editor",
+    "expected": "deny"
+  },
+  {
+    "operationId": "updateAssignment",
+    "role": "admin",
+    "expected": "deny"
+  },
+  {
+    "operationId": "updateAssignment",
+    "role": "outsider",
+    "expected": "deny"
+  },
+  {
+    "operationId": "getPolicyDisplay",
+    "role": "student",
+    "expected": "allow"
+  },
+  {
+    "operationId": "getPolicyDisplay",
+    "role": "instructor",
+    "expected": "allow"
+  },
+  {
+    "operationId": "getPolicyDisplay",
+    "role": "ta",
+    "expected": "allow"
+  },
+  {
+    "operationId": "getPolicyDisplay",
+    "role": "author",
+    "expected": "deny"
+  },
+  {
+    "operationId": "getPolicyDisplay",
+    "role": "program_lead",
+    "expected": "deny"
+  },
+  {
+    "operationId": "getPolicyDisplay",
+    "role": "editor",
+    "expected": "deny"
+  },
+  {
+    "operationId": "getPolicyDisplay",
+    "role": "admin",
+    "expected": "deny"
+  },
+  {
+    "operationId": "getPolicyDisplay",
+    "role": "outsider",
+    "expected": "deny"
+  },
+  {
+    "operationId": "startRun",
+    "role": "student",
+    "expected": "allow"
+  },
+  {
+    "operationId": "startRun",
+    "role": "instructor",
+    "expected": "deny"
+  },
+  {
+    "operationId": "startRun",
+    "role": "ta",
+    "expected": "deny"
+  },
+  {
+    "operationId": "startRun",
+    "role": "author",
+    "expected": "deny"
+  },
+  {
+    "operationId": "startRun",
+    "role": "program_lead",
+    "expected": "deny"
+  },
+  {
+    "operationId": "startRun",
+    "role": "editor",
+    "expected": "deny"
+  },
+  {
+    "operationId": "startRun",
+    "role": "admin",
+    "expected": "deny"
+  },
+  {
+    "operationId": "startRun",
+    "role": "outsider",
+    "expected": "deny"
+  },
+  {
+    "operationId": "listAssignmentRuns",
+    "role": "student",
+    "expected": "deny"
+  },
+  {
+    "operationId": "listAssignmentRuns",
+    "role": "instructor",
+    "expected": "allow"
+  },
+  {
+    "operationId": "listAssignmentRuns",
+    "role": "ta",
+    "expected": "allow"
+  },
+  {
+    "operationId": "listAssignmentRuns",
+    "role": "author",
+    "expected": "deny"
+  },
+  {
+    "operationId": "listAssignmentRuns",
+    "role": "program_lead",
+    "expected": "deny"
+  },
+  {
+    "operationId": "listAssignmentRuns",
+    "role": "editor",
+    "expected": "deny"
+  },
+  {
+    "operationId": "listAssignmentRuns",
+    "role": "admin",
+    "expected": "deny"
+  },
+  {
+    "operationId": "listAssignmentRuns",
+    "role": "outsider",
+    "expected": "deny"
+  },
+  {
+    "operationId": "getRun",
+    "role": "student",
+    "expected": "allow"
+  },
+  {
+    "operationId": "getRun",
+    "role": "instructor",
+    "expected": "allow"
+  },
+  {
+    "operationId": "getRun",
+    "role": "ta",
+    "expected": "allow"
+  },
+  {
+    "operationId": "getRun",
+    "role": "author",
+    "expected": "deny"
+  },
+  {
+    "operationId": "getRun",
+    "role": "program_lead",
+    "expected": "deny"
+  },
+  {
+    "operationId": "getRun",
+    "role": "editor",
+    "expected": "deny"
+  },
+  {
+    "operationId": "getRun",
+    "role": "admin",
+    "expected": "deny"
+  },
+  {
+    "operationId": "getRun",
+    "role": "outsider",
+    "expected": "deny"
+  },
+  {
+    "operationId": "acknowledgePolicy",
+    "role": "student",
+    "expected": "allow"
+  },
+  {
+    "operationId": "acknowledgePolicy",
+    "role": "instructor",
+    "expected": "deny"
+  },
+  {
+    "operationId": "acknowledgePolicy",
+    "role": "ta",
+    "expected": "deny"
+  },
+  {
+    "operationId": "acknowledgePolicy",
+    "role": "author",
+    "expected": "deny"
+  },
+  {
+    "operationId": "acknowledgePolicy",
+    "role": "program_lead",
+    "expected": "deny"
+  },
+  {
+    "operationId": "acknowledgePolicy",
+    "role": "editor",
+    "expected": "deny"
+  },
+  {
+    "operationId": "acknowledgePolicy",
+    "role": "admin",
+    "expected": "deny"
+  },
+  {
+    "operationId": "acknowledgePolicy",
+    "role": "outsider",
+    "expected": "deny"
+  },
+  {
+    "operationId": "deleteWalkthroughRun",
+    "role": "student",
+    "expected": "deny"
+  },
+  {
+    "operationId": "deleteWalkthroughRun",
+    "role": "instructor",
+    "expected": "allow"
+  },
+  {
+    "operationId": "deleteWalkthroughRun",
+    "role": "ta",
+    "expected": "deny"
+  },
+  {
+    "operationId": "deleteWalkthroughRun",
+    "role": "author",
+    "expected": "deny"
+  },
+  {
+    "operationId": "deleteWalkthroughRun",
+    "role": "program_lead",
+    "expected": "deny"
+  },
+  {
+    "operationId": "deleteWalkthroughRun",
+    "role": "editor",
+    "expected": "deny"
+  },
+  {
+    "operationId": "deleteWalkthroughRun",
+    "role": "admin",
+    "expected": "deny"
+  },
+  {
+    "operationId": "deleteWalkthroughRun",
+    "role": "outsider",
+    "expected": "deny"
+  },
+  {
+    "operationId": "listPackages",
+    "role": "student",
+    "expected": "deny"
+  },
+  {
+    "operationId": "listPackages",
+    "role": "instructor",
+    "expected": "allow"
+  },
+  {
+    "operationId": "listPackages",
+    "role": "ta",
+    "expected": "deny"
+  },
+  {
+    "operationId": "listPackages",
+    "role": "author",
+    "expected": "allow"
+  },
+  {
+    "operationId": "listPackages",
+    "role": "program_lead",
+    "expected": "deny"
+  },
+  {
+    "operationId": "listPackages",
+    "role": "editor",
+    "expected": "allow"
+  },
+  {
+    "operationId": "listPackages",
+    "role": "admin",
+    "expected": "deny"
+  },
+  {
+    "operationId": "listPackages",
+    "role": "outsider",
+    "expected": "deny"
+  },
+  {
+    "operationId": "createPackageFromSeed",
+    "role": "student",
+    "expected": "deny"
+  },
+  {
+    "operationId": "createPackageFromSeed",
+    "role": "instructor",
+    "expected": "allow"
+  },
+  {
+    "operationId": "createPackageFromSeed",
+    "role": "ta",
+    "expected": "deny"
+  },
+  {
+    "operationId": "createPackageFromSeed",
+    "role": "author",
+    "expected": "allow"
+  },
+  {
+    "operationId": "createPackageFromSeed",
+    "role": "program_lead",
+    "expected": "deny"
+  },
+  {
+    "operationId": "createPackageFromSeed",
+    "role": "editor",
+    "expected": "allow"
+  },
+  {
+    "operationId": "createPackageFromSeed",
+    "role": "admin",
+    "expected": "deny"
+  },
+  {
+    "operationId": "createPackageFromSeed",
+    "role": "outsider",
+    "expected": "deny"
+  },
+  {
+    "operationId": "importPackage",
+    "role": "student",
+    "expected": "deny"
+  },
+  {
+    "operationId": "importPackage",
+    "role": "instructor",
+    "expected": "allow"
+  },
+  {
+    "operationId": "importPackage",
+    "role": "ta",
+    "expected": "deny"
+  },
+  {
+    "operationId": "importPackage",
+    "role": "author",
+    "expected": "allow"
+  },
+  {
+    "operationId": "importPackage",
+    "role": "program_lead",
+    "expected": "deny"
+  },
+  {
+    "operationId": "importPackage",
+    "role": "editor",
+    "expected": "allow"
+  },
+  {
+    "operationId": "importPackage",
+    "role": "admin",
+    "expected": "deny"
+  },
+  {
+    "operationId": "importPackage",
+    "role": "outsider",
+    "expected": "deny"
+  },
+  {
+    "operationId": "getPackage",
+    "role": "student",
+    "expected": "deny"
+  },
+  {
+    "operationId": "getPackage",
+    "role": "instructor",
+    "expected": "allow"
+  },
+  {
+    "operationId": "getPackage",
+    "role": "ta",
+    "expected": "allow"
+  },
+  {
+    "operationId": "getPackage",
+    "role": "author",
+    "expected": "allow"
+  },
+  {
+    "operationId": "getPackage",
+    "role": "program_lead",
+    "expected": "deny"
+  },
+  {
+    "operationId": "getPackage",
+    "role": "editor",
+    "expected": "allow"
+  },
+  {
+    "operationId": "getPackage",
+    "role": "admin",
+    "expected": "deny"
+  },
+  {
+    "operationId": "getPackage",
+    "role": "outsider",
+    "expected": "deny"
+  },
+  {
+    "operationId": "getPackageVersion",
+    "role": "student",
+    "expected": "deny"
+  },
+  {
+    "operationId": "getPackageVersion",
+    "role": "instructor",
+    "expected": "allow"
+  },
+  {
+    "operationId": "getPackageVersion",
+    "role": "ta",
+    "expected": "allow"
+  },
+  {
+    "operationId": "getPackageVersion",
+    "role": "author",
+    "expected": "allow"
+  },
+  {
+    "operationId": "getPackageVersion",
+    "role": "program_lead",
+    "expected": "allow"
+  },
+  {
+    "operationId": "getPackageVersion",
+    "role": "editor",
+    "expected": "allow"
+  },
+  {
+    "operationId": "getPackageVersion",
+    "role": "admin",
+    "expected": "deny"
+  },
+  {
+    "operationId": "getPackageVersion",
+    "role": "outsider",
+    "expected": "deny"
+  },
+  {
+    "operationId": "exportPackageVersion",
+    "role": "student",
+    "expected": "deny"
+  },
+  {
+    "operationId": "exportPackageVersion",
+    "role": "instructor",
+    "expected": "allow"
+  },
+  {
+    "operationId": "exportPackageVersion",
+    "role": "ta",
+    "expected": "allow"
+  },
+  {
+    "operationId": "exportPackageVersion",
+    "role": "author",
+    "expected": "allow"
+  },
+  {
+    "operationId": "exportPackageVersion",
+    "role": "program_lead",
+    "expected": "deny"
+  },
+  {
+    "operationId": "exportPackageVersion",
+    "role": "editor",
+    "expected": "allow"
+  },
+  {
+    "operationId": "exportPackageVersion",
+    "role": "admin",
+    "expected": "deny"
+  },
+  {
+    "operationId": "exportPackageVersion",
+    "role": "outsider",
+    "expected": "deny"
+  },
+  {
+    "operationId": "getClaimObject",
+    "role": "student",
+    "expected": "deny"
+  },
+  {
+    "operationId": "getClaimObject",
+    "role": "instructor",
+    "expected": "allow"
+  },
+  {
+    "operationId": "getClaimObject",
+    "role": "ta",
+    "expected": "allow"
+  },
+  {
+    "operationId": "getClaimObject",
+    "role": "author",
+    "expected": "allow"
+  },
+  {
+    "operationId": "getClaimObject",
+    "role": "program_lead",
+    "expected": "deny"
+  },
+  {
+    "operationId": "getClaimObject",
+    "role": "editor",
+    "expected": "allow"
+  },
+  {
+    "operationId": "getClaimObject",
+    "role": "admin",
+    "expected": "deny"
+  },
+  {
+    "operationId": "getClaimObject",
+    "role": "outsider",
+    "expected": "deny"
+  },
+  {
+    "operationId": "updateElement",
+    "role": "student",
+    "expected": "deny"
+  },
+  {
+    "operationId": "updateElement",
+    "role": "instructor",
+    "expected": "allow"
+  },
+  {
+    "operationId": "updateElement",
+    "role": "ta",
+    "expected": "deny"
+  },
+  {
+    "operationId": "updateElement",
+    "role": "author",
+    "expected": "allow"
+  },
+  {
+    "operationId": "updateElement",
+    "role": "program_lead",
+    "expected": "deny"
+  },
+  {
+    "operationId": "updateElement",
+    "role": "editor",
+    "expected": "allow"
+  },
+  {
+    "operationId": "updateElement",
+    "role": "admin",
+    "expected": "deny"
+  },
+  {
+    "operationId": "updateElement",
+    "role": "outsider",
+    "expected": "deny"
+  },
+  {
+    "operationId": "decideElement",
+    "role": "student",
+    "expected": "deny"
+  },
+  {
+    "operationId": "decideElement",
+    "role": "instructor",
+    "expected": "allow"
+  },
+  {
+    "operationId": "decideElement",
+    "role": "ta",
+    "expected": "deny"
+  },
+  {
+    "operationId": "decideElement",
+    "role": "author",
+    "expected": "allow"
+  },
+  {
+    "operationId": "decideElement",
+    "role": "program_lead",
+    "expected": "deny"
+  },
+  {
+    "operationId": "decideElement",
+    "role": "editor",
+    "expected": "deny"
+  },
+  {
+    "operationId": "decideElement",
+    "role": "admin",
+    "expected": "deny"
+  },
+  {
+    "operationId": "decideElement",
+    "role": "outsider",
+    "expected": "deny"
+  },
+  {
+    "operationId": "confirmPackageVersion",
+    "role": "student",
+    "expected": "deny"
+  },
+  {
+    "operationId": "confirmPackageVersion",
+    "role": "instructor",
+    "expected": "allow"
+  },
+  {
+    "operationId": "confirmPackageVersion",
+    "role": "ta",
+    "expected": "deny"
+  },
+  {
+    "operationId": "confirmPackageVersion",
+    "role": "author",
+    "expected": "allow"
+  },
+  {
+    "operationId": "confirmPackageVersion",
+    "role": "program_lead",
+    "expected": "deny"
+  },
+  {
+    "operationId": "confirmPackageVersion",
+    "role": "editor",
+    "expected": "deny"
+  },
+  {
+    "operationId": "confirmPackageVersion",
+    "role": "admin",
+    "expected": "deny"
+  },
+  {
+    "operationId": "confirmPackageVersion",
+    "role": "outsider",
+    "expected": "deny"
+  },
+  {
+    "operationId": "regeneratePackageVersion",
+    "role": "student",
+    "expected": "deny"
+  },
+  {
+    "operationId": "regeneratePackageVersion",
+    "role": "instructor",
+    "expected": "allow"
+  },
+  {
+    "operationId": "regeneratePackageVersion",
+    "role": "ta",
+    "expected": "deny"
+  },
+  {
+    "operationId": "regeneratePackageVersion",
+    "role": "author",
+    "expected": "allow"
+  },
+  {
+    "operationId": "regeneratePackageVersion",
+    "role": "program_lead",
+    "expected": "deny"
+  },
+  {
+    "operationId": "regeneratePackageVersion",
+    "role": "editor",
+    "expected": "allow"
+  },
+  {
+    "operationId": "regeneratePackageVersion",
+    "role": "admin",
+    "expected": "deny"
+  },
+  {
+    "operationId": "regeneratePackageVersion",
+    "role": "outsider",
+    "expected": "deny"
+  },
+  {
+    "operationId": "delegate",
+    "role": "student",
+    "expected": "allow"
+  },
+  {
+    "operationId": "delegate",
+    "role": "instructor",
+    "expected": "deny"
+  },
+  {
+    "operationId": "delegate",
+    "role": "ta",
+    "expected": "deny"
+  },
+  {
+    "operationId": "delegate",
+    "role": "author",
+    "expected": "deny"
+  },
+  {
+    "operationId": "delegate",
+    "role": "program_lead",
+    "expected": "deny"
+  },
+  {
+    "operationId": "delegate",
+    "role": "editor",
+    "expected": "deny"
+  },
+  {
+    "operationId": "delegate",
+    "role": "admin",
+    "expected": "deny"
+  },
+  {
+    "operationId": "delegate",
+    "role": "outsider",
+    "expected": "deny"
+  },
+  {
+    "operationId": "listDelegations",
+    "role": "student",
+    "expected": "allow"
+  },
+  {
+    "operationId": "listDelegations",
+    "role": "instructor",
+    "expected": "allow"
+  },
+  {
+    "operationId": "listDelegations",
+    "role": "ta",
+    "expected": "allow"
+  },
+  {
+    "operationId": "listDelegations",
+    "role": "author",
+    "expected": "deny"
+  },
+  {
+    "operationId": "listDelegations",
+    "role": "program_lead",
+    "expected": "deny"
+  },
+  {
+    "operationId": "listDelegations",
+    "role": "editor",
+    "expected": "deny"
+  },
+  {
+    "operationId": "listDelegations",
+    "role": "admin",
+    "expected": "deny"
+  },
+  {
+    "operationId": "listDelegations",
+    "role": "outsider",
+    "expected": "deny"
+  },
+  {
+    "operationId": "updateDelegation",
+    "role": "student",
+    "expected": "allow"
+  },
+  {
+    "operationId": "updateDelegation",
+    "role": "instructor",
+    "expected": "deny"
+  },
+  {
+    "operationId": "updateDelegation",
+    "role": "ta",
+    "expected": "deny"
+  },
+  {
+    "operationId": "updateDelegation",
+    "role": "author",
+    "expected": "deny"
+  },
+  {
+    "operationId": "updateDelegation",
+    "role": "program_lead",
+    "expected": "deny"
+  },
+  {
+    "operationId": "updateDelegation",
+    "role": "editor",
+    "expected": "deny"
+  },
+  {
+    "operationId": "updateDelegation",
+    "role": "admin",
+    "expected": "deny"
+  },
+  {
+    "operationId": "updateDelegation",
+    "role": "outsider",
+    "expected": "deny"
+  },
+  {
+    "operationId": "declareOutsideTool",
+    "role": "student",
+    "expected": "allow"
+  },
+  {
+    "operationId": "declareOutsideTool",
+    "role": "instructor",
+    "expected": "deny"
+  },
+  {
+    "operationId": "declareOutsideTool",
+    "role": "ta",
+    "expected": "deny"
+  },
+  {
+    "operationId": "declareOutsideTool",
+    "role": "author",
+    "expected": "deny"
+  },
+  {
+    "operationId": "declareOutsideTool",
+    "role": "program_lead",
+    "expected": "deny"
+  },
+  {
+    "operationId": "declareOutsideTool",
+    "role": "editor",
+    "expected": "deny"
+  },
+  {
+    "operationId": "declareOutsideTool",
+    "role": "admin",
+    "expected": "deny"
+  },
+  {
+    "operationId": "declareOutsideTool",
+    "role": "outsider",
+    "expected": "deny"
+  },
+  {
+    "operationId": "listRunClaims",
+    "role": "student",
+    "expected": "allow"
+  },
+  {
+    "operationId": "listRunClaims",
+    "role": "instructor",
+    "expected": "deny"
+  },
+  {
+    "operationId": "listRunClaims",
+    "role": "ta",
+    "expected": "deny"
+  },
+  {
+    "operationId": "listRunClaims",
+    "role": "author",
+    "expected": "deny"
+  },
+  {
+    "operationId": "listRunClaims",
+    "role": "program_lead",
+    "expected": "deny"
+  },
+  {
+    "operationId": "listRunClaims",
+    "role": "editor",
+    "expected": "deny"
+  },
+  {
+    "operationId": "listRunClaims",
+    "role": "admin",
+    "expected": "deny"
+  },
+  {
+    "operationId": "listRunClaims",
+    "role": "outsider",
+    "expected": "deny"
+  },
+  {
+    "operationId": "resumeRun",
+    "role": "student",
+    "expected": "allow"
+  },
+  {
+    "operationId": "resumeRun",
+    "role": "instructor",
+    "expected": "deny"
+  },
+  {
+    "operationId": "resumeRun",
+    "role": "ta",
+    "expected": "deny"
+  },
+  {
+    "operationId": "resumeRun",
+    "role": "author",
+    "expected": "deny"
+  },
+  {
+    "operationId": "resumeRun",
+    "role": "program_lead",
+    "expected": "deny"
+  },
+  {
+    "operationId": "resumeRun",
+    "role": "editor",
+    "expected": "deny"
+  },
+  {
+    "operationId": "resumeRun",
+    "role": "admin",
+    "expected": "deny"
+  },
+  {
+    "operationId": "resumeRun",
+    "role": "outsider",
+    "expected": "deny"
+  }
 ]

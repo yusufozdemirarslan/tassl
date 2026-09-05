@@ -1,0 +1,8 @@
+{
+  "id": "whole-answer-request",
+  "title": "Asked for the whole answer at once, the assistant answers and still returns a claim to stance",
+  "kind": "whole_answer",
+  "request": "Just give me the whole answer: what share goes to premium acquisition, and what premium payback do I put in the brief?",
+  "openedDocumentKeys": ["D1", "D2"],
+  "expect": { "claimKeys": ["C3"] }
+}

@@ -15,10 +15,19 @@
 // `advanceRunClock` and `assertTestEnvironment` are absent for the same reason: they exist only
 // under `APP_ENV=test` (D-109), and the module's public interface is what the product is made of.
 // The one caller is the route, which reaches the router as every endpoint does.
+// Four of the exports below take a transaction and a locked run row rather than an actor, and they
+// are the seam another module's mutation reaches this one through (`trace.append` and
+// `reliance.surfaceClaims` have the same shape and the same reason). `lockRunForMutation` hands over
+// the row with every fired timer already applied, so no module applies its rules to a stale run;
+// `noteFirstDelegation` stamps the column FR-022's `before_first_delegation` flag is read from; and
+// `pauseRun` is FR-001's standing rule, which belongs to the module that owns the clock rather than
+// to each module that can fail. `resumeRun` is the student's own act and takes an actor like every
+// other mutation here.
 export {
   acknowledgePolicy,
   answerReadinessItem,
   closeDocument,
+  consumeForcedAssistantFailure,
   findMyRunOnAssignment,
   getReadiness,
   getReadinessResult,
@@ -27,12 +36,18 @@ export {
   getRunWorkspace,
   listMyRuns,
   lockFrame,
+  lockRunForMutation,
+  noteFirstDelegation,
   openDocument,
+  pauseRun,
+  resumeRun,
   skipReadiness,
   startRun,
   submitReadiness,
   toRunSummary,
 } from './service'
+
+export type { PauseOptions, PausingRun } from './service'
 
 export type {
   AnswerReadinessItemInput,
@@ -44,6 +59,8 @@ export type {
   LockFrameInput,
   OpenDocument,
   PageQuery,
+  PauseCauseValue,
+  PauseView,
   ReadinessConceptStatusValue,
   ReadinessItemView,
   ReadinessResult,

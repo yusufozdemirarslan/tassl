@@ -2,11 +2,40 @@
 // 06 §3.4). A delegation row is inserted empty before the stream starts and completed or failed when
 // it ends; `why` and reviewer flags are edited later. run_delegations has no organization_id; every
 // function is scoped through the run id the service already resolved in the tenant.
-import { and, asc, eq, sql } from 'drizzle-orm'
+//
+// Below the delegation rows sit four reads of tables this module does not own: the version's claims
+// with their trigger phrases, the brief and the stakeholders' names, the documents the student has
+// opened, and the version's Sycophancy Probe. They are here for the reason D-242 gives one module
+// along: what `assistant-reply@1` renders is a handful of columns across four tables, and the
+// alternative — a view on the `scenarios` module wide enough to carry them — would be a second
+// student-facing projection of a package, built for a prompt, sitting next to the one 12 §8 governs.
+// Reading the columns here keeps the withholding *in the query*: the trigger phrases and the carried
+// values that reach this file are prompt inputs and guard inputs, and no field of
+// `variant_claim_states` — the warranted stance, the evidence status, the planted flag — is
+// selected by any statement in it. The assistant cannot leak an answer key it never loads.
+import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm'
 import { AppError } from '@/lib/errors'
 import { db } from '@/server/db/client'
-import { runDelegations, type NewRunDelegation, type RunDelegation } from '@/server/db/schema'
+import {
+  runClaims,
+  runDelegations,
+  runDocumentOpens,
+  scenarioClaims,
+  scenarioDocuments,
+  scenarioPackageVersions,
+  scenarioTurns,
+  stakeholders,
+  sycophancyProbes,
+  type NewRunDelegation,
+  type RunDelegation,
+} from '@/server/db/schema'
 import type { DbOrTx } from '@/server/db/tx'
+
+// The service layer may not import `src/server/db` (04 §2), so the handles and row types it names
+// reach it through here, the one file in this module that may.
+export type { DbOrTx, Tx } from '@/server/db/tx'
+export { withTransaction } from '@/server/db/tx'
+export type { RunDelegation }
 
 /**
  * The request as it is stored before streaming. `seq` may be supplied; when omitted it is allocated
@@ -99,4 +128,226 @@ export async function updateDelegation(
     .where(and(eq(runDelegations.runId, runId), eq(runDelegations.id, delegationId)))
     .returning()
   return row
+}
+
+// ---------------------------------------------------------------------------------------------
+// What the prompt and the guards are built from (11 §2.1, §3)
+// ---------------------------------------------------------------------------------------------
+
+/** One claim of the run's version as the matcher and the prompt need it (10 §7, D-030). */
+export type ClaimCandidate = {
+  id: string
+  key: string
+  text: string
+  triggerPhrases: string[]
+  triggerDescription: string
+  /** `scenario_claims.carried_values`: the exact figures the claim text may round (D-068). */
+  carriedValues: number[]
+}
+
+/**
+ * Every consequential claim of a package version, in authored order.
+ *
+ * All of them, not only the unsurfaced ones. 10 §7's "already-surfaced claims are referenced, not
+ * re-surfaced" is a rule about `run_claims`, not about matching: a student who asks the same
+ * question twice gets the same answer twice, with the claim carried again, and the second delegation
+ * records that it carried it. Matching only the unsurfaced ones would make the assistant go quiet on
+ * a repeated question — the one behaviour a student would read as the room hiding something (D-267).
+ */
+export async function listVersionClaims(
+  versionId: string,
+  dbx: DbOrTx = db,
+): Promise<ClaimCandidate[]> {
+  const rows = await dbx
+    .select({
+      id: scenarioClaims.id,
+      key: scenarioClaims.key,
+      text: scenarioClaims.text,
+      triggerPhrases: scenarioClaims.triggerPhrases,
+      triggerDescription: scenarioClaims.triggerDescription,
+      carriedValues: scenarioClaims.carriedValues,
+    })
+    .from(scenarioClaims)
+    .where(eq(scenarioClaims.packageVersionId, versionId))
+    .orderBy(asc(scenarioClaims.position), asc(scenarioClaims.key))
+
+  return rows.map((row) => ({
+    id: row.id,
+    key: row.key,
+    text: row.text,
+    triggerPhrases: row.triggerPhrases,
+    triggerDescription: row.triggerDescription,
+    carriedValues: row.carriedValues.map((carried) => carried.value),
+  }))
+}
+
+/** The `worldSummary` half of `assistant-reply@1`: the brief, and who is in the room (10 §7). */
+export type WorldSummarySource = {
+  brief: string
+  people: { name: string; roleTitle: string }[]
+}
+
+/**
+ * The brief and the stakeholders' names and roles — and neither their position statements nor their
+ * blind spots, which 10 §7 keeps out of the world summary in as many words and 12 §8.1 keeps out of
+ * every student-facing surface. The prompt is a student-facing surface: whatever the model is told
+ * it can be asked to repeat.
+ *
+ * `scenario_package_versions` is a tenant-scoped table (06 §2), so the tenant comes first and is
+ * filtered on (D-006) — even though the version id was read off a run row this transaction already
+ * resolved in that tenant. The guard is cheap and it is one fewer place where "the caller checked"
+ * has to be true.
+ */
+export async function findWorldSummarySource(
+  tenantId: string,
+  versionId: string,
+  dbx: DbOrTx = db,
+): Promise<WorldSummarySource> {
+  const [version] = await dbx
+    .select({ brief: scenarioPackageVersions.brief })
+    .from(scenarioPackageVersions)
+    .where(
+      and(
+        eq(scenarioPackageVersions.id, versionId),
+        eq(scenarioPackageVersions.organizationId, tenantId),
+      ),
+    )
+
+  const people = await dbx
+    .select({ name: stakeholders.name, roleTitle: stakeholders.roleTitle })
+    .from(stakeholders)
+    .where(eq(stakeholders.packageVersionId, versionId))
+    .orderBy(asc(stakeholders.key))
+
+  return { brief: version?.brief ?? '', people }
+}
+
+/** One document the student has opened, as the prompt carries it (11 §3 caps the excerpt). */
+export type OpenedDocument = { id: string; title: string; body: string }
+
+/**
+ * The documents this run has opened, most recently first, one row each however often they were
+ * opened.
+ *
+ * The assistant is given what the student has read, which is what makes "never state a number that
+ * is not in the claims, the documents quoted below, or the student's own words" a rule the numeric
+ * guard can enforce over the same set (11 §3). A document nobody opened is not in the room as far
+ * as this reply is concerned, even though it is in the Evidence Room: quoting it would put a figure
+ * in front of a student who has not seen where it came from.
+ */
+export async function listOpenedDocuments(
+  runId: string,
+  limit: number,
+  dbx: DbOrTx = db,
+): Promise<OpenedDocument[]> {
+  const rows = await dbx
+    .select({
+      id: scenarioDocuments.id,
+      title: scenarioDocuments.title,
+      body: scenarioDocuments.body,
+      lastOpenedAt: sql<Date>`max(${runDocumentOpens.openedAt})`.as('last_opened_at'),
+    })
+    .from(runDocumentOpens)
+    .innerJoin(scenarioDocuments, eq(scenarioDocuments.id, runDocumentOpens.documentId))
+    .where(eq(runDocumentOpens.runId, runId))
+    .groupBy(scenarioDocuments.id, scenarioDocuments.title, scenarioDocuments.body)
+    .orderBy(desc(sql`max(${runDocumentOpens.openedAt})`))
+    .limit(limit)
+
+  return rows.map((row) => ({ id: row.id, title: row.title, body: row.body }))
+}
+
+/** DATA-022: the version's Sycophancy Probe, when it has one (FR-053, D-088). */
+export type ProbeRow = { claimId: string; scriptedReversal: string }
+
+export async function findProbe(
+  versionId: string,
+  dbx: DbOrTx = db,
+): Promise<ProbeRow | undefined> {
+  const [row] = await dbx
+    .select({
+      claimId: sycophancyProbes.claimId,
+      scriptedReversal: sycophancyProbes.scriptedReversal,
+    })
+    .from(sycophancyProbes)
+    .where(eq(sycophancyProbes.packageVersionId, versionId))
+  return row
+}
+
+/** The claims of one delegation, joined to their authored text, in authored order. */
+export async function listClaimTexts(
+  claimIds: readonly string[],
+  dbx: DbOrTx = db,
+): Promise<{ id: string; key: string; text: string }[]> {
+  if (claimIds.length === 0) return []
+  return dbx
+    .select({ id: scenarioClaims.id, key: scenarioClaims.key, text: scenarioClaims.text })
+    .from(scenarioClaims)
+    .where(inArray(scenarioClaims.id, [...claimIds]))
+    .orderBy(asc(scenarioClaims.position), asc(scenarioClaims.key))
+}
+
+/** One delegation of one run, or `undefined` when the id belongs to another run. */
+export async function findDelegation(
+  runId: string,
+  delegationId: string,
+  dbx: DbOrTx = db,
+): Promise<RunDelegation | undefined> {
+  const [row] = await dbx
+    .select()
+    .from(runDelegations)
+    .where(and(eq(runDelegations.runId, runId), eq(runDelegations.id, delegationId)))
+  return row
+}
+
+/** The Turn's own text, for the `turnContext` a delegation inside the window carries (11 §2.1). */
+export async function findTurnText(versionId: string, dbx: DbOrTx = db): Promise<string | null> {
+  const [row] = await dbx
+    .select({ text: scenarioTurns.text })
+    .from(scenarioTurns)
+    .where(eq(scenarioTurns.packageVersionId, versionId))
+  return row?.text ?? null
+}
+
+// ---------------------------------------------------------------------------------------------
+// The run's own claims, as the Delegation Log lists them (FR-060)
+// ---------------------------------------------------------------------------------------------
+
+/** One surfaced claim of the run: the claim, the stance it carries now, and the used mark. */
+export type RunClaimRow = {
+  claimId: string
+  key: string
+  text: string
+  stance: 'accept' | 'verify' | 'challenge' | 'reject' | 'escalate' | null
+  usedMarked: boolean
+}
+
+/**
+ * Every claim this run has surfaced, in surfacing order, with its current stance.
+ *
+ * `run_claims` belongs to the `reliance` module, and this is the second read of it here rather than
+ * a call into that module for a reason its own `listRunClaims` makes plain: that function is the
+ * student's claim list and starts with `requireRunOwner`, and the Delegation Log is read by the
+ * run's reviewers as well (07 §7). Rather than open a second, guard-free entry point on another
+ * module's service, the log reads the five columns it renders — and the columns it does *not* read
+ * are the point: no join to `variant_claim_states`, so the warranted stance and the planted flag are
+ * not in the query that draws the log.
+ */
+export async function listRunClaimRows(runId: string, dbx: DbOrTx = db): Promise<RunClaimRow[]> {
+  return (
+    dbx
+      .select({
+        claimId: runClaims.claimId,
+        key: scenarioClaims.key,
+        text: scenarioClaims.text,
+        stance: runClaims.stance,
+        usedMarked: runClaims.usedMarked,
+      })
+      .from(runClaims)
+      .innerJoin(scenarioClaims, eq(scenarioClaims.id, runClaims.claimId))
+      .where(eq(runClaims.runId, runId))
+      // Surfacing order, then the authored position — the tiebreak `reliance` uses for the same
+      // reason (D-274): several claims surface in one instant and a random uuid is not an order.
+      .orderBy(asc(runClaims.surfacedAt), asc(scenarioClaims.position), asc(scenarioClaims.key))
+  )
 }

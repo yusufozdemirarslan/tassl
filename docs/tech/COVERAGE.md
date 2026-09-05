@@ -45,8 +45,8 @@ Conventions: steps are `N.M` in `build-plan/phase-NN-*.md`; test paths are relat
 | FR-044 | 10.2 | unit/scoring/graphs/frame-beside-decision.test.ts |
 | FR-050 | 7.3 | integration/assistant/delegate.test.ts |
 | FR-051 | 7.2, 7.3, 7.4 | integration/assistant/delegate.test.ts, unit/components/run/assistant-panel.test.tsx, e2e wt-06 |
-| FR-052 | 7.1, 14.2 | unit/llm/numeric-guard.test.ts, integration/llm/degradation.test.ts |
-| FR-053 | 7.3 | integration/assistant/log.test.ts |
+| FR-052 | 7.1, 7.4, 14.2 | unit/llm/numeric-guard.test.ts, unit/assistant/assemble-reply.test.ts, unit/components/run/assistant-panel.test.tsx, unit/components/run/delegation-log.test.tsx, integration/llm/degradation.test.ts |
+| FR-053 | 7.3 | integration/assistant/probe.test.ts |
 | FR-054 | 10.3, 10.4 | unit/scoring/bands.test.ts, unit/scoring/reads.test.ts |
 | FR-055 | 11.1 | integration/api/review.test.ts |
 | FR-056 | 7.2, 14.3 | integration/assistant/defect-leak.test.ts, evals/assistant |

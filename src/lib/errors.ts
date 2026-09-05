@@ -39,6 +39,14 @@ export const ERROR_STATUS = {
   READINESS_SKIP_NOT_ALLOWED: 409,
   FRAME_INVALID: 400,
   RUN_LOCKED: 409,
+  // assistant (10 §7): the four refusals a delegation can meet. `ASSISTANT_UNAVAILABLE` is the
+  // only one that changes the run — the component failure of FR-001 pauses it and stops the clock —
+  // so it is a 503 rather than a 500: the student is told to wait and resume, not that they broke
+  // something.
+  ASSISTANT_LOCKED: 409,
+  ASSISTANT_REQUEST_TOO_LONG: 400,
+  ASSISTANT_UNAVAILABLE: 503,
+  DELEGATION_NOT_FOUND: 404,
   // trace (10 §10)
   SEQUENCE_CONFLICT: 500,
   LLM_BUDGET_EXCEEDED: 402,
@@ -85,6 +93,11 @@ export const DEFAULT_MESSAGES: Record<ErrorCode, string> = {
   READINESS_SKIP_NOT_ALLOWED: 'The check can only be skipped after a submission has failed.',
   FRAME_INVALID: 'The frame is not ready to lock.',
   RUN_LOCKED: 'This run’s decision is locked, so it can no longer be changed.',
+  ASSISTANT_LOCKED: 'The assistant is not available at this point in the run.',
+  ASSISTANT_REQUEST_TOO_LONG: 'That request is too long. Shorten it and send it again.',
+  ASSISTANT_UNAVAILABLE:
+    'The assistant did not answer, so the run is paused and the clock has stopped. Nothing you did was lost.',
+  DELEGATION_NOT_FOUND: 'That entry is not in this run’s Delegation Log.',
   SEQUENCE_CONFLICT: 'Something went wrong on our side.',
   LLM_BUDGET_EXCEEDED: 'The assistant budget for this period has been used up.',
   LLM_PROVIDER_ERROR: 'The assistant provider did not respond correctly.',

@@ -72,10 +72,10 @@
 - [x] Phase 6 exit criteria
 
 ## Phase 7 — Assistant and delegation log (`build-plan/phase-07-assistant-and-delegation.md`)
-- [ ] 7.1 LlmProvider interface, registry, mock provider, structured helper, call logging
-- [ ] 7.2 Assistant prompts and trigger matching
-- [ ] 7.3 Assistant service: delegate stream, surfacing, log, used marks, declaration, probe
-- [ ] 7.4 Workspace screens: assistant panel, claim cards, delegation log, declaration control, paused overlay
+- [x] 7.1 LlmProvider interface, registry, mock provider, structured helper, call logging
+- [x] 7.2 Assistant prompts and trigger matching
+- [x] 7.3 Assistant service: delegate stream, surfacing, log, used marks, declaration, probe
+- [x] 7.4 Workspace screens: assistant panel, claim cards, delegation log, declaration control, paused overlay
 - [ ] Phase 7 exit criteria
 
 ## Phase 8 — Reliance, interrogation, escalation, Decision Lock (`build-plan/phase-08-reliance-and-lock.md`)

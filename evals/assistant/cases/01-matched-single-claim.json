@@ -1,0 +1,8 @@
+{
+  "id": "matched-single-claim",
+  "title": "A request in the author's own words surfaces exactly that claim",
+  "kind": "matched",
+  "request": "What is the premium payback?",
+  "openedDocumentKeys": ["D2"],
+  "expect": { "claimKeys": ["C3"] }
+}

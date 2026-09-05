@@ -119,7 +119,15 @@ export async function upsertRunClaim(
   return { runClaim: existing, inserted: false }
 }
 
-/** Surfaced claims in surfacing order, each with its scenario claim. */
+/**
+ * Surfaced claims in surfacing order, each with its scenario claim.
+ *
+ * The tiebreak is the *authored* position, not `run_claims.id`. Several claims are routinely
+ * surfaced in one instant — one delegation matching two triggers, one document carrying three
+ * claims — and `run_claims.id` is a random uuid, so ordering on it puts the same run's claim list in
+ * a different order on every read. The student's workspace polls this list while they work, and a
+ * list that reshuffles under a cursor is a defect they would rightly report (D-274).
+ */
 export async function listRunClaims(
   runId: string,
   filter: RunClaimFilter = {},
@@ -136,7 +144,7 @@ export async function listRunClaims(
         filter.unstanced ? isNull(runClaims.stance) : undefined,
       ),
     )
-    .orderBy(asc(runClaims.surfacedAt), asc(runClaims.id))
+    .orderBy(asc(runClaims.surfacedAt), asc(scenarioClaims.position), asc(scenarioClaims.key))
 }
 
 /** The run's row for one scenario claim, by the claim id the API uses. */
