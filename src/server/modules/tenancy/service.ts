@@ -543,3 +543,16 @@ export async function updateDataAgreement(
   }
   return upsertDataAgreement(actor, existing.organizationId, merged)
 }
+
+/**
+ * The user ids of an institution's members holding one of `roles`, for a fan-out whose caller has
+ * already established its own permission — `confirmVersion` telling the institution's instructors a
+ * package is assignable (10 §4). Ids only: nothing here reads a name, an address, or a role, so a
+ * caller that must not see the roster still cannot.
+ */
+export async function listMemberIdsWithRoles(
+  orgId: string,
+  roles: readonly string[],
+): Promise<string[]> {
+  return repo.listMemberIdsWithRoles(orgId, roles)
+}

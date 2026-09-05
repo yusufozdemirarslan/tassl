@@ -37,7 +37,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { emailField } from '@/lib/auth/form-fields'
-import { t } from '@/lib/i18n/t'
+import { t } from '@/lib/i18n/messages/roster'
 import { inviteMemberAction } from '@/server/modules/tenancy/actions'
 import type { InvitationView } from '@/server/modules/tenancy/schema'
 import { INVITE_ROLE_ITEMS, INVITE_ROLE_VALUES, type InviteRoleValue } from './roster-roles'

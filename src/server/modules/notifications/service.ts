@@ -5,9 +5,11 @@
 // user id, taken from the session and never from the input — a row that is not theirs simply is not
 // found. That is why no permission helper appears here: the actor *is* the query key.
 //
-// `notify()` — the writer that fans a run or generation event out to recipients and enqueues the
-// email copies — arrives with the modules that raise those events (Phases 5, 6, 10 and 11); this
-// step ships only what the shell and UI-011 read.
+// `notify()` is the writer 10 §15 specifies: it fans an event out to its recipients inside the
+// caller's transaction, so a notification exists exactly when the thing it announces happened.
+// Email copies are specified for five run and generation types (`generation_complete`,
+// `generation_failed`, `run_scored`, `run_held`, `bands_confirmed`); none of them is raised yet,
+// and the phase that raises the first one brings the template it needs with it.
 import { AppError } from '@/lib/errors'
 import { t } from '@/lib/i18n/t'
 import type { SessionUser } from '@/server/auth/types'
@@ -15,6 +17,7 @@ import * as repo from './repository'
 import {
   notificationTypeSchema,
   type ListNotificationsInput,
+  type NotifyInput,
   type MarkAllReadResult,
   type NotificationPage,
   type NotificationView,
@@ -38,6 +41,33 @@ function toView(row: repo.Notification): NotificationView {
     readAt: isoOrNull(row.readAt),
     createdAt: iso(row.createdAt),
   }
+}
+
+/**
+ * Writes one notification per recipient (10 §15). `tx` is the caller's transaction: a notification
+ * that announces a write belongs to that write, and rolls back with it.
+ *
+ * The actor is absent on purpose — this is a fan-out to other people, and the permission that made
+ * it legitimate was checked by the caller before it opened its transaction.
+ */
+export async function notify(
+  tx: Parameters<typeof repo.insertNotifications>[1],
+  input: NotifyInput,
+): Promise<void> {
+  const recipients = [...new Set(input.userIds)]
+  if (recipients.length === 0) return
+  await repo.insertNotifications(
+    recipients.map((userId: string) => ({
+      userId,
+      organizationId: input.orgId ?? null,
+      type: input.type,
+      title: input.title,
+      body: input.body,
+      link: input.link ?? null,
+      payload: input.payload ?? {},
+    })),
+    tx,
+  )
 }
 
 /** The actor's notifications, newest first, cursor-paginated (D-020). */

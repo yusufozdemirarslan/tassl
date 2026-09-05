@@ -4,7 +4,7 @@ import * as React from 'react'
 import { Dialog as DialogPrimitive } from '@base-ui/react/dialog'
 
 import { cn } from '@/lib/cn'
-import { t } from '@/lib/i18n/t'
+import { t } from '@/lib/i18n/messages/ui'
 import { Button } from '@/components/ui/button'
 import { XIcon } from 'lucide-react'
 
@@ -60,9 +60,18 @@ function DialogContent({
       >
         {children}
         {showCloseButton && (
+          // 32 px is the visual size the corner wants; 40 px is the target DESIGN.md §Layout sets
+          // as the minimum. `after:-inset-1` grows the hit area by 4 px on each edge without
+          // moving a pixel of the button, the same way the concept chips' remove control does.
           <DialogPrimitive.Close
             data-slot="dialog-close"
-            render={<Button variant="ghost" className="absolute top-4 right-4" size="icon-sm" />}
+            render={
+              <Button
+                variant="ghost"
+                className="absolute top-4 right-4 after:absolute after:-inset-1"
+                size="icon-sm"
+              />
+            }
           >
             <XIcon />
             <span className="sr-only">{t('ui.close')}</span>

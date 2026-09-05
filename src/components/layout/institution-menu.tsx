@@ -12,7 +12,7 @@ import {
   DropdownMenuRadioItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { t } from '@/lib/i18n/t'
+import { t } from '@/lib/i18n/messages/shell'
 import { setActiveInstitutionAction } from '@/server/modules/tenancy/actions'
 import { InstitutionTriggerContent, institutionTriggerClassName } from './header-menu-triggers'
 import type { Institution } from './institution-switcher'

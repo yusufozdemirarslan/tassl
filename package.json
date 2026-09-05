@@ -21,7 +21,7 @@
     "evals": "tsx evals/run.ts",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate && tsx scripts/pgboss-migrate.ts",
-    "db:seed": "tsx src/server/db/seed.ts",
+    "db:seed": "tsx --conditions=react-server src/server/db/seed.ts",
     "db:reset": "tsx scripts/db-reset.ts",
     "db:studio": "drizzle-kit studio",
     "jobs:worker": "tsx scripts/jobs-worker.ts",

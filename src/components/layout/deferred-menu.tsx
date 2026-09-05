@@ -2,7 +2,7 @@
 
 import { type KeyboardEvent, useCallback, useEffect, useState } from 'react'
 import { useDeferredModule } from '@/lib/hooks/use-deferred-module'
-import { t } from '@/lib/i18n/t'
+import { t } from '@/lib/i18n/messages/ui'
 
 // B4 / NFR-013 (16 §3.2). The header's two menus (UI-008) open on a press, so the Base UI menu,
 // its positioner and everything the popup holds are fetched on that press instead of on every

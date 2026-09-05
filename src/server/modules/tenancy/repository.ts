@@ -1,7 +1,7 @@
 // Repository of the `tenancy` module (docs/tech/10-backend-spec-modules.md §2): institution
 // settings and data agreements (DATA-005, DATA-052). Organizations, members, and invitations are
 // Better Auth's; the service reaches them through `auth.api`. Query bodies only.
-import { and, desc, eq, gt, isNull, or, sql } from 'drizzle-orm'
+import { and, desc, eq, gt, inArray, isNull, or, sql } from 'drizzle-orm'
 import { AppError } from '@/lib/errors'
 import { db } from '@/server/db/client'
 import {
@@ -122,6 +122,24 @@ export async function updateMemberRole(
  * program lead of a new institution is resolved before the institution — and therefore the tenant
  * — exists (10 §2 `createInstitution`).
  */
+/**
+ * The user ids of an institution's members holding one of `roles`, for a fan-out that has already
+ * established its own permission. It reads no personal data — ids only — so a caller that must not
+ * see the roster still cannot.
+ */
+export async function listMemberIdsWithRoles(
+  tenantId: string,
+  roles: readonly string[],
+  dbx: DbOrTx = db,
+): Promise<string[]> {
+  if (roles.length === 0) return []
+  const rows = await dbx
+    .select({ userId: member.userId })
+    .from(member)
+    .where(and(eq(member.organizationId, tenantId), inArray(member.role, [...roles])))
+  return rows.map((row) => row.userId)
+}
+
 export async function findUserIdByEmail(email: string, dbx: DbOrTx = db): Promise<string | null> {
   const rows = await dbx
     .select({ id: user.id })

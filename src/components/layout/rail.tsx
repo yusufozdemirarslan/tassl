@@ -13,7 +13,7 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 import { cn } from '@/lib/cn'
-import { t } from '@/lib/i18n/t'
+import { t } from '@/lib/i18n/messages/shell'
 
 // Icons are resolved here so server layouts can pass plain data across the client boundary.
 export type RailIcon = 'home' | 'runs' | 'courses' | 'review' | 'packages' | 'admin'

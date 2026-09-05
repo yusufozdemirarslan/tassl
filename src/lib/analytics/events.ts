@@ -14,6 +14,28 @@ export const OutsideAiPolicy = z.enum(['open', 'declared', 'in_environment_only'
 export const Variant = z.enum(['defective', 'sound'])
 /** A route template such as /runs/[runId]/work, never a concrete path. */
 export const RouteTemplate = z.string().regex(/^\/[A-Za-z0-9[\]/-]*$/)
+/** `element_type` (06 §3.3 DATA-026): the fifteen things an author confirms one at a time. */
+export const ElementType = z.enum([
+  'brief',
+  'document',
+  'stakeholder',
+  'answer_space_position',
+  'named_field',
+  'claim',
+  'variant_claim_state',
+  'probe',
+  'turn',
+  'defense_question',
+  'readiness_item',
+  'counterfactual',
+  'general_escalation_reply',
+  'clock_and_difficulty',
+  'seed_reskin',
+])
+
+/** The package a measure is about (17 §5.1 `P`); every AN-001 event carries it. */
+const packageContext = { package_id: Uuid, package_version_id: Uuid, version: z.int().positive() }
+const pkg = <T extends z.ZodRawShape>(shape: T) => z.strictObject({ ...packageContext, ...shape })
 
 export const EVENTS = {
   // AN-002 activation
@@ -50,6 +72,29 @@ export const EVENTS = {
     working_clock_seconds: z.int().positive(),
     weight_overridden: z.boolean(),
     ms_since_first_sign_in: Int,
+  }),
+
+  // AN-001 authoring operating measures (17 §3.2, FR-198). `generation_step_completed` arrives with
+  // the generation pipeline in Phase 12; these three are written by the scenarios service.
+  package_created_from_seed: pkg({ seed_chars: Int, concept_count: Int }),
+  element_decided: pkg({
+    element_type: ElementType,
+    revision: z.int().positive(),
+    decision: z.enum(['confirmed', 'edited', 'rejected']),
+    review_ms: Int,
+    edited_fields_count: Int,
+  }),
+  package_confirmed: pkg({
+    seed_to_confirmed_ms: Int,
+    edit_rate: Share,
+    rejected_share: Share,
+    generation_passes: Int,
+    generation_max_pass: Int,
+    elements_count: Int,
+    review_ms_total: Int,
+    review_ms_per_element: Int,
+    claims_count: Int,
+    documents_count: Int,
   }),
 
   // SYS-008, SYS-022 (client: ErrorView and the ActionResult failure toast)

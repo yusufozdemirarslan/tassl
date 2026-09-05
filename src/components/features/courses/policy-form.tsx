@@ -20,7 +20,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Textarea } from '@/components/ui/textarea'
-import { t } from '@/lib/i18n/t'
+import { t } from '@/lib/i18n/messages/courses'
 import { updateCoursePolicyAction } from '@/server/modules/courses/actions'
 
 // UI-030 → Policy (FR-205, PRD §7.19). Three things a course decides about every run under it:

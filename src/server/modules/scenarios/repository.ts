@@ -5,10 +5,19 @@
 // the version id the service already resolved. Confirmed versions are frozen by the package_frozen
 // trigger family, so a write against one surfaces as `VERSION_FROZEN` from the database. The
 // database handle is always the last parameter (10 §6).
-import { and, desc, eq, getTableColumns, sql, type SQL } from 'drizzle-orm'
+import { and, desc, eq, inArray, isNull, getTableColumns, sql, type SQL } from 'drizzle-orm'
 import type { PgColumn, PgInsertValue, PgTable, PgUpdateSetSource } from 'drizzle-orm/pg-core'
 import { AppError } from '@/lib/errors'
 import { db } from '@/server/db/client'
+import {
+  afterCursor,
+  clampLimit,
+  cursorOrder,
+  decodeCursor,
+  toPage,
+  type Page,
+  type PageInput,
+} from '@/server/db/pagination'
 import {
   SINGLETON_ELEMENT_KEY,
   answerSpacePositions,
@@ -17,6 +26,7 @@ import {
   elementType,
   namedFields,
   readinessItems,
+  runs,
   scenarioClaims,
   scenarioDocuments,
   scenarioPackageVersions,
@@ -26,6 +36,7 @@ import {
   seedRecords,
   stakeholders,
   sycophancyProbes,
+  user,
   variantClaimStates,
   type AnswerSpacePosition,
   type DefenseQuestion,
@@ -58,8 +69,26 @@ import {
   type Stakeholder,
   type SycophancyProbe,
   type VariantClaimState,
+  type VerificationPaths,
 } from '@/server/db/schema'
 import type { DbOrTx } from '@/server/db/tx'
+
+// The service may not import `@/server/db` (04 §2), so the row types it hands out, the page shape
+// its lists return, and the transaction boundary its writes open are re-exported by the layer that
+// owns database access — the same seam `courses/repository.ts` keeps.
+export type {
+  ElementConfirmation,
+  PackageSnapshot,
+  ScenarioClaim,
+  ScenarioDocument,
+  ScenarioPackage,
+  ScenarioPackageVersion,
+  ScenarioVariant,
+  SeedRecord,
+} from '@/server/db/schema'
+export type { Page, PageInput } from '@/server/db/pagination'
+export type { DbOrTx, Tx } from '@/server/db/tx'
+export { withTransaction } from '@/server/db/tx'
 
 // ---------------------------------------------------------------------------------------------
 // Input and result shapes (rows come straight from the schema; nothing is spread into new shapes)
@@ -156,6 +185,9 @@ export type ElementRow = {
 
 /** A confirmation row as the service hands it over; `revision` defaults to the next one per element. */
 export type ConfirmationInsert = Omit<NewElementConfirmation, 'id' | 'createdAt'>
+
+/** The person behind a decision, as the confirmation and authoring records name them. */
+export type UserSummary = { id: string; name: string }
 
 /** Result of `copyVersion`: the new draft row and the old→new id map of its claims (FR-195). */
 export type CopiedVersion = { version: ScenarioPackageVersion; claimIdMap: Record<string, string> }
@@ -350,6 +382,24 @@ const mapped = (ids: Map<string, string>, id: string): string => ids.get(id) ?? 
 const mappedOrNull = (ids: Map<string, string>, id: string | null): string | null =>
   id === null ? null : mapped(ids, id)
 
+/**
+ * `verification_paths.source_trace.document_id` is a reference between two elements like any other,
+ * and jsonb hides it from the column rewrites a copy does. Left alone, a copied Source Trace points
+ * at the *source* version's document: the path renders nothing in the copy, which is exactly the
+ * uncatchable defect `PLANTED_PATH_MISSING` exists to refuse, so version n+1 could not be confirmed.
+ */
+function copiedPaths(
+  paths: VerificationPaths,
+  documentIds: Map<string, string>,
+): VerificationPaths {
+  const trace = paths.source_trace
+  if (!trace) return paths
+  return {
+    ...paths,
+    source_trace: { ...trace, document_id: mapped(documentIds, trace.document_id) },
+  }
+}
+
 // ---------------------------------------------------------------------------------------------
 // Packages and versions
 // ---------------------------------------------------------------------------------------------
@@ -428,6 +478,92 @@ export async function findVersionForRun(tenantId: string, versionId: string, dbx
 }
 
 export type VersionForRun = NonNullable<Awaited<ReturnType<typeof findVersionForRun>>>
+
+/**
+ * One live package of the institution (`GET /packages/{packageId}`, 07 §6). A soft-deleted row is
+ * not found, exactly as `pagePackages` omits it, so a deleted package cannot be reached by id.
+ */
+export async function findPackage(
+  tenantId: string,
+  packageId: string,
+  dbx: DbOrTx = db,
+): Promise<ScenarioPackage | undefined> {
+  return dbx.query.scenarioPackages.findFirst({
+    where: and(
+      eq(scenarioPackages.id, packageId),
+      eq(scenarioPackages.organizationId, tenantId),
+      isNull(scenarioPackages.deletedAt),
+    ),
+  })
+}
+
+/** A page of the institution's live packages, newest first (10 §4 `listPackages`, D-020). */
+export async function pagePackages(
+  tenantId: string,
+  input: PageInput = {},
+  dbx: DbOrTx = db,
+): Promise<Page<ScenarioPackage>> {
+  const limit = clampLimit(input.limit)
+  const cursor = decodeCursor(input.cursor)
+  const rows = await dbx
+    .select()
+    .from(scenarioPackages)
+    .where(
+      and(
+        eq(scenarioPackages.organizationId, tenantId),
+        isNull(scenarioPackages.deletedAt),
+        afterCursor({ createdAt: scenarioPackages.createdAt, id: scenarioPackages.id }, cursor),
+      ),
+    )
+    .orderBy(...cursorOrder({ createdAt: scenarioPackages.createdAt, id: scenarioPackages.id }))
+    .limit(limit + 1)
+  return toPage(rows, limit)
+}
+
+/**
+ * Every version of the given packages, newest version number first. One statement for a page of
+ * packages, so the list screen costs two queries rather than one per row.
+ */
+export async function listVersionsForPackages(
+  tenantId: string,
+  packageIds: readonly string[],
+  dbx: DbOrTx = db,
+): Promise<ScenarioPackageVersion[]> {
+  if (packageIds.length === 0) return []
+  return dbx
+    .select()
+    .from(scenarioPackageVersions)
+    .where(
+      and(
+        eq(scenarioPackageVersions.organizationId, tenantId),
+        inArray(scenarioPackageVersions.packageId, [...packageIds]),
+      ),
+    )
+    .orderBy(desc(scenarioPackageVersions.version))
+}
+
+/**
+ * Which of the given versions carry an ethical-shortcut defect — a claim state whose failure family
+ * is `unacceptable_route`. The packages list turns the answer into the `FAMILY_LACKS_ETHICAL_DEFECT`
+ * warning (D-083), which is why it is one grouped statement rather than a read of every state.
+ */
+export async function listVersionsWithEthicalDefect(
+  versionIds: readonly string[],
+  dbx: DbOrTx = db,
+): Promise<string[]> {
+  if (versionIds.length === 0) return []
+  const rows = await dbx
+    .selectDistinct({ packageVersionId: scenarioVariants.packageVersionId })
+    .from(variantClaimStates)
+    .innerJoin(scenarioVariants, eq(scenarioVariants.id, variantClaimStates.variantId))
+    .where(
+      and(
+        inArray(scenarioVariants.packageVersionId, [...versionIds]),
+        eq(variantClaimStates.failureFamily, 'unacceptable_route'),
+      ),
+    )
+  return rows.map((row) => row.packageVersionId)
+}
 
 /** Every version of a package, newest version number first. */
 export async function listVersions(
@@ -542,6 +678,37 @@ export async function listConfirmations(
     .from(elementConfirmations)
     .where(eq(elementConfirmations.packageVersionId, versionId))
     .orderBy(desc(elementConfirmations.createdAt), desc(elementConfirmations.id))
+}
+
+/**
+ * The people behind a set of decisions, as the confirmation record and the authoring record name
+ * them (07 §6 `confirmationRecord`, `authoringRecord.editors`). Not tenant-scoped: a user id read
+ * off a confirmation row of a version the caller already resolved in its institution, turned back
+ * into the name that row's author signed with.
+ */
+export async function findUserSummaries(
+  userIds: readonly string[],
+  dbx: DbOrTx = db,
+): Promise<UserSummary[]> {
+  if (userIds.length === 0) return []
+  return dbx
+    .select({ id: user.id, name: user.name })
+    .from(user)
+    .where(inArray(user.id, [...userIds]))
+}
+
+/** The package version a run was started on (`getStudentScenario`); undefined outside the tenant. */
+export async function findRunVersionId(
+  tenantId: string,
+  runId: string,
+  dbx: DbOrTx = db,
+): Promise<string | undefined> {
+  const rows = await dbx
+    .select({ packageVersionId: runs.packageVersionId })
+    .from(runs)
+    .where(and(eq(runs.id, runId), eq(runs.organizationId, tenantId)))
+    .limit(1)
+  return rows[0]?.packageVersionId
 }
 
 /** Appends a decision; without an explicit `revision` it takes the next one for that element. */
@@ -670,6 +837,7 @@ export async function copyVersion(
         ...without(row, STATE_COPY_META),
         variantId: mapped(variantIds, row.variantId),
         claimId: mapped(claimIds, row.claimId),
+        verificationPaths: copiedPaths(row.verificationPaths, documentIds),
       })),
     )
   }

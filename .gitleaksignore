@@ -1,3 +1,7 @@
 # gitleaks fingerprints that are documented non-secret defaults in commits that predate the
 # regex allowlist (D-169). Format: <commit>:<file>:<rule>:<line>.
 cc4e668de6f2b12d1a27196dd75591284d12239d:src/server/db/seed.ts:generic-api-key:22
+# A scenario family key a test types into the seed form, in the commit that introduced it: the
+# generic-api-key rule reads any hyphenated slug carrying digits as a credential. The line itself
+# now carries a `gitleaks:allow` marker, which covers the working tree but not the history.
+9651a27d4b6710aae67057bb2a0a190d835f1f6a:tests/unit/components/packages/seed-form.test.tsx:generic-api-key:186

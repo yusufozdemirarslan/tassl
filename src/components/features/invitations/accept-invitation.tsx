@@ -6,7 +6,7 @@ import { Loader2Icon } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { useSignOut } from '@/lib/hooks/use-sign-out'
-import { t } from '@/lib/i18n/t'
+import { t } from '@/lib/i18n/messages/invitation'
 import { acceptInvitationAction } from '@/server/modules/tenancy/actions'
 import { FormAlert } from '@/components/features/account/form-feedback'
 

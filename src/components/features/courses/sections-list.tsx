@@ -22,7 +22,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { t } from '@/lib/i18n/t'
+import { t } from '@/lib/i18n/messages/courses'
 import { DeferredFormFallback, useDeferredModule } from './deferred-form'
 
 // UI-030 → Sections. The sections of one course with their counts and the way into each roster

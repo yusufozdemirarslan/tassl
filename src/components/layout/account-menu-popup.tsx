@@ -12,7 +12,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { t } from '@/lib/i18n/t'
+import { t } from '@/lib/i18n/messages/shell'
 import type { AccountUser } from './account-menu'
 import { AccountTriggerContent, accountTriggerLabel } from './header-menu-triggers'
 

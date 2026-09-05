@@ -69,6 +69,14 @@ export default defineConfig([
               ],
             },
             { from: { element: { type: 'lib' } }, allow: [{ to: { element: { type: 'lib' } } }] },
+            // A module schema reaches `src/lib` and nothing else: 10 §17 builds every free-text
+            // field from `wordLimit(n)`, which lives in `src/lib/words.ts` so the form and the
+            // server count words with one implementation (D-075). Anything under `src/server`
+            // stays out, which is what keeps a schema readable from a Server Component.
+            {
+              from: { element: { type: 'module' }, file: { categories: ['schema'] } },
+              allow: [{ to: { element: { type: 'lib' } } }],
+            },
             {
               from: { element: { type: 'module' }, file: { categories: ['actions', 'router'] } },
               allow: [
@@ -113,7 +121,14 @@ export default defineConfig([
             },
             {
               from: { element: { type: 'db' }, file: { categories: ['seed'] } },
-              allow: [{ to: { element: { type: ['db', 'lib', 'server-lib'] } } }],
+              allow: [
+                { to: { element: { type: ['db', 'lib', 'server-lib'] } } },
+                // 06 §5 item 4: the seed imports the fixture package through the scenarios service,
+                // because `importPackage` is what turns a document's element keys into rows. Writing
+                // those rows here instead would be a second implementation of the resolution authors
+                // depend on, free to drift from it (D-214). A module's public index only.
+                { to: { element: { type: 'module' }, file: { categories: ['public'] } } },
+              ],
             },
             {
               from: { element: { type: 'db' } },

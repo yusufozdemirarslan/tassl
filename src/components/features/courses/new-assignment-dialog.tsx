@@ -10,7 +10,9 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog'
-import { t } from '@/lib/i18n/t'
+import { assignment } from '@/lib/i18n/messages/assignment'
+import { courses } from '@/lib/i18n/messages/courses'
+import { scopedT } from '@/lib/i18n/scoped'
 import { DeferredFormFallback, useDeferredModule } from './deferred-form'
 import type { PackageVersionOption } from './package-version-option'
 
@@ -23,6 +25,10 @@ import type { PackageVersionOption } from './package-version-option'
 // vanishing: a course with no section (an assignment belongs to one) and an institution with no
 // confirmed package version (an assignment runs on one). The button keeps its accessible name and
 // `aria-disabled`, so it is still reachable by keyboard and the reason is read with it.
+
+// The dialog is a course sub-view (courses) that explains, when it cannot act, what an assignment
+// needs before it can exist (assignment).
+const t = scopedT(assignment, courses)
 
 const loadBody = () => import('./new-assignment-body')
 

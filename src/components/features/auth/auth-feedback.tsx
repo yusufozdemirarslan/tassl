@@ -3,7 +3,7 @@
 import { useEffect, useRef, type ReactNode } from 'react'
 import { CircleAlertIcon, Loader2Icon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { t } from '@/lib/i18n/t'
+import { t } from '@/lib/i18n/messages/auth'
 
 /**
  * What Better Auth's client actually hands back (08 §2; verified against better-auth 1.7.2 and

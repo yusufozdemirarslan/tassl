@@ -4587,59 +4587,225 @@ paths:
       operationId: listPackages
       summary: Scenario packages
       parameters:
-        - $ref: "#/components/parameters/orgId"
-        - $ref: "#/components/parameters/cursor"
-        - $ref: "#/components/parameters/limit"
+        - in: path
+          name: orgId
+          schema:
+            type: string
+            minLength: 1
+          required: true
+        - in: query
+          name: cursor
+          schema:
+            type: string
+            minLength: 1
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
       responses:
         "200":
           description: OK
           content:
             application/json:
               schema:
-                allOf:
-                  - $ref: "#/components/schemas/Page"
-                  - type: object
-                    properties:
-                      items:
-                        type: array
-                        items:
-                          $ref: "#/components/schemas/PackageSummary"
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                          format: uuid
+                          pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                        title:
+                          type: string
+                        familyKey:
+                          type: string
+                        discipline:
+                          type: string
+                        latestVersion:
+                          anyOf:
+                            - type: object
+                              properties:
+                                id:
+                                  type: string
+                                  format: uuid
+                                  pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                                version:
+                                  type: integer
+                                  minimum: -9007199254740991
+                                  maximum: 9007199254740991
+                                status:
+                                  type: string
+                                  enum:
+                                    - draft
+                                    - confirmed
+                                    - retired
+                                calibrationStatus:
+                                  type: string
+                                  enum:
+                                    - uncalibrated
+                                    - calibrated
+                                confirmedAt:
+                                  anyOf:
+                                    - type: string
+                                      format: date-time
+                                      pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z))$
+                                    - type: "null"
+                                createdAt:
+                                  type: string
+                                  format: date-time
+                                  pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z))$
+                              required:
+                                - id
+                                - version
+                                - status
+                                - calibrationStatus
+                                - confirmedAt
+                                - createdAt
+                              additionalProperties: false
+                            - type: "null"
+                        versionCount:
+                          type: integer
+                          minimum: -9007199254740991
+                          maximum: 9007199254740991
+                        warnings:
+                          type: array
+                          items:
+                            type: string
+                            enum:
+                              - FAMILY_LACKS_ETHICAL_DEFECT
+                        updatedAt:
+                          type: string
+                          format: date-time
+                          pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z))$
+                      required:
+                        - id
+                        - title
+                        - familyKey
+                        - discipline
+                        - latestVersion
+                        - versionCount
+                        - warnings
+                        - updatedAt
+                      additionalProperties: false
+                  nextCursor:
+                    type:
+                      - string
+                      - "null"
+                required:
+                  - items
+                  - nextCursor
+                additionalProperties: false
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "429":
+          $ref: "#/components/responses/RateLimited"
     post:
       tags:
         - packages
       operationId: createPackageFromSeed
       summary: Create a package (version 1 draft) from a seed case
       parameters:
-        - $ref: "#/components/parameters/orgId"
-        - $ref: "#/components/parameters/requestedWith"
-        - $ref: "#/components/parameters/idempotencyKey"
+        - in: path
+          name: orgId
+          schema:
+            type: string
+            minLength: 1
+          required: true
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/CreatePackageFromSeed"
+              type: object
+              properties:
+                title:
+                  type: string
+                  minLength: 1
+                  maxLength: 200
+                familyKey:
+                  type: string
+                  pattern: ^[a-z0-9-]{3,60}$
+                conceptSet:
+                  minItems: 4
+                  type: array
+                  items:
+                    type: string
+                    minLength: 2
+                    maxLength: 60
+                seed:
+                  type: object
+                  properties:
+                    caseTitle:
+                      type: string
+                      minLength: 1
+                      maxLength: 200
+                    publisher:
+                      type: string
+                      minLength: 1
+                      maxLength: 200
+                    licenseTerms:
+                      type: string
+                      minLength: 1
+                      maxLength: 4000
+                    licensePermitsAdaptation:
+                      type: boolean
+                    seedText:
+                      type: string
+                      minLength: 200
+                      maxLength: 200000
+                  required:
+                    - caseTitle
+                    - publisher
+                    - licenseTerms
+                    - licensePermitsAdaptation
+                    - seedText
+              required:
+                - title
+                - familyKey
+                - conceptSet
+                - seed
       responses:
         "201":
-          description: Created
+          description: OK
           content:
             application/json:
               schema:
                 type: object
-                required:
-                  - packageId
-                  - versionId
                 properties:
                   packageId:
                     type: string
                     format: uuid
+                    pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
                   versionId:
                     type: string
                     format: uuid
+                    pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                required:
+                  - packageId
+                  - versionId
+                additionalProperties: false
         "400":
           $ref: "#/components/responses/BadRequest"
-        "409":
-          $ref: "#/components/responses/Conflict"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "429":
+          $ref: "#/components/responses/RateLimited"
   /institutions/{orgId}/packages/import:
     post:
       tags:
@@ -4647,47 +4813,81 @@ paths:
       operationId: importPackage
       summary: Import a package JSON
       parameters:
-        - $ref: "#/components/parameters/orgId"
-        - $ref: "#/components/parameters/requestedWith"
+        - in: path
+          name: orgId
+          schema:
+            type: string
+            minLength: 1
+          required: true
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              allOf:
-                - $ref: "#/components/schemas/PackageExport"
-                - type: object
-                  properties:
-                    confirmOnImport:
-                      type: boolean
-                      default: false
+              type: object
+              properties: {}
+              additionalProperties: {}
       responses:
         "201":
-          description: Created
+          description: OK
           content:
             application/json:
               schema:
                 type: object
-                required:
-                  - packageId
-                  - versionId
-                  - validation
                 properties:
                   packageId:
                     type: string
                     format: uuid
+                    pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
                   versionId:
                     type: string
                     format: uuid
+                    pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
                   validation:
                     type: object
-                    additionalProperties: true
-        "422":
-          description: Package invalid
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorEnvelope"
+                    properties:
+                      ok:
+                        type: boolean
+                      failures:
+                        default: []
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            code:
+                              type: string
+                              minLength: 1
+                            elementIds:
+                              default: []
+                              type: array
+                              items:
+                                type: string
+                            message:
+                              type: string
+                          required:
+                            - code
+                            - elementIds
+                            - message
+                          additionalProperties: false
+                    required:
+                      - ok
+                      - failures
+                    additionalProperties: false
+                required:
+                  - packageId
+                  - versionId
+                  - validation
+                additionalProperties: false
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "429":
+          $ref: "#/components/responses/RateLimited"
   /institutions/{orgId}/settings:
     patch:
       tags:
@@ -5762,89 +5962,13 @@ paths:
       operationId: getPackageVersion
       summary: Package version view (confirmation record, authoring record, measures)
       parameters:
-        - $ref: "#/components/parameters/versionId"
-      responses:
-        "200":
-          description: OK
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/PackageVersionView"
-  /package-versions/{versionId}/claims/{claimId}:
-    get:
-      tags:
-        - packages
-      operationId: getClaimObject
-      summary: Claim object view
-      parameters:
-        - $ref: "#/components/parameters/versionId"
-        - $ref: "#/components/parameters/claimId"
-        - name: variantId
-          in: query
+        - in: path
+          name: versionId
           schema:
             type: string
             format: uuid
-      responses:
-        "200":
-          description: OK
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ClaimObjectView"
-  /package-versions/{versionId}/confirm:
-    post:
-      tags:
-        - packages
-      operationId: confirmPackageVersion
-      summary: Confirm and freeze the version
-      parameters:
-        - $ref: "#/components/parameters/versionId"
-        - $ref: "#/components/parameters/requestedWith"
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required:
-                - teachingNoteChecked
-              properties:
-                teachingNoteChecked:
-                  type: boolean
-                  const: true
-      responses:
-        "200":
-          description: OK
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/PackageVersionView"
-        "409":
-          $ref: "#/components/responses/Conflict"
-        "422":
-          description: Package invalid
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorEnvelope"
-  /package-versions/{versionId}/elements/{elementType}/{elementId}:
-    patch:
-      tags:
-        - packages
-      operationId: updateElement
-      summary: Edit a draft element
-      parameters:
-        - $ref: "#/components/parameters/versionId"
-        - $ref: "#/components/parameters/elementType"
-        - $ref: "#/components/parameters/elementId"
-        - $ref: "#/components/parameters/requestedWith"
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              additionalProperties: true
+            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+          required: true
       responses:
         "200":
           description: OK
@@ -5852,9 +5976,1462 @@ paths:
             application/json:
               schema:
                 type: object
-                additionalProperties: true
-        "409":
-          $ref: "#/components/responses/Conflict"
+                properties:
+                  id:
+                    type: string
+                    format: uuid
+                    pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                  packageId:
+                    type: string
+                    format: uuid
+                    pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                  packageTitle:
+                    type: string
+                  familyKey:
+                    type: string
+                  version:
+                    type: integer
+                    minimum: -9007199254740991
+                    maximum: 9007199254740991
+                  status:
+                    type: string
+                    enum:
+                      - draft
+                      - confirmed
+                      - retired
+                  calibrationStatus:
+                    type: string
+                    enum:
+                      - uncalibrated
+                      - calibrated
+                  conceptSet:
+                    type: array
+                    items:
+                      type: string
+                  brief:
+                    type: string
+                  workingClockSeconds:
+                    type: integer
+                    minimum: -9007199254740991
+                    maximum: 9007199254740991
+                  turnDelaySeconds:
+                    type: integer
+                    minimum: -9007199254740991
+                    maximum: 9007199254740991
+                  difficultyProfile:
+                    type: object
+                    properties:
+                      estimate:
+                        default: unknown
+                        type: string
+                        minLength: 1
+                        maxLength: 200
+                      note:
+                        default: ""
+                        type: string
+                        maxLength: 4000
+                      uncalibrated:
+                        default: true
+                        type: boolean
+                    required:
+                      - estimate
+                      - note
+                      - uncalibrated
+                    additionalProperties: false
+                  generalEscalationReply:
+                    type: string
+                  debriefCounterfactual:
+                    type: string
+                  teachingNoteChecked:
+                    type: boolean
+                  confirmedAt:
+                    anyOf:
+                      - type: string
+                        format: date-time
+                        pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z))$
+                      - type: "null"
+                  confirmedBy:
+                    type:
+                      - string
+                      - "null"
+                  counts:
+                    type: object
+                    properties:
+                      documents:
+                        type: integer
+                        minimum: -9007199254740991
+                        maximum: 9007199254740991
+                      stakeholders:
+                        type: integer
+                        minimum: -9007199254740991
+                        maximum: 9007199254740991
+                      answerSpacePositions:
+                        type: integer
+                        minimum: -9007199254740991
+                        maximum: 9007199254740991
+                      namedFields:
+                        type: integer
+                        minimum: -9007199254740991
+                        maximum: 9007199254740991
+                      claims:
+                        type: integer
+                        minimum: -9007199254740991
+                        maximum: 9007199254740991
+                      variants:
+                        type: integer
+                        minimum: -9007199254740991
+                        maximum: 9007199254740991
+                      defenseQuestions:
+                        type: integer
+                        minimum: -9007199254740991
+                        maximum: 9007199254740991
+                      readinessItems:
+                        type: integer
+                        minimum: -9007199254740991
+                        maximum: 9007199254740991
+                    required:
+                      - documents
+                      - stakeholders
+                      - answerSpacePositions
+                      - namedFields
+                      - claims
+                      - variants
+                      - defenseQuestions
+                      - readinessItems
+                    additionalProperties: false
+                  confirmationRecord:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                          format: uuid
+                          pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                        elementType:
+                          type: string
+                          enum:
+                            - brief
+                            - document
+                            - stakeholder
+                            - answer_space_position
+                            - named_field
+                            - claim
+                            - variant_claim_state
+                            - probe
+                            - turn
+                            - defense_question
+                            - readiness_item
+                            - counterfactual
+                            - general_escalation_reply
+                            - clock_and_difficulty
+                            - seed_reskin
+                        elementId:
+                          anyOf:
+                            - type: string
+                              format: uuid
+                              pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                            - type: "null"
+                        revision:
+                          type: integer
+                          minimum: -9007199254740991
+                          maximum: 9007199254740991
+                        decision:
+                          type: string
+                          enum:
+                            - confirmed
+                            - edited
+                            - rejected
+                        note:
+                          type: string
+                        openedAt:
+                          type: string
+                          format: date-time
+                          pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z))$
+                        decidedAt:
+                          type: string
+                          format: date-time
+                          pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z))$
+                        decidedBy:
+                          type: string
+                        decidedByName:
+                          type: string
+                      required:
+                        - id
+                        - elementType
+                        - elementId
+                        - revision
+                        - decision
+                        - note
+                        - openedAt
+                        - decidedAt
+                        - decidedBy
+                        - decidedByName
+                      additionalProperties: false
+                  authoringRecord:
+                    type: object
+                    properties:
+                      generationModel:
+                        type:
+                          - string
+                          - "null"
+                      generatedAt:
+                        anyOf:
+                          - type: string
+                            format: date-time
+                            pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z))$
+                          - type: "null"
+                      runs:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            step:
+                              type: string
+                              enum:
+                                - reskin_brief_stakeholders
+                                - documents
+                                - answer_space_fields
+                                - claims_and_states
+                                - turn_and_probe
+                                - question_bank_and_counterfactual
+                                - readiness_items
+                            passNumber:
+                              type: integer
+                              minimum: -9007199254740991
+                              maximum: 9007199254740991
+                            status:
+                              type: string
+                              enum:
+                                - queued
+                                - running
+                                - succeeded
+                                - failed
+                            failedRules:
+                              default: []
+                              type: array
+                              items:
+                                type: string
+                            startedAt:
+                              anyOf:
+                                - type: string
+                                  format: date-time
+                                  pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z))$
+                                - type: "null"
+                            finishedAt:
+                              anyOf:
+                                - type: string
+                                  format: date-time
+                                  pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z))$
+                                - type: "null"
+                          required:
+                            - step
+                            - passNumber
+                            - status
+                            - failedRules
+                            - startedAt
+                            - finishedAt
+                          additionalProperties: false
+                      editors:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            userId:
+                              type: string
+                            name:
+                              type: string
+                            decisions:
+                              type: integer
+                              minimum: -9007199254740991
+                              maximum: 9007199254740991
+                          required:
+                            - userId
+                            - name
+                            - decisions
+                          additionalProperties: false
+                    required:
+                      - generationModel
+                      - generatedAt
+                      - runs
+                      - editors
+                    additionalProperties: false
+                  measures:
+                    type: object
+                    properties:
+                      seedToConfirmedMs:
+                        type:
+                          - number
+                          - "null"
+                      editRate:
+                        type: number
+                      rejectedShare:
+                        type: number
+                      generationPasses:
+                        type: integer
+                        minimum: -9007199254740991
+                        maximum: 9007199254740991
+                      reviewMsPerElement:
+                        type:
+                          - number
+                          - "null"
+                    required:
+                      - seedToConfirmedMs
+                      - editRate
+                      - rejectedShare
+                      - generationPasses
+                      - reviewMsPerElement
+                    additionalProperties: false
+                  validation:
+                    type: object
+                    properties:
+                      ok:
+                        type: boolean
+                      failures:
+                        default: []
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            code:
+                              type: string
+                              minLength: 1
+                            elementIds:
+                              default: []
+                              type: array
+                              items:
+                                type: string
+                            message:
+                              type: string
+                          required:
+                            - code
+                            - elementIds
+                            - message
+                          additionalProperties: false
+                    required:
+                      - ok
+                      - failures
+                    additionalProperties: false
+                  warnings:
+                    type: array
+                    items:
+                      type: string
+                      enum:
+                        - FAMILY_LACKS_ETHICAL_DEFECT
+                  seedRecord:
+                    anyOf:
+                      - type: object
+                        properties:
+                          caseTitle:
+                            type: string
+                          publisher:
+                            type: string
+                          licenseTerms:
+                            type: string
+                          licensePermitsAdaptation:
+                            type: boolean
+                          seedText:
+                            type: string
+                          reskinLog:
+                            type: array
+                            items:
+                              type: object
+                              properties:
+                                kind:
+                                  type: string
+                                  enum:
+                                    - renamed_entity
+                                    - altered_number
+                                    - restructured_document
+                                from:
+                                  type: string
+                                  minLength: 1
+                                  maxLength: 400
+                                to:
+                                  type: string
+                                  minLength: 1
+                                  maxLength: 400
+                                note:
+                                  default: ""
+                                  type: string
+                                  maxLength: 4000
+                              required:
+                                - kind
+                                - from
+                                - to
+                                - note
+                              additionalProperties: false
+                        required:
+                          - caseTitle
+                          - publisher
+                          - licenseTerms
+                          - licensePermitsAdaptation
+                          - seedText
+                          - reskinLog
+                        additionalProperties: false
+                      - type: "null"
+                  restricted:
+                    type: boolean
+                  capabilities:
+                    type: object
+                    properties:
+                      canEdit:
+                        type: boolean
+                      canConfirm:
+                        type: boolean
+                      canRegenerate:
+                        type: boolean
+                    required:
+                      - canEdit
+                      - canConfirm
+                      - canRegenerate
+                    additionalProperties: false
+                required:
+                  - id
+                  - packageId
+                  - packageTitle
+                  - familyKey
+                  - version
+                  - status
+                  - calibrationStatus
+                  - conceptSet
+                  - brief
+                  - workingClockSeconds
+                  - turnDelaySeconds
+                  - difficultyProfile
+                  - generalEscalationReply
+                  - debriefCounterfactual
+                  - teachingNoteChecked
+                  - confirmedAt
+                  - confirmedBy
+                  - counts
+                  - confirmationRecord
+                  - authoringRecord
+                  - measures
+                  - validation
+                  - warnings
+                  - seedRecord
+                  - restricted
+                  - capabilities
+                additionalProperties: false
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+  /package-versions/{versionId}/claims/{claimId}:
+    get:
+      tags:
+        - packages
+      operationId: getClaimObject
+      summary: Claim object view
+      parameters:
+        - in: path
+          name: versionId
+          schema:
+            type: string
+            format: uuid
+            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+          required: true
+        - in: path
+          name: claimId
+          schema:
+            type: string
+            format: uuid
+            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+          required: true
+        - in: query
+          name: variantId
+          schema:
+            type: string
+            format: uuid
+            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: string
+                    format: uuid
+                    pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                  key:
+                    type: string
+                  text:
+                    type: string
+                  sourceKind:
+                    type: string
+                    enum:
+                      - assistant
+                      - document
+                  source:
+                    anyOf:
+                      - type: object
+                        properties:
+                          documentId:
+                            type: string
+                            format: uuid
+                            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                          key:
+                            type: string
+                          title:
+                            type: string
+                          author:
+                            type: string
+                          datedOn:
+                            type: string
+                            format: date
+                            pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))$
+                          passage:
+                            type: string
+                        required:
+                          - documentId
+                          - key
+                          - title
+                          - author
+                          - datedOn
+                          - passage
+                        additionalProperties: false
+                      - type: "null"
+                  importance:
+                    type: string
+                    enum:
+                      - load_bearing
+                      - supporting
+                  consequenceLevel:
+                    type: string
+                    enum:
+                      - low
+                      - medium
+                      - high
+                  verificationCost:
+                    type: string
+                    enum:
+                      - cheap
+                      - moderate
+                      - expensive
+                  weaklySourced:
+                    type: boolean
+                  volatile:
+                    type: boolean
+                  conceptKey:
+                    type: string
+                  carriedValues:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        field_key:
+                          type: string
+                          pattern: ^[a-z][a-z0-9_]{1,59}$
+                        value:
+                          type: number
+                        unit:
+                          type: string
+                          enum:
+                            - percent
+                            - ratio
+                            - months
+                            - usd
+                            - count
+                            - other
+                      required:
+                        - value
+                        - unit
+                      additionalProperties: false
+                  triggerPhrases:
+                    type: array
+                    items:
+                      type: string
+                  triggerDescription:
+                    type: string
+                  escalatable:
+                    type: boolean
+                  escalationReply:
+                    type:
+                      - string
+                      - "null"
+                  rationale:
+                    type: string
+                  states:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        variantId:
+                          type: string
+                          format: uuid
+                          pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                        variantKey:
+                          type: string
+                          enum:
+                            - defective
+                            - sound
+                        evidenceStatus:
+                          type: string
+                          enum:
+                            - sound
+                            - defective
+                        failureFamily:
+                          anyOf:
+                            - type: string
+                              enum:
+                                - near_neighbor
+                                - unstated_assumption
+                                - stale_evidence
+                                - uncomputed_number
+                                - extrapolation
+                                - reversal_to_agree
+                                - omitted_alternative
+                                - misapplied_method
+                                - misattributed_source
+                                - unacceptable_route
+                            - type: "null"
+                        warrantedStance:
+                          type: string
+                          enum:
+                            - accept
+                            - verify
+                            - challenge
+                            - reject
+                            - escalate
+                        planted:
+                          type: boolean
+                        verificationPaths:
+                          type: object
+                          properties:
+                            source_trace:
+                              type: object
+                              properties:
+                                document_id:
+                                  type: string
+                                  format: uuid
+                                  pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                                passage:
+                                  type: string
+                                  minLength: 1
+                                  maxLength: 4000
+                                dated_on:
+                                  type: string
+                                  format: date
+                                  pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))$
+                                author:
+                                  type: string
+                                  minLength: 1
+                                  maxLength: 200
+                              required:
+                                - document_id
+                                - passage
+                                - dated_on
+                                - author
+                              additionalProperties: false
+                            replication_check:
+                              type: object
+                              properties:
+                                result:
+                                  type: string
+                                  minLength: 1
+                                  maxLength: 4000
+                              required:
+                                - result
+                              additionalProperties: false
+                            decomposition_check:
+                              type: object
+                              properties:
+                                steps:
+                                  minItems: 1
+                                  type: array
+                                  items:
+                                    type: object
+                                    properties:
+                                      label:
+                                        type: string
+                                        minLength: 1
+                                        maxLength: 400
+                                      result:
+                                        type: string
+                                        minLength: 1
+                                        maxLength: 4000
+                                    required:
+                                      - label
+                                      - result
+                                    additionalProperties: false
+                              required:
+                                - steps
+                              additionalProperties: false
+                          additionalProperties: false
+                      required:
+                        - variantId
+                        - variantKey
+                        - evidenceStatus
+                        - failureFamily
+                        - warrantedStance
+                        - planted
+                        - verificationPaths
+                      additionalProperties: false
+                  confirmation:
+                    anyOf:
+                      - type: object
+                        properties:
+                          id:
+                            type: string
+                            format: uuid
+                            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                          elementType:
+                            type: string
+                            enum:
+                              - brief
+                              - document
+                              - stakeholder
+                              - answer_space_position
+                              - named_field
+                              - claim
+                              - variant_claim_state
+                              - probe
+                              - turn
+                              - defense_question
+                              - readiness_item
+                              - counterfactual
+                              - general_escalation_reply
+                              - clock_and_difficulty
+                              - seed_reskin
+                          elementId:
+                            anyOf:
+                              - type: string
+                                format: uuid
+                                pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                              - type: "null"
+                          revision:
+                            type: integer
+                            minimum: -9007199254740991
+                            maximum: 9007199254740991
+                          decision:
+                            type: string
+                            enum:
+                              - confirmed
+                              - edited
+                              - rejected
+                          note:
+                            type: string
+                          openedAt:
+                            type: string
+                            format: date-time
+                            pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z))$
+                          decidedAt:
+                            type: string
+                            format: date-time
+                            pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z))$
+                          decidedBy:
+                            type: string
+                          decidedByName:
+                            type: string
+                        required:
+                          - id
+                          - elementType
+                          - elementId
+                          - revision
+                          - decision
+                          - note
+                          - openedAt
+                          - decidedAt
+                          - decidedBy
+                          - decidedByName
+                        additionalProperties: false
+                      - type: "null"
+                required:
+                  - id
+                  - key
+                  - text
+                  - sourceKind
+                  - source
+                  - importance
+                  - consequenceLevel
+                  - verificationCost
+                  - weaklySourced
+                  - volatile
+                  - conceptKey
+                  - carriedValues
+                  - triggerPhrases
+                  - triggerDescription
+                  - escalatable
+                  - escalationReply
+                  - rationale
+                  - states
+                  - confirmation
+                additionalProperties: false
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+  /package-versions/{versionId}/confirm:
+    post:
+      tags:
+        - packages
+      operationId: confirmPackageVersion
+      summary: Confirm and freeze the version
+      parameters:
+        - in: path
+          name: versionId
+          schema:
+            type: string
+            format: uuid
+            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+          required: true
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                teachingNoteChecked:
+                  type: boolean
+              required:
+                - teachingNoteChecked
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: string
+                    format: uuid
+                    pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                  packageId:
+                    type: string
+                    format: uuid
+                    pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                  packageTitle:
+                    type: string
+                  familyKey:
+                    type: string
+                  version:
+                    type: integer
+                    minimum: -9007199254740991
+                    maximum: 9007199254740991
+                  status:
+                    type: string
+                    enum:
+                      - draft
+                      - confirmed
+                      - retired
+                  calibrationStatus:
+                    type: string
+                    enum:
+                      - uncalibrated
+                      - calibrated
+                  conceptSet:
+                    type: array
+                    items:
+                      type: string
+                  brief:
+                    type: string
+                  workingClockSeconds:
+                    type: integer
+                    minimum: -9007199254740991
+                    maximum: 9007199254740991
+                  turnDelaySeconds:
+                    type: integer
+                    minimum: -9007199254740991
+                    maximum: 9007199254740991
+                  difficultyProfile:
+                    type: object
+                    properties:
+                      estimate:
+                        default: unknown
+                        type: string
+                        minLength: 1
+                        maxLength: 200
+                      note:
+                        default: ""
+                        type: string
+                        maxLength: 4000
+                      uncalibrated:
+                        default: true
+                        type: boolean
+                    required:
+                      - estimate
+                      - note
+                      - uncalibrated
+                    additionalProperties: false
+                  generalEscalationReply:
+                    type: string
+                  debriefCounterfactual:
+                    type: string
+                  teachingNoteChecked:
+                    type: boolean
+                  confirmedAt:
+                    anyOf:
+                      - type: string
+                        format: date-time
+                        pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z))$
+                      - type: "null"
+                  confirmedBy:
+                    type:
+                      - string
+                      - "null"
+                  counts:
+                    type: object
+                    properties:
+                      documents:
+                        type: integer
+                        minimum: -9007199254740991
+                        maximum: 9007199254740991
+                      stakeholders:
+                        type: integer
+                        minimum: -9007199254740991
+                        maximum: 9007199254740991
+                      answerSpacePositions:
+                        type: integer
+                        minimum: -9007199254740991
+                        maximum: 9007199254740991
+                      namedFields:
+                        type: integer
+                        minimum: -9007199254740991
+                        maximum: 9007199254740991
+                      claims:
+                        type: integer
+                        minimum: -9007199254740991
+                        maximum: 9007199254740991
+                      variants:
+                        type: integer
+                        minimum: -9007199254740991
+                        maximum: 9007199254740991
+                      defenseQuestions:
+                        type: integer
+                        minimum: -9007199254740991
+                        maximum: 9007199254740991
+                      readinessItems:
+                        type: integer
+                        minimum: -9007199254740991
+                        maximum: 9007199254740991
+                    required:
+                      - documents
+                      - stakeholders
+                      - answerSpacePositions
+                      - namedFields
+                      - claims
+                      - variants
+                      - defenseQuestions
+                      - readinessItems
+                    additionalProperties: false
+                  confirmationRecord:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                          format: uuid
+                          pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                        elementType:
+                          type: string
+                          enum:
+                            - brief
+                            - document
+                            - stakeholder
+                            - answer_space_position
+                            - named_field
+                            - claim
+                            - variant_claim_state
+                            - probe
+                            - turn
+                            - defense_question
+                            - readiness_item
+                            - counterfactual
+                            - general_escalation_reply
+                            - clock_and_difficulty
+                            - seed_reskin
+                        elementId:
+                          anyOf:
+                            - type: string
+                              format: uuid
+                              pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                            - type: "null"
+                        revision:
+                          type: integer
+                          minimum: -9007199254740991
+                          maximum: 9007199254740991
+                        decision:
+                          type: string
+                          enum:
+                            - confirmed
+                            - edited
+                            - rejected
+                        note:
+                          type: string
+                        openedAt:
+                          type: string
+                          format: date-time
+                          pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z))$
+                        decidedAt:
+                          type: string
+                          format: date-time
+                          pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z))$
+                        decidedBy:
+                          type: string
+                        decidedByName:
+                          type: string
+                      required:
+                        - id
+                        - elementType
+                        - elementId
+                        - revision
+                        - decision
+                        - note
+                        - openedAt
+                        - decidedAt
+                        - decidedBy
+                        - decidedByName
+                      additionalProperties: false
+                  authoringRecord:
+                    type: object
+                    properties:
+                      generationModel:
+                        type:
+                          - string
+                          - "null"
+                      generatedAt:
+                        anyOf:
+                          - type: string
+                            format: date-time
+                            pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z))$
+                          - type: "null"
+                      runs:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            step:
+                              type: string
+                              enum:
+                                - reskin_brief_stakeholders
+                                - documents
+                                - answer_space_fields
+                                - claims_and_states
+                                - turn_and_probe
+                                - question_bank_and_counterfactual
+                                - readiness_items
+                            passNumber:
+                              type: integer
+                              minimum: -9007199254740991
+                              maximum: 9007199254740991
+                            status:
+                              type: string
+                              enum:
+                                - queued
+                                - running
+                                - succeeded
+                                - failed
+                            failedRules:
+                              default: []
+                              type: array
+                              items:
+                                type: string
+                            startedAt:
+                              anyOf:
+                                - type: string
+                                  format: date-time
+                                  pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z))$
+                                - type: "null"
+                            finishedAt:
+                              anyOf:
+                                - type: string
+                                  format: date-time
+                                  pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z))$
+                                - type: "null"
+                          required:
+                            - step
+                            - passNumber
+                            - status
+                            - failedRules
+                            - startedAt
+                            - finishedAt
+                          additionalProperties: false
+                      editors:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            userId:
+                              type: string
+                            name:
+                              type: string
+                            decisions:
+                              type: integer
+                              minimum: -9007199254740991
+                              maximum: 9007199254740991
+                          required:
+                            - userId
+                            - name
+                            - decisions
+                          additionalProperties: false
+                    required:
+                      - generationModel
+                      - generatedAt
+                      - runs
+                      - editors
+                    additionalProperties: false
+                  measures:
+                    type: object
+                    properties:
+                      seedToConfirmedMs:
+                        type:
+                          - number
+                          - "null"
+                      editRate:
+                        type: number
+                      rejectedShare:
+                        type: number
+                      generationPasses:
+                        type: integer
+                        minimum: -9007199254740991
+                        maximum: 9007199254740991
+                      reviewMsPerElement:
+                        type:
+                          - number
+                          - "null"
+                    required:
+                      - seedToConfirmedMs
+                      - editRate
+                      - rejectedShare
+                      - generationPasses
+                      - reviewMsPerElement
+                    additionalProperties: false
+                  validation:
+                    type: object
+                    properties:
+                      ok:
+                        type: boolean
+                      failures:
+                        default: []
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            code:
+                              type: string
+                              minLength: 1
+                            elementIds:
+                              default: []
+                              type: array
+                              items:
+                                type: string
+                            message:
+                              type: string
+                          required:
+                            - code
+                            - elementIds
+                            - message
+                          additionalProperties: false
+                    required:
+                      - ok
+                      - failures
+                    additionalProperties: false
+                  warnings:
+                    type: array
+                    items:
+                      type: string
+                      enum:
+                        - FAMILY_LACKS_ETHICAL_DEFECT
+                  seedRecord:
+                    anyOf:
+                      - type: object
+                        properties:
+                          caseTitle:
+                            type: string
+                          publisher:
+                            type: string
+                          licenseTerms:
+                            type: string
+                          licensePermitsAdaptation:
+                            type: boolean
+                          seedText:
+                            type: string
+                          reskinLog:
+                            type: array
+                            items:
+                              type: object
+                              properties:
+                                kind:
+                                  type: string
+                                  enum:
+                                    - renamed_entity
+                                    - altered_number
+                                    - restructured_document
+                                from:
+                                  type: string
+                                  minLength: 1
+                                  maxLength: 400
+                                to:
+                                  type: string
+                                  minLength: 1
+                                  maxLength: 400
+                                note:
+                                  default: ""
+                                  type: string
+                                  maxLength: 4000
+                              required:
+                                - kind
+                                - from
+                                - to
+                                - note
+                              additionalProperties: false
+                        required:
+                          - caseTitle
+                          - publisher
+                          - licenseTerms
+                          - licensePermitsAdaptation
+                          - seedText
+                          - reskinLog
+                        additionalProperties: false
+                      - type: "null"
+                  restricted:
+                    type: boolean
+                  capabilities:
+                    type: object
+                    properties:
+                      canEdit:
+                        type: boolean
+                      canConfirm:
+                        type: boolean
+                      canRegenerate:
+                        type: boolean
+                    required:
+                      - canEdit
+                      - canConfirm
+                      - canRegenerate
+                    additionalProperties: false
+                required:
+                  - id
+                  - packageId
+                  - packageTitle
+                  - familyKey
+                  - version
+                  - status
+                  - calibrationStatus
+                  - conceptSet
+                  - brief
+                  - workingClockSeconds
+                  - turnDelaySeconds
+                  - difficultyProfile
+                  - generalEscalationReply
+                  - debriefCounterfactual
+                  - teachingNoteChecked
+                  - confirmedAt
+                  - confirmedBy
+                  - counts
+                  - confirmationRecord
+                  - authoringRecord
+                  - measures
+                  - validation
+                  - warnings
+                  - seedRecord
+                  - restricted
+                  - capabilities
+                additionalProperties: false
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+  /package-versions/{versionId}/elements/{elementType}/{elementId}:
+    patch:
+      tags:
+        - packages
+      operationId: updateElement
+      summary: Edit a draft element
+      parameters:
+        - in: path
+          name: versionId
+          schema:
+            type: string
+            format: uuid
+            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+          required: true
+        - in: path
+          name: elementType
+          schema:
+            type: string
+            enum:
+              - brief
+              - document
+              - stakeholder
+              - answer_space_position
+              - named_field
+              - claim
+              - variant_claim_state
+              - probe
+              - turn
+              - defense_question
+              - readiness_item
+              - counterfactual
+              - general_escalation_reply
+              - clock_and_difficulty
+              - seed_reskin
+          required: true
+        - in: path
+          name: elementId
+          schema:
+            type: string
+            format: uuid
+            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+          required: true
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties: {}
+              additionalProperties: {}
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  elementType:
+                    type: string
+                    enum:
+                      - brief
+                      - document
+                      - stakeholder
+                      - answer_space_position
+                      - named_field
+                      - claim
+                      - variant_claim_state
+                      - probe
+                      - turn
+                      - defense_question
+                      - readiness_item
+                      - counterfactual
+                      - general_escalation_reply
+                      - clock_and_difficulty
+                      - seed_reskin
+                  elementId:
+                    anyOf:
+                      - type: string
+                        format: uuid
+                        pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                      - type: "null"
+                  key:
+                    type: string
+                  values:
+                    type: object
+                    propertyNames:
+                      type: string
+                    additionalProperties: {}
+                  confirmation:
+                    anyOf:
+                      - type: object
+                        properties:
+                          id:
+                            type: string
+                            format: uuid
+                            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                          elementType:
+                            type: string
+                            enum:
+                              - brief
+                              - document
+                              - stakeholder
+                              - answer_space_position
+                              - named_field
+                              - claim
+                              - variant_claim_state
+                              - probe
+                              - turn
+                              - defense_question
+                              - readiness_item
+                              - counterfactual
+                              - general_escalation_reply
+                              - clock_and_difficulty
+                              - seed_reskin
+                          elementId:
+                            anyOf:
+                              - type: string
+                                format: uuid
+                                pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                              - type: "null"
+                          revision:
+                            type: integer
+                            minimum: -9007199254740991
+                            maximum: 9007199254740991
+                          decision:
+                            type: string
+                            enum:
+                              - confirmed
+                              - edited
+                              - rejected
+                          note:
+                            type: string
+                          openedAt:
+                            type: string
+                            format: date-time
+                            pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z))$
+                          decidedAt:
+                            type: string
+                            format: date-time
+                            pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z))$
+                          decidedBy:
+                            type: string
+                          decidedByName:
+                            type: string
+                        required:
+                          - id
+                          - elementType
+                          - elementId
+                          - revision
+                          - decision
+                          - note
+                          - openedAt
+                          - decidedAt
+                          - decidedBy
+                          - decidedByName
+                        additionalProperties: false
+                      - type: "null"
+                required:
+                  - elementType
+                  - elementId
+                  - key
+                  - values
+                  - confirmation
+                additionalProperties: false
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "429":
+          $ref: "#/components/responses/RateLimited"
   /package-versions/{versionId}/elements/{elementType}/{elementId}/decision:
     post:
       tags:
@@ -5862,25 +7439,146 @@ paths:
       operationId: decideElement
       summary: Confirm or reject an element
       parameters:
-        - $ref: "#/components/parameters/versionId"
-        - $ref: "#/components/parameters/elementType"
-        - $ref: "#/components/parameters/elementId"
-        - $ref: "#/components/parameters/requestedWith"
+        - in: path
+          name: versionId
+          schema:
+            type: string
+            format: uuid
+            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+          required: true
+        - in: path
+          name: elementType
+          schema:
+            type: string
+            enum:
+              - brief
+              - document
+              - stakeholder
+              - answer_space_position
+              - named_field
+              - claim
+              - variant_claim_state
+              - probe
+              - turn
+              - defense_question
+              - readiness_item
+              - counterfactual
+              - general_escalation_reply
+              - clock_and_difficulty
+              - seed_reskin
+          required: true
+        - in: path
+          name: elementId
+          schema:
+            type: string
+            format: uuid
+            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+          required: true
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/ElementDecision"
+              type: object
+              properties:
+                decision:
+                  type: string
+                  enum:
+                    - confirmed
+                    - rejected
+                note:
+                  default: ""
+                  type: string
+                  maxLength: 1000
+                openedAt:
+                  type: string
+                  format: date-time
+                  pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z))$
+              required:
+                - decision
+                - openedAt
       responses:
         "200":
           description: OK
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ElementConfirmation"
-        "409":
-          $ref: "#/components/responses/Conflict"
+                type: object
+                properties:
+                  id:
+                    type: string
+                    format: uuid
+                    pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                  elementType:
+                    type: string
+                    enum:
+                      - brief
+                      - document
+                      - stakeholder
+                      - answer_space_position
+                      - named_field
+                      - claim
+                      - variant_claim_state
+                      - probe
+                      - turn
+                      - defense_question
+                      - readiness_item
+                      - counterfactual
+                      - general_escalation_reply
+                      - clock_and_difficulty
+                      - seed_reskin
+                  elementId:
+                    anyOf:
+                      - type: string
+                        format: uuid
+                        pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                      - type: "null"
+                  revision:
+                    type: integer
+                    minimum: -9007199254740991
+                    maximum: 9007199254740991
+                  decision:
+                    type: string
+                    enum:
+                      - confirmed
+                      - edited
+                      - rejected
+                  note:
+                    type: string
+                  openedAt:
+                    type: string
+                    format: date-time
+                    pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z))$
+                  decidedAt:
+                    type: string
+                    format: date-time
+                    pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z))$
+                  decidedBy:
+                    type: string
+                  decidedByName:
+                    type: string
+                required:
+                  - id
+                  - elementType
+                  - elementId
+                  - revision
+                  - decision
+                  - note
+                  - openedAt
+                  - decidedAt
+                  - decidedBy
+                  - decidedByName
+                additionalProperties: false
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "429":
+          $ref: "#/components/responses/RateLimited"
   /package-versions/{versionId}/elements/{elementType}/{elementId}/regenerate:
     post:
       tags:
@@ -5922,14 +7620,853 @@ paths:
       operationId: exportPackageVersion
       summary: Package JSON
       parameters:
-        - $ref: "#/components/parameters/versionId"
+        - in: path
+          name: versionId
+          schema:
+            type: string
+            format: uuid
+            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+          required: true
       responses:
         "200":
           description: File
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/PackageExport"
+                type: object
+                properties:
+                  schemaVersion:
+                    type: number
+                    const: 1
+                  package:
+                    type: object
+                    properties:
+                      title:
+                        type: string
+                        minLength: 1
+                        maxLength: 200
+                      familyKey:
+                        type: string
+                        pattern: ^[a-z0-9-]{3,60}$
+                      discipline:
+                        default: marketing_strategy
+                        type: string
+                        minLength: 1
+                        maxLength: 200
+                    required:
+                      - title
+                      - familyKey
+                      - discipline
+                    additionalProperties: false
+                  version:
+                    type: object
+                    properties:
+                      conceptSet:
+                        minItems: 4
+                        type: array
+                        items:
+                          type: string
+                          minLength: 2
+                          maxLength: 60
+                      brief:
+                        default: ""
+                        type: string
+                        maxLength: 40000
+                      workingClockSeconds:
+                        default: 1500
+                        type: integer
+                        minimum: 300
+                        maximum: 7200
+                      turnDelaySeconds:
+                        default: 90
+                        type: integer
+                        minimum: 60
+                        maximum: 120
+                      difficultyProfile:
+                        default:
+                          estimate: unknown
+                          note: ""
+                          uncalibrated: true
+                        type: object
+                        properties:
+                          estimate:
+                            default: unknown
+                            type: string
+                            minLength: 1
+                            maxLength: 200
+                          note:
+                            default: ""
+                            type: string
+                            maxLength: 4000
+                          uncalibrated:
+                            default: true
+                            type: boolean
+                        required:
+                          - estimate
+                          - note
+                          - uncalibrated
+                        additionalProperties: false
+                      generalEscalationReply:
+                        default: ""
+                        type: string
+                        maxLength: 4000
+                      debriefCounterfactual:
+                        default: ""
+                        type: string
+                        maxLength: 4000
+                    required:
+                      - conceptSet
+                      - brief
+                      - workingClockSeconds
+                      - turnDelaySeconds
+                      - difficultyProfile
+                      - generalEscalationReply
+                      - debriefCounterfactual
+                    additionalProperties: false
+                  seedRecord:
+                    default: null
+                    anyOf:
+                      - type: object
+                        properties:
+                          caseTitle:
+                            type: string
+                            minLength: 1
+                            maxLength: 200
+                          publisher:
+                            type: string
+                            minLength: 1
+                            maxLength: 200
+                          licenseTerms:
+                            type: string
+                            minLength: 1
+                            maxLength: 4000
+                          licensePermitsAdaptation:
+                            type: boolean
+                          seedText:
+                            type: string
+                            minLength: 1
+                            maxLength: 200000
+                          reskinLog:
+                            default: []
+                            type: array
+                            items:
+                              type: object
+                              properties:
+                                kind:
+                                  type: string
+                                  enum:
+                                    - renamed_entity
+                                    - altered_number
+                                    - restructured_document
+                                from:
+                                  type: string
+                                  minLength: 1
+                                  maxLength: 400
+                                to:
+                                  type: string
+                                  minLength: 1
+                                  maxLength: 400
+                                note:
+                                  default: ""
+                                  type: string
+                                  maxLength: 4000
+                              required:
+                                - kind
+                                - from
+                                - to
+                                - note
+                              additionalProperties: false
+                        required:
+                          - caseTitle
+                          - publisher
+                          - licenseTerms
+                          - licensePermitsAdaptation
+                          - seedText
+                          - reskinLog
+                        additionalProperties: false
+                      - type: "null"
+                  documents:
+                    default: []
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        key:
+                          type: string
+                          pattern: ^[A-Za-z0-9][A-Za-z0-9_-]{0,39}$
+                        title:
+                          type: string
+                          minLength: 1
+                          maxLength: 200
+                        author:
+                          type: string
+                          minLength: 1
+                          maxLength: 200
+                        datedOn:
+                          type: string
+                          format: date
+                          pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))$
+                        role:
+                          type: string
+                          enum:
+                            - supporting
+                            - superseded
+                            - interpretation_as_fact
+                            - irrelevant
+                        position:
+                          type: integer
+                          minimum: 0
+                          maximum: 9007199254740991
+                        body:
+                          type: string
+                          minLength: 1
+                          maxLength: 40000
+                        supersededByKey:
+                          default: null
+                          anyOf:
+                            - type: string
+                              pattern: ^[A-Za-z0-9][A-Za-z0-9_-]{0,39}$
+                            - type: "null"
+                        stakeholderKey:
+                          default: null
+                          anyOf:
+                            - type: string
+                              pattern: ^[A-Za-z0-9][A-Za-z0-9_-]{0,39}$
+                            - type: "null"
+                      required:
+                        - key
+                        - title
+                        - author
+                        - datedOn
+                        - role
+                        - position
+                        - body
+                        - supersededByKey
+                        - stakeholderKey
+                      additionalProperties: false
+                  stakeholders:
+                    default: []
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        key:
+                          type: string
+                          pattern: ^[A-Za-z0-9][A-Za-z0-9_-]{0,39}$
+                        name:
+                          type: string
+                          minLength: 1
+                          maxLength: 200
+                        roleTitle:
+                          type: string
+                          minLength: 1
+                          maxLength: 200
+                        positionStatement:
+                          type: string
+                          minLength: 1
+                          maxLength: 4000
+                        incentives:
+                          type: string
+                          minLength: 1
+                          maxLength: 4000
+                        blindSpots:
+                          type: string
+                          minLength: 1
+                          maxLength: 4000
+                        contradictionPoint:
+                          default: null
+                          anyOf:
+                            - type: string
+                              maxLength: 4000
+                            - type: "null"
+                        contradictsStakeholderKey:
+                          default: null
+                          anyOf:
+                            - type: string
+                              pattern: ^[A-Za-z0-9][A-Za-z0-9_-]{0,39}$
+                            - type: "null"
+                      required:
+                        - key
+                        - name
+                        - roleTitle
+                        - positionStatement
+                        - incentives
+                        - blindSpots
+                        - contradictionPoint
+                        - contradictsStakeholderKey
+                      additionalProperties: false
+                  answerSpacePositions:
+                    default: []
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        key:
+                          type: string
+                          pattern: ^[A-Za-z0-9][A-Za-z0-9_-]{0,39}$
+                        kind:
+                          type: string
+                          enum:
+                            - defensible
+                            - evidence_inconsistent
+                        summary:
+                          type: string
+                          minLength: 1
+                          maxLength: 4000
+                        ignoredEvidence:
+                          default: null
+                          anyOf:
+                            - type: string
+                              maxLength: 4000
+                            - type: "null"
+                        isMinimumCommitment:
+                          default: false
+                          type: boolean
+                        position:
+                          type: integer
+                          minimum: 0
+                          maximum: 9007199254740991
+                        supportingDocumentKeys:
+                          default: []
+                          type: array
+                          items:
+                            type: string
+                            pattern: ^[A-Za-z0-9][A-Za-z0-9_-]{0,39}$
+                      required:
+                        - key
+                        - kind
+                        - summary
+                        - ignoredEvidence
+                        - isMinimumCommitment
+                        - position
+                        - supportingDocumentKeys
+                      additionalProperties: false
+                  namedFields:
+                    default: []
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        key:
+                          type: string
+                          pattern: ^[a-z][a-z0-9_]{1,59}$
+                        label:
+                          type: string
+                          minLength: 1
+                          maxLength: 200
+                        unit:
+                          type: string
+                          enum:
+                            - percent
+                            - ratio
+                            - months
+                            - usd
+                            - count
+                            - other
+                        position:
+                          type: integer
+                          minimum: 0
+                          maximum: 9007199254740991
+                      required:
+                        - key
+                        - label
+                        - unit
+                        - position
+                      additionalProperties: false
+                  claims:
+                    default: []
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        key:
+                          type: string
+                          pattern: ^[A-Za-z0-9][A-Za-z0-9_-]{0,39}$
+                        text:
+                          type: string
+                          minLength: 1
+                          maxLength: 4000
+                        sourceKind:
+                          type: string
+                          enum:
+                            - assistant
+                            - document
+                        sourcePassage:
+                          default: ""
+                          type: string
+                          maxLength: 4000
+                        importance:
+                          type: string
+                          enum:
+                            - load_bearing
+                            - supporting
+                        consequenceLevel:
+                          type: string
+                          enum:
+                            - low
+                            - medium
+                            - high
+                        verificationCost:
+                          type: string
+                          enum:
+                            - cheap
+                            - moderate
+                            - expensive
+                        weaklySourced:
+                          default: false
+                          type: boolean
+                        volatile:
+                          default: false
+                          type: boolean
+                        conceptKey:
+                          type: string
+                          minLength: 2
+                          maxLength: 60
+                        carriedValues:
+                          default: []
+                          type: array
+                          items:
+                            type: object
+                            properties:
+                              field_key:
+                                type: string
+                                pattern: ^[a-z][a-z0-9_]{1,59}$
+                              value:
+                                type: number
+                              unit:
+                                type: string
+                                enum:
+                                  - percent
+                                  - ratio
+                                  - months
+                                  - usd
+                                  - count
+                                  - other
+                            required:
+                              - value
+                              - unit
+                            additionalProperties: false
+                        triggerPhrases:
+                          default: []
+                          type: array
+                          items:
+                            type: string
+                            minLength: 1
+                            maxLength: 400
+                        triggerDescription:
+                          default: ""
+                          type: string
+                          maxLength: 4000
+                        escalatable:
+                          default: false
+                          type: boolean
+                        escalationReply:
+                          default: null
+                          anyOf:
+                            - type: string
+                              maxLength: 4000
+                            - type: "null"
+                        rationale:
+                          default: ""
+                          type: string
+                          maxLength: 4000
+                        position:
+                          type: integer
+                          minimum: 0
+                          maximum: 9007199254740991
+                        sourceDocumentKey:
+                          default: null
+                          anyOf:
+                            - type: string
+                              pattern: ^[A-Za-z0-9][A-Za-z0-9_-]{0,39}$
+                            - type: "null"
+                      required:
+                        - key
+                        - text
+                        - sourceKind
+                        - sourcePassage
+                        - importance
+                        - consequenceLevel
+                        - verificationCost
+                        - weaklySourced
+                        - volatile
+                        - conceptKey
+                        - carriedValues
+                        - triggerPhrases
+                        - triggerDescription
+                        - escalatable
+                        - escalationReply
+                        - rationale
+                        - position
+                        - sourceDocumentKey
+                      additionalProperties: false
+                  variants:
+                    default: []
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        key:
+                          type: string
+                          enum:
+                            - defective
+                            - sound
+                        label:
+                          type: string
+                          minLength: 1
+                          maxLength: 200
+                        claimStates:
+                          default: []
+                          type: array
+                          items:
+                            type: object
+                            properties:
+                              claimKey:
+                                type: string
+                                pattern: ^[A-Za-z0-9][A-Za-z0-9_-]{0,39}$
+                              evidenceStatus:
+                                type: string
+                                enum:
+                                  - sound
+                                  - defective
+                              failureFamily:
+                                default: null
+                                anyOf:
+                                  - type: string
+                                    enum:
+                                      - near_neighbor
+                                      - unstated_assumption
+                                      - stale_evidence
+                                      - uncomputed_number
+                                      - extrapolation
+                                      - reversal_to_agree
+                                      - omitted_alternative
+                                      - misapplied_method
+                                      - misattributed_source
+                                      - unacceptable_route
+                                  - type: "null"
+                              warrantedStance:
+                                type: string
+                                enum:
+                                  - accept
+                                  - verify
+                                  - challenge
+                                  - reject
+                                  - escalate
+                              planted:
+                                default: false
+                                type: boolean
+                              verificationPaths:
+                                default: {}
+                                type: object
+                                properties:
+                                  source_trace:
+                                    type: object
+                                    properties:
+                                      document_key:
+                                        type: string
+                                        pattern: ^[A-Za-z0-9][A-Za-z0-9_-]{0,39}$
+                                      passage:
+                                        type: string
+                                        minLength: 1
+                                        maxLength: 4000
+                                      dated_on:
+                                        type: string
+                                        format: date
+                                        pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))$
+                                      author:
+                                        type: string
+                                        minLength: 1
+                                        maxLength: 200
+                                    required:
+                                      - document_key
+                                      - passage
+                                      - dated_on
+                                      - author
+                                    additionalProperties: false
+                                  replication_check:
+                                    type: object
+                                    properties:
+                                      result:
+                                        type: string
+                                        minLength: 1
+                                        maxLength: 4000
+                                    required:
+                                      - result
+                                    additionalProperties: false
+                                  decomposition_check:
+                                    type: object
+                                    properties:
+                                      steps:
+                                        minItems: 1
+                                        type: array
+                                        items:
+                                          type: object
+                                          properties:
+                                            label:
+                                              type: string
+                                              minLength: 1
+                                              maxLength: 400
+                                            result:
+                                              type: string
+                                              minLength: 1
+                                              maxLength: 4000
+                                          required:
+                                            - label
+                                            - result
+                                          additionalProperties: false
+                                    required:
+                                      - steps
+                                    additionalProperties: false
+                                additionalProperties: false
+                            required:
+                              - claimKey
+                              - evidenceStatus
+                              - failureFamily
+                              - warrantedStance
+                              - planted
+                              - verificationPaths
+                            additionalProperties: false
+                      required:
+                        - key
+                        - label
+                        - claimStates
+                      additionalProperties: false
+                  probe:
+                    default: null
+                    anyOf:
+                      - type: object
+                        properties:
+                          claimKey:
+                            type: string
+                            pattern: ^[A-Za-z0-9][A-Za-z0-9_-]{0,39}$
+                          originalPosition:
+                            type: string
+                            minLength: 1
+                            maxLength: 4000
+                          scriptedReversal:
+                            type: string
+                            minLength: 1
+                            maxLength: 4000
+                        required:
+                          - claimKey
+                          - originalPosition
+                          - scriptedReversal
+                        additionalProperties: false
+                      - type: "null"
+                  turn:
+                    default: null
+                    anyOf:
+                      - type: object
+                        properties:
+                          text:
+                            type: string
+                            minLength: 1
+                            maxLength: 4000
+                          voice:
+                            type: string
+                            enum:
+                              - stakeholder_message
+                              - corrected_number
+                              - supplier_notice
+                              - competitor_move
+                              - retracted_source
+                              - regulatory_note
+                          warrantsChange:
+                            type: boolean
+                          proportionateResponse:
+                            type: string
+                            enum:
+                              - hold
+                              - revise
+                              - reverse
+                          evidence:
+                            type: string
+                            minLength: 1
+                            maxLength: 4000
+                          disruptedAssumptionKeys:
+                            default: []
+                            type: array
+                            items:
+                              type: string
+                              minLength: 1
+                              maxLength: 200
+                          stakeholderKey:
+                            default: null
+                            anyOf:
+                              - type: string
+                                pattern: ^[A-Za-z0-9][A-Za-z0-9_-]{0,39}$
+                              - type: "null"
+                          windowClaimKeys:
+                            default: []
+                            type: array
+                            items:
+                              type: string
+                              pattern: ^[A-Za-z0-9][A-Za-z0-9_-]{0,39}$
+                        required:
+                          - text
+                          - voice
+                          - warrantsChange
+                          - proportionateResponse
+                          - evidence
+                          - disruptedAssumptionKeys
+                          - stakeholderKey
+                          - windowClaimKeys
+                        additionalProperties: false
+                      - type: "null"
+                  defenseQuestions:
+                    default: []
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        key:
+                          type: string
+                          pattern: ^[A-Za-z0-9][A-Za-z0-9_-]{0,39}$
+                        kind:
+                          type: string
+                          enum:
+                            - provenance
+                            - figure_provenance
+                            - verification
+                            - assumption
+                            - confidence
+                            - frame_vs_response
+                            - counterfactual
+                            - default
+                        assumptionIndex:
+                          default: null
+                          anyOf:
+                            - type: integer
+                              minimum: 0
+                              maximum: 2
+                            - type: "null"
+                        template:
+                          type: string
+                          minLength: 1
+                          maxLength: 4000
+                        condition:
+                          default: {}
+                          type: object
+                          propertyNames:
+                            type: string
+                          additionalProperties: {}
+                        followUp:
+                          default: ""
+                          type: string
+                          maxLength: 4000
+                        expectedAnswerNotes:
+                          default: ""
+                          type: string
+                          maxLength: 4000
+                        isDefault:
+                          default: false
+                          type: boolean
+                        position:
+                          type: integer
+                          minimum: 0
+                          maximum: 9007199254740991
+                        claimKey:
+                          default: null
+                          anyOf:
+                            - type: string
+                              pattern: ^[A-Za-z0-9][A-Za-z0-9_-]{0,39}$
+                            - type: "null"
+                      required:
+                        - key
+                        - kind
+                        - assumptionIndex
+                        - template
+                        - condition
+                        - followUp
+                        - expectedAnswerNotes
+                        - isDefault
+                        - position
+                        - claimKey
+                      additionalProperties: false
+                  readinessItems:
+                    default: []
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        key:
+                          type: string
+                          pattern: ^[A-Za-z0-9][A-Za-z0-9_-]{0,39}$
+                        category:
+                          type: string
+                          enum:
+                            - foundation
+                            - defect_concept
+                            - ai_behavior
+                        conceptKey:
+                          type: string
+                          minLength: 2
+                          maxLength: 60
+                        stem:
+                          type: string
+                          minLength: 1
+                          maxLength: 4000
+                        options:
+                          minItems: 2
+                          maxItems: 8
+                          type: array
+                          items:
+                            type: object
+                            properties:
+                              key:
+                                type: string
+                                pattern: ^[a-z0-9]$
+                              text:
+                                type: string
+                                minLength: 1
+                                maxLength: 4000
+                            required:
+                              - key
+                              - text
+                            additionalProperties: false
+                        answerKey:
+                          type: string
+                          pattern: ^[a-z0-9]$
+                        position:
+                          type: integer
+                          minimum: 0
+                          maximum: 9007199254740991
+                      required:
+                        - key
+                        - category
+                        - conceptKey
+                        - stem
+                        - options
+                        - answerKey
+                        - position
+                      additionalProperties: false
+                required:
+                  - schemaVersion
+                  - package
+                  - version
+                  - seedRecord
+                  - documents
+                  - stakeholders
+                  - answerSpacePositions
+                  - namedFields
+                  - claims
+                  - variants
+                  - probe
+                  - turn
+                  - defenseQuestions
+                  - readinessItems
+                additionalProperties: false
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "429":
+          $ref: "#/components/responses/RateLimited"
   /package-versions/{versionId}/generation:
     post:
       tags:
@@ -5977,33 +8514,56 @@ paths:
       operationId: regeneratePackageVersion
       summary: Create the next draft version from this one
       parameters:
-        - $ref: "#/components/parameters/versionId"
-        - $ref: "#/components/parameters/requestedWith"
+        - in: path
+          name: versionId
+          schema:
+            type: string
+            format: uuid
+            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+          required: true
       requestBody:
         required: true
         content:
           application/json:
             schema:
               type: object
-              required:
-                - reason
               properties:
                 reason:
                   type: string
                   minLength: 1
+                  maxLength: 1000
+              required:
+                - reason
       responses:
         "201":
-          description: Created
+          description: OK
           content:
             application/json:
               schema:
                 type: object
-                required:
-                  - versionId
                 properties:
+                  packageId:
+                    type: string
+                    format: uuid
+                    pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
                   versionId:
                     type: string
                     format: uuid
+                    pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                required:
+                  - packageId
+                  - versionId
+                additionalProperties: false
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "429":
+          $ref: "#/components/responses/RateLimited"
   /packages/{packageId}:
     get:
       tags:
@@ -6011,14 +8571,155 @@ paths:
       operationId: getPackage
       summary: Package with versions
       parameters:
-        - $ref: "#/components/parameters/packageId"
+        - in: path
+          name: packageId
+          schema:
+            type: string
+            format: uuid
+            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+          required: true
       responses:
         "200":
           description: OK
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/PackageView"
+                type: object
+                properties:
+                  id:
+                    type: string
+                    format: uuid
+                    pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                  title:
+                    type: string
+                  familyKey:
+                    type: string
+                  discipline:
+                    type: string
+                  latestVersion:
+                    anyOf:
+                      - type: object
+                        properties:
+                          id:
+                            type: string
+                            format: uuid
+                            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                          version:
+                            type: integer
+                            minimum: -9007199254740991
+                            maximum: 9007199254740991
+                          status:
+                            type: string
+                            enum:
+                              - draft
+                              - confirmed
+                              - retired
+                          calibrationStatus:
+                            type: string
+                            enum:
+                              - uncalibrated
+                              - calibrated
+                          confirmedAt:
+                            anyOf:
+                              - type: string
+                                format: date-time
+                                pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z))$
+                              - type: "null"
+                          createdAt:
+                            type: string
+                            format: date-time
+                            pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z))$
+                        required:
+                          - id
+                          - version
+                          - status
+                          - calibrationStatus
+                          - confirmedAt
+                          - createdAt
+                        additionalProperties: false
+                      - type: "null"
+                  versionCount:
+                    type: integer
+                    minimum: -9007199254740991
+                    maximum: 9007199254740991
+                  warnings:
+                    type: array
+                    items:
+                      type: string
+                      enum:
+                        - FAMILY_LACKS_ETHICAL_DEFECT
+                  updatedAt:
+                    type: string
+                    format: date-time
+                    pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z))$
+                  createdAt:
+                    type: string
+                    format: date-time
+                    pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z))$
+                  versions:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                          format: uuid
+                          pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                        version:
+                          type: integer
+                          minimum: -9007199254740991
+                          maximum: 9007199254740991
+                        status:
+                          type: string
+                          enum:
+                            - draft
+                            - confirmed
+                            - retired
+                        calibrationStatus:
+                          type: string
+                          enum:
+                            - uncalibrated
+                            - calibrated
+                        confirmedAt:
+                          anyOf:
+                            - type: string
+                              format: date-time
+                              pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z))$
+                            - type: "null"
+                        createdAt:
+                          type: string
+                          format: date-time
+                          pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z))$
+                      required:
+                        - id
+                        - version
+                        - status
+                        - calibrationStatus
+                        - confirmedAt
+                        - createdAt
+                      additionalProperties: false
+                required:
+                  - id
+                  - title
+                  - familyKey
+                  - discipline
+                  - latestVersion
+                  - versionCount
+                  - warnings
+                  - updatedAt
+                  - createdAt
+                  - versions
+                additionalProperties: false
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "429":
+          $ref: "#/components/responses/RateLimited"
   /review/queue:
     get:
       tags:

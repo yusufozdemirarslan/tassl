@@ -1,16 +1,18 @@
-// The confirmed scenario package version the Phase 4 instructor specs point their assignments at,
-// named by the ids `tests/e2e/global-setup.ts` writes it under.
+// The confirmed scenario package version the instructor specs point their assignments at.
 //
-// `createAssignment` refuses a version that is not confirmed (`PACKAGE_NOT_CONFIRMED`) and a
-// variant that belongs to another version (`VARIANT_MISMATCH`), and the seeded database holds no
-// confirmed version until Phase 5 ships the Meridian Roast package (06 §5 item 4). Until then the
-// suite seeds `minimalConfirmedVersion()` once per run and every spec addresses it through the
-// deterministic ids below — `tests/factories/ids.ts` derives them from the label, so the setup and
-// the specs cannot disagree about which version they mean.
+// It is the seeded one: `pnpm db:seed` imports `src/server/db/fixtures/meridian-roast.package.json`
+// and confirms it (06 §5 item 4), so the suite runs against the package the walkthrough runs
+// against rather than a minimal stand-in built for the tests. That was not possible before Phase 5,
+// when nothing confirmed a version and `tests/factories/package.ts` wrote the smallest one an
+// assignment could point at.
 //
-// The constants live in their own module rather than in the setup file so that a spec can import
-// them without pulling `@/server/db/client` — and a live Postgres connection — into its worker.
-import { uuidFrom } from '../factories/ids'
+// The seeded ids are database-generated, so they cannot be derived from a label the way the factory
+// package's were. `tests/e2e/global-setup.ts` reads them once, before any worker starts, and writes
+// them here — to a file rather than to the environment, because Playwright starts each worker in
+// its own process and a spec must be able to read them without opening a database connection of its
+// own.
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 
 /** Every row the suite writes carries this in its name, which is what lets the purge be exact. */
 export const SUITE_PREFIX = 'E2E Phase 4'
@@ -18,25 +20,38 @@ export const SUITE_PREFIX = 'E2E Phase 4'
 /** Addresses the roster spec invites; the purge removes pending invitations under this prefix. */
 export const SUITE_INVITE_PREFIX = 'e2e-phase-4-invite'
 
-export const FIXTURE_PACKAGE_LABEL = 'e2e-phase-4'
+/** Where the setup leaves what it read; `test-results/` is already git-ignored and per-run. */
+export const FIXTURE_FILE = join(process.cwd(), 'test-results', 'seeded-package.json')
 
-/** `tests/factories/package.ts` titles a fixture package `<label> (fixture)`. */
-export const FIXTURE_PACKAGE_TITLE = `${FIXTURE_PACKAGE_LABEL} (fixture)`
+export type SeededPackage = {
+  packageId: string
+  versionId: string
+  versionNumber: number
+  title: string
+  workingClockSeconds: number
+  variantIds: { defective: string; sound: string }
+}
 
-export const FIXTURE_PACKAGE_ID = uuidFrom(`package:${FIXTURE_PACKAGE_LABEL}`)
-export const FIXTURE_VERSION_ID = uuidFrom(`version:${FIXTURE_PACKAGE_LABEL}:1`)
-export const FIXTURE_VERSION_NUMBER = 1
-
-export const FIXTURE_VARIANT_IDS = {
-  defective: uuidFrom(`variant:${FIXTURE_PACKAGE_LABEL}:defective`),
-  sound: uuidFrom(`variant:${FIXTURE_PACKAGE_LABEL}:sound`),
-} as const
+let cached: SeededPackage | null = null
 
 /**
- * `scenario_package_versions.working_clock_seconds` default (06 §3.3). The fixture never overrides
- * it, so this is the number UI-032 shows as "the package sets N seconds".
+ * What the setup found. A spec that calls this before the setup has run gets a sentence naming the
+ * cause rather than a JSON parse error twelve frames down.
  */
-export const FIXTURE_PACKAGE_CLOCK_SECONDS = 1500
+export function seededPackage(): SeededPackage {
+  if (cached) return cached
+  let raw: string
+  try {
+    raw = readFileSync(FIXTURE_FILE, 'utf8')
+  } catch {
+    throw new Error(
+      `No seeded package at ${FIXTURE_FILE}. tests/e2e/global-setup.ts writes it from the seeded ` +
+        'Meridian Roast version; run the suite through `pnpm test:e2e` so the setup runs first.',
+    )
+  }
+  cached = JSON.parse(raw) as SeededPackage
+  return cached
+}
 
 /** A course, section, or assignment name no other run collides with, under the suite prefix. */
 export function suiteName(what: string): string {

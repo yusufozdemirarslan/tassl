@@ -17,7 +17,7 @@ import { Button } from '@/components/ui/button'
 import { Field, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
 import { useSignOut } from '@/lib/hooks/use-sign-out'
-import { t } from '@/lib/i18n/t'
+import { t } from '@/lib/i18n/messages/settings'
 import { requestAccountDeletionAction } from '@/server/modules/identity/actions'
 import { FormAlert } from './form-feedback'
 

@@ -33,7 +33,12 @@ async function main(): Promise<void> {
   execSync('pnpm db:migrate', { stdio: 'inherit', env })
 
   if (existsSync('src/server/db/seed.ts')) {
-    execSync('pnpm exec tsx src/server/db/seed.ts', { stdio: 'inherit', env })
+    // --conditions=react-server: since Phase 5 the seed imports the scenarios service to load the
+    // fixture package, and that reaches `server-only` through the permission helpers (D-214).
+    execSync('pnpm exec tsx --conditions=react-server src/server/db/seed.ts', {
+      stdio: 'inherit',
+      env,
+    })
   } else {
     console.log('db-reset: no seed yet (src/server/db/seed.ts arrives in Phase 2)')
   }

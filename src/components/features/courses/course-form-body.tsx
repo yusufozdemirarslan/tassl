@@ -12,7 +12,7 @@ import { Button } from '@/components/ui/button'
 import { DialogClose, DialogFooter } from '@/components/ui/dialog'
 import { Field, FieldDescription, FieldError, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
-import { t } from '@/lib/i18n/t'
+import { t } from '@/lib/i18n/messages/courses'
 import { createCourseAction } from '@/server/modules/courses/actions'
 
 // UI-030 → "New course", the half that only exists while the dialog is open. `CourseForm` holds

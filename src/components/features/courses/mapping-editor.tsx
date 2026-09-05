@@ -9,7 +9,7 @@ import { toast } from 'sonner'
 import { FormAlert, SubmitButton } from '@/components/features/account/form-feedback'
 import { Field, FieldError, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
-import { t } from '@/lib/i18n/t'
+import { t } from '@/lib/i18n/messages/courses'
 import { updateCoursePolicyAction } from '@/server/modules/courses/actions'
 
 // UI-030 → Mapping. The four numbers a confirmed band is worth in this course (PRD §7.19, 10 §17):

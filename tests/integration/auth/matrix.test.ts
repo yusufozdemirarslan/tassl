@@ -1,7 +1,7 @@
 // Step 3.6 — the authorization matrix. docs/tech/08-auth-authz.md §4 is the source of truth: every
 // "—" cell is a denial that must be proven, and this file proves the ones whose endpoint exists
-// today (07-api-spec.md §3 identity and §4 tenancy). Later phases append rows for their endpoints;
-// nothing here needs to change but the operation registry and the table.
+// today (07-api-spec.md §3 to §6). Later phases append rows for their endpoints; nothing here needs
+// to change but the operation registry and the table.
 //
 // ---------------------------------------------------------------------------------------------
 // The contract: tests/integration/auth/matrix.json
@@ -110,6 +110,17 @@ const OPERATION_IDS = [
   'updateAssignment',
   'getPolicyDisplay',
   'deleteWalkthroughRun',
+  'listPackages',
+  'createPackageFromSeed',
+  'importPackage',
+  'getPackage',
+  'getPackageVersion',
+  'exportPackageVersion',
+  'getClaimObject',
+  'updateElement',
+  'decideElement',
+  'confirmPackageVersion',
+  'regeneratePackageVersion',
 ] as const
 
 // ---------------------------------------------------------------------------------------------
@@ -192,6 +203,47 @@ let defectiveVariantId: string
 let addable: UserRow
 let removable: Record<Seat, UserRow>
 let walkthroughRuns: Record<Seat, string>
+
+/**
+ * The packages fixture (Step 5.2): a *draft* package of institution A holding one claim. It is a
+ * draft because every write row of 07 §6 refuses a confirmed version with `VERSION_FROZEN` before
+ * it ever reaches the permission check, which would make an allowed seat indistinguishable from a
+ * denied one; and it holds a claim because `getClaimObject` has nothing to answer about without
+ * one. The two element rows address the version's `brief`, a singleton, so they need no element of
+ * their own — `SINGLETON_ELEMENT_ID` is how a route names one (06 §3.3).
+ */
+let authoredPackageId: string
+let authoredVersionId: string
+let authoredClaimId: string
+
+/** Stand-in `element_id` for a singleton element (`scenarios/schema.ts` `SINGLETON_ELEMENT_ID`). */
+const SINGLETON_ELEMENT_ID = '00000000-0000-0000-0000-000000000000'
+
+/** The smallest document `PackageExportSchema` accepts: everything else carries a default. */
+const importDocument = (seat: Seat) => ({
+  schemaVersion: 1,
+  package: { title: `Matrix import by ${seat}`, familyKey: `matrix-import-${slugOf(seat)}` },
+  version: {
+    conceptSet: ['payback_period', 'segmentation', 'retention_cohorts', 'ai_verification'],
+  },
+})
+
+/** The seed body of `POST /institutions/{orgId}/packages`; `seedText` has a 200-character floor. */
+const seedBody = (seat: Seat) => ({
+  title: `Matrix package by ${seat}`,
+  familyKey: `matrix-seed-${slugOf(seat)}`,
+  conceptSet: ['payback_period', 'segmentation', 'retention_cohorts', 'ai_verification'],
+  seed: {
+    caseTitle: 'Matrix licensed case',
+    publisher: 'Tassl',
+    licenseTerms: 'internal fixture',
+    licensePermitsAdaptation: true,
+    seedText:
+      'A regional coffee roaster with a value subscription tier and a premium tier decides how ' +
+      'much of next year’s marketing budget to move between them, and how fast, against a ' +
+      'retention record that has been revised once since the positioning deck was written.',
+  },
+})
 
 /** Seat labels reach slugs and emails; `program_lead` has to lose its underscore to pass z.email(). */
 const slugOf = (seat: Seat): string => seat.replace(/_/g, '-')
@@ -377,6 +429,25 @@ describe('authorization matrix (08 §4)', () => {
     removable = removableBuilt as Record<Seat, UserRow>
     walkthroughRuns = runsBuilt as Record<Seat, string>
 
+    const scenariosRepository = await import('@/server/modules/scenarios/repository')
+    const authored = await f.createPackageVersion(orgA, 'matrix-authored', {
+      createdBy: seats.instructor.id,
+    })
+    authoredPackageId = authored.pkg.id
+    authoredVersionId = authored.version.id
+    authoredClaimId = (
+      await scenariosRepository.upsertElement(orgA, authoredVersionId, 'claim', {
+        key: 'C1',
+        text: 'Premium payback lands at eleven months on the pilot cohort.',
+        sourceKind: 'assistant',
+        importance: 'load_bearing',
+        consequenceLevel: 'high',
+        verificationCost: 'cheap',
+        conceptKey: 'payback_period',
+        position: 0,
+      })
+    ).id
+
     const institutions = await import('@/app/api/v1/institutions/route')
     const institution = await import('@/app/api/v1/institutions/[orgId]/route')
     const settings = await import('@/app/api/v1/institutions/[orgId]/settings/route')
@@ -398,6 +469,20 @@ describe('authorization matrix (08 §4)', () => {
     const policyDisplay =
       await import('@/app/api/v1/assignments/[assignmentId]/policy-display/route')
     const runDetail = await import('@/app/api/v1/runs/[runId]/route')
+    const orgPackages = await import('@/app/api/v1/institutions/[orgId]/packages/route')
+    const packagesImport = await import('@/app/api/v1/institutions/[orgId]/packages/import/route')
+    const packageDetail = await import('@/app/api/v1/packages/[packageId]/route')
+    const versionDetail = await import('@/app/api/v1/package-versions/[versionId]/route')
+    const versionExport = await import('@/app/api/v1/package-versions/[versionId]/export/route')
+    const claimObject =
+      await import('@/app/api/v1/package-versions/[versionId]/claims/[claimId]/route')
+    const element =
+      await import('@/app/api/v1/package-versions/[versionId]/elements/[elementType]/[elementId]/route')
+    const elementDecision =
+      await import('@/app/api/v1/package-versions/[versionId]/elements/[elementType]/[elementId]/decision/route')
+    const versionConfirm = await import('@/app/api/v1/package-versions/[versionId]/confirm/route')
+    const versionRegenerate =
+      await import('@/app/api/v1/package-versions/[versionId]/regenerate/route')
 
     operations = {
       listInstitutions: {
@@ -669,6 +754,130 @@ describe('authorization matrix (08 §4)', () => {
             path: `/runs/${walkthroughRuns[seat]}`,
             session: await sessionFor(seat),
             params: { runId: walkthroughRuns[seat] },
+          }),
+      },
+      listPackages: {
+        route: 'GET /institutions/{orgId}/packages',
+        run: async (seat) =>
+          call(orgPackages.GET, {
+            path: `/institutions/${orgA}/packages`,
+            session: await sessionFor(seat),
+            params: { orgId: orgA },
+          }),
+      },
+      createPackageFromSeed: {
+        route: 'POST /institutions/{orgId}/packages',
+        // One family key per seat: `(organization_id, family_key)` is unique, so an allowed row
+        // must not be the CONFLICT that answers the next one.
+        run: async (seat) =>
+          call(orgPackages.POST, {
+            method: 'POST',
+            path: `/institutions/${orgA}/packages`,
+            session: await sessionFor(seat),
+            params: { orgId: orgA },
+            body: seedBody(seat),
+          }),
+      },
+      importPackage: {
+        route: 'POST /institutions/{orgId}/packages/import',
+        run: async (seat) =>
+          call(packagesImport.POST, {
+            method: 'POST',
+            path: `/institutions/${orgA}/packages/import`,
+            session: await sessionFor(seat),
+            params: { orgId: orgA },
+            body: importDocument(seat),
+          }),
+      },
+      getPackage: {
+        route: 'GET /packages/{packageId}',
+        run: async (seat) =>
+          call(packageDetail.GET, {
+            path: `/packages/${authoredPackageId}`,
+            session: await sessionFor(seat),
+            params: { packageId: authoredPackageId },
+          }),
+      },
+      getPackageVersion: {
+        route: 'GET /package-versions/{versionId}',
+        run: async (seat) =>
+          call(versionDetail.GET, {
+            path: `/package-versions/${authoredVersionId}`,
+            session: await sessionFor(seat),
+            params: { versionId: authoredVersionId },
+          }),
+      },
+      exportPackageVersion: {
+        route: 'GET /package-versions/{versionId}/export',
+        run: async (seat) =>
+          call(versionExport.GET, {
+            path: `/package-versions/${authoredVersionId}/export`,
+            session: await sessionFor(seat),
+            params: { versionId: authoredVersionId },
+          }),
+      },
+      getClaimObject: {
+        route: 'GET /package-versions/{versionId}/claims/{claimId}',
+        run: async (seat) =>
+          call(claimObject.GET, {
+            path: `/package-versions/${authoredVersionId}/claims/${authoredClaimId}`,
+            session: await sessionFor(seat),
+            params: { versionId: authoredVersionId, claimId: authoredClaimId },
+          }),
+      },
+      updateElement: {
+        route: 'PATCH /package-versions/{versionId}/elements/{elementType}/{elementId}',
+        run: async (seat) =>
+          call(element.PATCH, {
+            method: 'PATCH',
+            path: `/package-versions/${authoredVersionId}/elements/brief/${SINGLETON_ELEMENT_ID}`,
+            session: await sessionFor(seat),
+            params: {
+              versionId: authoredVersionId,
+              elementType: 'brief',
+              elementId: SINGLETON_ELEMENT_ID,
+            },
+            body: { brief: `Matrix brief by ${seat}.` },
+          }),
+      },
+      decideElement: {
+        route: 'POST /package-versions/{versionId}/elements/{elementType}/{elementId}/decision',
+        run: async (seat) =>
+          call(elementDecision.POST, {
+            method: 'POST',
+            path: `/package-versions/${authoredVersionId}/elements/brief/${SINGLETON_ELEMENT_ID}/decision`,
+            session: await sessionFor(seat),
+            params: {
+              versionId: authoredVersionId,
+              elementType: 'brief',
+              elementId: SINGLETON_ELEMENT_ID,
+            },
+            body: { decision: 'confirmed', openedAt: '2026-09-02T10:00:00.000Z' },
+          }),
+      },
+      confirmPackageVersion: {
+        route: 'POST /package-versions/{versionId}/confirm',
+        // The version cannot actually freeze — it breaks every package rule there is — so an
+        // allowed seat is answered `ELEMENTS_UNCONFIRMED` or `PACKAGE_INVALID`, and the version
+        // stays a draft for the rows below it.
+        run: async (seat) =>
+          call(versionConfirm.POST, {
+            method: 'POST',
+            path: `/package-versions/${authoredVersionId}/confirm`,
+            session: await sessionFor(seat),
+            params: { versionId: authoredVersionId },
+            body: { teachingNoteChecked: true },
+          }),
+      },
+      regeneratePackageVersion: {
+        route: 'POST /package-versions/{versionId}/regenerate',
+        run: async (seat) =>
+          call(versionRegenerate.POST, {
+            method: 'POST',
+            path: `/package-versions/${authoredVersionId}/regenerate`,
+            session: await sessionFor(seat),
+            params: { versionId: authoredVersionId },
+            body: { reason: `Matrix copy by ${seat}.` },
           }),
       },
     }

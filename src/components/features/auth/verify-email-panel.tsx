@@ -10,7 +10,7 @@ import { Field, FieldError, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
 import { authClient } from '@/lib/auth-client'
 import { emailField } from '@/lib/auth/form-fields'
-import { t } from '@/lib/i18n/t'
+import { t } from '@/lib/i18n/messages/auth'
 import {
   FormAlert,
   FormStatus,

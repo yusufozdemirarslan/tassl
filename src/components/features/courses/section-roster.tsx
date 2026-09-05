@@ -40,7 +40,9 @@ import {
 import { emailField } from '@/lib/auth/form-fields'
 import { formatDateTime } from '@/lib/format/date-time'
 import { useDeferredModule, type DeferredModule } from '@/lib/hooks/use-deferred-module'
-import { t } from '@/lib/i18n/t'
+import { roster } from '@/lib/i18n/messages/roster'
+import { ui } from '@/lib/i18n/messages/ui'
+import { scopedT } from '@/lib/i18n/scoped'
 import { addSectionMemberAction, removeSectionMemberAction } from '@/server/modules/courses/actions'
 import type { SectionMember, SectionRoleValue } from '@/server/modules/courses/schema'
 import type { InvitationView } from '@/server/modules/tenancy/schema'
@@ -63,6 +65,10 @@ import type { InvitationView } from '@/server/modules/tenancy/schema'
 // The bound on the address is `emailField` (src/lib/auth/form-fields), the same shape the public
 // forms use: a client component never imports the module's schema, which would drag the full Zod
 // runtime into the browser (D-186). The rule that decides anything still runs in the action.
+
+// The roster's own vocabulary, plus the one shared line a deferred overlay shows when its chunk
+// does not arrive (ui.actionLoadFailed).
+const t = scopedT(roster, ui)
 
 /** `load` must be a module-scope arrow holding a literal `import()` for the bundler to split it. */
 const loadDialogs = () => import('@/components/features/roster/roster-dialogs')

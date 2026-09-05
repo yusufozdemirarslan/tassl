@@ -11,8 +11,9 @@ import {
   DownloadIcon,
   Loader2Icon,
   MailIcon,
-  PauseCircleIcon,
+  PackageCheckIcon,
   PackageIcon,
+  PauseCircleIcon,
   type LucideIcon,
 } from 'lucide-react'
 import { toast } from 'sonner'
@@ -20,7 +21,7 @@ import { EmptyState } from '@/components/layout/empty-state'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/cn'
 import { formatDateTime } from '@/lib/format/date-time'
-import { t } from '@/lib/i18n/t'
+import { t } from '@/lib/i18n/messages/notifications'
 import {
   listNotificationsAction,
   markAllNotificationsReadAction,
@@ -43,6 +44,7 @@ const ICONS: Record<NotificationType, LucideIcon> = {
   bands_confirmed: CircleCheckIcon,
   invitation: MailIcon,
   export_ready: DownloadIcon,
+  package_confirmed: PackageCheckIcon,
 }
 
 const TYPE_LABELS: Record<NotificationType, string> = {
@@ -53,6 +55,7 @@ const TYPE_LABELS: Record<NotificationType, string> = {
   bands_confirmed: t('notifications.type.bands_confirmed'),
   invitation: t('notifications.type.invitation'),
   export_ready: t('notifications.type.export_ready'),
+  package_confirmed: t('notifications.type.package_confirmed'),
 }
 
 type NotificationListProps = {

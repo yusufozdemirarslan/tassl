@@ -3,7 +3,7 @@
 import { useEffect } from 'react'
 import { ErrorState } from '@/components/layout/error-state'
 import { Button } from '@/components/ui/button'
-import { t } from '@/lib/i18n/t'
+import { t } from '@/lib/i18n/messages/error'
 
 // UI-007: the root error boundary replaces the segment layouts, so it carries its own main
 // landmark and h1 like not-found.tsx. `error.digest` is the reference the server logged with the

@@ -1,7 +1,7 @@
 'use client'
 
 import dynamic from 'next/dynamic'
-import { t } from '@/lib/i18n/t'
+import { t } from '@/lib/i18n/messages/ui'
 
 // The toaster is client-only and mounts after hydration so it stays out of the server render and
 // the initial script budget (16 §3, D-156). `ssr: false` is only allowed from a client component

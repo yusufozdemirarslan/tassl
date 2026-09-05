@@ -47,9 +47,10 @@ export const test = base.extend({
  * `NS_BINDING_ABORTED`; Chromium and WebKit let the new load win. It is a race in the spec rather
  * than a defect in the screen — nobody reloads by hand inside that window — so the lane absorbs it:
  * the page every spec is handed waits for the network to fall quiet before it navigates, and if the
- * navigation is cancelled anyway it is asked for once more. A cancelled load did not happen, so
- * retrying it asserts nothing that was not asked for; a second cancellation is raised. The same
- * wait runs on arrival, so a spec never types into a form React has not attached to yet (D-199).
+ * navigation is cancelled anyway it is asked for once more, and if it is cancelled again the page
+ * itself is asked whether the document arrived — Firefox says cancelled even when it did, because
+ * the promise loses the race and not the page. The same wait runs on arrival, so a spec never types
+ * into a form React has not attached to yet (D-199).
  */
 function settleBeforeNavigating(page: Page): Page {
   const goto = page.goto.bind(page)
@@ -67,22 +68,46 @@ function settleBeforeNavigating(page: Page): Page {
   const wasCancelled = (error: unknown): boolean =>
     error instanceof Error && error.message.includes('NS_BINDING_ABORTED')
 
-  const navigate = async <T>(attempt: () => Promise<T>): Promise<T> => {
-    await settle()
-    let answer: T
+  /** One first try and one retry; past that the page is asked what actually happened. */
+  const ATTEMPTS = 2
+
+  /** True when the document the navigation asked for is the one on screen, finished loading. */
+  const arrived = async (): Promise<boolean> => {
     try {
-      answer = await attempt()
-    } catch (error) {
-      if (!wasCancelled(error)) throw error
-      await settle()
-      answer = await attempt()
+      return await page.evaluate(() => document.readyState === 'complete')
+    } catch {
+      return false
     }
-    // And once more on arrival: 'load' fires before React attaches, and a value typed into a field
-    // the form does not own yet is a value it never sees — the field looks filled and the submit
-    // carries nothing (D-182 found this in WebKit's password field). A quiet network is the closest
-    // honest signal that the page is done becoming itself.
-    await settle()
-    return answer
+  }
+
+  const navigate = async <T>(attempt: () => Promise<T>): Promise<T | null> => {
+    for (let tries = 1; ; tries += 1) {
+      await settle()
+      try {
+        const answer = await attempt()
+        // And once more on arrival: load fires before React attaches, and a value typed into a field
+        // the form does not own yet is a value it never sees — the field looks filled and the submit
+        // carries nothing (D-182 found this in WebKit's password field). A quiet network is the
+        // closest honest signal that the page is done becoming itself.
+        await settle()
+        return answer
+      } catch (error) {
+        // A cancelled load did not happen, so asking again asserts nothing that was not asked for.
+        // Anything else is the spec's own failure and is raised where it was thrown.
+        if (!wasCancelled(error)) throw error
+        if (tries >= ATTEMPTS) {
+          // Firefox reports a load as cancelled when a router refresh is in flight beside it, and
+          // says so even when the document did arrive: the navigation promise loses the race, not
+          // the page. So the page is asked directly, and a document that finished loading counts
+          // as the load it is — null, which is what Playwright itself returns for a navigation
+          // that changed no document. A page that never settles still fails, on the assertion
+          // that wanted something from it rather than on the reload that could not prove itself.
+          await settle()
+          if (await arrived()) return null
+          throw error
+        }
+      }
+    }
   }
 
   page.goto = async (url, options) => navigate(() => goto(url, options))

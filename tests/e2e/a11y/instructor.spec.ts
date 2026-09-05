@@ -5,7 +5,7 @@
 // cells to associate, no controls to name, and no rows to read, so a scan of one proves very little
 // about the screen a class actually meets. The rows are this spec's own (14 §2) and
 // `tests/e2e/global-setup.ts` takes them out at the end of the run.
-import { FIXTURE_VARIANT_IDS, FIXTURE_VERSION_ID, suiteName } from '../fixture-package'
+import { seededPackage, suiteName } from '../fixture-package'
 import { axe, expect, signInAs, signOut, test } from '../fixtures'
 import {
   addSectionMember,
@@ -27,8 +27,8 @@ test('the Phase 4 instructor screens have no axe violations', async ({ page }) =
   const label = suiteName('Decision Run')
   const assignment = await createAssignment(page, section.id, {
     label,
-    packageVersionId: FIXTURE_VERSION_ID,
-    variantId: FIXTURE_VARIANT_IDS.defective,
+    packageVersionId: seededPackage().versionId,
+    variantId: seededPackage().variantIds.defective,
   })
 
   // UI-030, the list.

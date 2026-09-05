@@ -3,7 +3,7 @@
 import { CircleUserRound } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useSignOut } from '@/lib/hooks/use-sign-out'
-import { t } from '@/lib/i18n/t'
+import { t } from '@/lib/i18n/messages/shell'
 import { useDeferredMenu } from './deferred-menu'
 import { AccountTriggerContent, accountTriggerLabel } from './header-menu-triggers'
 

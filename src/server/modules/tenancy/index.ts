@@ -10,6 +10,7 @@ export {
   inviteMember,
   listDataAgreements,
   listInvitations,
+  listMemberIdsWithRoles,
   listMyInstitutions,
   requireMembership,
   setActiveInstitution,

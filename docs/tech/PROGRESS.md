@@ -56,12 +56,12 @@
 - [x] Phase 4 exit criteria
 
 ## Phase 5 — Scenario packages (`build-plan/phase-05-scenario-packages.md`)
-- [ ] 5.1 Package schemas and validatePackage
-- [ ] 5.2 Scenarios service, import and export, confirmation, freezing
-- [ ] 5.3 Fixture package and seed assignments
-- [ ] 5.4 Packages list, new-from-seed, and version view screens
-- [ ] 5.5 Element confirmation workspace
-- [ ] Phase 5 exit criteria
+- [x] 5.1 Package schemas and validatePackage
+- [x] 5.2 Scenarios service, import and export, confirmation, freezing
+- [x] 5.3 Fixture package and seed assignments
+- [x] 5.4 Packages list, new-from-seed, and version view screens
+- [x] 5.5 Element confirmation workspace
+- [x] Phase 5 exit criteria
 
 ## Phase 6 — Run core (`build-plan/phase-06-run-core.md`)
 - [ ] 6.1 Trace module: append, sequencing, reading
