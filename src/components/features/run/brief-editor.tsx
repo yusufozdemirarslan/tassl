@@ -116,7 +116,10 @@ function valuesOf(draft: BriefView | null, fields: readonly BriefNamedField[]): 
   }
   return {
     recommendation: draft?.recommendation ?? '',
-    rationale: draft?.rationale ?? '',
+    // The view names it `briefRationale` and the draft input names it `rationale` (D-329): the
+    // short name is reserved for a claim's authored rationale in every student payload, and this
+    // box holds the student's own 250 words. The two names meet here and nowhere else.
+    rationale: draft?.briefRationale ?? '',
     assumptions:
       draft && draft.assumptions.length === ASSUMPTION_COUNT
         ? [...draft.assumptions]

@@ -673,10 +673,12 @@ components:
         - inTurnWindow
         - stance
         - previousStance
+        - stanceSetAt
         - actions
         - availableActions
-        - escalatable
         - escalation
+        - canEscalate
+        - remainingEscalations
         - usedMarked
         - reliedOn
       properties:
@@ -720,12 +722,17 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/ActionType"
-        escalatable:
-          type: boolean
         escalation:
           oneOf:
             - $ref: "#/components/schemas/EscalationResult"
             - type: "null"
+        canEscalate:
+          type: boolean
+          description: Whether the run has an escalation left to spend. Never the claim's authored escalatable (D-244).
+        remainingEscalations:
+          type: integer
+          minimum: 0
+          maximum: 2
         usedMarked:
           type: boolean
         reliedOn:
@@ -1301,12 +1308,15 @@ components:
               type: string
     EscalationResult:
       type: object
-      description: Student form. responseId and countsAgainstLimit are visible only in the replay bundle (D-116).
+      description: Student form. responseId and countsAgainstLimit are visible only in the replay bundle (D-116). statement is the student's own sentence, read back to them (D-318).
       required:
+        - statement
         - responseText
         - clockCostMs
         - remainingEscalations
       properties:
+        statement:
+          type: string
         responseText:
           type: string
         clockCostMs:
@@ -12889,7 +12899,7 @@ paths:
                         properties:
                           recommendation:
                             type: string
-                          rationale:
+                          briefRationale:
                             type: string
                           assumptions:
                             minItems: 3
@@ -12925,7 +12935,7 @@ paths:
                               - type: "null"
                         required:
                           - recommendation
-                          - rationale
+                          - briefRationale
                           - assumptions
                           - changeMyMind
                           - confidence

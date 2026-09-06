@@ -738,6 +738,30 @@ export function claimsOf(figures: Figures, conceptSet: readonly string[]): MockC
             dated_on: dates.memo,
             author: byline(PEOPLE.finance),
           },
+          // The same menu as the defective variant, with the sound variant's own answer behind it
+          // (D-330). `availableActions` is projected from these keys straight onto the claim card,
+          // so a check offered on one variant and not the other tells whoever drew it which one
+          // they are on — and on the planted claim that is the plant itself.
+          decomposition_check: {
+            steps: [
+              {
+                label: 'Acquisition cost per premium subscriber',
+                result: `${figures.acquisitionCost} dollars, blended across channels.`,
+              },
+              {
+                label: 'Monthly contribution used',
+                result: `${usd(figures.contributionStaleCents)} dollars, the pre-fulfilment contribution the pilot cohort was priced on.`,
+              },
+              {
+                label: 'Payback for that cohort',
+                result: `${figures.paybackStale.toFixed(1)} months, which is the figure as stated and for the cohort it was stated about.`,
+              },
+              {
+                label: 'What the figure covers',
+                result: `One cohort of ${figures.cohortSize} under economics that no longer run; the memo puts the tier as a whole at ${figures.paybackTrue.toFixed(1)} months.`,
+              },
+            ],
+          },
         },
       },
     },

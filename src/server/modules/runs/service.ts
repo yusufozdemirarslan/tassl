@@ -33,6 +33,7 @@ import {
   requireRunReviewer,
   requireSectionRole,
 } from '@/server/auth/permissions'
+import { assertNoForbiddenKeys } from '@/server/auth/student-view'
 import type { SessionUser } from '@/server/auth/types'
 import { env } from '@/server/config'
 import { audit } from '@/server/modules/admin'
@@ -59,6 +60,7 @@ import {
   addendumInvalid,
   addendumNotAvailable,
   assertBriefWritable,
+  assertForcedFailureArmable,
   assignmentNotOpen,
   briefAlreadyLocked,
   briefInvalid,
@@ -888,6 +890,37 @@ export async function getReadinessResult(
 const WORKSPACE_STATES: readonly RunStateValue[] = ['framing', 'working', 'paused', 'turn_open']
 
 /**
+ * D-117's stage, as a run state: the point past which the debrief and the record may show what was
+ * withheld while the run was live.
+ *
+ * `scored` is the moment; `confirmed` and `recorded` are after it. Everything earlier is
+ * `{ scored: false }`, which is the wider of the two key sets and the one every screen the student
+ * works on is swept against.
+ */
+const SCORED_STATES: readonly RunStateValue[] = ['scored', 'confirmed', 'recorded']
+
+/**
+ * Step 2 of `student-view.ts`'s discipline, applied where that file says it belongs: the guard on a
+ * picked payload at the seam between a service and the route, action or RSC page that hands it over
+ * (D-329).
+ *
+ * The pick is the braces and this is the belt. `getRunWorkspace` and `getDecision` compose seven
+ * projections between them — the scenario view, the frame, the opens, the brief, the named fields,
+ * the addendum and the pause — and a nested element spread whole rather than picked is the failure
+ * this catches and a reviewer does not. It throws `INTERNAL_ERROR`, so a leak never leaves the
+ * server; see the note at the top of `student-view.ts` for why it does not redact.
+ *
+ * The workspace is polled every five seconds (D-274), so the cost is worth naming: the walk visits
+ * a few hundred keys of an object already in memory and takes no query and no allocation beyond the
+ * findings array, against four database reads on the same request (16 §3). It is not measurable
+ * beside them.
+ */
+function guardStudentPayload<T>(payload: T, run: repo.Run): T {
+  assertNoForbiddenKeys(payload, { scored: SCORED_STATES.includes(run.state) })
+  return payload
+}
+
+/**
  * The states in which a document may be opened (10 §6).
  *
  * `framing` and `working` are the room's own life; `turn_open` is the Turn window, where the room
@@ -960,50 +993,53 @@ export async function getRunWorkspace(actor: SessionUser, runId: string): Promis
     run.state === 'paused' ? repo.findOpenPause(runId) : Promise.resolve(undefined),
   ])
 
-  return {
-    run: toRunSummary(run),
-    brief: { text: scenario.brief },
-    // Picked again rather than passed through: `scenarios` picks these five fields too, and a field
-    // added to that view tomorrow must not appear here because two projections were one object
-    // (12 §8). The cost of the rule is this map.
-    documents: scenario.documents.map((document) => ({
-      id: document.id,
-      key: document.key,
-      title: document.title,
-      author: document.author,
-      datedOn: document.datedOn,
-    })),
-    openDocuments: opens.map((open) => ({
-      openId: open.id,
-      documentId: open.documentId,
-      openedAt: open.openedAt.toISOString(),
-    })),
-    frame: frame
-      ? {
-          decision: frame.decision,
-          assumptions: frame.assumptions,
-          position: frame.position,
-          confidence: frame.confidence,
-          lockedAt: frame.lockedAt.toISOString(),
-        }
-      : null,
-    briefDraft: brief ? toBriefView(brief) : null,
-    // Picked field by field for the reason the documents above are (12 §8): the scenarios view and
-    // this one are two projections, never one object shared between them.
-    namedFields: scenario.namedFields.map((field) => ({
-      key: field.key,
-      label: field.label,
-      unit: field.unit,
-    })),
-    addendum: addendum ? toAddendumView(addendum) : null,
-    pause: pause ? { cause: pause.cause, pausedAt: pause.pausedAt.toISOString() } : null,
-    capabilities: {
-      canOpenDocuments: ROOM_STATES.includes(run.state),
-      canLockFrame: run.state === 'framing',
-      assistantUnlocked: ASSISTANT_STATES.includes(run.state),
-      canWriteBrief: run.state === 'working',
+  return guardStudentPayload(
+    {
+      run: toRunSummary(run),
+      brief: { text: scenario.brief },
+      // Picked again rather than passed through: `scenarios` picks these five fields too, and a field
+      // added to that view tomorrow must not appear here because two projections were one object
+      // (12 §8). The cost of the rule is this map.
+      documents: scenario.documents.map((document) => ({
+        id: document.id,
+        key: document.key,
+        title: document.title,
+        author: document.author,
+        datedOn: document.datedOn,
+      })),
+      openDocuments: opens.map((open) => ({
+        openId: open.id,
+        documentId: open.documentId,
+        openedAt: open.openedAt.toISOString(),
+      })),
+      frame: frame
+        ? {
+            decision: frame.decision,
+            assumptions: frame.assumptions,
+            position: frame.position,
+            confidence: frame.confidence,
+            lockedAt: frame.lockedAt.toISOString(),
+          }
+        : null,
+      briefDraft: brief ? toBriefView(brief) : null,
+      // Picked field by field for the reason the documents above are (12 §8): the scenarios view and
+      // this one are two projections, never one object shared between them.
+      namedFields: scenario.namedFields.map((field) => ({
+        key: field.key,
+        label: field.label,
+        unit: field.unit,
+      })),
+      addendum: addendum ? toAddendumView(addendum) : null,
+      pause: pause ? { cause: pause.cause, pausedAt: pause.pausedAt.toISOString() } : null,
+      capabilities: {
+        canOpenDocuments: ROOM_STATES.includes(run.state),
+        canLockFrame: run.state === 'framing',
+        assistantUnlocked: ASSISTANT_STATES.includes(run.state),
+        canWriteBrief: run.state === 'working',
+      },
     },
-  }
+    run,
+  )
 }
 
 /**
@@ -1330,11 +1366,17 @@ export async function lockFrame(
 //      (migration 0009). FR-102's "the lock is irreversible" is a grant rather than a habit.
 // ---------------------------------------------------------------------------------------------
 
-/** The brief as the student reads it back (07 §10); `autoLocked` and `speedOutlier` never travel. */
+/**
+ * The brief as the student reads it back (07 §10); `autoLocked` and `speedOutlier` never travel.
+ *
+ * The column is `rationale` and the field is `briefRationale` (D-329): the short name belongs to a
+ * claim's authored rationale in every student payload, and this is the student's own prose. The
+ * translation happens here, in the one constructor of the view, so no caller has to know.
+ */
 function toBriefView(row: repo.RunBrief): BriefView {
   return {
     recommendation: row.recommendation,
-    rationale: row.rationale,
+    briefRationale: row.rationale,
     assumptions: row.assumptions,
     changeMyMind: row.changeMyMind,
     confidence: row.confidence,
@@ -1697,28 +1739,31 @@ export async function getDecision(actor: SessionUser, runId: string): Promise<De
     repo.findAddendum(runId),
   ])
 
-  return {
-    run: toRunSummary(run),
-    frame: frame
-      ? {
-          decision: frame.decision,
-          assumptions: frame.assumptions,
-          position: frame.position,
-          confidence: frame.confidence,
-          lockedAt: frame.lockedAt.toISOString(),
-        }
-      : null,
-    brief: brief ? toBriefView(brief) : null,
-    namedFields: scenario.namedFields.map((field) => ({
-      key: field.key,
-      label: field.label,
-      unit: field.unit,
-    })),
-    addendum: addendum ? toAddendumView(addendum) : null,
-    canAddAddendum: addendumOpen(run) && addendum === undefined,
-    turnRemainingMs:
-      run.turnDueAt === null ? null : Math.max(0, run.turnDueAt.getTime() - Date.now()),
-  }
+  return guardStudentPayload(
+    {
+      run: toRunSummary(run),
+      frame: frame
+        ? {
+            decision: frame.decision,
+            assumptions: frame.assumptions,
+            position: frame.position,
+            confidence: frame.confidence,
+            lockedAt: frame.lockedAt.toISOString(),
+          }
+        : null,
+      brief: brief ? toBriefView(brief) : null,
+      namedFields: scenario.namedFields.map((field) => ({
+        key: field.key,
+        label: field.label,
+        unit: field.unit,
+      })),
+      addendum: addendum ? toAddendumView(addendum) : null,
+      canAddAddendum: addendumOpen(run) && addendum === undefined,
+      turnRemainingMs:
+        run.turnDueAt === null ? null : Math.max(0, run.turnDueAt.getTime() - Date.now()),
+    },
+    run,
+  )
 }
 
 /**
@@ -1764,11 +1809,15 @@ export async function addAddendum(
  * `POST /review/runs/{runId}/test-controls/force-assistant-failure` (07 §7, FR-118): arms one
  * assistant failure on a live run.
  *
- * Two gates, in this order and no other. `requireRunInstructor` first, so a student — who holds a
+ * Three gates, in this order and no other. `requireRunInstructor` first, so a student — who holds a
  * membership on the section and therefore reaches FORBIDDEN rather than NOT_FOUND — is refused
  * before the environment is consulted; `flags.testControls` second, because whether the
  * installation offers test controls is a fact about the deployment and telling somebody who may not
- * use them is telling them something about the run (08 §4, 12 §4).
+ * use them is telling them something about the run (08 §4, 12 §4). The run's own state third, under
+ * the row lock, because it is the only one of the three that can change while the request is in
+ * flight (D-332): a run whose decision is filed, or one that has not unlocked the assistant, has no
+ * delegation for the outage to land on, and arming there wrote a flag mutation and an audit row
+ * against a run nothing would ever read them on.
  *
  * It writes no trace event. Nothing has happened *in the run*: the flag is armed, and what the run
  * records is the outage it causes — the `pause` event the next delegation writes, with its cause and
@@ -1788,6 +1837,7 @@ export async function forceAssistantFailure(
 
   await repo.withTransaction(async (tx) => {
     const run = await lockRunForMutation(tx, tenantId, runId)
+    assertForcedFailureArmable(run.state)
     const updated = await repo.updateRun(
       tenantId,
       runId,

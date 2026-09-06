@@ -215,7 +215,7 @@ function FiledBrief({
   return (
     <dl className="flex flex-col gap-6">
       <Entry label={t('decision.briefRecommendation')} value={brief.recommendation} />
-      <Entry label={t('decision.briefRationale')} value={brief.rationale} />
+      <Entry label={t('decision.briefRationale')} value={brief.briefRationale} />
 
       <div className="flex flex-col gap-2">
         <dt className="text-ink-muted text-meta font-medium">{t('decision.briefAssumptions')}</dt>

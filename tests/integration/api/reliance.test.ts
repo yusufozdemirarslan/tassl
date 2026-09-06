@@ -225,13 +225,25 @@ describe('POST /runs/{runId}/claims/{claimId}/escalation', () => {
     })
 
     expect(called.status).toBe(200)
-    // D-116 on the wire: three keys, and neither `responseId` nor `countsAgainstLimit`.
+    // D-116 on the wire: four keys, and neither `responseId` nor `countsAgainstLimit`.
+    //
+    // `statement` joined the closed set in D-318 and is the one addition this assertion accepts: it
+    // is the student's own sentence, echoed back exactly as they typed it and as
+    // `run_escalations.statement` stored it, so it carries nothing authored and nothing about the
+    // package. The set stays closed on purpose — it is here to fail the next time a field of the
+    // escalation row crosses to a student, and `responseId` and `countsAgainstLimit` are the two
+    // that would.
     expect(Object.keys(called.body as object).sort()).toEqual([
       'clockCostMs',
       'remainingEscalations',
       'responseText',
+      'statement',
     ])
-    expect(called.body).toMatchObject({ clockCostMs: 300_000, remainingEscalations: 1 })
+    expect(called.body).toMatchObject({
+      clockCostMs: 300_000,
+      remainingEscalations: 1,
+      statement: 'I cannot tell whether this survey covers the tier subgroups.',
+    })
   })
 
   it('refuses a statement that is not one sentence, with this module’s own code', async () => {

@@ -1,18 +1,24 @@
-// Step 8.1 — escalations (FR-090 to FR-093, D-089, D-116, D-244), against a real database.
+// Step 8.1 — escalations (FR-090 to FR-093, D-089, D-116, D-244, D-328), against a real database.
 //
-// The escalation is the one move in the run where the *package* decides something about the
-// student's budget, and the whole design of it is that they are never told which way it decided.
+// The escalation is the one move in the run where the *package* decides something about the reply
+// the student gets, and the whole design of it is that they are never told which way it decided.
 //
-//   * A claim the author wrote a colleague reply for answers with that reply and **counts** against
-//     the run's two (FR-090, FR-092). The third such escalation is refused.
-//   * Every other claim answers with the version's general reply, costs the same five minutes, and
-//     **does not count** (FR-091).
-//   * The student's result carries the reply, the cost and the escalations left, and neither
-//     `responseId` nor `countsAgainstLimit` (D-116) — because "this claim had an authored reply" is
-//     "the author thought this claim worth arguing with", which is the map the run asks them to draw.
+//   * A claim the author wrote a colleague reply for answers with that reply
+//     (`response_id = 'claim'`, `counts_against_limit = true`).
+//   * Every other claim answers with the version's general reply (`response_id = 'general'`,
+//     `counts_against_limit = false`).
+//   * **Both cost one of the run's two** (D-328). FR-091 originally exempted the general reply from
+//     the limit, and that exemption was the leak: the counter moved on exactly the claims carrying
+//     an authored reply, and once the budget was spent the refusal landed on exactly those claims
+//     and no others. `counts_against_limit` is still written and still travels on the trace — it
+//     records which reply answered — and it no longer governs anything the student can observe.
+//   * The student's result carries the reply, their own sentence, the cost and the escalations
+//     left, and neither `responseId` nor `countsAgainstLimit` (D-116, D-318).
 //
 // The fixture package has exactly one claim with an authored reply (C7, the willingness-to-pay
-// survey), which is what makes the counting assertions below real rather than arranged.
+// survey), which is what makes the counting assertions below real rather than arranged — and, as
+// the D-328 test at the foot of this file reads back from the database, C7 is also the only claim
+// whose warranted stance is `escalate`. That coincidence is the reason the old rule leaked.
 // @db:truncate
 import { afterAll, beforeEach, describe, expect, it } from 'vitest'
 import { truncateAll } from '@tests/setup/integration'
@@ -93,13 +99,21 @@ describe('an escalation on a claim the author answered (FR-090)', () => {
       statement: STATEMENT,
     })
 
-    // D-116: exactly these three keys. `responseId` would say which reply answered and
+    // D-116: exactly these four keys. `responseId` would say which reply answered and
     // `countsAgainstLimit` would say the same thing a second way.
+    //
+    // `statement` is the fourth, added by D-318, and it is the only kind of field this closed set
+    // will ever widen for: the student's own sentence, handed back verbatim because the card that
+    // showed only the answer left them, after a reload, with a reply and no question. It says
+    // nothing about the package — they wrote it — so no invariant reaches it. The set stays closed
+    // so that the next field of `run_escalations` to cross to a student has to be argued for here.
     expect(Object.keys(result).sort()).toEqual([
       'clockCostMs',
       'remainingEscalations',
       'responseText',
+      'statement',
     ])
+    expect(result.statement).toBe(STATEMENT)
     expect(keysOf(result).has('responseId')).toBe(false)
     expect(keysOf(result).has('countsAgainstLimit')).toBe(false)
   })
@@ -166,28 +180,115 @@ describe('an escalation on a claim the author answered (FR-090)', () => {
 })
 
 describe('an escalation on a claim the author did not answer (FR-091)', () => {
-  it('returns the version’s general reply, costs the same, and does not count', async () => {
+  it('returns the version’s general reply, costs the same, and costs one of the two', async () => {
     const result = await reliance.escalate(fx.student, runId, fx.claimId('C1'), {
       statement: STATEMENT,
     })
 
     expect(result.responseText).toBe(await generalEscalationReply(runId))
     expect(result.clockCostMs).toBe(ESCALATION_MS)
-    expect(result.remainingEscalations).toBe(2)
+    // One, not two: D-328 spends the budget on every escalation. The row still records that the
+    // general reply answered, which is what the reviewer reads and the student never does.
+    expect(result.remainingEscalations).toBe(1)
 
     const [row] = await escalationRows(runId)
     expect(row).toMatchObject({ response_id: 'general', counts_against_limit: false })
   })
 
-  it('is still available after both counted escalations are spent', async () => {
+  it('is refused once both escalations are spent, exactly as an authored one is', async () => {
     await reliance.escalate(fx.student, runId, fx.claimId('C7'), { statement: STATEMENT })
     await reliance.escalate(fx.student, runId, fx.claimId('C7'), { statement: STATEMENT })
 
-    const general = await reliance.escalate(fx.student, runId, fx.claimId('C1'), {
+    expect(
+      await codeOf(
+        reliance.escalate(fx.student, runId, fx.claimId('C1'), { statement: STATEMENT }),
+      ),
+    ).toBe('ESCALATION_LIMIT_REACHED')
+    // Nothing was written and nothing was charged: the refusal is the whole of it.
+    expect(await escalationRows(runId)).toHaveLength(2)
+    expect((await runRow(runId)).charged_ms).toBe(2 * ESCALATION_MS)
+  })
+})
+
+// ---------------------------------------------------------------------------------------------
+// D-328 — the budget says nothing about the package
+//
+// The regression test for the oracle the old rule published. Two things had to be true for it to
+// be an oracle, and the first two assertions read both of them out of the database rather than
+// asserting them from memory: C7 is the only claim in this version carrying an authored reply, and
+// C7 is the claim whose warranted stance is `escalate` — in both variants. An author writes a
+// prepared answer for the claim worth escalating, so the two sets coincide structurally rather
+// than by accident, and a counter that moved on one set announced the other.
+// ---------------------------------------------------------------------------------------------
+
+describe('the budget is one rule (D-328)', () => {
+  it('is spent identically whether or not the claim carries an authored reply', async () => {
+    const { testSql } = await import('@tests/setup/integration')
+
+    // The answer key, read for this test's own reasoning. The student never sees either column.
+    const authored = await testSql<{ key: string }[]>`
+      select c.key
+        from scenario_claims c
+        join runs r on r.package_version_id = c.package_version_id
+       where r.id = ${runId} and coalesce(btrim(c.escalation_reply), '') <> ''
+       order by c.key`
+    expect(authored.map((row) => row.key)).toEqual(['C7'])
+
+    const warranted = await testSql<{ key: string; variant: string }[]>`
+      select c.key, v.key as variant
+        from scenario_claims c
+        join variant_claim_states s on s.claim_id = c.id
+        join scenario_variants v on v.id = s.variant_id
+        join runs r on r.package_version_id = c.package_version_id
+       where r.id = ${runId} and s.warranted_stance = 'escalate'
+       order by c.key, v.key`
+    expect(warranted).toEqual([
+      { key: 'C7', variant: 'defective' },
+      { key: 'C7', variant: 'sound' },
+    ])
+
+    // C7 carries the authored reply; C1 carries none. The counter must not tell them apart.
+    const onC1 = await reliance.escalate(fx.student, runId, fx.claimId('C1'), {
       statement: STATEMENT,
     })
-    expect(general.remainingEscalations).toBe(0)
-    expect((await escalationRows(runId))[2]).toMatchObject({ counts_against_limit: false })
+    const onC7 = await reliance.escalate(fx.student, runId, fx.claimId('C7'), {
+      statement: STATEMENT,
+    })
+    expect([onC1.remainingEscalations, onC7.remainingEscalations]).toEqual([1, 0])
+    expect(onC1.clockCostMs).toBe(onC7.clockCostMs)
+
+    // And the rows still record which reply answered, for the reviewer and the debrief.
+    expect((await escalationRows(runId)).map((row) => row.counts_against_limit).sort()).toEqual([
+      false,
+      true,
+    ])
+  })
+
+  it('refuses the third escalation on the same terms whichever claim it lands on', async () => {
+    await openDocument(fx, runId, 'D7') // C6, which carries no authored reply
+    await reliance.escalate(fx.student, runId, fx.claimId('C7'), { statement: STATEMENT })
+    await reliance.escalate(fx.student, runId, fx.claimId('C7'), { statement: STATEMENT })
+
+    // Three surfaced claims, one of them the authored-reply claim. All three refuse alike; before
+    // D-328 the two on the left succeeded and the one on the right did not, and the difference was
+    // the answer key.
+    const codes = await Promise.all(
+      ['C1', 'C6', 'C7'].map(async (key) =>
+        codeOf(reliance.escalate(fx.student, runId, fx.claimId(key), { statement: STATEMENT })),
+      ),
+    )
+    expect(codes).toEqual([
+      'ESCALATION_LIMIT_REACHED',
+      'ESCALATION_LIMIT_REACHED',
+      'ESCALATION_LIMIT_REACHED',
+    ])
+  })
+
+  it('reads the same remaining count on every claim card, spent or not', async () => {
+    await reliance.escalate(fx.student, runId, fx.claimId('C1'), { statement: STATEMENT })
+    const claims = await reliance.listRunClaims(fx.student, runId)
+    expect(new Set(claims.map((claim) => claim.remainingEscalations))).toEqual(new Set([1]))
+    expect(new Set(claims.map((claim) => claim.canEscalate))).toEqual(new Set([true]))
   })
 })
 
@@ -302,6 +403,28 @@ describe('who and when', () => {
         reliance.escalate(fx.student, runId, fx.claimId('C7'), { statement: STATEMENT }),
       ),
     ).toBe('RUN_LOCKED')
+  })
+
+  it('answers for the room’s state before it answers for the sentence (D-331)', async () => {
+    // The statement rule used to run before `lockRunForMutation`, so a student on a closed room was
+    // told to write a longer sentence — asked to fix a form that no longer accepts anything. Every
+    // other refusal in this module sits behind the gate; this one does now too.
+    const tooShort = { statement: 'too short' }
+
+    // On an open room the sentence is the thing that is wrong, and that has not changed.
+    expect(await codeOf(reliance.escalate(fx.student, runId, fx.claimId('C7'), tooShort))).toBe(
+      'ESCALATION_STATEMENT_INVALID',
+    )
+
+    await forceState(runId, 'decision_locked')
+    expect(await codeOf(reliance.escalate(fx.student, runId, fx.claimId('C7'), tooShort))).toBe(
+      'RUN_LOCKED',
+    )
+
+    await forcePaused(runId)
+    expect(await codeOf(reliance.escalate(fx.student, runId, fx.claimId('C7'), tooShort))).toBe(
+      'RUN_PAUSED',
+    )
   })
 
   it('refuses everyone but the run’s own student', async () => {

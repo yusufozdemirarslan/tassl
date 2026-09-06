@@ -23,13 +23,13 @@ The working period is complete: five stances, Source Trace and the authored Repl
 - `src/server/modules/reliance/{schema,service,repository,router,actions,index,errors}.ts` — complete; `setStance`, `runAction`, `escalate`, `markReliedOnFromNamedFields`, `findUnstancedReliedOn`, student `ClaimView` including `remainingEscalations`
 - `src/app/api/v1/runs/[runId]/claims/[claimId]/stance/route.ts`, `.../actions/route.ts`, `.../escalation/route.ts` — create
 **Commands (in order, from repo root):** none.
-**Implementation notes:** Costs charged at start (`chargeCost`), results returned verbatim from `verification_paths`; `CLOCK_EXPIRED` when remaining ≤ 0 at start; both stances kept; escalation limit and general reply per FR-090 to FR-092; the student escalation response omits `response_id` and `counts_against_limit` (D-116); `stance = escalate` without an escalation call is allowed (the stance is a record; the reply requires `escalate`).
+**Implementation notes:** Costs charged at start (`chargeCost`), results returned verbatim from `verification_paths`; `CLOCK_EXPIRED` when remaining ≤ 0 at start; both stances kept; every escalation counts against the run's two, whichever claim it lands on, and the claim's `escalation_reply` decides only which reply answers (D-328 corrects FR-091); the student escalation response omits `response_id` and `counts_against_limit` (D-116) and carries their own `statement` (D-318); `stance = escalate` without an escalation call is allowed (the stance is a record; the reply requires `escalate`).
 **Secrets (if any):** none.
 **Tests to write:**
 - `tests/unit/reliance/relied-on.test.ts` — named-field tolerance (D-076), unit normalization, ordering of unstanced claims.
 - `tests/integration/reliance/stances.test.ts` — set, change (previous kept, `action_ids`), refuse unsurfaced claim, refuse when locked or paused.
 - `tests/integration/reliance/actions.test.ts` — Source Trace on every sourced claim (cost 60,000, authored result), Replication and Decomposition only where authored (`ACTION_NOT_AVAILABLE` otherwise), cost charged before result, expiry refusal, action started before expiry completes.
-- `tests/integration/reliance/escalations.test.ts` — authored reply counts, general reply does not count, third counted escalation refused, statement validation, student response shape.
+- `tests/integration/reliance/escalations.test.ts` — the authored reply and the general reply cost the same one of two (D-328), the third escalation refused on every surfaced claim alike, the state gate answering before the statement rule (D-331), statement validation, student response shape.
 - `tests/integration/api/reliance.test.ts` — endpoints and matrix rows.
 **Verify (all must pass):**
 ```bash

@@ -46,8 +46,8 @@ const PARAMETERS = {
     2,
     'count',
     'FR-090',
-    'Two escalations per run. Enough that escalation is a real move, few enough that it cannot ' +
-      'become the whole strategy.',
+    'Two escalations per run, whichever claim they land on (D-328). Enough that escalation is a ' +
+      'real move, few enough that it cannot become the whole strategy.',
   ),
   ESCALATION_COST_MS: pilot(
     300_000,

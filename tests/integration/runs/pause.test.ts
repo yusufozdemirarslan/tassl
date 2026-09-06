@@ -24,6 +24,8 @@ import { testSql, truncateAll } from '@tests/setup/integration'
 import {
   codeOf,
   eventsOfType,
+  forcePaused,
+  forceState,
   inLockedRun,
   runInWorking,
   setupAssistantFixture,
@@ -182,6 +184,48 @@ describe('forceAssistantFailure', () => {
 
     expect((await runRow(runId)).flags.forced_failure_armed).toBeUndefined()
     expect(await auditRows()).toEqual([])
+  })
+
+  // The third gate (D-332). The control had two — the seat and the environment — and neither asked
+  // whether the run had an assistant left to fail, so an instructor could arm an outage on a run
+  // whose decision was filed, or on a voided one, and the only trace of it was a flag nothing would
+  // ever read and an audit row against a finished run.
+  it('is refused on a run whose decision is already filed', async () => {
+    const runId = await runInWorking(fx)
+    await forceState(runId, 'decision_locked')
+
+    expect(await codeOf(runs.forceAssistantFailure(fx.instructor, runId))).toBe('RUN_LOCKED')
+    expect((await runRow(runId)).flags.forced_failure_armed).toBeUndefined()
+    expect(await auditRows()).toEqual([])
+  })
+
+  it('is refused before the assistant is unlocked, and on a voided run', async () => {
+    // One run through three states, because a section holds one live run per assignment. The two
+    // refusals differ on purpose: a run past the lock has nothing coming and says `RUN_LOCKED`, and
+    // a run that has not got there — or that counts for nothing — is the transition table's.
+    const runId = await runInWorking(fx)
+
+    for (const [state, expected] of [
+      ['framing', 'ILLEGAL_TRANSITION'],
+      ['recorded', 'RUN_LOCKED'],
+      ['voided', 'ILLEGAL_TRANSITION'],
+    ] as const) {
+      await forceState(runId, state)
+      expect([state, await codeOf(runs.forceAssistantFailure(fx.instructor, runId))]).toEqual([
+        state,
+        expected,
+      ])
+      expect((await runRow(runId)).flags.forced_failure_armed).toBeUndefined()
+    }
+    expect(await auditRows()).toEqual([])
+  })
+
+  it('is allowed on a paused run, whose next delegation is still ahead of it', async () => {
+    const runId = await runInWorking(fx)
+    await forcePaused(runId)
+
+    expect(await runs.forceAssistantFailure(fx.instructor, runId)).toEqual({ armed: true })
+    expect((await runRow(runId)).flags).toMatchObject({ forced_failure_armed: true })
   })
 })
 

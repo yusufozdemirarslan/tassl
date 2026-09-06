@@ -282,8 +282,30 @@ export const ADDENDUM_WORD_LIMIT = 50
  * finite, because `Infinity` and `NaN` are not values a student typed. The bounds on the record are
  * about storage rather than meaning: a package has a handful of named fields, and a body carrying
  * two thousand keys is not a brief.
+ *
+ * This is the *shape*, so it bounds the keys and not how many of them there are: the count is a
+ * rule, and D-291 keeps the rules on `BriefDraftSchema` and `BriefSchema` below so a brief that
+ * breaks one answers `BRIEF_INVALID` naming the field rather than the route's generic refusal.
  */
 export const BriefNamedValuesSchema = z.record(z.string().min(1).max(64), z.number().finite())
+
+/**
+ * How many named values one brief may carry (D-333).
+ *
+ * The docstring above has always said the bound existed; until D-333 nothing enforced it, and a
+ * body of two thousand keys was accepted, stored on `run_briefs.named_values`, and copied whole
+ * into the `decision_locked` trace payload — a row the trace makes immutable. Sixty-four is far
+ * above any authored package (`NAMED_FIELDS_MIN` is 1 and the fixture has three) and far below a
+ * body that is a payload rather than a brief. Unmatched figures are not lost by it: FR-025 makes a
+ * number that matches no claim an assumption, and the defense asks where it came from.
+ */
+export const BRIEF_NAMED_VALUES_MAX = 64
+
+/** The record with D-333's count bound, for the two schemas that carry the rules. */
+const BoundedNamedValuesSchema = BriefNamedValuesSchema.refine(
+  (values) => Object.keys(values).length <= BRIEF_NAMED_VALUES_MAX,
+  { error: 'NAMED_VALUES_LIMIT' },
+)
 
 /**
  * The draft as it arrives on the wire (07 §10 `BriefDraft`): the fields that changed, of the right
@@ -312,7 +334,7 @@ export const BriefDraftSchema = z.strictObject({
   assumptions: z.array(wordLimit(BRIEF_LIMITS.assumption)).length(3).optional(),
   changeMyMind: wordLimit(BRIEF_LIMITS.changeMyMind).optional(),
   confidence: z.int().min(0).max(100).nullable().optional(),
-  namedValues: BriefNamedValuesSchema.optional(),
+  namedValues: BoundedNamedValuesSchema.optional(),
 })
 export type BriefDraft = z.infer<typeof BriefDraftSchema>
 
@@ -334,7 +356,7 @@ export const BriefSchema = z.strictObject({
   assumptions: z.array(wordLimit(BRIEF_LIMITS.assumption).min(1)).length(3),
   changeMyMind: wordLimit(BRIEF_LIMITS.changeMyMind).min(1),
   confidence: z.int().min(0).max(100),
-  namedValues: BriefNamedValuesSchema,
+  namedValues: BoundedNamedValuesSchema,
 })
 export type Brief = z.infer<typeof BriefSchema>
 
@@ -363,10 +385,19 @@ export type AddendumInput = z.infer<typeof AddendumSchema>
  * is filed. `autoLocked` and `speedOutlier` are **not** here and are not coming: the speed outlier
  * is an instructor observation (FR-106, "a signal not a penalty"), and showing a student that their
  * lock was flagged would make it a penalty by telling them so mid-run.
+ *
+ * **`briefRationale`, not `rationale` (D-329).** `student-view.ts` reserves the short name for a
+ * claim's authored "what it deserved and why" and forbids it in every student payload before
+ * scoring, exactly as it reserves `role` for a document's authored role and `evidence` for the
+ * Turn's. The student's own 250 words are a different thing wearing the same word, so they travel
+ * under the qualified name the copy layer already uses for them (`workspace.briefRationaleLabel`,
+ * `decision.briefRationale`) — and the payload can then be swept rather than exempted. The column,
+ * the draft input and the `decision_locked` trace payload keep `rationale`: none of them is a
+ * student payload, and the trace has its own reading of the name in `trace/owner-view.ts`.
  */
 export const BriefViewSchema = z.object({
   recommendation: z.string(),
-  rationale: z.string(),
+  briefRationale: z.string(),
   assumptions: z.array(z.string()).length(3),
   changeMyMind: z.string(),
   confidence: z.int().min(0).max(100).nullable(),

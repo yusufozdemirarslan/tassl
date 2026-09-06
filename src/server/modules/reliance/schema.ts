@@ -69,7 +69,13 @@ export const ActionResultSchema = z.object({
 })
 export type ActionResult = z.infer<typeof ActionResultSchema>
 
-/** The escalations one run may spend on claims that carry an authored reply (FR-092). */
+/**
+ * The escalations one run may spend, on any claim (FR-092, corrected by D-328).
+ *
+ * Every escalation costs one, whichever reply answers it. The older reading spent the budget only
+ * on claims carrying an authored reply, which made the counter a published index of those claims —
+ * and in a package those are the claims worth escalating.
+ */
 export const ESCALATION_LIMIT = 2
 
 /**

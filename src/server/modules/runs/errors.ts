@@ -332,6 +332,36 @@ export function testControlsDisabled(): never {
 }
 
 /**
+ * The states in which arming a forced assistant failure means something (FR-118, D-332).
+ *
+ * The same set the assistant answers in, plus `paused`: a paused run is a working run with its
+ * clock stopped, and the outage the instructor is arming lands on the delegation after Resume. A
+ * run that has not unlocked the assistant, and a run whose decision is filed, have no delegation
+ * coming — arming there would write a flag mutation and an audit row against a run nothing will
+ * read them on.
+ */
+const FORCED_FAILURE_STATES: readonly string[] = ['working', 'turn_open', 'paused']
+
+/**
+ * FR-118's control on a run with no assistant to fail (D-332).
+ *
+ * The same shape as `assertBriefWritable` and for the same reason: a run past the Decision Lock is
+ * refused with `RUN_LOCKED` because nothing about it will run a delegation again, and a run that
+ * has not got there yet is the transition table's refusal, with `details.state` so the review
+ * screen can say which. It is checked *after* `requireRunInstructor` and after the environment
+ * flag, so nobody who may not use the control learns anything about the run's state from it.
+ */
+export function assertForcedFailureArmable(state: string): void {
+  if (FORCED_FAILURE_STATES.includes(state)) return
+  if (BRIEF_CLOSED_STATES.includes(state)) {
+    throw new AppError('RUN_LOCKED', undefined, { details: { state } })
+  }
+  throw new AppError('ILLEGAL_TRANSITION', t('run.forcedFailureNotArmable'), {
+    details: { state },
+  })
+}
+
+/**
  * A test-only route reached outside `APP_ENV=test` (D-109). NOT_FOUND, with the registry's own
  * "Not found." — the answer an unmounted path gives, because outside a test process that is what
  * this path is.

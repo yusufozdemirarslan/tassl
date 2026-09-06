@@ -183,7 +183,9 @@ describe('BriefEditor (UI-023, FR-100, FR-103)', () => {
   it('reads a saved draft back into the fields it came from (FR-108)', () => {
     const draft: BriefView = {
       recommendation: 'Hold the split.',
-      rationale: 'The payback figure is unchecked.',
+      // The view's name for the student's own 250 words (D-329); the box and the draft input both
+      // still call it `rationale`, and `valuesOf` is where the two meet.
+      briefRationale: 'The payback figure is unchecked.',
       assumptions: ['One.', 'Two.', 'Three.'],
       changeMyMind: 'A later figure.',
       confidence: 58,

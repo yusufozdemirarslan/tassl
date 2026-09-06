@@ -197,12 +197,14 @@ async function claimViewContext(
     repo.listActions(runId, {}, dbx),
     repo.listEscalations(runId, dbx),
   ])
-  const counted = escalations.filter((row) => row.countsAgainstLimit).length
+  // Every escalation the run has spent, not the subset `counts_against_limit` marks (D-328). The
+  // filter that used to be here made the counter a function of which claims carry an authored
+  // reply, and in a package that is the same set as the claims worth escalating.
   return {
     paths,
     actions,
     escalations,
-    remainingEscalations: Math.max(0, ESCALATIONS_PER_RUN - counted),
+    remainingEscalations: Math.max(0, ESCALATIONS_PER_RUN - escalations.length),
   }
 }
 
@@ -630,19 +632,30 @@ function escalationStatement(raw: string): string {
  * `POST /runs/{runId}/claims/{claimId}/escalation` (07 §7, FR-090 to FR-092): the colleague's read.
  *
  * The student states in one sentence what they cannot evaluate and a colleague answers, verbatim,
- * for five minutes of the clock. Which reply they get, and whether it counts, is decided by the
- * package and never told to them:
+ * for five minutes of the clock. Which reply they get is decided by the package and never told to
+ * them:
  *
- *   * A claim the author wrote a reply for answers with that reply, `response_id = 'claim'`, and
- *     **counts against the run's two** (FR-090, FR-092). The third such escalation is refused.
- *   * Every other claim answers with the version's general reply, `response_id = 'general'`, is
- *     charged the same five minutes, and **does not count** (FR-091). A student can therefore keep
- *     asking; what they cannot do is keep getting a claim-specific answer.
+ *   * A claim the author wrote a reply for answers with that reply, `response_id = 'claim'`.
+ *   * Every other claim answers with the version's general reply, `response_id = 'general'`.
  *
- * The student's result carries neither of those two facts (D-116): a reply that announced itself as
- * "the authored one" would say the author thought this claim worth arguing with, which is defect
- * placement by another route. What they are told is the reply, what it cost, and how many
- * escalations the run has left.
+ * **Every escalation costs one of the run's two, whichever reply answered (D-328).** FR-090 to
+ * FR-092 originally spent the budget only on the authored replies, and that generosity was an
+ * oracle: an author writes a prepared reply for precisely the claim worth escalating — in the
+ * fixture package C7 is the only claim with an authored reply and the only claim whose warranted
+ * stance is `escalate` — so a counter that moved on some claims and not others announced which
+ * ones they were, and so did a refusal that answered `ESCALATION_LIMIT_REACHED` on one claim and
+ * succeeded on the next. CLAUDE.md's invariant ("students never see warranted stances … before
+ * their run is scored") outranks the generosity, so the budget is one rule with no exceptions and
+ * the third escalation is refused whatever it lands on.
+ *
+ * `counts_against_limit` is still written on the row and still travels on the trace: it records
+ * which kind of reply was given, which is what the reviewer and the debrief read. It simply no
+ * longer decides anything the student can observe.
+ *
+ * The student's result carries neither `response_id` nor `counts_against_limit` (D-116): a reply
+ * that announced itself as "the authored one" would say the author thought this claim worth arguing
+ * with, which is defect placement by another route. What they are told is the reply, their own
+ * sentence back, what it cost, and how many escalations the run has left.
  *
  * The stance follows the act: an escalation on a claim the student has not already marked `escalate`
  * sets it, with its own `stance_set` event, because the stance matrix and the confidence line are
@@ -656,19 +669,27 @@ export async function escalate(
 ): Promise<EscalationResult> {
   const scope = await requireRunOwner(actor, runId)
   const tenantId = scope.organizationId
-  const statement = escalationStatement(input.statement)
 
   return repo.withTransaction(async (tx) => {
     const run = await lockRunForMutation(tx, tenantId, runId)
     if (!RELIANCE_STATES.includes(run.state)) relianceNotWritable(run.state)
 
+    // The sentence is checked *after* the room's gate, not before it (D-331). Every other refusal
+    // in this module sits behind `lockRunForMutation`, and a student whose run is locked or paused
+    // being told their sentence is too short is being asked to rewrite a form that is closed.
+    const statement = escalationStatement(input.statement)
+
     const row = await repo.findRunClaimWithClaim(runId, claimId, tx)
     if (!row) claimNotSurfaced()
 
+    // The budget, read and spent without asking what kind of claim this is (D-328). The refusal is
+    // therefore the same on every surfaced claim, which is the half of the fix `escalationLimitReached`
+    // could not provide on its own.
+    const spentSoFar = await repo.countEscalations(runId, tx)
+    if (spentSoFar >= ESCALATIONS_PER_RUN) escalationLimitReached()
+
     const authored = row.claim.escalationReply?.trim() ?? ''
     const counts = authored.length > 0
-    const countedSoFar = await repo.countCountedEscalations(runId, tx)
-    if (counts && countedSoFar >= ESCALATIONS_PER_RUN) escalationLimitReached()
 
     const responseText = counts
       ? authored
@@ -714,7 +735,9 @@ export async function escalate(
       await applyStance(tx, run, row.runClaim, 'escalate', at, actor.id)
     }
 
-    const remaining = Math.max(0, ESCALATIONS_PER_RUN - countedSoFar - (counts ? 1 : 0))
+    // This one included, and with no `counts` term: D-328's whole point is that the number the
+    // student reads moves the same amount whatever claim they spent it on.
+    const remaining = Math.max(0, ESCALATIONS_PER_RUN - spentSoFar - 1)
     return toEscalationResult(escalation, remaining)
   })
 }

@@ -743,7 +743,9 @@ describe('reliance repository', () => {
       countsAgainstLimit: false,
     })
 
-    expect(await relianceRepo.countCountedEscalations(run.id)).toBe(1)
-    expect(await relianceRepo.countCountedEscalations(crypto.randomUUID())).toBe(0)
+    // Both rows, not the one marked `counts_against_limit` (D-328): the run has spent two
+    // escalations and the budget does not ask which reply answered them.
+    expect(await relianceRepo.countEscalations(run.id)).toBe(2)
+    expect(await relianceRepo.countEscalations(crypto.randomUUID())).toBe(0)
   })
 })

@@ -462,6 +462,36 @@ describe('saveBriefDraft and briefSignal', () => {
     expect(await briefRow(runId)).toBeUndefined()
   })
 
+  it('refuses a body carrying more named values than a brief has fields (D-333)', async () => {
+    // `BriefNamedValuesSchema`'s own note said the bounds existed — "a body carrying two thousand
+    // keys is not a brief" — and nothing enforced the count. Two thousand keys were accepted,
+    // stored on `run_briefs.named_values`, and would have travelled whole into the immutable
+    // `decision_locked` payload.
+    const runId = await runInWorking(fx)
+    const many: Record<string, number> = {}
+    for (let i = 0; i < 2_000; i += 1) many[`k${i}`] = i
+
+    expect(await refusalOf(runs.saveBriefDraft(fx.student, runId, { namedValues: many }))).toEqual({
+      code: 'BRIEF_INVALID',
+      details: { field: 'namedValues', reason: 'invalid' },
+    })
+    expect(await briefRow(runId)).toBeUndefined()
+
+    // And the lock refuses the same body, because the rule is on both schemas rather than on the
+    // draft alone (D-291's split kept).
+    expect(
+      (await refusalOf(runs.lockDecision(fx.student, runId, { ...BRIEF, namedValues: many }))).code,
+    ).toBe('BRIEF_INVALID')
+
+    // The number a real package asks for is still accepted.
+    await runs.saveBriefDraft(fx.student, runId, {
+      namedValues: { premium_payback_months: 4.2 },
+    })
+    expect(await briefRow(runId)).toMatchObject({
+      named_values: { premium_payback_months: 4.2 },
+    })
+  })
+
   it('writes brief_opened and brief_closed with the duration', async () => {
     const runId = await runInWorking(fx)
 

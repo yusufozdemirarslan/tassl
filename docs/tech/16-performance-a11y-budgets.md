@@ -341,7 +341,7 @@ Every list endpoint reads through an index named in `06-data-model.md`:
 | Lock gate | `run_claims` | `(run_id) where stance is null` |
 | Document opens (clock timeline) | `run_document_opens` | `(run_id, opened_at)` |
 | Actions on a claim | `run_actions` | `(run_id, claim_id)` |
-| Escalation limit | `run_escalations` | `(run_id) where counts_against_limit` |
+| Escalation limit | `run_escalations` | `(run_id)` — every escalation counts since D-328, so the predicate the partial index carried is gone |
 | Notifications (`GET /api/v1/notifications`) | `notifications` | `(user_id, read_at)` |
 | Audit log (`/admin/audit`) | `audit_logs` | `(organization_id, created_at desc)`, `(actor_id, created_at desc)` |
 | Sessions (`/settings/security`) | `session` | `session_user_id_idx` |

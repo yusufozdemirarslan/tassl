@@ -50,6 +50,9 @@ export const run = {
   'run.addendumInvalid': 'An addendum is up to fifty words, and it cannot be empty.',
   'run.testControlsDisabled':
     'Test controls are switched off in this environment, so nothing was armed.',
+  // Read by the instructor who pressed the control, never by the student (FR-118, D-332).
+  'run.forcedFailureNotArmable':
+    'This run has no assistant running, so there is nothing to fail. Arm it while the student is working or answering the Turn.',
 
   // ---------------------------------------------------------------------------------------------
   // The run's state, in the student's words (06 §3.4). One label per state of the machine, so a

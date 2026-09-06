@@ -293,12 +293,19 @@ export async function insertEscalation(
   return row
 }
 
-/** Escalations that count against the per-run limit (FR-090 to FR-092). */
-export async function countCountedEscalations(runId: string, dbx: DbOrTx = db): Promise<number> {
+/**
+ * How many escalations this run has spent (FR-092, D-328).
+ *
+ * Every row, with no filter on `counts_against_limit`. The column is still written and still
+ * travels on the trace — it records which kind of reply answered, which is what the reviewer reads
+ * — but it stopped governing the budget in D-328: a limit that only bit on claims carrying an
+ * authored reply published, through the counter, exactly which claims those were.
+ */
+export async function countEscalations(runId: string, dbx: DbOrTx = db): Promise<number> {
   const [row] = await dbx
     .select({ total: count() })
     .from(runEscalations)
-    .where(and(eq(runEscalations.runId, runId), eq(runEscalations.countsAgainstLimit, true)))
+    .where(eq(runEscalations.runId, runId))
   return Number(row?.total ?? 0)
 }
 

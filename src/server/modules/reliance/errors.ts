@@ -66,12 +66,18 @@ export function actionNotAvailable(type: string): never {
 }
 
 /**
- * The run's two counted escalations are both spent (FR-092).
+ * The run's two escalations are both spent (FR-092, as D-328 corrects it).
  *
  * `details` carries nothing. The count is on the claim card as `remainingEscalations`, and the one
  * fact a refusal must not add is *why this particular escalation counted* — that a claim carries an
  * authored reply is defect-adjacent authored knowledge (D-116, D-244), and a refusal that appeared
  * only on some claims would say it without a field.
+ *
+ * That last sentence used to describe this codebase. Until D-328 the budget was spent only by
+ * escalations on claims carrying an authored reply, so with both spent this refusal answered
+ * exactly those claims and every other claim still succeeded — the leak this comment warned about,
+ * built into the rule the comment sat beside. Since D-328 every escalation counts, so the refusal
+ * is a fact about the run and lands identically on every surfaced claim.
  */
 export function escalationLimitReached(): never {
   throw new AppError('ESCALATION_LIMIT_REACHED')

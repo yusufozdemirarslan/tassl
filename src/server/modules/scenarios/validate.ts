@@ -54,6 +54,7 @@ export const VALIDATION_RULE_CODES = [
   'CLAIM_STATE_MISSING',
   'DEFECTIVE_VARIANT_PLANT',
   'VARIANTS_DIFFER_BEYOND_PLANT',
+  'VARIANT_ACTIONS_DIFFER',
   'PLANTED_PATH_MISSING',
   'DEFECT_OUTSIDE_CONCEPTS',
   'DEFECT_NOT_CONSEQUENTIAL',
@@ -118,6 +119,24 @@ export const ACCEPT_WARRANTED_SOUND_CLAIMS_MIN = 1
  * arithmetic or methodological: those are caught by redoing the work, not by reading the source.
  */
 export const REPLICATION_CHECK_FAMILIES = ['uncomputed_number', 'misapplied_method'] as const
+
+/**
+ * The three interrogation actions a verification path can answer, and what an author calls them.
+ *
+ * Listed here rather than imported from `reliance`: this file is `scenarios`' internal validator and
+ * may reach another module only through its `index.ts`, and the keys are `variant_claim_states`'
+ * own jsonb keys, which is data this module owns.
+ */
+const VERIFICATION_PATH_LABELS = {
+  source_trace: 'Source Trace',
+  replication_check: 'Replication Check',
+  decomposition_check: 'Decomposition Check',
+} as const satisfies Record<keyof ValidatedVerificationPaths, string>
+
+/** The same three as keys, in the order the labels are written, which is the order a card offers them. */
+const VERIFICATION_PATH_TYPES = Object.keys(
+  VERIFICATION_PATH_LABELS,
+) as (keyof ValidatedVerificationPaths)[]
 
 /** PRD §7.12: the frame carries three assumptions, so the bank carries an item for each (0–2). */
 export const FRAME_ASSUMPTION_INDEXES = [0, 1, 2] as const
@@ -808,6 +827,64 @@ const RULES: readonly Rule[] = [
       return {
         elementIds: offenders,
         message: `${sentences.join(' ')} The two variants are the same scenario apart from the planted claim, so every other claim carries the same state in both.`,
+      }
+    },
+  },
+  {
+    // D-330: the *menu* is the same on both variants, even where the authored content behind it is
+    // not.
+    //
+    // `ClaimView.availableActions` is projected verbatim from the run's variant's
+    // `verification_paths`, so it is a student-visible function of the variant they drew. The rule
+    // above deliberately does not compare `verification_paths` — a path's content differs by design
+    // on the planted claim — and `PLANTED_PATH_MISSING` pushes an author to author a path on
+    // exactly the claim the defect sits on. Nothing between the two forbade a package whose
+    // defective variant offers a Replication Check on a claim the sound variant offers nothing on,
+    // and a student who could see that menu would be reading the defect's position off it: the
+    // shipped fixture is symmetric, so nothing leaks today, but the rule set permitted it and an
+    // adversarial package that did leak passed `confirmVersion`.
+    //
+    // What is compared is the *set of action types* and never the payloads. A Source Trace on the
+    // defective variant may lead to the superseded document and on the sound one to the current
+    // one — that is the plant, and it is what the two variants are for. What may not differ is
+    // whether the action is on the card at all.
+    code: 'VARIANT_ACTIONS_DIFFER',
+    check: ({ version, variantByKey }) => {
+      const defective = variantByKey.get('defective')
+      const sound = variantByKey.get('sound')
+      if (!defective || !sound) return null // DEFECTIVE_VARIANT_PLANT / CLAIM_STATE_MISSING report this
+
+      const offenders: string[] = []
+      const sentences: string[] = []
+
+      for (const claim of version.claims) {
+        const here = defective.claimStates.find((state) => state.claimId === claim.id)
+        const there = sound.claimStates.find((state) => state.claimId === claim.id)
+        if (!here || !there) continue // CLAIM_STATE_MISSING owns the missing-state report
+
+        const only = (a: ValidatedClaimState, b: ValidatedClaimState): readonly string[] =>
+          VERIFICATION_PATH_TYPES.filter(
+            (type) =>
+              a.verificationPaths[type] !== undefined && b.verificationPaths[type] === undefined,
+          ).map((type) => VERIFICATION_PATH_LABELS[type])
+
+        const defectiveOnly = only(here, there)
+        const soundOnly = only(there, here)
+        if (defectiveOnly.length === 0 && soundOnly.length === 0) continue
+
+        const halves: string[] = []
+        if (defectiveOnly.length > 0) {
+          halves.push(`${joinList(defectiveOnly)} on the defective variant only`)
+        }
+        if (soundOnly.length > 0) halves.push(`${joinList(soundOnly)} on the sound variant only`)
+        offenders.push(claim.id)
+        sentences.push(`${claim.key} offers ${joinList(halves)}.`)
+      }
+
+      if (offenders.length === 0) return null
+      return {
+        elementIds: offenders,
+        message: `${sentences.join(' ')} The actions a claim offers are on the student's claim card, so a claim that offers a different menu in each variant tells whoever drew one which variant they are on. Author the same paths on both; what each returns may differ.`,
       }
     },
   },

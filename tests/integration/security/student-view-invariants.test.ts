@@ -727,9 +727,22 @@ describe('the workspace a student works in carries no forbidden key', () => {
   }
 
   it('the room the workspace lists carries no body and nothing authored about a document', async () => {
+    // The brief is saved first, deliberately (D-329). This sweep used to run over a workspace whose
+    // `briefDraft` was null, so the branch that carries the student's own 250 words was never
+    // walked — and a `BriefView` field named `rationale` would have passed a sweep that could not
+    // see it. The draft is written before the read so the payload the assertion walks is the one a
+    // student actually holds.
+    await runs.saveBriefDraft(fx.learner, fx.run.id, {
+      rationale: 'The payback figure is load-bearing and has not been traced to the cohort table.',
+      recommendation: 'Hold the acquisition spend in the value tier this quarter.',
+    })
+
     const workspace = await runs.getRunWorkspace(fx.learner, fx.run.id)
 
+    expect(workspace.briefDraft, 'the sweep must have a brief to walk').not.toBeNull()
+    expect(workspace.briefDraft?.briefRationale.length).toBeGreaterThan(0)
     expect(findForbiddenKeys(workspace, { scored: false })).toEqual([])
+    expect(keysOf(workspace.briefDraft).has('rationale')).toBe(false)
     expect(workspace.documents.length).toBeGreaterThan(0)
     for (const document of workspace.documents) {
       // `role` and `supersededByDocumentId` are the missed-defect section of the debrief (12 §8.2):
@@ -863,11 +876,18 @@ describe('the workspace a student works in carries no forbidden key', () => {
       })
 
       expect(findForbiddenKeys(result, { scored: false })).toEqual([])
+      // A closed set, widened once and deliberately: `statement` is D-318's addition and is the
+      // student's own typed sentence read back off `run_escalations.statement`. Nothing authored
+      // reaches it — they wrote it, the server only stripped its markup — so it is not a leak, and
+      // `student-view.ts` forbids no key by that name in either set. Everything else on that row
+      // stays behind, which is what this assertion exists to keep true.
       expect(Object.keys(result).sort()).toEqual([
         'clockCostMs',
         'remainingEscalations',
         'responseText',
+        'statement',
       ])
+      expect(result.statement).toBe('I cannot tell how settled this saturation reading is.')
       // D-116: both keys are on `run_escalations` and on the reviewer's trace, and on neither of the
       // two payloads a student can reach before their run is scored.
       expect(keysOf(result).has('responseId')).toBe(false)
@@ -908,6 +928,75 @@ describe('the workspace a student works in carries no forbidden key', () => {
       ]) {
         expect([key, keysOf(view).has(key)]).toEqual([key, false])
       }
+    })
+  })
+
+  // -------------------------------------------------------------------------------------------
+  // The locked screen (Step 8.2, D-302, D-329)
+  //
+  // `getDecision` had no sweep here at all, and could not have had one: the record carries the
+  // brief the student filed, and `BriefView` called the student's own 250 words `rationale` — the
+  // name `student-view.ts` reserves for a claim's authored "what it deserved and why". The field
+  // is `briefRationale` now, so the record can be swept like everything else a student receives.
+  // -------------------------------------------------------------------------------------------
+
+  describe('the record of a filed decision (D-302)', () => {
+    async function lockOne(): Promise<void> {
+      await testSql`update runs set working_started_at = now() where id = ${fx.run.id}`
+      await runs.lockDecision(fx.learner, fx.run.id, {
+        recommendation: 'Hold the acquisition spend in the value tier for this quarter.',
+        rationale:
+          'The premium payback figure is load-bearing and has not been traced to the cohort table, so moving spend on it would be a bet on a number nobody has checked.',
+        assumptions: [
+          'Premium retention holds near the piloted level',
+          'Value tier payback stays close to four months',
+          'Green coffee cost per bag is stable through the crop year',
+        ],
+        changeMyMind: 'A cohort table showing premium payback under six months would change this.',
+        confidence: 45,
+        namedValues: {},
+      })
+    }
+
+    it('carries no forbidden key, and names the student’s own prose unambiguously', async () => {
+      await lockOne()
+      const record = await runs.getDecision(fx.learner, fx.run.id)
+
+      expect(findForbiddenKeys(record, { scored: false })).toEqual([])
+      expect(record.brief).not.toBeNull()
+      expect(record.brief?.briefRationale.length).toBeGreaterThan(0)
+      // The name the sweep reserves for a claim's authored rationale is not on this payload under
+      // either meaning, which is the whole of D-329.
+      expect(keysOf(record).has('rationale')).toBe(false)
+    })
+
+    it('is a closed set of fields, and the brief inside it is another', async () => {
+      await lockOne()
+      const record = await runs.getDecision(fx.learner, fx.run.id)
+
+      expect(Object.keys(record).sort()).toEqual([
+        'addendum',
+        'brief',
+        'canAddAddendum',
+        'frame',
+        'namedFields',
+        'run',
+        'turnRemainingMs',
+      ])
+      expect(Object.keys(record.brief!).sort()).toEqual([
+        'assumptions',
+        'briefRationale',
+        'changeMyMind',
+        'confidence',
+        'lockedAt',
+        'namedValues',
+        'recommendation',
+        'updatedAt',
+      ])
+      // FR-106: the speed outlier is an instructor observation, and a student told their lock was
+      // flagged is a student being penalised by being told.
+      expect(keysOf(record).has('speedOutlier')).toBe(false)
+      expect(keysOf(record).has('autoLocked')).toBe(false)
     })
   })
 })

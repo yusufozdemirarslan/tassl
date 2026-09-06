@@ -471,10 +471,11 @@ export const runEscalations = pgTable(
     createdAt: createdAt(),
   },
   (t) => [
-    // Escalation limit check.
-    index('run_escalations_run_id_counts_idx')
-      .on(t.runId)
-      .where(sql`counts_against_limit`),
+    // The escalation limit check, which since D-328 counts every escalation of the run rather than
+    // the `counts_against_limit` subset: a budget that only bit on claims carrying an authored
+    // reply told the student which claims those were. The partial index that served the old
+    // predicate is replaced by the plain one, which is also what `listEscalations` reads.
+    index('run_escalations_run_id_idx').on(t.runId),
     check('run_escalations_response_id_check', sql`response_id in ('claim', 'general')`),
   ],
 )

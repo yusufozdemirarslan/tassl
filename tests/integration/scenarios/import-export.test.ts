@@ -441,6 +441,20 @@ function document(): PackageExport {
                 dated_on: '2025-02-10',
                 author: 'Priya Shah',
               },
+              // The same two keys as the sound variant below, with the defect in what the second
+              // one returns rather than in whether it is offered at all (D-330). The menu on a
+              // claim card is `availableActions`, projected straight from these keys, so a package
+              // whose two variants offered different menus told the student which one they drew.
+              decomposition_check: {
+                steps: [
+                  { label: 'Acquisition cost', result: 'Unchanged at 38 currency units.' },
+                  {
+                    label: 'Monthly margin',
+                    result:
+                      'Three point five currency units, before the fulfilment line was quoted.',
+                  },
+                ],
+              },
             },
           }),
           ...SHARED_STATES,
