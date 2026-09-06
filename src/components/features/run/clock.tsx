@@ -51,18 +51,54 @@ export type ClockProps = {
    * waiting.
    */
   thresholds?: boolean
+  /**
+   * Which clock this is, and therefore what its thresholds *say* (D-346).
+   *
+   * The Turn window is the second clock a student is under and the band draws it in the same place,
+   * because a last minute that is a visual signal cannot be a signal the student has to scroll to
+   * find. What it must not borrow is the working clock's wording: the window closing is not "the
+   * working clock has run out" — nothing is lost, the decision already filed stands (FR-113).
+   */
+  kind?: 'working' | 'turnWindow'
   className?: string
 }
 
-export function Clock({ clock, label, thresholds = true, className }: ClockProps) {
+/** The three sentences each clock announces, in the words of the clock it is (09 §6). */
+const ANNOUNCEMENTS: Record<
+  NonNullable<ClockProps['kind']>,
+  { label: string; fiveMinutes: string; oneMinute: string; expired: string }
+> = {
+  working: {
+    label: t('run.clockLabel'),
+    fiveMinutes: t('run.clockFiveMinutes'),
+    oneMinute: t('run.clockOneMinute'),
+    expired: t('run.clockExpired'),
+  },
+  turnWindow: {
+    label: t('run.windowLabel'),
+    fiveMinutes: t('run.windowFiveMinutes'),
+    oneMinute: t('run.windowOneMinute'),
+    expired: t('run.windowExpired'),
+  },
+}
+
+export function Clock({
+  clock,
+  label,
+  thresholds = true,
+  kind = 'working',
+  className,
+}: ClockProps) {
   const remaining = useClock(
     clock === null ? null : { remainingMs: clock.remainingMs, frozen: clock.paused },
   )
 
+  const words = ANNOUNCEMENTS[kind]
   const seconds = remaining === null ? null : clockSeconds(remaining)
   const announcement = useThresholdAnnouncement(
     thresholds ? seconds : null,
     clock !== null && clock.paused,
+    words,
   )
 
   if (clock === null || remaining === null || seconds === null) return null
@@ -90,11 +126,19 @@ export function Clock({ clock, label, thresholds = true, className }: ClockProps
         {warning && <TriangleAlertIcon aria-hidden="true" className="size-4 shrink-0" />}
         <span
           role="timer"
-          aria-label={label ?? t('run.clockLabel')}
+          aria-label={label ?? words.label}
           className="text-mono font-mono font-medium"
         >
           {formatClock(remaining)}
         </span>
+        {/* The window carries its name beside the digits, and the working clock does not (D-354). A
+            run is under two clocks in its life and they are drawn in the same pill in the same band,
+            so the second one has to say which it is: without the word, the last minute of the Turn
+            window is a red alarm identical to the one that means the decision is about to be filed
+            for you. The working clock is the run's default and stays unlabelled. */}
+        {!paused && kind === 'turnWindow' && (
+          <span className="text-meta font-medium">{words.label}</span>
+        )}
         {/* The pause has a word beside the icon: a stopped clock that only changed colour reads as
             a clock that is still running (DESIGN.md §The clock). */}
         {paused && <span className="text-meta font-medium">{t('run.clockPaused')}</span>}
@@ -117,9 +161,19 @@ export function Clock({ clock, label, thresholds = true, className }: ClockProps
  * the poll catches up is not told it expired over and over. A paused clock announces nothing —
  * nothing is running down.
  */
-function useThresholdAnnouncement(seconds: number | null, paused: boolean): string {
+function useThresholdAnnouncement(
+  seconds: number | null,
+  paused: boolean,
+  words: { fiveMinutes: string; oneMinute: string; expired: string },
+): string {
   const [announcement, setAnnouncement] = useState('')
   const previous = useRef<number | null>(null)
+  // The sentences are module constants picked by `kind`, so the effect reads them through a ref
+  // rather than depending on the object identity: a re-render must not re-fire a crossing.
+  const said = useRef(words)
+  useEffect(() => {
+    said.current = words
+  })
 
   useEffect(() => {
     if (seconds === null || paused) {
@@ -131,10 +185,10 @@ function useThresholdAnnouncement(seconds: number | null, paused: boolean): stri
     // The first reading is a starting point, never a crossing.
     if (before === null || before <= seconds) return
 
-    if (before > 0 && seconds <= 0) setAnnouncement(t('run.clockExpired'))
-    else if (before > ONE_MINUTE && seconds <= ONE_MINUTE) setAnnouncement(t('run.clockOneMinute'))
+    if (before > 0 && seconds <= 0) setAnnouncement(said.current.expired)
+    else if (before > ONE_MINUTE && seconds <= ONE_MINUTE) setAnnouncement(said.current.oneMinute)
     else if (before > FIVE_MINUTES && seconds <= FIVE_MINUTES) {
-      setAnnouncement(t('run.clockFiveMinutes'))
+      setAnnouncement(said.current.fiveMinutes)
     }
   }, [seconds, paused])
 

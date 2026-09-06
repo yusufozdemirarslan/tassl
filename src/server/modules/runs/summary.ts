@@ -10,7 +10,7 @@
 //
 // Nothing here reads or writes anything: give it a row and it answers. `materializeTimers` in
 // `./service.ts` is what acts on a clock that has run out; this only reports it.
-import { remainingMs } from './clock'
+import { isInTurnWindow, remainingMs } from './clock'
 import type { RunRowForSummary, RunStateValue, RunSummary } from './schema'
 
 /** What the run's owner does next, per state (09-frontend-spec-screens.md UI-020 to UI-029). */
@@ -35,6 +35,25 @@ const NEXT_ROUTE: Record<RunStateValue, (runId: string) => string> = {
   defense_missed: (id) => `/runs/${id}`,
   under_appeal: (id) => `/runs/${id}`,
   expired: (id) => `/runs/${id}`,
+}
+
+/**
+ * The one state the map above cannot answer alone (D-367).
+ *
+ * `paused` is not a screen: it is an overlay drawn over whichever screen the run was on when a
+ * component of Tassl failed (FR-001, UI-023), and there are two of those. A run paused during the
+ * working period belongs on the workspace, and a run paused **inside the Turn window** belongs on
+ * the Turn — where the message it was answering is, and where the response it was writing goes.
+ * Sending the second to `/work` put a student in front of a locked workspace instead of the Turn,
+ * behind the same modal either way; the pause was not the wrong state, the door was the wrong door.
+ *
+ * Which pause it is comes from the clock, not from a column of its own: `isInTurnWindow` reads the
+ * two instants the Turn sets, exactly as it does for `remainingWindowMs` — a run does not record
+ * which clock it froze, and this is the same derivation everything else uses (D-133).
+ */
+function nextRoute(run: RunRowForSummary): string {
+  if (run.state === 'paused' && isInTurnWindow(run)) return `/runs/${run.id}/turn`
+  return NEXT_ROUTE[run.state](run.id)
 }
 
 const iso = (value: Date): string => value.toISOString()
@@ -89,6 +108,6 @@ export function toRunSummary(run: RunRowForSummary): RunSummary {
     // D-123: the number of events written. `next_event_seq` is the allocator, so the last sequence
     // handed out — and therefore the count — is one less.
     version: Math.max(0, run.nextEventSeq - 1),
-    links: { next: NEXT_ROUTE[run.state](run.id) },
+    links: { next: nextRoute(run) },
   }
 }

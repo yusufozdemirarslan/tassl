@@ -105,11 +105,11 @@ const open = (overrides: Partial<OpenRun> = {}): OpenRun => ({
 
 describe('clockEndsAt', () => {
   it('is the working clock’s zero while the run is working', () => {
-    expect(clockEndsAt(open())).toEqual(at(25 * MINUTE))
+    expect(clockEndsAt(open(), at(2 * MINUTE))).toEqual(at(25 * MINUTE))
   })
 
   it('is null while the run is framing: the room opens before the clock starts', () => {
-    expect(clockEndsAt(open({ state: 'framing', workingStartedAt: null }))).toBeNull()
+    expect(clockEndsAt(open({ state: 'framing', workingStartedAt: null }), T0)).toBeNull()
   })
 
   it('is the lock instant once the decision is locked', () => {
@@ -117,22 +117,108 @@ describe('clockEndsAt', () => {
     expect(
       clockEndsAt(
         open({ state: 'decision_locked', workingStartedAt: T0, decisionLockedAt: lockedAt }),
+        at(2 * MINUTE),
       ),
     ).toEqual(lockedAt)
   })
 
-  it('is the window’s end inside the Turn window', () => {
-    const windowEndsAt = at(40 * MINUTE)
-    expect(
-      clockEndsAt(
-        open({
-          state: 'turn_open',
-          turnDeliveredAt: at(28 * MINUTE),
-          turnWindowEndsAt: windowEndsAt,
-          decisionLockedAt: at(25 * MINUTE),
-        }),
-      ),
-    ).toEqual(windowEndsAt)
+  // D-338: a run has two clocks with a gap between them, and the open's own instant is what says
+  // which of them it was running against. The state alone cannot: both opens below are read on the
+  // same run, in the same state, and only one of them was ever clocked by the window.
+  describe('inside the Turn window', () => {
+    const inWindow = open({
+      state: 'turn_open',
+      turnDeliveredAt: at(28 * MINUTE),
+      turnWindowEndsAt: at(40 * MINUTE),
+      decisionLockedAt: at(25 * MINUTE),
+    })
+
+    it('is the window’s end for an open made in the window', () => {
+      expect(clockEndsAt(inWindow, at(30 * MINUTE))).toEqual(at(40 * MINUTE))
+      // The delivery instant itself is inside it: that is when the window opened.
+      expect(clockEndsAt(inWindow, at(28 * MINUTE))).toEqual(at(40 * MINUTE))
+    })
+
+    it('is the lock instant for an open the student left behind in the working period', () => {
+      // A laptop shut over the working clock, the Turn delay and into the window. Capping that read
+      // at the window's end would draw reading across three minutes no clock was running.
+      expect(clockEndsAt(inWindow, at(10 * MINUTE))).toEqual(at(25 * MINUTE))
+    })
+  })
+
+  // D-361: the era an open belongs to is settled when the open begins, and `closeDocument` gates on
+  // no state at all — so the same open must read back the same way whatever state the close finds
+  // the run in. The two loops below are the two directions of one rule, walked over every state a
+  // close can arrive in after the window has been left behind.
+  describe('after the Turn window has closed', () => {
+    /** The states a run reaches once the Turn is answered or the window expires (10 §9). */
+    const AFTER_THE_WINDOW = [
+      'turn_locked',
+      'defense_pending',
+      'defense_complete',
+      'scored',
+      'confirmed',
+      'recorded',
+      'voided',
+    ] as const
+
+    const past = (state: string): OpenRun =>
+      open({
+        state,
+        turnDeliveredAt: at(28 * MINUTE),
+        turnWindowEndsAt: at(40 * MINUTE),
+        turnLockedAt: at(35 * MINUTE),
+        decisionLockedAt: at(25 * MINUTE),
+      })
+
+    it('is still the window’s end for an open made inside the window', () => {
+      // The mirror of D-338's case, and the one `isInTurnWindow(run)` hid: the run has moved on, the
+      // window is over, and the document opened at minute 30 was read under it all the same. Falling
+      // through to the lock instant here answers an instant *before* the open, which
+      // `cappedDurationMs` reads as "no clock bounded this" and records the raw wall clock.
+      for (const state of AFTER_THE_WINDOW) {
+        expect(clockEndsAt(past(state), at(30 * MINUTE))).toEqual(at(40 * MINUTE))
+      }
+    })
+
+    it('is still the lock instant for an open made before the Turn was delivered', () => {
+      for (const state of AFTER_THE_WINDOW) {
+        expect(clockEndsAt(past(state), at(10 * MINUTE))).toEqual(at(25 * MINUTE))
+      }
+    })
+  })
+
+  it('is null for an open made in the Turn delay, where neither clock is running', () => {
+    // The decision locked at 25, the Turn fell due at 26:30 and was delivered at 28. Nothing runs in
+    // between (D-334), so nothing bounds an open made there — answering the window's end would draw
+    // reading across the gap, and answering the lock instant would end the open before it began.
+    const run = open({
+      state: 'decision_locked',
+      turnDeliveredAt: null,
+      turnWindowEndsAt: null,
+      decisionLockedAt: at(25 * MINUTE),
+    })
+    expect(clockEndsAt(run, at(26 * MINUTE))).toBeNull()
+    expect(clockEndsAt(run, at(25 * MINUTE))).toBeNull()
+    // A millisecond before the lock is the working clock's last, and is bounded by it.
+    expect(clockEndsAt(run, new Date(at(25 * MINUTE).getTime() - 1))).toEqual(at(25 * MINUTE))
+  })
+
+  it('does not lend a paused window’s clock to an open from the working period', () => {
+    // `paused` from inside the window (D-133) is a run whose `working_started_at` is still set, so
+    // reading the working clock's *state-gated* zero for it answers the instant the clock would
+    // reach zero if it resumed — eight minutes after the decision was actually filed. The working
+    // clock ended at the lock and nowhere else.
+    const pausedInWindow = open({
+      state: 'paused',
+      pausedAt: at(33 * MINUTE),
+      turnDeliveredAt: at(28 * MINUTE),
+      turnWindowEndsAt: at(40 * MINUTE),
+      decisionLockedAt: at(20 * MINUTE),
+    })
+    expect(clockEndsAt(pausedInWindow, at(10 * MINUTE))).toEqual(at(20 * MINUTE))
+    // And an open made inside the window is still the window's, pause or no pause.
+    expect(clockEndsAt(pausedInWindow, at(30 * MINUTE))).toEqual(at(40 * MINUTE))
   })
 })
 
@@ -159,6 +245,42 @@ describe('cappedDurationMs (10 §6, FR-117)', () => {
       decisionLockedAt: at(22 * MINUTE),
     })
     expect(cappedDurationMs(run, at(20 * MINUTE), at(60 * MINUTE))).toBe(2 * MINUTE)
+  })
+
+  it('caps at the lock instant for a read the Turn window found still open (D-338)', () => {
+    // The document was opened five minutes into the working period, the laptop was shut, the clock
+    // ran out at 25, the Turn fell due at 26:30 and was delivered when the student came back at 28.
+    // The reading was clocked for twenty minutes; the window is a clock it was never running under.
+    const inWindow = open({
+      state: 'turn_open',
+      turnDeliveredAt: at(28 * MINUTE),
+      turnWindowEndsAt: at(40 * MINUTE),
+      decisionLockedAt: at(25 * MINUTE),
+    })
+    expect(cappedDurationMs(inWindow, at(5 * MINUTE), at(30 * MINUTE))).toBe(20 * MINUTE)
+    // A document opened *inside* the window is capped by the window, which is D-132's clock.
+    expect(cappedDurationMs(inWindow, at(29 * MINUTE), at(60 * MINUTE))).toBe(11 * MINUTE)
+  })
+
+  it('caps at the window for a read the defense found still open (D-361)', () => {
+    // The mirror of the case above, and the one the shut laptop actually reaches: the document was
+    // opened inside the window, the Turn was answered, the student walked away for three hours, and
+    // the unmount close landed when they came back. `closeDocument` accepts a late close in any
+    // state, and `lockTurnResponse` closes nothing — so this is the close that records the read.
+    const afterTheWindow = open({
+      state: 'defense_pending',
+      turnDeliveredAt: at(28 * MINUTE),
+      turnWindowEndsAt: at(40 * MINUTE),
+      turnLockedAt: at(35 * MINUTE),
+      decisionLockedAt: at(25 * MINUTE),
+    })
+    // Opened at minute 28, closed three hours later: ten minutes of window, not three hours of wall.
+    expect(cappedDurationMs(afterTheWindow, at(30 * MINUTE), at(210 * MINUTE))).toBe(10 * MINUTE)
+    // The whole window is the ceiling, and it is D-132's twelve minutes.
+    expect(cappedDurationMs(afterTheWindow, at(28 * MINUTE), at(210 * MINUTE))).toBe(720_000)
+    // A read that began after the window's own end had passed was never clocked at all, so it keeps
+    // its wall-clock length — the D-250 rule, reached here through the same two columns.
+    expect(cappedDurationMs(afterTheWindow, at(45 * MINUTE), at(60 * MINUTE))).toBe(15 * MINUTE)
   })
 
   it('gives back the paused time, because the clock stopped with it (FR-001)', () => {

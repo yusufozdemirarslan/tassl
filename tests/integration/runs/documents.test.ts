@@ -74,12 +74,13 @@ const FIXTURE = JSON.parse(
     'utf8',
   ),
 ) as {
-  version: { workingClockSeconds: number }
+  version: { workingClockSeconds: number; turnDelaySeconds: number }
   documents: { key: string; title: string; body: string }[]
   claims: { key: string; sourceKind: string; sourceDocumentKey: string | null }[]
 }
 
 const WORKING_CLOCK_MS = FIXTURE.version.workingClockSeconds * 1000
+const TURN_DELAY_MS = FIXTURE.version.turnDelaySeconds * 1000
 
 /** A frame that passes FR-040 without saying anything the tests depend on. */
 const FRAME = {
@@ -643,11 +644,15 @@ describe('closeDocument', () => {
     await service.advanceRunClock(fx.student, runId, { ms: WORKING_CLOCK_MS + 3_600_000 })
     await ageOpen(openId, WORKING_CLOCK_MS + 3_600_000)
 
-    // The clock ran out and the decision auto-locked while the document was still open. The lock
-    // does not close it: the expiry instant is not an instant any reading ended at, and closing
-    // there would read the skim flag off the two seconds the clock saw rather than off the hour the
-    // student had it open (D-250, D-299). The close that finally arrives is what records it.
-    expect((await runs.getRun(fx.student, runId)).state).toBe('decision_locked')
+    // The clock ran out and the decision auto-locked while the document was still open — and an
+    // hour is long past the Turn delay as well, so the same read delivered the Turn and opened its
+    // window too (10 §8's cascade, D-297). Neither closes the open: the expiry instant is not an
+    // instant any reading ended at, and closing there would read the skim flag off the two seconds
+    // the clock saw rather than off the hour the student had it open (D-250, D-299). The close that
+    // finally arrives is what records it — and it is capped at the *working* clock's end, because
+    // that is the clock this open was running against, not the window that opened afterwards
+    // (D-338).
+    expect((await runs.getRun(fx.student, runId)).state).toBe('turn_open')
     expect((await openRows(runId))[0]?.closed_at).toBeNull()
 
     await runs.closeDocument(fx.student, runId, openId)
@@ -657,6 +662,45 @@ describe('closeDocument', () => {
     expect(row?.skim).toBe(false)
     const [event] = await eventsOfType(runId, 'document_close')
     expect(event?.payload).toMatchObject({ open_id: openId, duration_ms: 2_000, skim: false })
+  })
+
+  it('caps a read the defense found still open at the window it was made under (D-361)', async () => {
+    // The mirror of the case above, and the one a shut laptop actually reaches. The student was in
+    // the Turn window with the supply agreement open, walked away, and came back three hours later:
+    // the window expired into the implicit hold (FR-113) and the run is in `defense_pending`, so
+    // `isInTurnWindow` is false and the window's end was unreachable to the cap. Nothing closes the
+    // open on the way — neither the implicit hold nor a Turn response does — so the close that
+    // finally arrives is the one that records the read, and it must record the twelve minutes the
+    // window gave rather than the three hours the wall did.
+    const runId = await runInWorking()
+    await service.advanceRunClock(fx.student, runId, {
+      ms: WORKING_CLOCK_MS + TURN_DELAY_MS + 5_000,
+    })
+    expect((await runs.getRun(fx.student, runId)).state).toBe('turn_open')
+
+    const agreement = documentByKey('D4')
+    const { openId } = await runs.openDocument(fx.student, runId, agreement.id)
+    expect((await openRows(runId))[0]?.in_turn_window).toBe(true)
+
+    // Three hours away, with the document still open: the run's own columns and the open move back
+    // together, which is one laptop shut on one reading rather than two unrelated shifts.
+    const AWAY_MS = 3 * 60 * 60_000
+    await service.advanceRunClock(fx.student, runId, { ms: AWAY_MS })
+    await ageOpen(openId, AWAY_MS)
+    expect((await runs.getRun(fx.student, runId)).state).toBe('defense_pending')
+    expect((await openRows(runId))[0]?.closed_at).toBeNull()
+
+    await runs.closeDocument(fx.student, runId, openId)
+
+    const [row] = await openRows(runId)
+    expect(row?.duration_ms).toBeLessThanOrEqual(runs.TURN_WINDOW_MS)
+    expect(row?.duration_ms).toBeGreaterThan(runs.TURN_WINDOW_MS - 10_000)
+    // The number the bug produced, so that this cannot pass by accident if the cap goes again.
+    expect(row?.duration_ms).toBeLessThan(AWAY_MS)
+    expect(row?.skim).toBe(false)
+    const [event] = await eventsOfType(runId, 'document_close')
+    expect(event?.payload).toMatchObject({ open_id: openId, skim: false })
+    expect((event?.payload as { duration_ms: number }).duration_ms).toBe(row?.duration_ms)
   })
 
   it('closes the room when the clock runs out, rather than letting a read begin after it (D-250)', async () => {
@@ -669,8 +713,13 @@ describe('closeDocument', () => {
     // case comes back (an action inside a window whose end has passed).
     //
     // What this asserts is the door: after the auto-lock there is no new reading to mis-record.
+    //
+    // The shift stops five seconds past the clock's zero rather than an hour past it, and that is
+    // the point rather than a detail: the Turn falls due 60 to 120 seconds after the lock (FR-110),
+    // and past that the same read delivers it and the room opens again for the window (FR-111). The
+    // door this test is about is the one between the auto-lock and the Turn.
     const runId = await runInWorking()
-    await service.advanceRunClock(fx.student, runId, { ms: WORKING_CLOCK_MS + 3_600_000 })
+    await service.advanceRunClock(fx.student, runId, { ms: WORKING_CLOCK_MS + 5_000 })
     expect((await runs.getRun(fx.student, runId)).state).toBe('decision_locked')
 
     const agreement = documentByKey('D4')

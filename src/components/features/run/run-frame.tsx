@@ -28,6 +28,13 @@ import { RunStateChip } from './run-state-chip'
 // the label, the state chip and the clock — and nothing else. It carries no disclosure and no form,
 // so it cannot grow under the student while they scroll.
 //
+// **The Turn window is drawn here too, and for the reason the band is sticky at all** (D-346). A
+// run is under two clocks in its life — the working clock until the Decision Lock, the Turn window
+// after the Turn lands — and both mark their last minute in red, which is a signal only if it is on
+// screen when it fires. The Turn screen is many viewports tall (the message, the claims, the
+// reopened room, the response), so a countdown inside it would fire off-screen exactly as the
+// working clock's did before D-311. One clock is running at a time, so the band shows one.
+//
 // **The frame and the declaration are not slots here, and the two components that would have
 // filled them are drawn as panels on the screens that have them** (D-312). `FramePanel` is already
 // the workspace's own "The frame you locked" panel and the locked screen's, and
@@ -65,10 +72,34 @@ export type RunFrameProps = {
   run: RunSummary
   /** The assignment's label — the student's name for this run. Never the assignment view itself. */
   label: string
+  /**
+   * Milliseconds left in the Turn window when the server rendered, or null when no window is open
+   * (D-346). A *reading*, like `RunSummary.clock.remainingMs`, taken in the layout above so the
+   * first client paint is identical to the HTML it hydrates.
+   */
+  windowRemainingMs?: number | null
   children: ReactNode
 }
 
-export function RunFrame({ run, label, children }: RunFrameProps) {
+/**
+ * The window reading to draw, or null.
+ *
+ * The server took one and handed it over; from the first poll that finds a newer run the instant on
+ * `RunSummary.turn.windowEndsAt` is what the browser has, and it is turned into a reading here. That
+ * branch is only ever taken in a render the poll caused — which is a render that happens after
+ * hydration — so `Date.now()` never reaches the server HTML or the paint that matches it.
+ */
+function windowReadingOf(
+  live: RunSummary,
+  rendered: RunSummary,
+  serverReading: number | null | undefined,
+): number | null {
+  if (live === rendered) return serverReading ?? null
+  if (live.state !== 'turn_open' || live.turn?.windowEndsAt == null) return null
+  return Math.max(0, new Date(live.turn.windowEndsAt).getTime() - Date.now())
+}
+
+export function RunFrame({ run, label, windowRemainingMs = null, children }: RunFrameProps) {
   const router = useRouter()
 
   // A poll that finds the run somewhere else re-renders the tree on the server, and the page for
@@ -89,6 +120,8 @@ export function RunFrame({ run, label, children }: RunFrameProps) {
     enabled: isSelfMoving(run),
     onChange,
   })
+
+  const windowReading = windowReadingOf(live, run, windowRemainingMs)
 
   return (
     <div className="flex flex-col gap-6">
@@ -111,8 +144,14 @@ export function RunFrame({ run, label, children }: RunFrameProps) {
             <RunStateChip state={live.state} underReview={live.scoringStatus === 'held'} />
           </div>
 
+          {/* One clock at a time, whichever is running. `Clock` draws nothing when it is handed
+              null, so a run between the two — a filed decision waiting for the Turn — carries the
+              label and the state chip alone. */}
           <div className="flex shrink-0 flex-wrap items-center gap-2">
             <Clock clock={live.clock} />
+            {windowReading !== null && (
+              <Clock clock={{ remainingMs: windowReading, paused: false }} kind="turnWindow" />
+            )}
           </div>
         </section>
       </div>

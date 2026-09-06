@@ -46,7 +46,17 @@ export const run = {
   'run.lockRefusedUnstancedClaim':
     'You leaned on a claim you have not taken a position on. Take one, then file the decision.',
   'run.decisionNotLocked': 'This run has not filed a decision yet.',
-  'run.addendumNotAvailable': 'An addendum can be added once the decision is locked.',
+
+  // The Turn (FR-110 to FR-115). The same two rules hold here as at the lock. Nothing says what the
+  // Turn warrants — whether it deserves a hold, a revision or a reversal is the thing being asked —
+  // and nothing offers a way back, because the response is as irreversible as the decision was.
+  'run.turnNotOpen': 'The Turn is not open on this run.',
+  'run.turnClaimsUnstanced':
+    'The Turn raised a claim you have not taken a position on. Take one, then file your response.',
+  'run.turnResponseInvalid':
+    'Choose hold, revise or reverse, say why in up to 150 words, and give your confidence.',
+  'run.addendumNotAvailable':
+    'An addendum can be added after the decision is locked and before the defense opens.',
   'run.addendumInvalid': 'An addendum is up to fifty words, and it cannot be empty.',
   'run.testControlsDisabled':
     'Test controls are switched off in this environment, so nothing was armed.',
@@ -185,6 +195,14 @@ export const run = {
   'run.clockFiveMinutes': 'Five minutes left on the working clock.',
   'run.clockOneMinute': 'One minute left on the working clock.',
   'run.clockExpired': 'The working clock has run out.',
+  // The Turn window is the other clock a student is under, and the band draws it in the same place
+  // for the same reason (D-346): a clock whose last minute is a visual signal cannot be a clock the
+  // student has to scroll to find. The wording is the window's own, because "the working clock has
+  // run out" is not what happened when the window closes — the decision already filed stands.
+  'run.windowLabel': 'Turn window',
+  'run.windowFiveMinutes': 'Five minutes left in the Turn window.',
+  'run.windowOneMinute': 'One minute left in the Turn window.',
+  'run.windowExpired': 'The Turn window has closed.',
 
   // ---------------------------------------------------------------------------------------------
   // UI-027 the run status screen (/runs/[runId], FR-140)

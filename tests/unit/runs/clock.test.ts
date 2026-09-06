@@ -14,6 +14,8 @@ import {
   remainingMs,
   remainingWindowMs,
   resume,
+  workingClockEndsAt,
+  workingExpiresAt,
   type ClockRun,
 } from '@/server/modules/runs/clock'
 import { ACTION_COSTS, ESCALATION_COST_MS } from '@/server/modules/runs/limits'
@@ -86,6 +88,44 @@ describe('remainingMs (D-042)', () => {
     })
     // 25 − 30 elapsed + 2 closed pause + 10 open pause + 5 credit − 3 charge
     expect(remainingMs(run, at(30 * MINUTE))).toBe(9 * MINUTE)
+  })
+})
+
+// The two readings of the working clock's zero (D-361). They are one formula and differ only in
+// whether the run has to be under the clock for the question to have an answer.
+describe('workingClockEndsAt and workingExpiresAt', () => {
+  it('are the instant `remainingMs` solves to zero, while the run is working', () => {
+    expect(workingExpiresAt(working())).toEqual(at(25 * MINUTE))
+    expect(workingClockEndsAt(working())).toEqual(at(25 * MINUTE))
+    expect(remainingMs(working(), workingExpiresAt(working()) as Date)).toBe(0)
+  })
+
+  it('both move with the pauses, the credits and the charges', () => {
+    const run = working({
+      totalPausedMs: 2 * MINUTE,
+      creditedMs: 5 * MINUTE,
+      chargedMs: 3 * MINUTE,
+    })
+    expect(workingClockEndsAt(run)).toEqual(at(29 * MINUTE))
+    expect(workingExpiresAt(run)).toEqual(at(29 * MINUTE))
+  })
+
+  it('are both null before the frame is locked, because there is no clock to end', () => {
+    const framing = working({ state: 'framing', workingStartedAt: null })
+    expect(workingClockEndsAt(framing)).toBeNull()
+    expect(workingExpiresAt(framing)).toBeNull()
+  })
+
+  it('part company once the run is past the Decision Lock', () => {
+    // `workingExpiresAt` answers null, because the run is no longer under the working clock and a
+    // deadline that has been superseded is not a deadline. `workingClockEndsAt` still answers the
+    // instant the columns describe, which is what a reader placing a *past* open on the run's
+    // timeline needs (`skim.clockEndsAt`, D-361).
+    for (const state of ['decision_locked', 'turn_open', 'defense_pending', 'recorded']) {
+      const run = working({ state })
+      expect(workingExpiresAt(run)).toBeNull()
+      expect(workingClockEndsAt(run)).toEqual(at(25 * MINUTE))
+    }
   })
 })
 

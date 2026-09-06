@@ -4,18 +4,13 @@ import { notFound, redirect } from 'next/navigation'
 import { AddendumControl } from '@/components/features/run/addendum-dialog'
 import { FramePanel } from '@/components/features/run/frame-panel'
 import { TurnWait } from '@/components/features/run/turn-wait'
+import { FiledBrief } from '@/components/graphs/frame-beside-decision'
 import { PageHeader } from '@/components/layout/page-header'
 import { Panel } from '@/components/layout/panel'
 import { isAppError } from '@/lib/errors'
 import { formatDateTime } from '@/lib/format/date-time'
 import { t } from '@/lib/i18n/t'
-import {
-  getDecision,
-  TURN_WINDOW_MS,
-  type BriefFieldUnitValue,
-  type BriefNamedField,
-  type BriefView,
-} from '@/server/modules/runs'
+import { getDecision, TURN_WINDOW_MS } from '@/server/modules/runs'
 import { getViewer } from '../../../viewer'
 import { getRunView } from '../run-view'
 
@@ -62,16 +57,6 @@ export const metadata: Metadata = { title: t('decision.metaTitle') }
 
 /** The states `/runs/[runId]/locked` draws (09 §1): the decision is filed, the Turn has not landed. */
 const LOCKED_STATE = 'decision_locked'
-
-/** The unit a named field was entered in, in the student's own language. */
-const UNIT_LABELS: Record<BriefFieldUnitValue, string> = {
-  percent: t('decision.unitPercent'),
-  ratio: t('decision.unitRatio'),
-  months: t('decision.unitMonths'),
-  usd: t('decision.unitUsd'),
-  count: t('decision.unitCount'),
-  other: t('decision.unitOther'),
-}
 
 export default async function RunLockedPage({ params }: PageProps<'/runs/[runId]/locked'>) {
   const { runId } = await params
@@ -190,117 +175,5 @@ export default async function RunLockedPage({ params }: PageProps<'/runs/[runId]
         </div>
       </div>
     </>
-  )
-}
-
-// ---------------------------------------------------------------------------------------------
-// The filed brief, read back
-// ---------------------------------------------------------------------------------------------
-
-/**
- * The six fields as they were filed.
- *
- * A definition list, because that is what it is: a field name and what the student wrote in it. An
- * empty field says it was empty rather than drawing a blank line — the auto-lock files whatever was
- * there when the clock ended (FR-105), and a page that silently omitted those fields would be
- * hiding half of what was filed from the person who filed it.
- */
-function FiledBrief({
-  brief,
-  namedFields,
-}: {
-  brief: BriefView
-  namedFields: readonly BriefNamedField[]
-}) {
-  return (
-    <dl className="flex flex-col gap-6">
-      <Entry label={t('decision.briefRecommendation')} value={brief.recommendation} />
-      <Entry label={t('decision.briefRationale')} value={brief.briefRationale} />
-
-      <div className="flex flex-col gap-2">
-        <dt className="text-ink-muted text-meta font-medium">{t('decision.briefAssumptions')}</dt>
-        <dd>
-          <ol className="flex flex-col gap-2">
-            {brief.assumptions.map((assumption, index) => (
-              <li key={`assumption-${String(index)}`} className="flex flex-col gap-0.5">
-                <span className="text-ink-muted text-meta max-w-measure">
-                  {t('decision.briefAssumption', { number: index + 1 })}
-                </span>
-                <span
-                  className={
-                    assumption.trim() === ''
-                      ? 'text-ink-muted text-reading max-w-measure'
-                      : 'text-ink text-reading max-w-measure'
-                  }
-                >
-                  {assumption.trim() === '' ? t('decision.briefEmptyField') : assumption}
-                </span>
-              </li>
-            ))}
-          </ol>
-        </dd>
-      </div>
-
-      <Entry label={t('decision.briefChangeMyMind')} value={brief.changeMyMind} />
-
-      <div className="flex flex-col gap-1">
-        <dt className="text-ink-muted text-meta font-medium">{t('decision.briefConfidence')}</dt>
-        <dd className="text-ink text-mono font-mono tabular-nums">
-          {brief.confidence === null
-            ? t('decision.briefEmptyValue')
-            : t('decision.briefConfidenceValue', { value: brief.confidence })}
-        </dd>
-      </div>
-
-      {namedFields.length > 0 && (
-        <div className="flex flex-col gap-2">
-          <dt className="text-ink-muted text-meta font-medium">{t('decision.briefFigures')}</dt>
-          <dd>
-            <ul className="flex flex-col gap-2">
-              {namedFields.map((field) => {
-                const value = brief.namedValues[field.key]
-                return (
-                  <li key={field.key} className="flex flex-col gap-0.5">
-                    <span className="text-ink-muted text-meta max-w-measure">
-                      {t('decision.briefFigureUnit', {
-                        label: field.label,
-                        unit: UNIT_LABELS[field.unit],
-                      })}
-                    </span>
-                    <span
-                      className={
-                        value === undefined
-                          ? 'text-ink-muted text-body max-w-measure'
-                          : 'text-ink text-mono font-mono tabular-nums'
-                      }
-                    >
-                      {value === undefined ? t('decision.briefEmptyValue') : String(value)}
-                    </span>
-                  </li>
-                )
-              })}
-            </ul>
-          </dd>
-        </div>
-      )}
-    </dl>
-  )
-}
-
-function Entry({ label, value }: { label: string; value: string }) {
-  const empty = value.trim() === ''
-  return (
-    <div className="flex flex-col gap-1">
-      <dt className="text-ink-muted text-meta font-medium">{label}</dt>
-      <dd
-        className={
-          empty
-            ? 'text-ink-muted text-reading max-w-measure'
-            : 'text-ink text-reading max-w-measure whitespace-pre-line'
-        }
-      >
-        {empty ? t('decision.briefEmptyField') : value}
-      </dd>
-    </div>
   )
 }

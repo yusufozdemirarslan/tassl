@@ -284,7 +284,7 @@ function variants(): ValidatedVariant[] {
 }
 
 function defenseQuestions(): ValidatedVersion['defenseQuestions'] {
-  return [
+  const rows = [
     ...claims().flatMap((claim) => [
       {
         kind: 'provenance',
@@ -336,6 +336,13 @@ function defenseQuestions(): ValidatedVersion['defenseQuestions'] {
       template: `Default question ${index + 1}: what did you rely on here?`,
     })),
   ]
+  // Every bank row has a key and an authored follow-up; the rows above vary only the fields the
+  // rules under test read, and take the other two from here (D-369).
+  return rows.map((row, index) => ({
+    id: `Q${index + 1}`,
+    followUp: 'Say where the number came from.',
+    ...row,
+  }))
 }
 
 const READINESS_PLAN = [
@@ -506,6 +513,7 @@ describe('the rule table', () => {
       'TURN_MISSING',
       'TURN_DELAY',
       'QUESTION_BANK_INCOMPLETE',
+      'QUESTION_TEMPLATE_PLACEHOLDER',
       'COUNTERFACTUAL_SENTENCES',
       'READINESS_SPLIT',
       'CLAIM_CONCEPT_UNKNOWN',
@@ -1503,6 +1511,58 @@ describe('QUESTION_BANK_INCOMPLETE', () => {
     )
 
     expect(codes(version)).toEqual(['NAMED_FIELDS_MISSING'])
+  })
+})
+
+describe('QUESTION_TEMPLATE_PLACEHOLDER (D-369)', () => {
+  it('passes a bank whose templates name only the five the renderer fills', () => {
+    expect(codes(validVersion())).toEqual([])
+  })
+
+  it('fails a template naming a placeholder nothing fills, and names the question', () => {
+    // `renderTemplate` substitutes five names and leaves everything else exactly as written, so a
+    // confirmed package carrying `{stance_text}` shows a student literal braces mid-question — the
+    // machinery on the screen, which is the one outcome D-342 ruled out.
+    const version = validVersion()
+    const first = version.defenseQuestions[0]
+    if (!first) throw new Error('expected a bank question')
+    version.defenseQuestions = [
+      { ...first, template: 'Where does {claim_text} come from, and what is the {stance_text}?' },
+      ...version.defenseQuestions.slice(1),
+    ]
+
+    expect(codes(version)).toEqual(['QUESTION_TEMPLATE_PLACEHOLDER'])
+    expect(failure(version, 'QUESTION_TEMPLATE_PLACEHOLDER')).toMatchObject({
+      elementIds: [first.id],
+      message:
+        'A defense question names {stance_text}, which nothing fills; the placeholders are ' +
+        '{claim_text}, {figure}, {stance}, {document_title} and {assumption}.',
+    })
+  })
+
+  it('fails a follow-up naming one too, because a follow-up is never rendered at all', () => {
+    const version = validVersion()
+    const first = version.defenseQuestions[0]
+    if (!first) throw new Error('expected a bank question')
+    version.defenseQuestions = [
+      { ...first, followUp: 'Say where {figure_source} came from.' },
+      ...version.defenseQuestions.slice(1),
+    ]
+
+    expect(codes(version)).toEqual(['QUESTION_TEMPLATE_PLACEHOLDER'])
+    expect(failure(version, 'QUESTION_TEMPLATE_PLACEHOLDER').message).toContain('{figure_source}')
+  })
+
+  it('says nothing about braces that are not a placeholder, or about a template with none', () => {
+    const version = validVersion()
+    const first = version.defenseQuestions[0]
+    if (!first) throw new Error('expected a bank question')
+    version.defenseQuestions = [
+      { ...first, template: 'What did the note {see appendix B} lead you to conclude?' },
+      ...version.defenseQuestions.slice(1),
+    ]
+
+    expect(codes(version)).toEqual([])
   })
 })
 

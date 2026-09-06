@@ -587,6 +587,26 @@ export const RunWorkspaceSchema = z.object({
 })
 export type RunWorkspace = z.infer<typeof RunWorkspaceSchema>
 
+/** `run_turn_responses.response` (DATA-038): the three things a student may do with the Turn. */
+export const TurnResponseKindSchema = z.enum(['hold', 'revise', 'reverse'])
+export type TurnResponseKindValue = z.infer<typeof TurnResponseKindSchema>
+
+/**
+ * The Turn response as the student reads it back (FR-112, FR-113), on the frozen record.
+ *
+ * `justification` and `confidence` are nullable for one case and only one: the implicit hold the
+ * window's expiry writes, where nobody said anything because nobody was there (D-335). `implicit`
+ * is what keeps the two apart, and the screen renders them differently for the same reason.
+ */
+export const TurnResponseViewSchema = z.object({
+  response: TurnResponseKindSchema,
+  justification: z.string().nullable(),
+  confidence: z.int().min(0).max(100).nullable(),
+  implicit: z.boolean(),
+  lockedAt: z.iso.datetime(),
+})
+export type TurnResponseView = z.infer<typeof TurnResponseViewSchema>
+
 /**
  * The frozen record UI-024 reads (`/runs/[runId]/locked`, FR-102, FR-107; D-302).
  *
@@ -604,6 +624,12 @@ export type RunWorkspace = z.infer<typeof RunWorkspaceSchema>
  * `namedFields` travels with it because `brief.namedValues` is a record keyed by `named_fields.key`
  * and a decision read back as `premium_payback_months: 11` is a decision written in the database's
  * words rather than the author's.
+ *
+ * `turnResponse` joined it in Step 9.2 and is null on UI-024, which is read before the Turn arrives
+ * (D-341). It is the same frozen record one state later: the defense's artifacts panel is the frame,
+ * the filed brief, the addendum and the Turn response (UI-026), and every one of them is already
+ * here. Building a second read of the same four rows in the `defense` module would be a second
+ * answer to "what did this student decide", one of them without the addendum.
  */
 export const DecisionRecordSchema = z.object({
   run: RunSummarySchema,
@@ -614,6 +640,8 @@ export const DecisionRecordSchema = z.object({
   namedFields: z.array(BriefNamedFieldSchema),
   /** The one post-lock addendum, or null (FR-107). */
   addendum: AddendumViewSchema.nullable(),
+  /** Hold, revise or reverse — or the implicit hold — once the Turn has locked; null before it. */
+  turnResponse: TurnResponseViewSchema.nullable(),
   /** FR-107: after the lock, before the record, and not yet used. */
   canAddAddendum: z.boolean(),
   /**
@@ -628,6 +656,97 @@ export const DecisionRecordSchema = z.object({
   turnRemainingMs: z.int().min(0).nullable(),
 })
 export type DecisionRecord = z.infer<typeof DecisionRecordSchema>
+
+// ---------------------------------------------------------------------------------------------
+// The Turn (07 §7, §10; FR-110 to FR-115)
+//
+// Two enums restated from `06-data-model.md` §3.3 and §3.4 rather than imported: a module schema
+// may reach `src/lib` and nothing else (04 §2), which is what keeps it readable from a Server
+// Component. `state-machine.ts` restates `run_state` for the same reason.
+// ---------------------------------------------------------------------------------------------
+
+/** `scenario_turns.voice` (DATA-023): the form the new information arrives in (FR-110). */
+export const TurnVoiceSchema = z.enum([
+  'stakeholder_message',
+  'corrected_number',
+  'supplier_notice',
+  'competitor_move',
+  'retracted_source',
+  'regulatory_note',
+])
+export type TurnVoiceValue = z.infer<typeof TurnVoiceSchema>
+
+// `TurnResponseKindSchema` and `TurnResponseViewSchema` are declared above, beside
+// `DecisionRecordSchema`: the frozen record carries the response, and a Zod schema is a value, so
+// the one that is referenced has to be built first.
+
+/** FR-112: at most 150 words of justification. */
+export const TURN_JUSTIFICATION_WORD_LIMIT = 150
+
+/**
+ * `GET /runs/{runId}/turn` (07 §7, FR-110 to FR-112): the Turn, its window, and the record it lands
+ * on.
+ *
+ * **The claims are not here, and the authored id list never will be** (D-336). `window_claim_ids`,
+ * `warrants_change`, `proportionate_response`, `evidence` and `disrupted_assumption_keys` are the
+ * instrument the response is measured against and `student-view.ts` forbids every one of them in
+ * every student payload (12 §8.1). What the student meets is the claims themselves, surfaced into
+ * `run_claims` by the delivery and read from `GET /runs/{runId}/claims` — the endpoint the
+ * workspace already composes beside its own for the same reason (D-268), and the one shape that
+ * carries a claim's stance, its actions and its escalation. `ClaimView.inTurnWindow` is how that
+ * list marks the cards the window put in front of the student.
+ *
+ * `frozen` is UI-025's "frozen pre-Turn record beside": the frame the student locked before the
+ * assistant was in the room and the brief they filed, neither of which can change from here. Both
+ * are nullable only for the shapes a run can technically reach — a run with no frame has no locked
+ * decision either — and `namedFields` travels for the reason `DecisionRecord` carries it, so the
+ * brief reads back in the author's words rather than the database's keys.
+ */
+export const TurnViewSchema = z.object({
+  run: RunSummarySchema,
+  /** The Turn verbatim, in the voice of the world (FR-110). */
+  text: z.string().min(1),
+  voice: TurnVoiceSchema,
+  windowEndsAt: z.iso.datetime(),
+  /**
+   * Milliseconds left in the window, floored at zero — a server reading, like `Clock.remainingMs`
+   * and `DecisionRecord.turnRemainingMs`, so a browser whose own clock is wrong still counts down
+   * at the right rate (D-042).
+   */
+  remainingMs: z.int().min(0),
+  frozen: z.object({
+    frame: FrameSchema.nullable(),
+    brief: BriefViewSchema.nullable(),
+  }),
+  namedFields: z.array(BriefNamedFieldSchema),
+})
+export type TurnView = z.infer<typeof TurnViewSchema>
+
+/** The response as it arrives on the wire: shape only; the rule is `TurnResponseSchema`. */
+export const TurnResponseInputSchema = z.strictObject({
+  response: TurnResponseKindSchema,
+  justification: z.string(),
+  confidence: z.number(),
+})
+export type TurnResponseInput = z.infer<typeof TurnResponseInputSchema>
+
+/**
+ * FR-112's rules: one of the three categories, a justification of 1 to 150 words once markup is
+ * stripped, and a confidence between 0 and 100.
+ *
+ * The justification is **required** and the confidence with it (D-335). FR-112 reads "responds
+ * hold, revise, or reverse with at most 150 words of justification and an updated confidence", and
+ * every other artifact the student files under a clock is held to the same rule — the frame's four
+ * fields (FR-040), the brief's six (FR-100). The one response with neither is the implicit hold the
+ * window's expiry writes, where nobody said anything because nobody was there (FR-113), and that is
+ * the difference `implicit` records.
+ */
+export const TurnResponseSchema = z.strictObject({
+  response: TurnResponseKindSchema,
+  justification: wordLimit(TURN_JUSTIFICATION_WORD_LIMIT).min(1),
+  confidence: z.int().min(0).max(100),
+})
+export type TurnResponse = z.infer<typeof TurnResponseSchema>
 
 /** `POST /runs/{runId}/documents/{documentId}/open` addresses one document of one run. */
 export const DocumentParamsSchema = z.object({ runId: z.uuid(), documentId: z.uuid() })
@@ -688,8 +807,9 @@ export type LockFrame = z.infer<typeof LockFrameSchema>
 
 /**
  * Test-only (D-109, 07 §7): how far back `POST /api/v1/test/runs/{runId}/advance-clock` shifts the
- * run's clock columns, so an end-to-end test can reach an expiry without waiting for one. Bounded at
- * a day, which is longer than any timer in the build.
+ * run's whole timeline — every instant it records and every `occurred_at` in its trace (D-364) — so
+ * an end-to-end test can reach an expiry without waiting for one. Bounded at a day, which is longer
+ * than any timer in the build.
  */
 export const AdvanceClockSchema = z.strictObject({
   ms: z.int().positive().max(86_400_000),

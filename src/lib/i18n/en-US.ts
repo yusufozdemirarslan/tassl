@@ -31,6 +31,8 @@ import { run } from './messages/run'
 import { readiness } from './messages/readiness'
 import { workspace } from './messages/workspace'
 import { decision } from './messages/decision'
+import { turn } from './messages/turn'
+import { defense } from './messages/defense'
 
 export const enUS = {
   ...landing,
@@ -61,6 +63,8 @@ export const enUS = {
   ...readiness,
   ...workspace,
   ...decision,
+  ...turn,
+  ...defense,
 } as const
 
 export type MessageKey = keyof typeof enUS

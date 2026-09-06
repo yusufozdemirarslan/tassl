@@ -23,6 +23,7 @@
 // `details` and inside `PackageVersionView.validation`, the same way a Zod issue message does, so
 // they stay in code rather than going through `t()`.
 import { countSentences } from '@/lib/sentences'
+import { QUESTION_PLACEHOLDERS, unknownPlaceholdersIn } from '@/lib/question-template'
 import { countWords, stripMarkup } from '@/lib/words'
 import { noItemNamesAClaim } from '@/server/modules/authoring/checks'
 import {
@@ -66,6 +67,7 @@ export const VALIDATION_RULE_CODES = [
   'TURN_MISSING',
   'TURN_DELAY',
   'QUESTION_BANK_INCOMPLETE',
+  'QUESTION_TEMPLATE_PLACEHOLDER',
   'COUNTERFACTUAL_SENTENCES',
   'READINESS_SPLIT',
   'CLAIM_CONCEPT_UNKNOWN',
@@ -282,10 +284,14 @@ export type ValidatedVariant = { key: string; claimStates: readonly ValidatedCla
 export type ValidatedTurn = { id: string }
 
 export type ValidatedDefenseQuestion = {
+  /** The bank row, so a failure can name the question at fault (`elementIds`). */
+  id: string
   kind: string
   claimId: string | null
   assumptionIndex: number | null
   template: string
+  /** The one authored press (FR-123); empty when the author wrote none (D-344). */
+  followUp: string
 }
 
 export type ValidatedReadinessItem = {
@@ -1137,6 +1143,39 @@ const RULES: readonly Rule[] = [
       return {
         elementIds: idsOf(claimsAtFault),
         message: `The defense question bank is missing ${joinList(missing)}.`,
+      }
+    },
+  },
+  {
+    // D-369: a template, and a follow-up, may name only placeholders the renderer fills.
+    //
+    // `renderTemplate` substitutes the five of 10 §9 step 4 and leaves everything else exactly as
+    // written, and a follow-up prompt is not rendered at all — it is stripped and stored verbatim
+    // (D-366) — so `{stance_text}` in either reaches the student as literal braces mid-question.
+    // D-342 chose the empty string for a *known* placeholder with no value precisely so that the
+    // machinery never shows; this is the same rule applied one step earlier, where the author can
+    // still fix the sentence. `{figure}` on the figure-provenance question is required by
+    // `QUESTION_BANK_INCOMPLETE` above; this says nothing about which names must be present, only
+    // that every name written is one the run can fill.
+    code: 'QUESTION_TEMPLATE_PLACEHOLDER',
+    check: ({ version }) => {
+      const offenders = version.defenseQuestions
+        .map((question) => ({
+          question,
+          unknown: [
+            ...new Set([
+              ...unknownPlaceholdersIn(question.template),
+              ...unknownPlaceholdersIn(question.followUp),
+            ]),
+          ].sort(),
+        }))
+        .filter((entry) => entry.unknown.length > 0)
+      if (offenders.length === 0) return null
+
+      const names = [...new Set(offenders.flatMap((entry) => entry.unknown))].sort()
+      return {
+        elementIds: offenders.flatMap((entry) => (entry.question.id ? [entry.question.id] : [])),
+        message: `A defense question names ${joinList(names.map((name) => `{${name}}`))}, which nothing fills; the placeholders are ${joinList(QUESTION_PLACEHOLDERS.map((name) => `{${name}}`))}.`,
       }
     },
   },

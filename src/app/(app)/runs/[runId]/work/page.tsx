@@ -75,8 +75,17 @@ export const metadata: Metadata = { title: t('workspace.metaTitle') }
 // above: the dialog is portalled, so it renders nothing until hydration, and a chunk fetch in front
 // of it would put a round trip between a student and the news that their clock stopped (FR-001).
 
-/** The states `/runs/[runId]/work` draws (09 §1). `turn_open` is the Turn's own screen. */
-const WORK_STATES: readonly RunStateValue[] = ['framing', 'working', 'paused']
+/**
+ * Whether this page is where the run currently belongs (09 §1, D-367).
+ *
+ * It draws `framing`, `working` and a `paused` run that froze on the working clock; `turn_open` is
+ * the Turn's own screen, and so is a pause taken *inside* the Turn window — `paused` is not a screen
+ * of its own but the modal overlay over whichever screen the run was on, and there are two of those.
+ * The map that knows which is `runs/summary.ts`, so this asks the run's own `links.next` rather than
+ * keeping a second copy of the rule: a page whose state list and the route map disagree either
+ * renders the wrong room or bounces between the two.
+ */
+const belongsHere = (next: string, runId: string): boolean => next === `/runs/${runId}/work`
 
 /** What the screen is for, in the state the student is in. */
 function descriptionOf(state: RunStateValue): string {
@@ -90,7 +99,7 @@ export default async function RunWorkPage({ params }: PageProps<'/runs/[runId]/w
   const { status } = await getRunView(runId)
   const next = status.run.links.next as Route
 
-  if (!WORK_STATES.includes(status.run.state)) redirect(next)
+  if (!belongsHere(status.run.links.next, runId)) redirect(next)
 
   const { actor } = await getViewer()
   let workspace: RunWorkspace

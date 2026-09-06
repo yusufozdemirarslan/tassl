@@ -1,4 +1,5 @@
 import { RunFrame } from '@/components/features/run/run-frame'
+import type { RunSummary } from '@/server/modules/runs/schema'
 import { getRunView } from './run-view'
 
 // The RunFrame layout (09 §1, UI-027). Every `/runs/[runId]` screen sits under this band, so the
@@ -30,8 +31,28 @@ export default async function RunLayout({ children, params }: LayoutProps<'/runs
   const { status, assignmentLabel } = await getRunView(runId)
 
   return (
-    <RunFrame run={status.run} label={assignmentLabel}>
+    <RunFrame
+      run={status.run}
+      label={assignmentLabel}
+      windowRemainingMs={turnWindowRemainingMs(status.run)}
+    >
       {children}
     </RunFrame>
   )
+}
+
+/**
+ * Milliseconds left in the Turn window, as a reading taken here on the server (D-042, D-346).
+ *
+ * `RunSummary.turn.windowEndsAt` is the *instant*; the band counts down from a reading, so the
+ * subtraction happens once, here, where it is the server's own clock doing it — the same shape
+ * `/runs/[runId]/readiness` gives `ReadinessView.expiresAt`. It answers only in `turn_open`: a run
+ * paused inside the window has its window frozen and `runs/clock.ts` adds the open paused span back
+ * from a column the summary does not carry, so guessing a number here would be a second, wrong
+ * opinion about a clock this layout does not own. A paused run has the paused overlay on it, which
+ * is what says the clock has stopped.
+ */
+function turnWindowRemainingMs(run: RunSummary): number | null {
+  if (run.state !== 'turn_open' || run.turn?.windowEndsAt == null) return null
+  return Math.max(0, new Date(run.turn.windowEndsAt).getTime() - Date.now())
 }

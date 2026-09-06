@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { Clock } from './clock'
 import { clockSeconds, useClock } from '@/lib/hooks/use-clock'
 import { t } from '@/lib/i18n/messages/decision'
@@ -19,9 +20,16 @@ import { t } from '@/lib/i18n/messages/decision'
 // It does not announce the Turn's *arrival*, because this page cannot see one. `/locked` redirects
 // to `links.next` for any state but `decision_locked`, so it never renders while the Turn is open —
 // the arrival is a navigation, which is where UI-024's own wording puts it ("focus moved to the
-// Turn panel after navigation") and where UI-025 will say it. Nothing here polls either: the
-// `RunFrame` band above polls `GET /runs/{runId}` every five seconds and refreshes the tree, and
-// the page's guard does the rest (D-042).
+// Turn panel after navigation") and where UI-025 says it (`turn-panel.tsx`, D-347).
+//
+// **What it does at zero is ask for the page again.** Nothing here decides that the Turn has
+// arrived: `materializeTimers` delivers it on the next read, which is exactly what a server render
+// is (D-042). The `RunFrame` band above polls every five seconds and would get there on its own, so
+// this is not the mechanism — it is the difference between opening the Turn on the second it fell
+// due and opening it up to five seconds later, on the one screen in the run whose whole content is
+// a countdown to that instant. It fires once for the life of the mounted screen, the way
+// `ReadinessTimer.onExpire` does, because a second refresh a second later would be a second load of
+// a page the first one is already replacing.
 
 export type TurnWaitProps = {
   /** `DecisionRecord.turnRemainingMs`: a reading taken on the server, never `Date.now()` here. */
@@ -31,6 +39,7 @@ export type TurnWaitProps = {
 }
 
 export function TurnWait({ remainingMs, panelId }: TurnWaitProps) {
+  const router = useRouter()
   const remaining = useClock(remainingMs === null ? null : { remainingMs, frozen: false })
   const seconds = remaining === null ? null : clockSeconds(remaining)
   const [due, setDue] = useState(false)
@@ -43,7 +52,10 @@ export function TurnWait({ remainingMs, panelId }: TurnWaitProps) {
     // The panel carries `tabIndex={-1}` for this and for nothing else: a student who cannot see the
     // countdown reach zero is put on the thing that is about to change.
     document.getElementById(panelId)?.focus({ preventScroll: true })
-  }, [seconds, panelId])
+    // And the page is asked for again, which is the read that delivers the Turn and the render that
+    // redirects to it (see the header).
+    router.refresh()
+  }, [seconds, panelId, router])
 
   return (
     <div className="flex flex-col gap-3">

@@ -20,6 +20,7 @@ import {
   LockFrameInputSchema,
   ReadinessItemParamsSchema,
   RunIdParamsSchema,
+  TurnResponseInputSchema,
 } from './schema'
 import {
   acknowledgePolicy,
@@ -30,6 +31,7 @@ import {
   lockDecision,
   lockFrame,
   openDocument,
+  respondToTurn,
   resumeRun,
   saveBriefDraft,
   skipReadiness,
@@ -247,6 +249,36 @@ export const addAddendumAction = defineAction(
     return { data: null, revalidate: [runRoot(runId), `${runRoot(runId)}/locked`] }
   },
   { name: 'addAddendumAction' },
+)
+
+// ---------------------------------------------------------------------------------------------
+// The Turn (07 §7, FR-112)
+// ---------------------------------------------------------------------------------------------
+
+/** One run, and the response filed against its Turn. */
+const RespondToTurnActionSchema = RunIdParamsSchema.extend(TurnResponseInputSchema.shape)
+
+/**
+ * Files hold, revise or reverse against the Turn (FR-112), which ends the window and opens the
+ * defense.
+ *
+ * It is the action UI-025 names, beside `POST /runs/{runId}/turn/response` which is the same
+ * service call from the API (07 §11). Two refusals reach the form rather than the page:
+ * `VALIDATION_ERROR` with `details.field`, which the form marks up, and `TURN_CLAIMS_UNSTANCED`
+ * with `details.claimIds`, which the screen names on the cards it is already showing (FR-111).
+ * Neither writes anything — `respondToTurn` reads the claims and rolls back — so the justification
+ * the student typed is still in the box when they come back to it.
+ *
+ * It revalidates the run's own routes: the response moves the run to `defense_pending` and every
+ * screen under `/runs/[runId]` is rendered from that state.
+ */
+export const respondToTurnAction = defineAction(
+  RespondToTurnActionSchema,
+  async ({ runId, ...input }, ctx) => ({
+    data: await respondToTurn(ctx.actor, runId, input),
+    revalidate: [RUNS, runRoot(runId), `${runRoot(runId)}/turn`],
+  }),
+  { name: 'respondToTurnAction' },
 )
 
 // ---------------------------------------------------------------------------------------------

@@ -536,10 +536,12 @@ function asValidatedVersion(built: MockPackage, conceptSet: readonly string[]): 
     ],
     turn: { id: 'turn' },
     defenseQuestions: built.questions.map((question) => ({
+      id: question.key,
       kind: question.kind,
       claimId: question.claimKey,
       assumptionIndex: question.assumptionIndex,
       template: question.template,
+      followUp: question.followUp,
     })),
     readinessItems: built.readinessItems.map((item) => ({
       id: item.key,

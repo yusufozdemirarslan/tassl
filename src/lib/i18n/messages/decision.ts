@@ -64,6 +64,8 @@ export const decision = {
   // The frozen frame (FR-041)
   // ---------------------------------------------------------------------------------------------
   'decision.frameTitle': 'The frame you locked',
+  /** A run can technically reach the lock without a frame; the record says so rather than a blank. */
+  'decision.frameMissing': 'No frame was locked on this run.',
   'decision.frameBody':
     'What you wrote before the assistant was in the room. It is here so the decision above can be read beside the position you started from.',
 
@@ -116,7 +118,7 @@ export const decision = {
     'One addendum per run, and this run has its one. It is kept apart from the decision above.',
   'decision.addendumWrittenAt': 'Added {when}',
   'decision.addendumClosed':
-    'An addendum can be added from the lock until the run is recorded. That window has closed.',
+    'An addendum can be added from the lock until the Turn is over. That window has closed.',
   'decision.addendumLoading': 'Opening the addendum…',
   'decision.addendumUnavailable':
     'The addendum form could not be loaded, so nothing was added. Press “Add an addendum” again.',

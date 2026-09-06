@@ -180,6 +180,16 @@ export type AssistantPanelProps = {
   documents?: readonly TracedDocument[]
   /** Why it cannot be used, when it cannot. Shown beside the control that is refusing. */
   lockedReason?: string | undefined
+  /**
+   * Which register the send control takes (DESIGN.md §Do's: one accent per screen, D-354).
+   *
+   * `primary` on the workspace, where delegating *is* the act the student is there to take. The Turn
+   * screen passes `secondary`: the act there is filing the response, the window closes on its own if
+   * it is not filed, and a second teal fill on the same screen points at the wrong control. Nothing
+   * else about the panel changes — the assistant is fully open in the window (FR-111), it just is
+   * not the thing the screen is for.
+   */
+  submitVariant?: 'primary' | 'secondary'
 }
 
 export function AssistantPanel({
@@ -188,6 +198,7 @@ export function AssistantPanel({
   claims = [],
   documents = [],
   lockedReason,
+  submitVariant = 'primary',
 }: AssistantPanelProps) {
   const router = useRouter()
   const { setWorked } = useRunWork()
@@ -339,6 +350,7 @@ export function AssistantPanel({
               is refusing, which is DESIGN.md's rule for a control that must stay reachable. */}
           <Button
             type="submit"
+            variant={submitVariant}
             aria-disabled={streaming || !canDelegate ? true : undefined}
             aria-busy={streaming}
             aria-describedby={!canDelegate && lockedReason ? 'assistant-locked' : undefined}

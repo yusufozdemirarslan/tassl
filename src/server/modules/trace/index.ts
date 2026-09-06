@@ -13,9 +13,14 @@
 // one rule with one table behind it (`owner-view.ts`, D-233); the Delegation Log and the claim
 // table are that room read two other ways, so they ask this rather than keeping a state list each
 // (D-279).
-export { append, listEvents, requireOwnerReadAccess } from './service'
+// `readEvents` is the third, and the same shape of seam as `append`: the run's trace as written,
+// for a pipeline inside the server rather than for a reader. The defense's question selection is a
+// pure function of the run's own events (10 §9) and Phase 10's scoring builds the graphs from the
+// same list; both turn events into something else and guard *that* where they build it. Every
+// reader's rule stays on `listEvents`.
+export { append, listEvents, readEvents, requireOwnerReadAccess } from './service'
 
-export type { AppendOptions, TraceClock, TraceRun } from './service'
+export type { AppendOptions, TraceClock, TraceRecordEvent, TraceRun } from './service'
 
 export {
   EVENT_PAYLOAD_SCHEMAS,

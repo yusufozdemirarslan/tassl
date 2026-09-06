@@ -17,6 +17,13 @@ import type { RunStateValue, RunStatus as RunStatusView } from '@/server/modules
 // What is deliberately absent: any number. No composite score, no rank, no percentile, no queue
 // position, no estimate of how long scoring will take (CLAUDE.md, FR-140). `held` is the one thing
 // about scoring a student is told, and it is told as a sentence about a person reading their run.
+//
+// **The pending state is read off the job, not off the run's state** (Step 9.3). `completeDefense`
+// sets `scoring_status` to `queued` in the same transaction as the transition to
+// `defense_complete`, so a finished defense is already being scored — and UI-027's own wording for
+// that moment is "Your run is being scored", with the poll in the `RunFrame` band above watching
+// for it to end. There is still no progress bar and no estimate behind that sentence, because
+// neither is a thing Tassl knows.
 
 type Message = { title: string; body: string }
 
@@ -24,13 +31,24 @@ type Message = { title: string; body: string }
  * One sentence pair per resting state. `assigned` through `defense_pending` are not here: the page
  * that renders this redirects an active run to the route it belongs on before it gets this far
  * (09 §UI-027), so they would be sentences nobody can reach.
+ *
+ * The order of the three tests is the order of the facts. `held` is the one thing about scoring a
+ * student is told and it outranks everything (FR-140). A job in flight comes next, because
+ * "scoring" is a fact about the *job* and not about the run's state — `completeDefense` sets
+ * `scoring_status` to `queued` in the same transaction as the transition, so a finished defense is
+ * being scored from the instant it lands and the page says so rather than saying it twice (UI-027's
+ * pending state). Only then does the state itself speak: `defense_complete` with an idle job is the
+ * moment between the two, and it is the one the sentence about waiting belongs to.
  */
-function messageFor(state: RunStateValue, underReview: boolean): Message {
+function messageFor(state: RunStateValue, underReview: boolean, scoringInFlight: boolean): Message {
   if (underReview) {
     return {
       title: t('run.statusUnderReviewTitle'),
       body: t('run.statusUnderReviewBody'),
     }
+  }
+  if (scoringInFlight) {
+    return { title: t('run.statusScoringTitle'), body: t('run.statusScoringBody') }
   }
   switch (state) {
     case 'scored':
@@ -71,7 +89,8 @@ export type RunStatusProps = {
 
 export function RunStatus({ status, links = {} }: RunStatusProps) {
   const { run, underReview } = status
-  const { title, body } = messageFor(run.state, underReview)
+  const scoringInFlight = run.scoringStatus === 'queued' || run.scoringStatus === 'running'
+  const { title, body } = messageFor(run.state, underReview, scoringInFlight)
 
   return (
     <Panel id="run-status">

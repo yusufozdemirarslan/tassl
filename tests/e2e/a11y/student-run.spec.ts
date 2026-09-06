@@ -1,6 +1,6 @@
 // NFR-012: every screen a student meets in a run — the runs list, the policy display, the Readiness
-// Check, its concept-map result, the workspace in `framing` and again in `working`, and the locked
-// decision — carries no WCAG 2.1 A/AA violation.
+// Check, its concept-map result, the workspace in `framing` and again in `working`, the locked
+// decision, the Turn window and the defense — carries no WCAG 2.1 A/AA violation.
 //
 // Every screen is scanned with something in it rather than empty, because an empty one proves very
 // little: a runs table with no rows has no cells to associate, a check with no items has no radio
@@ -10,10 +10,10 @@
 // refusals on screen and a document open in the Evidence Room, which are the two surfaces on
 // `/work` that exist only after somebody has acted.
 //
-// The two popups are scanned open, and separately, for the same reason. A menu and a dialog are
+// The three popups are scanned open, and separately, for the same reason. A menu and a dialog are
 // portalled out of the page's own tree and carry roles, names and focus behaviour of their own, so
-// a scan of the page behind them says nothing about either: the claim card's actions menu and the
-// addendum dialog each get a scan with the popup on screen.
+// a scan of the page behind them says nothing about either: the claim card's actions menu, the
+// addendum dialog and the defense's finish confirmation each get a scan with the popup on screen.
 //
 // It runs as `student2`, one seat away from `tests/e2e/walkthrough/02-05-start-to-frame.spec.ts`,
 // on an assignment it makes for itself: an instructor creates a course, a section, the enrolment
@@ -100,6 +100,51 @@ async function lockDecision(page: Page, runId: string): Promise<void> {
   expect(response.status(), await response.text()).toBe(200)
 }
 
+/**
+ * Brings the Turn forward past its delay, so `/turn` can be scanned with a real window open.
+ *
+ * `advance-clock` shifts the run's own timestamps and the read materializes what the clock made
+ * true (D-042, D-109); nothing here decides that the Turn arrived. 130 seconds is past the longest
+ * delay a run can draw (FR-110: 60 to 120 seconds after the lock).
+ */
+async function deliverTurn(page: Page, runId: string): Promise<void> {
+  const shifted = await page.request.post(`/api/v1/test/runs/${runId}/advance-clock`, {
+    data: { ms: 130_000 },
+    headers: WRITE_HEADERS,
+  })
+  expect(shifted.status(), await shifted.text()).toBe(200)
+}
+
+/**
+ * Files the Turn response, so `/defense` can be scanned with a real interview on it.
+ *
+ * Every claim the window raised needs a stance first (FR-111), which is the gate the Turn screen
+ * draws and `tests/e2e/walkthrough/09-turn.spec.ts` proves on the screen.
+ */
+async function respondToTurn(page: Page, runId: string): Promise<void> {
+  const claims = await readJson<{ id: string; inTurnWindow: boolean }[]>(
+    page.request,
+    `/api/v1/runs/${runId}/claims`,
+  )
+  for (const claim of claims.filter((entry) => entry.inTurnWindow)) {
+    const stanced = await page.request.put(`/api/v1/runs/${runId}/claims/${claim.id}/stance`, {
+      data: { stance: 'verify' },
+      headers: WRITE_HEADERS,
+    })
+    expect(stanced.status(), await stanced.text()).toBe(200)
+  }
+
+  const response = await page.request.post(`/api/v1/runs/${runId}/turn/response`, {
+    data: {
+      response: 'hold',
+      justification: 'Nothing in the message moves the number the decision rests on.',
+      confidence: 55,
+    },
+    headers: WRITE_HEADERS,
+  })
+  expect(response.status(), await response.text()).toBe(200)
+}
+
 async function readJson<T>(request: APIRequestContext, path: string): Promise<T> {
   const response = await request.get(path)
   expect(response.status(), `GET ${path}: ${await response.text()}`).toBe(200)
@@ -123,9 +168,9 @@ async function assignmentWithNoAttempt(page: Page, label: string): Promise<void>
 }
 
 test('the student run screens have no axe violations', async ({ page, request }) => {
-  // Five full-page scans on top of a run driven from the list to the frame is more than the suite's
-  // default patience allows on a loaded machine (D-188). The assertions are unchanged.
-  test.setTimeout(480_000)
+  // Nine full-page scans on top of a run driven from the list to the defense is more than the
+  // suite's default patience allows on a loaded machine (D-188). The assertions are unchanged.
+  test.setTimeout(600_000)
 
   // The course this scan is taken in, built through the instructor's own endpoints on a request
   // context with its own cookie jar, so the student session below is never disturbed.
@@ -266,6 +311,49 @@ test('the student run screens have no axe violations', async ({ page, request })
   await page.locator('#addendum').getByRole('button', { name: 'Add an addendum' }).click()
   await expect(page.getByRole('dialog')).toBeVisible()
   await axe(page)
+  await page.keyboard.press('Escape')
+
+  // -------------------------------------------------------------------------------------------
+  // UI-025 `/runs/[runId]/turn`: the Turn, its window claims with their stance groups, the reopened
+  // room and assistant, the response form, and the frozen record beside
+  //
+  // It is the densest screen in the run after the workspace, and every shape a scan can fail on is
+  // on it: a second `role="timer"` in the band, a radio group with three choice cards, claim cards
+  // with their own radio groups and menus, and a numeric field whose unit is drawn beside it.
+  // -------------------------------------------------------------------------------------------
+
+  await deliverTurn(page, runId)
+  await page.goto(`/runs/${runId}/turn`)
+  await expect(page.getByRole('heading', { level: 1, name: 'The Turn' })).toBeVisible()
+  await expect(page.getByRole('timer', { name: 'Turn window' })).toBeVisible()
+  // Scanned with something typed into the response, because a form nobody has typed into has no
+  // counter to associate and no numeric field to name.
+  await page
+    .locator('#turn-response')
+    .getByLabel('Why', { exact: true })
+    .fill('The retention figure the payback was priced on has been corrected.')
+  await axe(page)
+
+  // -------------------------------------------------------------------------------------------
+  // UI-026 `/runs/[runId]/defense`: the interview with one box open, the artifacts beside it, and
+  // the confirm dialog that finishes it
+  // -------------------------------------------------------------------------------------------
+
+  await respondToTurn(page, runId)
+  await page.goto(`/runs/${runId}/defense`)
+  await expect(page.getByRole('heading', { level: 1, name: 'The defense' })).toBeVisible()
+  await expect(page.locator('#defense-questions').getByRole('textbox')).toHaveCount(1)
+  await page.locator('#defense-questions').getByLabel('Your answer').fill('I do not remember.')
+  await axe(page)
+
+  // And the confirm dialog open, for the same reason the menu and the addendum were.
+  await page
+    .locator('#defense-questions')
+    .getByRole('button', { name: 'Finish the defense' })
+    .click()
+  await expect(page.getByRole('alertdialog')).toBeVisible()
+  await axe(page)
+  await page.keyboard.press('Escape')
 
   await signOut(page)
 })

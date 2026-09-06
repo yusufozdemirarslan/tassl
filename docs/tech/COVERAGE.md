@@ -81,7 +81,7 @@ Conventions: steps are `N.M` in `build-plan/phase-NN-*.md`; test paths are relat
 | FR-104 | 4.1, 6.2 | integration/courses/service.test.ts, integration/runs/start.test.ts |
 | FR-105 | 8.2, 8.3 | integration/runs/lock.test.ts, e2e wt-08 |
 | FR-106 | 8.2 | integration/runs/lock.test.ts |
-| FR-107 | 8.2, 8.3 | integration/runs/lock.test.ts, e2e wt-08 |
+| FR-107 | 8.2, 8.3 | integration/runs/lock.test.ts, integration/defense/flow.test.ts (the window's far edge, D-363), e2e wt-08 |
 | FR-108 | 8.2 | integration/runs/lock.test.ts |
 | FR-109 | 10.3, 10.4 | unit/scoring/bands.test.ts, unit/scoring/reads.test.ts |
 | FR-110 | 9.1, 9.3 | unit/runs/timers.test.ts, integration/runs/turn.test.ts, e2e wt-09 |
@@ -90,7 +90,7 @@ Conventions: steps are `N.M` in `build-plan/phase-NN-*.md`; test paths are relat
 | FR-113 | 9.1 | unit/runs/timers.test.ts, integration/runs/turn.test.ts |
 | FR-114 | 5.1, 10.3 | unit/scenarios/validate.test.ts, unit/scoring/facts.test.ts |
 | FR-115 | 9.1 | unit/runs/timers.test.ts |
-| FR-117 | 6.2 | unit/runs/clock.test.ts |
+| FR-117 | 6.2 | unit/runs/clock.test.ts, unit/runs/skim.test.ts, integration/runs/documents.test.ts |
 | FR-118 | 8.2, 11.3 | integration/runs/pause.test.ts, e2e wt-07 |
 | FR-120 | 9.2, 9.3 | integration/defense/flow.test.ts, e2e wt-10 |
 | FR-121 | 9.2 | unit/defense/selection.test.ts |
