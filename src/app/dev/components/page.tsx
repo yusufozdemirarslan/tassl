@@ -25,8 +25,20 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { ClockTimeline, ConfidenceLine, GraphFrame, StanceMatrix } from '@/components/graphs'
+import { FrameBesideDecision } from '@/components/graphs/frame-beside-decision'
+import { t } from '@/lib/i18n/t'
 import { FormDemos, OverlayDemos } from './demos'
-import { institutions, rail, runs, spacing, tokenRows, typeScale, user } from './fixtures'
+import {
+  graphFixtures,
+  institutions,
+  rail,
+  runs,
+  spacing,
+  tokenRows,
+  typeScale,
+  user,
+} from './fixtures'
 
 // The root layout's template appends " · Tassl" (WCAG 2.4.2).
 export const metadata: Metadata = { title: 'Component gallery' }
@@ -45,6 +57,7 @@ const SECTIONS = [
   { id: 'tokens', title: 'Tokens' },
   { id: 'layout', title: 'Layout components' },
   { id: 'ui', title: 'UI primitives' },
+  { id: 'graphs', title: 'Graphs' },
 ] as const
 
 const RADII: Array<{ className: string; caption: string }> = [
@@ -447,6 +460,76 @@ export default function ComponentGalleryPage() {
           <OverlayDemos />
         </Demo>
       </Group>
+
+      <Group id={SECTIONS[3].id} title={SECTIONS[3].title}>
+        <GraphDemos />
+      </Group>
     </div>
+  )
+}
+
+// The four graphs of FR-212, on the Marco scoring fixture. Every one carries its description and
+// its data table through `GraphFrame`; the two recharts graphs arrive in their own chunk, which is
+// what keeps this page inside its script budget (16 §3.3).
+function GraphDemos() {
+  const graphs = graphFixtures()
+  const record = graphs.frameBesideDecision
+  return (
+    <>
+      <Demo title="Confidence line" source="src/components/graphs/confidence-line.tsx">
+        <Panel>
+          <ConfidenceLine payload={graphs.confidenceLine} headingLevel={4} />
+        </Panel>
+      </Demo>
+      <Demo title="Clock timeline" source="src/components/graphs/clock-timeline.tsx">
+        <Panel>
+          <ClockTimeline payload={graphs.clockTimeline} headingLevel={4} />
+        </Panel>
+      </Demo>
+      <Demo title="Stance matrix" source="src/components/graphs/stance-matrix.tsx">
+        <Panel>
+          <StanceMatrix payload={graphs.stanceMatrix} headingLevel={4} />
+        </Panel>
+      </Demo>
+      <Demo title="Frame beside decision" source="src/components/graphs/frame-beside-decision.tsx">
+        <Panel>
+          <GraphFrame
+            graphKey="frame_beside_decision"
+            title={t('graph.frameBesideDecision.title')}
+            description={record.description}
+            dataTable={record.dataTable}
+            available={record.available}
+            missingEventTypes={record.missingEventTypes}
+            headingLevel={4}
+          >
+            <FrameBesideDecision
+              frame={record.frame}
+              brief={record.brief}
+              namedFields={record.namedFields}
+              addendum={record.addendum}
+              turn={record.turn}
+              disruptedAssumptionIndexes={record.disruptedAssumptionIndexes}
+              unmatchedDisruptedKeys={record.unmatchedDisruptedKeys}
+              headingLevel={4}
+            />
+          </GraphFrame>
+        </Panel>
+      </Demo>
+      <Demo title="Graph frame: unavailable" source="src/components/graphs/graph-frame.tsx">
+        <Panel>
+          <GraphFrame
+            graphKey="confidence_line"
+            title="Confidence line"
+            description="This graph could not be plotted from this run's trace."
+            dataTable={{ caption: 'Confidence at each point', columns: ['Point'], rows: [] }}
+            available={false}
+            missingEventTypes={['frame_locked', 'decision_locked']}
+            headingLevel={4}
+          >
+            <span />
+          </GraphFrame>
+        </Panel>
+      </Demo>
+    </>
   )
 }

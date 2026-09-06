@@ -18,9 +18,32 @@
 // pure function of the run's own events (10 §9) and Phase 10's scoring builds the graphs from the
 // same list; both turn events into something else and guard *that* where they build it. Every
 // reader's rule stays on `listEvents`.
-export { append, listEvents, readEvents, requireOwnerReadAccess } from './service'
+export { append, buildExport, listEvents, readEvents, requireOwnerReadAccess } from './service'
 
 export type { AppendOptions, TraceClock, TraceRecordEvent, TraceRun } from './service'
+
+// The exported document and its two forms (FR-240 to FR-243). The `records` module builds both —
+// the course file it versions on confirmation, and the record copy a student downloads — and the
+// schemas travel with them so a route can declare what it answers with. They come through
+// `./service` rather than from `./export-schema` directly for the reason `runs/index.ts` states
+// about `TURN_WINDOW_MS`: the service is the one internal file this index may reach (the
+// `boundaries` policy), and a public interface assembled from two doors is two doors.
+export {
+  CourseTraceExportSchema,
+  RecordTraceExportSchema,
+  TRACE_EXPORT_VERSION,
+  TraceExportSchema,
+  X_TASSL_EXTENSIONS,
+  traceExportSchema,
+} from './service'
+
+export type {
+  CourseTraceExport,
+  RecordTraceExport,
+  TraceExport,
+  TraceExportClaimRow,
+  TraceExportForm,
+} from './service'
 
 export {
   EVENT_PAYLOAD_SCHEMAS,

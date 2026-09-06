@@ -226,6 +226,8 @@ Resources and actions. ✓ = allowed; ✓* = allowed with the stated scope; — 
 | Start a run on an assignment in own section | ✓* own section | — | — | — | — | — | — |
 | Use every in-run capability (readiness, room, frame, assistant, stances, actions, escalate, brief, lock, addendum, turn, defense, debrief answers) | ✓* own run | — | — | — | — | — | — |
 | Read own debrief, graphs, record; export record copy | ✓* own | ✓* section | ✓* section | — | — | ✓* under agreement (FR-234) | — |
+| Download the record-form trace file (`GET /runs/{runId}/record/export`) | ✓* own, from `confirmed` | ✓* section | ✓* section | — | — | — (the FR-234 path has no endpoint yet) | — |
+| Download a filed course export (`GET /runs/{runId}/exports/{version}`); list an assignment's export history | — | ✓* section | ✓* section, read only | — | — | — | — |
 | Read another student's run | — | ✓* section | ✓* section | — | — | ✓* under agreement | — |
 | See answer space, defect placement, warranted stances, verification results (package view, claim object view, replay) | — | ✓* own courses | ✓* section, read only | ✓* own packages | — | ✓ | — |
 | Edit a locked frame, brief, or Turn response | — | — | — | — | — | — | — |
@@ -248,6 +250,8 @@ Resources and actions. ✓ = allowed; ✓* = allowed with the stated scope; — 
 | Platform roles, user list, flags view, audit log | — | — | — | — | — | — | ✓ |
 | Create organization | — | — | — | — | — | — | ✓ |
 | Own account settings, export, delete | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+
+The record-form export is a student view in the sense 12 §8 means, and the row above is the whole of its gate: a run's own student, or a reviewer of its section, and only from `confirmed`. Its *contents* are gated separately, by `trace/owner-view.ts` at the `scored` tier — the record carries the claim table whole, because 12 §8.2 names it as what reveals `warranted_stance`, `evidence_status` and `failure_family` after scoring, and it carries none of the fields §8.1 forbids in any state (D-370). The course form is the reviewer's document and carries everything; no student-facing route reaches it.
 
 Students never see (at any time): the question bank, expected-answer notes, the seed record, the general escalation reply, trigger internals, stakeholder and Turn internals, probe internals, answer keys, instructor flags, other students' runs, and weight, mapping, or points in the record form. Students do not see before their run is scored: warranted stances, evidence status, failure family, planted flags, verification results before running the action, per-claim rationale, concept keys, document roles, the answer space, the escalation response id, and the counterfactual; their own debrief and record reveal these after scoring (PRD §7.14, D-117). The student view models omit these fields at the service layer (`toStudentClaimView` and the key sets in `src/server/auth/student-view.ts`), never only in the UI.
 

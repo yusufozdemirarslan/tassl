@@ -44,7 +44,7 @@ Lab conditions: Lighthouse `desktop` preset (the run is a desktop task; NFR-010 
 
 ### 2.2 LCP rules
 
-- The LCP candidate on every page is server-rendered text: the `h1` or the first `article` paragraph. Nothing above the fold is rendered with `ssr: false`; the only `ssr: false` components are the four graphs (§3.3), which sit below the page `h1` and reserve their height.
+- The LCP candidate on every page is server-rendered text: the `h1` or the first `article` paragraph. Nothing above the fold is rendered with `ssr: false`; the only `ssr: false` components are the two recharts charts (§3.3, D-388), which sit below the page `h1` and reserve their height.
 - IBM Plex Sans is preloaded (§6.3); Serif and Mono are not. With `display: 'swap'` and `adjustFontFallback`, text paints in the fallback within the first frame and swaps without shift.
 - No render-blocking third-party scripts. `posthog-js` and Sentry initialize in `src/instrumentation-client.ts` after hydration; both are no-ops when their keys are empty (D-098).
 - RSC pages fetch through services with the ≤ 4 query rule (§5.4); a run page's server time budget is 300 ms p95 (inside B8).
@@ -104,12 +104,17 @@ import { GraphSkeleton } from './graph-skeleton'
 
 const loading = () => <GraphSkeleton />
 
+// Only the two recharts charts are deferred (D-388).
 export const ConfidenceLine = dynamic(() => import('./confidence-line').then((m) => m.ConfidenceLine), { ssr: false, loading })
 export const ClockTimeline = dynamic(() => import('./clock-timeline').then((m) => m.ClockTimeline), { ssr: false, loading })
-export const StanceMatrix = dynamic(() => import('./stance-matrix').then((m) => m.StanceMatrix), { ssr: false, loading })
-export const FrameBesideDecision = dynamic(() => import('./frame-beside-decision').then((m) => m.FrameBesideDecision), { ssr: false, loading })
+
+// The stance matrix draws hand-written SVG and carries no charting library, so it is re-exported
+// straight through and server-rendered with its description and data table in the first HTML.
+export { StanceMatrix } from './stance-matrix'
 export { GraphFrame } from './graph-frame'
 ```
+
+`FrameBesideDecision` is deliberately absent from this barrel (D-348, D-388): it is a Server Component that the Turn screen renders inside the run workspace, where §3.2's own rule says `recharts` may never go, and a `'use client'` barrel cannot re-export a Server Component. It is imported from `./frame-beside-decision` directly and draws prose, not a chart.
 
 `GraphFrame` (§9) is a regular client component and is server-rendered, so the description and the data table are in the initial HTML; only the `recharts` SVG arrives in the deferred chunk. `GraphSkeleton` renders a box of the same `height` so the swap causes no layout shift.
 

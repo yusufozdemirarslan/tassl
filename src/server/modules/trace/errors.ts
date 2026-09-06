@@ -71,3 +71,18 @@ export function payloadInvalid(type: RunEventTypeValue, details: unknown): never
     details: { type, issues: details },
   })
 }
+
+/**
+ * The assembled export did not match the schema of the form it was built for (FR-240 to FR-243).
+ *
+ * A 500 for the same reason as the two above: nothing a reader sends decides the shape of this
+ * document, so a mismatch is our defect. It matters more than most, because the record form's
+ * schema is what makes FR-170 true — every object in it is a `strictObject`, so a `weight`,
+ * `mapping` or `points` key that reached the student's copy fails here rather than downloading. The
+ * response never leaves; the issues name the paths in Sentry.
+ */
+export function exportInvalid(form: string, details: unknown): never {
+  throw new AppError('INTERNAL_ERROR', 'The trace export did not match its form.', {
+    details: { form, issues: details },
+  })
+}

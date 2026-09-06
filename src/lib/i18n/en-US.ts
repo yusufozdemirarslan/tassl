@@ -33,6 +33,8 @@ import { workspace } from './messages/workspace'
 import { decision } from './messages/decision'
 import { turn } from './messages/turn'
 import { defense } from './messages/defense'
+import { record } from './messages/record'
+import { graph } from './messages/graph'
 
 export const enUS = {
   ...landing,
@@ -65,6 +67,8 @@ export const enUS = {
   ...decision,
   ...turn,
   ...defense,
+  ...graph,
+  ...record,
 } as const
 
 export type MessageKey = keyof typeof enUS

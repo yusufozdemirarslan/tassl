@@ -194,6 +194,27 @@ export async function setClockRemaining(runId: string, ms: number): Promise<void
      where id = ${runId}`
 }
 
+/**
+ * How far above the figure it asked for a clock set by `setClockRemaining` may legitimately read.
+ *
+ * The two ends of the arithmetic come from two different clocks. `setClockRemaining` writes
+ * `working_started_at` from Postgres `now()`, and `remainingMs` (and `chargeCost` through it) reads
+ * with a Node `new Date()` — so for a clock set to `M`, the reading at Node instant `t` is
+ * `M + (pg_now_at_set − t)`. The elapsed work between the two pushes that term negative, which is
+ * the ordinary case; a Postgres clock running a little ahead of the Node one pushes it positive,
+ * and locally Postgres is a Docker VM keeping its own time, so tens of milliseconds either way is
+ * ordinary rather than a fault. A test that bounds such a reading at exactly `M` therefore fails on
+ * clock skew alone — it has been seen at `M + 1` and `M + 3` — and a suite that reddens at random
+ * is a suite that stops being read.
+ *
+ * A second is generous against a skew measured in milliseconds and negligible against what these
+ * assertions actually prove: that a 60-second charge landed *before* the event was stamped, and
+ * that a four-minute check was capped at the thirty seconds that were left. Both properties have
+ * five figures of margin, so the tolerance costs them nothing. Bounds in the other direction — the
+ * `toBeGreaterThan` half of each pair — need none: they are already loose by design.
+ */
+export const CLOCK_SKEW_MS = 1_000
+
 /** Puts the run in a state this step cannot reach yet (`paused` and the lock are Step 8.2's). */
 export async function forceState(runId: string, state: string): Promise<void> {
   await testSql`update runs set state = ${state}::run_state where id = ${runId}`

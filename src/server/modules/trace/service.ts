@@ -25,13 +25,21 @@ import type { SessionUser } from '@/server/auth/types'
 // index because `runs.service` writes trace events: going through the index would make the two
 // modules a cycle, and copying eleven lines of arithmetic here would make D-042 two things.
 import { isInTurnWindow, remainingMs, remainingWindowMs } from '@/server/modules/runs/clock'
-import { payloadInvalid, runNotFound, sequenceConflict, traceSealed } from './errors'
+import { exportInvalid, payloadInvalid, runNotFound, sequenceConflict, traceSealed } from './errors'
+import { buildTraceExport } from './export'
+import { traceExportSchema, type TraceExport, type TraceExportForm } from './export-schema'
 import { ownerAccessFor, ownerPayload, type OwnerAccess } from './owner-view'
 import {
   allocateSeq,
+  findExportRun,
+  findExportScore,
   findRunState,
   insertEvent,
   listEventsForRun,
+  listExportActionsByClaim,
+  listExportClaims,
+  listExportConfirmations,
+  listExportReadiness,
   type DbOrTx,
   type RunEvent,
   type TraceClock,
@@ -46,6 +54,25 @@ import {
 } from './schema'
 
 export type { TraceClock, TraceRun } from './repository'
+
+// The export document's schemas, forwarded so `index.ts` has one door into this module (see the
+// note there and in `runs/index.ts`).
+export {
+  CourseTraceExportSchema,
+  RecordTraceExportSchema,
+  TRACE_EXPORT_VERSION,
+  TraceExportSchema,
+  X_TASSL_EXTENSIONS,
+  traceExportSchema,
+} from './export-schema'
+
+export type {
+  CourseTraceExport,
+  RecordTraceExport,
+  TraceExport,
+  TraceExportClaimRow,
+  TraceExportForm,
+} from './export-schema'
 
 /** What a writer may say about an event beyond its payload (10 §10). */
 export type AppendOptions = {
@@ -317,4 +344,92 @@ export async function listEvents(actor: SessionUser, runId: string): Promise<Tra
     .map((event, index) =>
       toView(event, index + 1, ownerPayload(event.type, event.payload, access)),
     )
+}
+
+// ---------------------------------------------------------------------------------------------
+// The export (FR-240 to FR-243, FR-170)
+// ---------------------------------------------------------------------------------------------
+
+/**
+ * The run's trace as one file, in the course or the record form (10 §10, PRD §12).
+ *
+ * It takes no actor, like `readEvents` above and for the same reason (D-340): it applies no view
+ * rule of its own beyond the one difference between the two forms, and both callers name their
+ * guard — `records.exportRecord` asks for the owner or a reviewer and refuses before `confirmed`,
+ * and `records.writeCourseExport` is reached only from inside the confirmation that produces it.
+ *
+ * It does take the tenant the guard proved, and that is D-389's correction to D-374. A run id that
+ * names no run *in that tenant* is `RUN_NOT_FOUND` here, before a single row of the run is loaded,
+ * so the file cannot be assembled from a run the caller was never entitled to. The guard is still
+ * the only place the permission is decided; this is the tenancy filter D-006 puts under it, and
+ * without it a caller that forgot the guard would get no protection at all from the repository.
+ *
+ * The document is parsed against its own form's schema before it is returned. That is not
+ * belt-and-braces on a shape we just built: every object in `export-schema.ts` is a `strictObject`,
+ * so the parse is what makes FR-170 a property of the code rather than of the reviewer's attention
+ * — a `weight`, a `mapping` or a `points` key that ever reached the record form would fail here,
+ * loudly, on our side of the wire.
+ *
+ * `dbx` is the transaction when there is one, and it matters: `records.writeCourseExport` runs
+ * inside the confirmation that produces the file, so the `band_decision` events and the confirmed
+ * points it must carry are written but not yet committed. Reading them through the pool instead
+ * would file an export of the run as it was a moment before the decision it records.
+ */
+export async function buildExport(
+  tenantId: string,
+  runId: string,
+  form: TraceExportForm,
+  dbx?: DbOrTx,
+): Promise<TraceExport> {
+  const run = await findExportRun(tenantId, runId, dbx)
+  if (!run) runNotFound()
+
+  const [events, confirmations, readiness, claims, actionsByClaim, score] = await Promise.all([
+    // The record as written, with the clock reading every event was stamped at. `readEvents` is the
+    // seam other modules take and does not carry that column; inside this module the repository is
+    // where the trace is read from.
+    listEventsForRun(runId, dbx),
+    listExportConfirmations(run.packageVersionId, run.organizationId, dbx),
+    listExportReadiness(runId, dbx),
+    listExportClaims(runId, run.packageVersionId, run.variantId, dbx),
+    listExportActionsByClaim(runId, dbx),
+    findExportScore(runId, dbx),
+  ])
+
+  const document = buildTraceExport(
+    {
+      run: {
+        runId: run.runId,
+        packageId: run.packageId,
+        packageVersion: run.packageVersion,
+        variantKey: run.variantKey,
+        mode: run.mode,
+        isWalkthrough: run.isWalkthrough,
+        workingClockSeconds: run.workingClockSeconds,
+        confidenceAtFrame: run.confidenceAtFrame,
+        confidenceAtLock: run.confidenceAtLock,
+        confidenceAfterTurn: run.confidenceAfterTurn,
+      },
+      events: events.map((event) => ({
+        seq: event.seq,
+        type: event.type,
+        occurredAt: event.occurredAt,
+        clockRemainingMs: event.clockRemainingMs,
+        payload: event.payload,
+      })),
+      confirmations,
+      readiness,
+      claims: claims.map((claim) => ({
+        ...claim,
+        actions: actionsByClaim.get(claim.claimId) ?? [],
+      })),
+      score: score ?? { falseChallengeRate: null, points: null, rubricVersion: null },
+      exportedAt: new Date(),
+    },
+    form,
+  )
+
+  const parsed = traceExportSchema(form).safeParse(document)
+  if (!parsed.success) exportInvalid(form, parsed.error.issues)
+  return parsed.data as TraceExport
 }

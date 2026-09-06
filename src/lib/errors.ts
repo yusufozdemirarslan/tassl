@@ -86,6 +86,13 @@ export const ERROR_STATUS = {
   DELEGATION_NOT_FOUND: 404,
   // trace (10 §10)
   SEQUENCE_CONFLICT: 500,
+  // records (10 §14). `RECORD_NOT_AVAILABLE` is the refusal for a Judgment Record or its export
+  // before the run's bands are confirmed, and carries `details.state`, the shape `TURN_NOT_OPEN`
+  // and `DEFENSE_NOT_OPEN` already use. `EXPORT_NOT_FOUND` is a 404 rather than a 409 because a
+  // version number that names no export names nothing — the run exists and the reviewer may read
+  // it, so the miss is about the file they asked for.
+  RECORD_NOT_AVAILABLE: 409,
+  EXPORT_NOT_FOUND: 404,
   LLM_BUDGET_EXCEEDED: 402,
   LLM_PROVIDER_ERROR: 502,
   LLM_CIRCUIT_OPEN: 503,
@@ -158,6 +165,8 @@ export const DEFAULT_MESSAGES: Record<ErrorCode, string> = {
     'The assistant did not answer, so the run is paused and the clock has stopped. Nothing you did was lost.',
   DELEGATION_NOT_FOUND: 'That entry is not in this run’s Delegation Log.',
   SEQUENCE_CONFLICT: 'Something went wrong on our side.',
+  RECORD_NOT_AVAILABLE: 'This run’s record opens once its bands are confirmed.',
+  EXPORT_NOT_FOUND: 'That export version does not exist for this run.',
   LLM_BUDGET_EXCEEDED: 'The assistant budget for this period has been used up.',
   LLM_PROVIDER_ERROR: 'The assistant provider did not respond correctly.',
   LLM_CIRCUIT_OPEN: 'The assistant is temporarily unavailable.',
