@@ -93,7 +93,7 @@
 ## Phase 10 — Trace export and scoring (`build-plan/phase-10-trace-and-scoring.md`)
 - [x] 10.1 Trace export in two forms
 - [x] 10.2 Graph builders and graph components
-- [ ] 10.3 Rubric v1, categorical facts, band rules, points
+- [x] 10.3 Rubric v1, categorical facts, band rules, points
 - [ ] 10.4 Band-read prompts, mock readers, scoring job, held path, notifications service
 - [ ] 10.5 E2E: scoring reachable from the run, export by API
 - [ ] Phase 10 exit criteria
