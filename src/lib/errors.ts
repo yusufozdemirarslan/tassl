@@ -86,6 +86,11 @@ export const ERROR_STATUS = {
   DELEGATION_NOT_FOUND: 404,
   // trace (10 §10)
   SEQUENCE_CONFLICT: 500,
+  // scoring (10 §11.5). A stored `run_scores.rubric_version` this build no longer carries: the run
+  // cannot be re-read against the standard it was scored against, and substituting the current
+  // rubric would silently change what a confirmed band means (D-033). A 500 because it can only be
+  // a deployment that lost a file a row still points at — nothing the reader did or can act on.
+  RUBRIC_VERSION_UNKNOWN: 500,
   // records (10 §14). `RECORD_NOT_AVAILABLE` is the refusal for a Judgment Record or its export
   // before the run's bands are confirmed, and carries `details.state`, the shape `TURN_NOT_OPEN`
   // and `DEFENSE_NOT_OPEN` already use. `EXPORT_NOT_FOUND` is a 404 rather than a 409 because a
@@ -165,6 +170,7 @@ export const DEFAULT_MESSAGES: Record<ErrorCode, string> = {
     'The assistant did not answer, so the run is paused and the clock has stopped. Nothing you did was lost.',
   DELEGATION_NOT_FOUND: 'That entry is not in this run’s Delegation Log.',
   SEQUENCE_CONFLICT: 'Something went wrong on our side.',
+  RUBRIC_VERSION_UNKNOWN: 'Something went wrong on our side.',
   RECORD_NOT_AVAILABLE: 'This run’s record opens once its bands are confirmed.',
   EXPORT_NOT_FOUND: 'That export version does not exist for this run.',
   LLM_BUDGET_EXCEEDED: 'The assistant budget for this period has been used up.',

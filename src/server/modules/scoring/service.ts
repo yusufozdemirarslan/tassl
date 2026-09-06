@@ -1,14 +1,89 @@
 // Module `scoring` (docs/tech/10-backend-spec-modules.md §11) — service.
 //
-// Step 10.2 lands the graph step of the pipeline and nothing else. The rest of §11 — the
-// categorical facts, the five band reads, the draft bands, points, the held path and the
-// neutralization recompute — arrives in Steps 10.3 and 10.4 and is added to this file.
+// Steps 10.2 and 10.3 land the pure half of the pipeline: trace → graphs → facts → bands → points,
+// plus the versioned rubric and the neutralization recompute. What remains of §11 — the five band
+// reads, the `scoreRun` job that persists what these functions compute, `getScore`, and the held
+// path — arrives in Step 10.4 and is added to this file.
 //
-// What is here is a door rather than logic. The four builders under `graphs/` are pure functions
-// and are the whole of the implementation; a `src/app` reader may reach a module only through its
-// public `index.ts`, and an `index.ts` may re-export only from `service.ts` and `schema.ts`
-// (04 §2, enforced by eslint-plugin-boundaries). The component gallery renders all four graphs on
-// the Marco fixture (UI-060), so the builders need that door now.
+// What is here is a door rather than logic. Every function below is a pure function living in its
+// own file under this folder; a `src/app` reader may reach a module only through its public
+// `index.ts`, and an `index.ts` may re-export only from `service.ts` and `schema.ts` (04 §2,
+// enforced by eslint-plugin-boundaries). The component gallery renders all four graphs on the Marco
+// fixture (UI-060), and Phase 11's debrief and faculty replay read the bands and the points, so
+// they need that door.
+export {
+  BANDS,
+  BOUNDARIES,
+  CURRENT_RUBRIC,
+  DIMENSIONS,
+  RUBRICS,
+  bandRank,
+  currentRubric,
+  higherBand,
+  lowerBand,
+  rubricFor,
+  v1,
+  type Band,
+  type Boundary,
+  type Dimension,
+  type DimensionRubric,
+  type Rubric,
+  type RubricVersion,
+} from './rubric'
+export {
+  FCR_FEW,
+  FCR_NOVICE,
+  FCR_PROFESSIONAL,
+  SPEED_OUTLIER_MS,
+  STANCE_RECORD_LOSS_LIMIT,
+  type ArchitectConstant,
+  type Hypothesis,
+} from './constants'
+export {
+  categoricalFacts,
+  stanceRecordLoss,
+  type CategoricalFacts,
+  type ConfidenceShape,
+  type ResponseVsWarrant,
+  type StanceRecordLoss,
+} from './facts'
+export {
+  COMPUTED_DIMENSIONS,
+  DIMENSION_GRAPHS,
+  calibrationBand,
+  draftBands,
+  unavailableGraphsFor,
+  verificationBand,
+  type BandBasis,
+  type BandContext,
+  type BandQuote,
+  type BandRead,
+  type BandReads,
+  type BandStatus,
+  type DecisionQualityRead,
+  type DraftBand,
+  type MatchedPosition,
+  type UnassessedReason,
+} from './bands'
+export {
+  DEFAULT_MAPPING,
+  computePoints,
+  higherPoints,
+  round3,
+  type BandMapping,
+  type PointsInput,
+} from './points'
+export {
+  RECOMPUTED_DIMENSIONS,
+  recomputeAfterNeutralization,
+  withNeutralization,
+  type Neutralization,
+  type NeutralizationReason,
+  type RecomputeArgs,
+  type RecomputeBlock,
+  type RecomputeResult,
+  type RecomputedDimension,
+} from './recompute'
 export {
   buildClockTimeline,
   buildConfidenceLine,

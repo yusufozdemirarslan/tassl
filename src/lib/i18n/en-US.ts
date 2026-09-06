@@ -35,6 +35,7 @@ import { turn } from './messages/turn'
 import { defense } from './messages/defense'
 import { record } from './messages/record'
 import { graph } from './messages/graph'
+import { band } from './messages/band'
 
 export const enUS = {
   ...landing,
@@ -68,6 +69,7 @@ export const enUS = {
   ...turn,
   ...defense,
   ...graph,
+  ...band,
   ...record,
 } as const
 
