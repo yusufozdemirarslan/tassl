@@ -75,6 +75,14 @@ const PARAMETERS = {
     'FR-070',
     'Four minutes to take a claim apart into its steps; offered only where the author wrote one.',
   ),
+  SPEED_OUTLIER_MS: pilot(
+    240_000,
+    'ms',
+    'FR-106',
+    'Four minutes of working time from the frame lock to the Decision Lock. Below it the lock is ' +
+      'flagged for the instructor to read — a signal, never a penalty, and never shown to the ' +
+      'student, because telling them would make it one.',
+  ),
   STAKEHOLDER_INTERVIEW_MS: pilot(
     240_000,
     'ms',
@@ -98,6 +106,9 @@ export const READINESS_MS = PARAMETERS.READINESS_MS.value
 
 /** How long the Turn window stays open from delivery (FR-115). */
 export const TURN_WINDOW_MS = PARAMETERS.TURN_WINDOW_MS.value
+
+/** Under this much working time, a Decision Lock is flagged `speed_outlier` (FR-106). */
+export const SPEED_OUTLIER_MS = PARAMETERS.SPEED_OUTLIER_MS.value
 
 /** How many escalations count against the limit in one run (FR-090). */
 export const ESCALATIONS_PER_RUN = PARAMETERS.ESCALATIONS_PER_RUN.value

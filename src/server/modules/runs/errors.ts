@@ -3,9 +3,10 @@
 // (`src/lib/errors.ts`), which owns the status and the default message; this file names the ones
 // that belong to this module and gives each rule one call site, so a rule and its code cannot drift.
 //
-// 10 §6 lists thirteen codes for this module. Six are here — the lifecycle's, the clock's, and the
-// frame's — and the rest arrive with the steps that throw them (the brief, the Turn, the test
-// controls), so no code sits in the registry without the rule that raises it.
+// 10 §6 lists thirteen codes for this module. Eleven are here — the lifecycle's, the clock's, the
+// frame's, and Step 8.2's brief, Decision Lock, addendum and test control — and the last two
+// (`TURN_NOT_OPEN`, `TURN_CLAIMS_UNSTANCED`) arrive with Phase 9, so no code sits in the registry
+// without the rule that raises it.
 //
 // The throwers return `never` and are function declarations: TypeScript narrows after a
 // `never`-returning call only for declarations, which is what lets a caller read
@@ -22,6 +23,11 @@ export const RUNS_ERROR_CODES = [
   'READINESS_SKIP_NOT_ALLOWED',
   'FRAME_INVALID',
   'RUN_LOCKED',
+  'RUN_PAUSED',
+  'BRIEF_INVALID',
+  'LOCK_REFUSED_UNSTANCED_CLAIM',
+  'ADDENDUM_EXISTS',
+  'TEST_CONTROLS_DISABLED',
 ] as const satisfies readonly ErrorCode[]
 
 /**
@@ -200,6 +206,118 @@ export type FrameInvalidReason = 'required' | 'word_limit' | 'invalid'
 
 export function frameInvalid(field: string, reason: FrameInvalidReason): never {
   throw new AppError('FRAME_INVALID', t('run.frameInvalid'), { details: { field, reason } })
+}
+
+// ---------------------------------------------------------------------------------------------
+// The Decision Brief, the Decision Lock and the addendum (FR-084, FR-100 to FR-108)
+//
+// Four refusals and one gate. The gate is `assertBriefWritable`, which every write of the working
+// period's last artifact goes through, so a paused run, a locked run and a run that has not reached
+// the brief are three different sentences rather than one — the student's next act differs in each.
+// ---------------------------------------------------------------------------------------------
+
+/**
+ * The brief is written and filed in `working` and nowhere else (10 §6).
+ *
+ * A paused run is waiting out a component failure with its clock stopped, and the answer is the
+ * Resume control (FR-001) — the same reading `reliance` makes of the same state. A run past the
+ * Decision Lock is refused with `RUN_LOCKED`, because nothing reopens the brief (FR-102). Anything
+ * else is the transition table's refusal, with `details.state` for the screen that has to follow
+ * the run's own `links.next` from there.
+ */
+export function assertBriefWritable(state: string): void {
+  if (state === 'working') return
+  if (state === 'paused') throw new AppError('RUN_PAUSED', undefined, { details: { state } })
+  if (BRIEF_CLOSED_STATES.includes(state)) {
+    throw new AppError('RUN_LOCKED', undefined, { details: { state } })
+  }
+  throw new AppError('ILLEGAL_TRANSITION', t('run.briefNotOpen'), { details: { state } })
+}
+
+/**
+ * The states in which the decision is behind the student. `voided` is deliberately absent: a voided
+ * run is not a locked one and falls through to the transition table's refusal.
+ */
+const BRIEF_CLOSED_STATES: readonly string[] = [
+  'decision_locked',
+  'turn_open',
+  'turn_locked',
+  'defense_pending',
+  'defense_complete',
+  'scored',
+  'confirmed',
+  'recorded',
+]
+
+/**
+ * The brief does not meet FR-100 or FR-103 (10 §6: `BRIEF_INVALID` (400) with `details.field`).
+ *
+ * The same shape as `frameInvalid`, for the same reason: the field is the path the form binds to —
+ * `recommendation`, `assumptions.1`, `namedValues.premium_payback_months` — so the refusal lands on
+ * the control that caused it, and `reason` says which rule it broke for a client with no form.
+ */
+export function briefInvalid(field: string, reason: FrameInvalidReason): never {
+  throw new AppError('BRIEF_INVALID', t('run.briefInvalid'), { details: { field, reason } })
+}
+
+/**
+ * A write of a brief that is already filed (FR-102).
+ *
+ * It is the state gate read a second time, at the row rather than at the run: the transaction holds
+ * the run's lock, so the two cannot disagree — but `run_briefs` is immutable in the database
+ * (trigger `run_briefs_locked`, migration 0006), and a service that let an update reach it would
+ * turn a rule into a 500. This is the domain answer instead.
+ */
+export function briefAlreadyLocked(): never {
+  throw new AppError('RUN_LOCKED', t('run.briefAlreadyLocked'))
+}
+
+/**
+ * FR-084's gate: a claim the run relied on has no stance, so the decision does not lock.
+ *
+ * `details` carries the claim's id and the claim's own words, which is what UI-024's dialog names
+ * it by and links to. Nothing else travels: not why it counts as relied on, not what stance it
+ * deserves, not whether it is one of the planted ones (FR-073, 12 §8.1). The words are the ones the
+ * student has already read.
+ */
+export function lockRefusedUnstancedClaim(claimId: string, claimText: string): never {
+  throw new AppError('LOCK_REFUSED_UNSTANCED_CLAIM', t('run.lockRefusedUnstancedClaim'), {
+    details: { claimId, claimText },
+  })
+}
+
+/** FR-107: one addendum per run, and the run already has it. */
+export function addendumExists(): never {
+  throw new AppError('ADDENDUM_EXISTS')
+}
+
+/**
+ * An addendum on a run whose decision is not locked yet, or one that has been recorded or voided
+ * (10 §6: "any state after lock and before `recorded`").
+ *
+ * Before the lock the student has the brief itself, and an addendum would be a second draft of it;
+ * after the record there is nothing left to add to.
+ */
+export function addendumNotAvailable(state: string): never {
+  throw new AppError('ILLEGAL_TRANSITION', t('run.addendumNotAvailable'), { details: { state } })
+}
+
+/** FR-107: fifty words, and not empty once markup is stripped. */
+export function addendumInvalid(reason: FrameInvalidReason): never {
+  throw new AppError('VALIDATION_ERROR', t('run.addendumInvalid'), {
+    details: { field: 'text', reason },
+  })
+}
+
+/**
+ * FR-118's control with `FEATURE_TEST_CONTROLS` off (10 §6: `TEST_CONTROLS_DISABLED` (403)).
+ *
+ * It is checked *after* `requireRunInstructor`, not before: a student who could tell "switched off"
+ * from "not yours" would have learned that the run exists and that they are not its instructor,
+ * which 08 §4 gives them no read of at all.
+ */
+export function testControlsDisabled(): never {
+  throw new AppError('TEST_CONTROLS_DISABLED', t('run.testControlsDisabled'))
 }
 
 /**

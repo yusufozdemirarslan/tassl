@@ -2040,6 +2040,166 @@
     "expected": "deny"
   },
   {
+    "operationId": "saveBriefDraft",
+    "role": "student",
+    "expected": "allow"
+  },
+  {
+    "operationId": "saveBriefDraft",
+    "role": "instructor",
+    "expected": "deny"
+  },
+  {
+    "operationId": "saveBriefDraft",
+    "role": "ta",
+    "expected": "deny"
+  },
+  {
+    "operationId": "saveBriefDraft",
+    "role": "author",
+    "expected": "deny"
+  },
+  {
+    "operationId": "saveBriefDraft",
+    "role": "program_lead",
+    "expected": "deny"
+  },
+  {
+    "operationId": "saveBriefDraft",
+    "role": "editor",
+    "expected": "deny"
+  },
+  {
+    "operationId": "saveBriefDraft",
+    "role": "admin",
+    "expected": "deny"
+  },
+  {
+    "operationId": "saveBriefDraft",
+    "role": "outsider",
+    "expected": "deny"
+  },
+  {
+    "operationId": "briefSignal",
+    "role": "student",
+    "expected": "allow"
+  },
+  {
+    "operationId": "briefSignal",
+    "role": "instructor",
+    "expected": "deny"
+  },
+  {
+    "operationId": "briefSignal",
+    "role": "ta",
+    "expected": "deny"
+  },
+  {
+    "operationId": "briefSignal",
+    "role": "author",
+    "expected": "deny"
+  },
+  {
+    "operationId": "briefSignal",
+    "role": "program_lead",
+    "expected": "deny"
+  },
+  {
+    "operationId": "briefSignal",
+    "role": "editor",
+    "expected": "deny"
+  },
+  {
+    "operationId": "briefSignal",
+    "role": "admin",
+    "expected": "deny"
+  },
+  {
+    "operationId": "briefSignal",
+    "role": "outsider",
+    "expected": "deny"
+  },
+  {
+    "operationId": "lockDecision",
+    "role": "student",
+    "expected": "allow"
+  },
+  {
+    "operationId": "lockDecision",
+    "role": "instructor",
+    "expected": "deny"
+  },
+  {
+    "operationId": "lockDecision",
+    "role": "ta",
+    "expected": "deny"
+  },
+  {
+    "operationId": "lockDecision",
+    "role": "author",
+    "expected": "deny"
+  },
+  {
+    "operationId": "lockDecision",
+    "role": "program_lead",
+    "expected": "deny"
+  },
+  {
+    "operationId": "lockDecision",
+    "role": "editor",
+    "expected": "deny"
+  },
+  {
+    "operationId": "lockDecision",
+    "role": "admin",
+    "expected": "deny"
+  },
+  {
+    "operationId": "lockDecision",
+    "role": "outsider",
+    "expected": "deny"
+  },
+  {
+    "operationId": "addAddendum",
+    "role": "student",
+    "expected": "allow"
+  },
+  {
+    "operationId": "addAddendum",
+    "role": "instructor",
+    "expected": "deny"
+  },
+  {
+    "operationId": "addAddendum",
+    "role": "ta",
+    "expected": "deny"
+  },
+  {
+    "operationId": "addAddendum",
+    "role": "author",
+    "expected": "deny"
+  },
+  {
+    "operationId": "addAddendum",
+    "role": "program_lead",
+    "expected": "deny"
+  },
+  {
+    "operationId": "addAddendum",
+    "role": "editor",
+    "expected": "deny"
+  },
+  {
+    "operationId": "addAddendum",
+    "role": "admin",
+    "expected": "deny"
+  },
+  {
+    "operationId": "addAddendum",
+    "role": "outsider",
+    "expected": "deny"
+  },
+  {
     "operationId": "resumeRun",
     "role": "student",
     "expected": "allow"
@@ -2076,6 +2236,46 @@
   },
   {
     "operationId": "resumeRun",
+    "role": "outsider",
+    "expected": "deny"
+  },
+  {
+    "operationId": "forceAssistantFailure",
+    "role": "student",
+    "expected": "deny"
+  },
+  {
+    "operationId": "forceAssistantFailure",
+    "role": "instructor",
+    "expected": "allow"
+  },
+  {
+    "operationId": "forceAssistantFailure",
+    "role": "ta",
+    "expected": "deny"
+  },
+  {
+    "operationId": "forceAssistantFailure",
+    "role": "author",
+    "expected": "deny"
+  },
+  {
+    "operationId": "forceAssistantFailure",
+    "role": "program_lead",
+    "expected": "deny"
+  },
+  {
+    "operationId": "forceAssistantFailure",
+    "role": "editor",
+    "expected": "deny"
+  },
+  {
+    "operationId": "forceAssistantFailure",
+    "role": "admin",
+    "expected": "deny"
+  },
+  {
+    "operationId": "forceAssistantFailure",
     "role": "outsider",
     "expected": "deny"
   }

@@ -815,3 +815,32 @@ export async function findUnstancedReliedOn(
       surfacedAt: order.surfacedAt,
     }))
 }
+
+/**
+ * Every claim this run has relied on by any route, in the same order (FR-084, FR-101, D-077).
+ *
+ * The Decision Lock's own record: `decision_locked.relied_on_claim_ids` is the whole set, and
+ * `unstanced_relied_on_claim_ids` is the part of it the gate would have refused over — which at an
+ * explicit lock is empty by construction and at an auto-lock is whatever the clock caught (10 §8).
+ * It is here rather than in `runs` for the reason every other query of `run_claims` is: reliance is
+ * this module's column, and a second reader of `relied_on_via` in another module would be a second
+ * definition of what "relied on" means (D-292).
+ */
+export async function findReliedOn(
+  tx: repo.DbOrTx,
+  run: { id: string },
+): Promise<UnstancedReliedOnClaim[]> {
+  const rows = await repo.listRunClaims(run.id, { reliedOn: true }, tx)
+  return rows
+    .map(({ runClaim, claim }) => ({
+      claim,
+      order: { surfacedAt: runClaim.surfacedAt, position: claim.position, key: claim.key },
+    }))
+    .sort((a, b) => bySurfacing(a.order, b.order))
+    .map(({ claim, order }) => ({
+      claimId: claim.id,
+      claimKey: claim.key,
+      claimText: claim.text,
+      surfacedAt: order.surfacedAt,
+    }))
+}

@@ -35,6 +35,21 @@ export const run = {
   'run.documentOpenNotFound': 'That reading was not recorded on this run.',
   'run.frameInvalid': 'The frame is not ready to lock.',
 
+  // The Decision Brief and the Decision Lock (FR-084, FR-100 to FR-108). Two rules run through
+  // every sentence here. None of them says anything about a claim beyond the student's own use of
+  // it — the lock refusal names the claim by the words the student already read, and never says
+  // what stance it deserves (FR-073). And none of them offers a way back: the lock is irreversible,
+  // so a refusal after it says so plainly rather than suggesting the student try again.
+  'run.briefNotOpen': 'The brief is yours to write while the working clock runs.',
+  'run.briefInvalid': 'The brief is not ready to file.',
+  'run.briefAlreadyLocked': 'Your decision is already filed, so the brief can no longer change.',
+  'run.lockRefusedUnstancedClaim':
+    'You leaned on a claim you have not taken a position on. Take one, then file the decision.',
+  'run.addendumNotAvailable': 'An addendum can be added once the decision is locked.',
+  'run.addendumInvalid': 'An addendum is up to fifty words, and it cannot be empty.',
+  'run.testControlsDisabled':
+    'Test controls are switched off in this environment, so nothing was armed.',
+
   // ---------------------------------------------------------------------------------------------
   // The run's state, in the student's words (06 §3.4). One label per state of the machine, so a
   // state added to the enum is a missing key rather than a blank chip. They name the step the

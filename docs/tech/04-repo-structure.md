@@ -183,7 +183,7 @@ Every module folder `src/server/modules/<name>/` contains at least these files (
 - No business logic in handlers, actions, or components.
 - Server Components read through services directly (`import { listRuns } from '@/server/modules/runs'`), never through `fetch` to our own API.
 - UI mutations call Server Actions; programmatic access uses `/api/v1`; both call the same service function.
-- A module imports another module only through its `index.ts`.
+- A module imports another module only through its `index.ts`. The one exception the policy still admits is a `router.ts` or `actions.ts` reaching another module's `schema.ts` for a wire shape it answers with (`courses/router.ts` → `runs/schema.ts`); `public` is on that policy's allow list too, which is the door `review/router.ts` takes to reach `runs.forceAssistantFailure` (D-290).
 - Only `repository.ts` files import `@/server/db/client`.
 - `src/lib` never imports from `src/server`.
 - `src/components` may import from `src/lib`, other components, and module `schema.ts` types and `actions.ts`; never from `service.ts` or `repository.ts`.
@@ -264,7 +264,7 @@ export default defineConfig([
               from: { element: { type: 'module' }, file: { categories: ['actions', 'router'] } },
               allow: [
                 { to: { element: { type: ['server-lib', 'lib'] } } },
-                { to: moduleFile(['service', 'schema']) },
+                { to: moduleFile(['service', 'schema', 'public']) },
               ],
             },
             {

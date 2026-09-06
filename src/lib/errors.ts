@@ -39,6 +39,16 @@ export const ERROR_STATUS = {
   READINESS_SKIP_NOT_ALLOWED: 409,
   FRAME_INVALID: 400,
   RUN_LOCKED: 409,
+  // The Decision Lock (Step 8.2). `LOCK_REFUSED_UNSTANCED_CLAIM` is FR-084's gate and carries
+  // `details { claimId, claimText }`; `BRIEF_INVALID` is FR-100's limits with `details.field`, the
+  // shape `FRAME_INVALID` already uses; `ADDENDUM_EXISTS` is FR-107's one-per-run.
+  BRIEF_INVALID: 400,
+  LOCK_REFUSED_UNSTANCED_CLAIM: 409,
+  ADDENDUM_EXISTS: 409,
+  // FR-118: the faculty test control, refused when `FEATURE_TEST_CONTROLS` is off. 403 rather than
+  // 404: the caller is an instructor of the section who may read the run, and the flag is a
+  // deployment fact about the whole installation rather than anything about this run.
+  TEST_CONTROLS_DISABLED: 403,
   // `RUN_PAUSED` is 10 §6's refusal "for writes other than resume". Its first raiser is the
   // `reliance` module, whose stances, actions and escalations are the first in-run writes a paused
   // clock has to refuse; `runs` raises it too from Phase 8's Decision Lock. It is one code with one
@@ -106,6 +116,12 @@ export const DEFAULT_MESSAGES: Record<ErrorCode, string> = {
   READINESS_SKIP_NOT_ALLOWED: 'The check can only be skipped after a submission has failed.',
   FRAME_INVALID: 'The frame is not ready to lock.',
   RUN_LOCKED: 'This run’s decision is locked, so it can no longer be changed.',
+  BRIEF_INVALID: 'The brief is not ready to file.',
+  // 07 §7's own sentence for this row. It names no claim: the claim's own words travel in
+  // `details.claimText`, which is what the lock dialog puts beside its "Go to claim" control.
+  LOCK_REFUSED_UNSTANCED_CLAIM: 'A claim you relied on has no stance.',
+  ADDENDUM_EXISTS: 'This run already has its addendum.',
+  TEST_CONTROLS_DISABLED: 'Test controls are switched off in this environment.',
   RUN_PAUSED: 'The run is paused and the clock is stopped. Resume it to carry on.',
   CLAIM_NOT_SURFACED: 'That claim has not come up in this run yet.',
   ACTION_NOT_AVAILABLE: 'That check is not available on this claim.',

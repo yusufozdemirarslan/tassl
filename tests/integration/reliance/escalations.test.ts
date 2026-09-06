@@ -263,12 +263,19 @@ describe('who and when', () => {
   })
 
   it('refuses an escalation that arrives with nothing left on the clock', async () => {
-    await setClockRemaining(runId, 0)
+    // A second past zero, not exactly on it: at the boundary the auto-lock and `chargeCost` are
+    // both true and either may answer first (D-300).
+    await setClockRemaining(runId, -1_000)
+    // `RUN_LOCKED` rather than `CLOCK_EXPIRED`: a working clock past zero has already auto-locked
+    // the decision by the time this module sees the run (10 §8 branch 2). The escalation does not
+    // run, which is the rule FR-072 states.
     expect(
       await codeOf(
         reliance.escalate(fx.student, runId, fx.claimId('C7'), { statement: STATEMENT }),
       ),
-    ).toBe('CLOCK_EXPIRED')
+    ).toBe('RUN_LOCKED')
+    expect(await escalationRows(runId)).toHaveLength(0)
+    expect((await runRow(runId)).charged_ms).toBe(0)
   })
 
   it('charges only what was left when the clock runs out mid-escalation (FR-072)', async () => {

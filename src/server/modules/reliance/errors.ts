@@ -5,8 +5,11 @@
 //
 // 10 §8 lists six codes. Two of them — `CLOCK_EXPIRED` and its Turn-window twin — are not raised
 // here: the clock is what runs out, so `runs/clock.ts`'s `chargeCost` raises them at the moment an
-// action or an escalation is charged, and this module simply lets them travel (D-132). What is left
-// is the four this module decides, plus the two state refusals every in-run write shares.
+// action or an escalation is charged, and this module simply lets them travel (D-132). Only the
+// window's ever arrives: from Step 8.2 a working clock at zero has already auto-locked the decision
+// by the time `lockRunForMutation` hands the row over, so what a student meets on the working clock
+// is `RUN_LOCKED` from the gate below (D-300). What is left is the four this module decides, plus
+// the two state refusals every in-run write shares.
 //
 // The throwers return `never` and are function declarations: TypeScript narrows after a
 // `never`-returning call only for declarations, which is what lets a caller read

@@ -22,7 +22,7 @@ export const FIXTURE = JSON.parse(
     'utf8',
   ),
 ) as {
-  version: { workingClockSeconds: number; brief: string }
+  version: { workingClockSeconds: number; turnDelaySeconds: number; brief: string }
   documents: { key: string; title: string; body: string }[]
   stakeholders: { name: string; roleTitle: string }[]
   claims: {

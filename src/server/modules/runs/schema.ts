@@ -245,6 +245,149 @@ export const ReadinessResultSchema = z.object({
 export type ReadinessResult = z.infer<typeof ReadinessResultSchema>
 
 // ---------------------------------------------------------------------------------------------
+// The Decision Brief, the Decision Lock and the addendum (07 §7, §10; FR-100 to FR-108)
+//
+// Three schemas and one rule, in the shape the frame already uses.
+//
+//   * `BriefDraftSchema` is what a save accepts: every field optional, because the editor sends the
+//     fields that changed, and the limits applied — a field the student is over the limit on is a
+//     field they cannot lock with, and one rule read in one place is what keeps the counter under
+//     the textarea and the server in agreement (D-075, D-291).
+//   * `BriefInputSchema` is the wire shape of a lock — six fields of the right kinds and no rule
+//     about what is in them — and `BriefSchema` is the rule: 120 / 250 / 25 × 3 / 60 words, every
+//     field filled, a confidence between 0 and 100. Applying the rule in the service is what lets a
+//     broken brief answer `BRIEF_INVALID` naming the field (10 §6) rather than the generic
+//     validation failure a route-level refinement would produce.
+//   * `AddendumSchema` is FR-107's fifty words.
+//
+// The auto-lock at expiry does not come through any of them: it locks the draft as it stands, empty
+// fields and all (FR-105, 10 §8), which is exactly what `BriefSchema` refuses.
+// ---------------------------------------------------------------------------------------------
+
+/** FR-100's word limits, one place, so the form and the server count the same words (D-075). */
+export const BRIEF_LIMITS = {
+  recommendation: 120,
+  rationale: 250,
+  assumption: 25,
+  changeMyMind: 60,
+} as const
+
+/** FR-107: the post-lock addendum is fifty words. */
+export const ADDENDUM_WORD_LIMIT = 50
+
+/**
+ * The named numeric fields of the scenario, keyed by `named_fields.key` (FR-100, FR-101).
+ *
+ * Numbers only — "numeric fields accept numbers only" is FR-100's own acceptance criterion — and
+ * finite, because `Infinity` and `NaN` are not values a student typed. The bounds on the record are
+ * about storage rather than meaning: a package has a handful of named fields, and a body carrying
+ * two thousand keys is not a brief.
+ */
+export const BriefNamedValuesSchema = z.record(z.string().min(1).max(64), z.number().finite())
+
+/**
+ * The draft as it arrives on the wire (07 §10 `BriefDraft`): the fields that changed, of the right
+ * kinds, and no rule about what is in them.
+ *
+ * The rule is `BriefDraftSchema` below and the service applies it, for the reason `LockFrameInput`
+ * and `LockFrameSchema` are two schemas: a limit enforced by the route's own body schema answers
+ * `VALIDATION_ERROR`, and `BRIEF_INVALID` — which 10 §6 defines with `details.field`, and which the
+ * editor binds its error to — would then be a code nothing raises (the reading D-287 makes of the
+ * same choice one module along).
+ */
+export const BriefDraftInputSchema = z.strictObject({
+  recommendation: z.string().optional(),
+  rationale: z.string().optional(),
+  assumptions: z.array(z.string()).optional(),
+  changeMyMind: z.string().optional(),
+  confidence: z.number().nullable().optional(),
+  namedValues: BriefNamedValuesSchema.optional(),
+})
+export type BriefDraftInput = z.infer<typeof BriefDraftInputSchema>
+
+/** The draft's rules: every field optional, and each one within the lock's own limit (D-291). */
+export const BriefDraftSchema = z.strictObject({
+  recommendation: wordLimit(BRIEF_LIMITS.recommendation).optional(),
+  rationale: wordLimit(BRIEF_LIMITS.rationale).optional(),
+  assumptions: z.array(wordLimit(BRIEF_LIMITS.assumption)).length(3).optional(),
+  changeMyMind: wordLimit(BRIEF_LIMITS.changeMyMind).optional(),
+  confidence: z.int().min(0).max(100).nullable().optional(),
+  namedValues: BriefNamedValuesSchema.optional(),
+})
+export type BriefDraft = z.infer<typeof BriefDraftSchema>
+
+/** The brief as it arrives on the wire for a lock: shape only; the rule is `BriefSchema`. */
+export const BriefInputSchema = z.strictObject({
+  recommendation: z.string(),
+  rationale: z.string(),
+  assumptions: z.array(z.string()),
+  changeMyMind: z.string(),
+  confidence: z.number(),
+  namedValues: BriefNamedValuesSchema,
+})
+export type BriefInput = z.infer<typeof BriefInputSchema>
+
+/** FR-100 and FR-103: every field filled once markup is stripped, and within its word limit. */
+export const BriefSchema = z.strictObject({
+  recommendation: wordLimit(BRIEF_LIMITS.recommendation).min(1),
+  rationale: wordLimit(BRIEF_LIMITS.rationale).min(1),
+  assumptions: z.array(wordLimit(BRIEF_LIMITS.assumption).min(1)).length(3),
+  changeMyMind: wordLimit(BRIEF_LIMITS.changeMyMind).min(1),
+  confidence: z.int().min(0).max(100),
+  namedValues: BriefNamedValuesSchema,
+})
+export type Brief = z.infer<typeof BriefSchema>
+
+/**
+ * `POST /runs/{runId}/brief/signals` (07 §7, FR-100): the editor opened, or closed after a spell.
+ *
+ * Two events and no state of its own: `brief_opened` carries nothing — the instant and the clock
+ * reading `trace.append` stamps are the record — and `brief_closed` carries how long it was open.
+ */
+export const BriefSignalSchema = z.union([
+  z.strictObject({ opened: z.literal(true) }),
+  z.strictObject({ closed: z.literal(true), durationMs: z.int().min(0).max(86_400_000) }),
+])
+export type BriefSignalInput = z.infer<typeof BriefSignalSchema>
+
+/** `POST /runs/{runId}/addendum` (07 §7, FR-107): one per run, fifty words, after the lock. */
+export const AddendumSchema = z.strictObject({
+  text: wordLimit(ADDENDUM_WORD_LIMIT).min(1),
+})
+export type AddendumInput = z.infer<typeof AddendumSchema>
+
+/**
+ * The brief as the student reads it back (07 §10 `RunWorkspace.briefDraft`).
+ *
+ * The same six fields plus `lockedAt`, which is null while it is a draft and set from the moment it
+ * is filed. `autoLocked` and `speedOutlier` are **not** here and are not coming: the speed outlier
+ * is an instructor observation (FR-106, "a signal not a penalty"), and showing a student that their
+ * lock was flagged would make it a penalty by telling them so mid-run.
+ */
+export const BriefViewSchema = z.object({
+  recommendation: z.string(),
+  rationale: z.string(),
+  assumptions: z.array(z.string()).length(3),
+  changeMyMind: z.string(),
+  confidence: z.int().min(0).max(100).nullable(),
+  namedValues: BriefNamedValuesSchema,
+  updatedAt: z.iso.datetime(),
+  lockedAt: z.iso.datetime().nullable(),
+})
+export type BriefView = z.infer<typeof BriefViewSchema>
+
+/** The addendum as every screen renders it, separately from the brief (FR-107). */
+export const AddendumViewSchema = z.object({
+  text: z.string().min(1),
+  createdAt: z.iso.datetime(),
+})
+export type AddendumView = z.infer<typeof AddendumViewSchema>
+
+/** `POST /review/runs/{runId}/test-controls/force-assistant-failure` (07 §7, FR-118). */
+export const ForcedFailureSchema = z.object({ armed: z.literal(true) })
+export type ForcedFailure = z.infer<typeof ForcedFailureSchema>
+
+// ---------------------------------------------------------------------------------------------
 // The workspace: the Scenario Brief, the Evidence Room, and the frame (07 §7, §10; FR-020 to
 // FR-024, FR-040 to FR-044)
 //
@@ -318,6 +461,12 @@ export const WorkspaceCapabilitiesSchema = z.object({
   canOpenDocuments: z.boolean(),
   canLockFrame: z.boolean(),
   assistantUnlocked: z.boolean(),
+  /**
+   * Whether the brief can be written and filed *now* (FR-100, FR-102). True in `working` alone: the
+   * brief belongs to the working period, and a paused run is waiting out a component failure with
+   * its clock stopped, which is not a moment to take an irreversible decision in.
+   */
+  canWriteBrief: z.boolean(),
 })
 export type WorkspaceCapabilities = z.infer<typeof WorkspaceCapabilitiesSchema>
 
@@ -347,10 +496,12 @@ export type PauseView = z.infer<typeof PauseSchema>
 /**
  * `GET /runs/{runId}/workspace` (07 §7, §10): the room as its student sees it.
  *
- * 07 §10's `RunWorkspace` also lists `delegations`, `claims`, `briefDraft`, `addendum` and `turn`.
- * Each arrives with the phase that makes it true — the brief draft and the addendum in Phase 8, the
- * Turn in Phase 9 — and none is declared here as an empty array in the meantime: a field that is
- * always empty is a shape a reader has to learn to disbelieve.
+ * 07 §10's `RunWorkspace` also lists `delegations`, `claims` and `turn`. Each arrives with the phase
+ * that makes it true — the Turn in Phase 9 — and none is declared here as an empty array in the
+ * meantime: a field that is always empty is a shape a reader has to learn to disbelieve. The brief
+ * draft and the addendum arrive here, with Step 8.2's brief editor: `briefDraft` is null until the
+ * student saves one, which is what FR-108's "content preserved" is read back from, and `addendum` is
+ * null until it is written, which is at most once per run (FR-107).
  *
  * The Delegation Log and the claims are the exception, and they are absent for a different reason:
  * they exist from Step 7.3, and they are read by `GET /runs/{runId}/delegations` and
@@ -368,6 +519,10 @@ export const RunWorkspaceSchema = z.object({
   openDocuments: z.array(OpenDocumentSchema),
   /** Null while the run is framing; the locked frame from the moment it is locked (FR-041). */
   frame: FrameSchema.nullable(),
+  /** The brief the student has saved so far, or null before the first save (FR-100, FR-108). */
+  briefDraft: BriefViewSchema.nullable(),
+  /** The one post-lock addendum, or null (FR-107). */
+  addendum: AddendumViewSchema.nullable(),
   /** The open pause, when the run is in `paused`; null otherwise (FR-001, UI-023). */
   pause: PauseSchema.nullable(),
   capabilities: WorkspaceCapabilitiesSchema,

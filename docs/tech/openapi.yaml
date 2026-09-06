@@ -9515,23 +9515,37 @@ paths:
       operationId: forceAssistantFailure
       summary: Arm the build-phase forced assistant failure
       parameters:
-        - $ref: "#/components/parameters/runId"
-        - $ref: "#/components/parameters/requestedWith"
+        - in: path
+          name: runId
+          schema:
+            type: string
+            format: uuid
+            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+          required: true
       responses:
         "200":
-          description: Armed
+          description: OK
           content:
             application/json:
               schema:
                 type: object
-                required:
-                  - armed
                 properties:
                   armed:
                     type: boolean
                     const: true
+                required:
+                  - armed
+                additionalProperties: false
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
         "403":
           $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "429":
+          $ref: "#/components/responses/RateLimited"
   /review/runs/{runId}/void:
     post:
       tags:
@@ -9859,25 +9873,45 @@ paths:
       operationId: addAddendum
       summary: Add the 50-word addendum
       parameters:
-        - $ref: "#/components/parameters/runId"
-        - $ref: "#/components/parameters/requestedWith"
+        - in: path
+          name: runId
+          schema:
+            type: string
+            format: uuid
+            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+          required: true
       requestBody:
         required: true
         content:
           application/json:
             schema:
               type: object
-              required:
-                - text
               properties:
                 text:
                   type: string
                   minLength: 1
+              required:
+                - text
+              additionalProperties: false
       responses:
         "204":
-          $ref: "#/components/responses/NoContent"
-        "409":
-          $ref: "#/components/responses/Conflict"
+          description: Recorded
+          content:
+            application/json:
+              schema:
+                type: object
+                properties: {}
+                additionalProperties: false
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "429":
+          $ref: "#/components/responses/RateLimited"
   /runs/{runId}/brief:
     put:
       tags:
@@ -9885,19 +9919,62 @@ paths:
       operationId: saveBriefDraft
       summary: Save the brief draft
       parameters:
-        - $ref: "#/components/parameters/runId"
-        - $ref: "#/components/parameters/requestedWith"
+        - in: path
+          name: runId
+          schema:
+            type: string
+            format: uuid
+            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+          required: true
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/BriefDraft"
+              type: object
+              properties:
+                recommendation:
+                  type: string
+                rationale:
+                  type: string
+                assumptions:
+                  type: array
+                  items:
+                    type: string
+                changeMyMind:
+                  type: string
+                confidence:
+                  type:
+                    - number
+                    - "null"
+                namedValues:
+                  type: object
+                  propertyNames:
+                    type: string
+                    minLength: 1
+                    maxLength: 64
+                  additionalProperties:
+                    type: number
+              additionalProperties: false
       responses:
         "204":
-          $ref: "#/components/responses/NoContent"
-        "409":
-          $ref: "#/components/responses/Conflict"
+          description: Saved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties: {}
+                additionalProperties: false
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "429":
+          $ref: "#/components/responses/RateLimited"
   /runs/{runId}/brief/signals:
     post:
       tags:
@@ -9905,17 +9982,59 @@ paths:
       operationId: briefSignal
       summary: Brief opened or closed timing signal
       parameters:
-        - $ref: "#/components/parameters/runId"
-        - $ref: "#/components/parameters/requestedWith"
+        - in: path
+          name: runId
+          schema:
+            type: string
+            format: uuid
+            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+          required: true
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/BriefSignal"
+              anyOf:
+                - type: object
+                  properties:
+                    opened:
+                      type: boolean
+                      const: true
+                  required:
+                    - opened
+                  additionalProperties: false
+                - type: object
+                  properties:
+                    closed:
+                      type: boolean
+                      const: true
+                    durationMs:
+                      type: integer
+                      minimum: 0
+                      maximum: 86400000
+                  required:
+                    - closed
+                    - durationMs
+                  additionalProperties: false
       responses:
         "204":
-          $ref: "#/components/responses/NoContent"
+          description: Recorded
+          content:
+            application/json:
+              schema:
+                type: object
+                properties: {}
+                additionalProperties: false
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "429":
+          $ref: "#/components/responses/RateLimited"
   /runs/{runId}/claims:
     get:
       tags:
@@ -11269,29 +11388,260 @@ paths:
       operationId: lockDecision
       summary: Decision Lock (irreversible)
       parameters:
-        - $ref: "#/components/parameters/runId"
-        - $ref: "#/components/parameters/requestedWith"
+        - in: path
+          name: runId
+          schema:
+            type: string
+            format: uuid
+            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+          required: true
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/Brief"
+              type: object
+              properties:
+                recommendation:
+                  type: string
+                rationale:
+                  type: string
+                assumptions:
+                  type: array
+                  items:
+                    type: string
+                changeMyMind:
+                  type: string
+                confidence:
+                  type: number
+                namedValues:
+                  type: object
+                  propertyNames:
+                    type: string
+                    minLength: 1
+                    maxLength: 64
+                  additionalProperties:
+                    type: number
+              required:
+                - recommendation
+                - rationale
+                - assumptions
+                - changeMyMind
+                - confidence
+                - namedValues
+              additionalProperties: false
       responses:
         "200":
-          description: Locked
+          description: OK
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/RunSummary"
+                type: object
+                properties:
+                  id:
+                    type: string
+                    format: uuid
+                    pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                  assignmentId:
+                    type: string
+                    format: uuid
+                    pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                  attemptNo:
+                    type: integer
+                    exclusiveMinimum: 0
+                    maximum: 9007199254740991
+                  state:
+                    type: string
+                    enum:
+                      - assigned
+                      - readiness
+                      - framing
+                      - working
+                      - paused
+                      - decision_locked
+                      - turn_open
+                      - turn_locked
+                      - defense_pending
+                      - defense_complete
+                      - scored
+                      - confirmed
+                      - recorded
+                      - voided
+                      - abandoned
+                      - defense_missed
+                      - under_appeal
+                      - expired
+                  mode:
+                    type: string
+                    enum:
+                      - guided
+                      - standard
+                      - open
+                  isWalkthrough:
+                    type: boolean
+                  clock:
+                    anyOf:
+                      - type: object
+                        properties:
+                          remainingMs:
+                            type: integer
+                            minimum: 0
+                            maximum: 9007199254740991
+                          paused:
+                            type: boolean
+                          creditedMs:
+                            type: integer
+                            minimum: 0
+                            maximum: 9007199254740991
+                          chargedMs:
+                            type: integer
+                            minimum: 0
+                            maximum: 9007199254740991
+                        required:
+                          - remainingMs
+                          - paused
+                          - creditedMs
+                          - chargedMs
+                        additionalProperties: false
+                      - type: "null"
+                  turn:
+                    anyOf:
+                      - type: object
+                        properties:
+                          dueAt:
+                            type: string
+                            format: date-time
+                            pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z))$
+                          windowEndsAt:
+                            anyOf:
+                              - type: string
+                                format: date-time
+                                pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z))$
+                              - type: "null"
+                        required:
+                          - dueAt
+                          - windowEndsAt
+                        additionalProperties: false
+                      - type: "null"
+                  scoringStatus:
+                    type: string
+                    enum:
+                      - idle
+                      - queued
+                      - running
+                      - held
+                      - done
+                  timestamps:
+                    type: object
+                    properties:
+                      policyDisplayedAt:
+                        anyOf:
+                          - type: string
+                            format: date-time
+                            pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z))$
+                          - type: "null"
+                      workingStartedAt:
+                        anyOf:
+                          - type: string
+                            format: date-time
+                            pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z))$
+                          - type: "null"
+                      decisionLockedAt:
+                        anyOf:
+                          - type: string
+                            format: date-time
+                            pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z))$
+                          - type: "null"
+                      turnDeliveredAt:
+                        anyOf:
+                          - type: string
+                            format: date-time
+                            pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z))$
+                          - type: "null"
+                      turnLockedAt:
+                        anyOf:
+                          - type: string
+                            format: date-time
+                            pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z))$
+                          - type: "null"
+                      defenseCompletedAt:
+                        anyOf:
+                          - type: string
+                            format: date-time
+                            pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z))$
+                          - type: "null"
+                      scoredAt:
+                        anyOf:
+                          - type: string
+                            format: date-time
+                            pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z))$
+                          - type: "null"
+                      confirmedAt:
+                        anyOf:
+                          - type: string
+                            format: date-time
+                            pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z))$
+                          - type: "null"
+                      recordedAt:
+                        anyOf:
+                          - type: string
+                            format: date-time
+                            pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z))$
+                          - type: "null"
+                      voidedAt:
+                        anyOf:
+                          - type: string
+                            format: date-time
+                            pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z))$
+                          - type: "null"
+                    required:
+                      - policyDisplayedAt
+                      - workingStartedAt
+                      - decisionLockedAt
+                      - turnDeliveredAt
+                      - turnLockedAt
+                      - defenseCompletedAt
+                      - scoredAt
+                      - confirmedAt
+                      - recordedAt
+                      - voidedAt
+                    additionalProperties: false
+                  version:
+                    type: integer
+                    minimum: 0
+                    maximum: 9007199254740991
+                  links:
+                    type: object
+                    properties:
+                      next:
+                        type: string
+                    required:
+                      - next
+                    additionalProperties: false
+                required:
+                  - id
+                  - assignmentId
+                  - attemptNo
+                  - state
+                  - mode
+                  - isWalkthrough
+                  - clock
+                  - turn
+                  - scoringStatus
+                  - timestamps
+                  - version
+                  - links
+                additionalProperties: false
         "400":
           $ref: "#/components/responses/BadRequest"
-        "409":
-          description: LOCK_REFUSED_UNSTANCED_CLAIM with details.claimId and details.claimText
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "429":
+          $ref: "#/components/responses/RateLimited"
   /runs/{runId}/outside-tool-declaration:
     post:
       tags:
@@ -12524,6 +12874,73 @@ paths:
                           - lockedAt
                         additionalProperties: false
                       - type: "null"
+                  briefDraft:
+                    anyOf:
+                      - type: object
+                        properties:
+                          recommendation:
+                            type: string
+                          rationale:
+                            type: string
+                          assumptions:
+                            minItems: 3
+                            maxItems: 3
+                            type: array
+                            items:
+                              type: string
+                          changeMyMind:
+                            type: string
+                          confidence:
+                            anyOf:
+                              - type: integer
+                                minimum: 0
+                                maximum: 100
+                              - type: "null"
+                          namedValues:
+                            type: object
+                            propertyNames:
+                              type: string
+                              minLength: 1
+                              maxLength: 64
+                            additionalProperties:
+                              type: number
+                          updatedAt:
+                            type: string
+                            format: date-time
+                            pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z))$
+                          lockedAt:
+                            anyOf:
+                              - type: string
+                                format: date-time
+                                pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z))$
+                              - type: "null"
+                        required:
+                          - recommendation
+                          - rationale
+                          - assumptions
+                          - changeMyMind
+                          - confidence
+                          - namedValues
+                          - updatedAt
+                          - lockedAt
+                        additionalProperties: false
+                      - type: "null"
+                  addendum:
+                    anyOf:
+                      - type: object
+                        properties:
+                          text:
+                            type: string
+                            minLength: 1
+                          createdAt:
+                            type: string
+                            format: date-time
+                            pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z))$
+                        required:
+                          - text
+                          - createdAt
+                        additionalProperties: false
+                      - type: "null"
                   pause:
                     anyOf:
                       - type: object
@@ -12553,10 +12970,13 @@ paths:
                         type: boolean
                       assistantUnlocked:
                         type: boolean
+                      canWriteBrief:
+                        type: boolean
                     required:
                       - canOpenDocuments
                       - canLockFrame
                       - assistantUnlocked
+                      - canWriteBrief
                     additionalProperties: false
                 required:
                   - run
@@ -12564,6 +12984,8 @@ paths:
                   - documents
                   - openDocuments
                   - frame
+                  - briefDraft
+                  - addendum
                   - pause
                   - capabilities
                 additionalProperties: false

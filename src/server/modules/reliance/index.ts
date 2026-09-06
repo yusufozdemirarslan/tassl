@@ -21,6 +21,7 @@
 //     reachable from a route.
 export {
   escalate,
+  findReliedOn,
   findUnstancedReliedOn,
   listRunClaims,
   markClaimUsed,

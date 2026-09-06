@@ -209,11 +209,22 @@ describe('the two authored checks (FR-071)', () => {
 describe('the clock (FR-072, D-132)', () => {
   it('refuses an action that arrives with nothing left on the clock', async () => {
     await openDocument(fx, runId, 'D5')
-    await setClockRemaining(runId, 0)
+    // A second past zero rather than exactly on it. At the instant the clock reads zero the two
+    // rules tie — `dueTimer` fires at `at <= now` and `chargeCost` refuses at `before <= 0` — and
+    // which one answers depends on the millisecond between taking the row lock and charging, so
+    // the boundary is not a thing to assert an error code on (D-300).
+    await setClockRemaining(runId, -1_000)
 
+    // `RUN_LOCKED`, not `CLOCK_EXPIRED`, and the difference is Step 8.2's auto-lock: a working
+    // clock past zero *is* a locked decision (10 §8 branch 2, FR-105), and `lockRunForMutation`
+    // materializes it before this module applies any rule — which is what the header of
+    // `reliance/service.ts` means by "a run whose clock ran out while the student was typing meets
+    // its own auto-lock rather than this". The rule under test is unchanged and still asserted:
+    // nothing runs, nothing is charged, nothing is written.
     expect(
       await codeOf(reliance.runAction(fx.student, runId, fx.claimId('C1'), 'source_trace')),
-    ).toBe('CLOCK_EXPIRED')
+    ).toBe('RUN_LOCKED')
+    expect((await runRow(runId)).charged_ms).toBe(0)
     expect(await actionRows(runId)).toHaveLength(0)
     expect(await eventsOfType(runId, 'action')).toHaveLength(0)
   })
@@ -236,10 +247,12 @@ describe('the clock (FR-072, D-132)', () => {
     expect(result.clockCostMs).toBeLessThanOrEqual(30_000)
     expect(result.clockCostMs).toBeGreaterThan(25_000)
 
-    // And the next one meets the expiry, because there is nothing left to start it with.
+    // And the next one finds the decision locked: the charge landed the clock exactly on zero, and
+    // the read that follows is the one that auto-locks the run (D-300). Either way there is nothing
+    // left to start an action with, and only the one that had a clock was recorded.
     expect(
       await codeOf(reliance.runAction(fx.student, runId, fx.claimId('C1'), 'source_trace')),
-    ).toBe('CLOCK_EXPIRED')
+    ).toBe('RUN_LOCKED')
     expect(await actionRows(runId)).toHaveLength(1)
   })
 })
