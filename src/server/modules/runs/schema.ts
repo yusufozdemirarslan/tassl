@@ -587,6 +587,26 @@ export const RunWorkspaceSchema = z.object({
 })
 export type RunWorkspace = z.infer<typeof RunWorkspaceSchema>
 
+/** `run_turn_responses.response` (DATA-038): the three things a student may do with the Turn. */
+export const TurnResponseKindSchema = z.enum(['hold', 'revise', 'reverse'])
+export type TurnResponseKindValue = z.infer<typeof TurnResponseKindSchema>
+
+/**
+ * The Turn response as the student reads it back (FR-112, FR-113), on the frozen record.
+ *
+ * `justification` and `confidence` are nullable for one case and only one: the implicit hold the
+ * window's expiry writes, where nobody said anything because nobody was there (D-335). `implicit`
+ * is what keeps the two apart, and the screen renders them differently for the same reason.
+ */
+export const TurnResponseViewSchema = z.object({
+  response: TurnResponseKindSchema,
+  justification: z.string().nullable(),
+  confidence: z.int().min(0).max(100).nullable(),
+  implicit: z.boolean(),
+  lockedAt: z.iso.datetime(),
+})
+export type TurnResponseView = z.infer<typeof TurnResponseViewSchema>
+
 /**
  * The frozen record UI-024 reads (`/runs/[runId]/locked`, FR-102, FR-107; D-302).
  *
@@ -604,6 +624,12 @@ export type RunWorkspace = z.infer<typeof RunWorkspaceSchema>
  * `namedFields` travels with it because `brief.namedValues` is a record keyed by `named_fields.key`
  * and a decision read back as `premium_payback_months: 11` is a decision written in the database's
  * words rather than the author's.
+ *
+ * `turnResponse` joined it in Step 9.2 and is null on UI-024, which is read before the Turn arrives
+ * (D-341). It is the same frozen record one state later: the defense's artifacts panel is the frame,
+ * the filed brief, the addendum and the Turn response (UI-026), and every one of them is already
+ * here. Building a second read of the same four rows in the `defense` module would be a second
+ * answer to "what did this student decide", one of them without the addendum.
  */
 export const DecisionRecordSchema = z.object({
   run: RunSummarySchema,
@@ -614,6 +640,8 @@ export const DecisionRecordSchema = z.object({
   namedFields: z.array(BriefNamedFieldSchema),
   /** The one post-lock addendum, or null (FR-107). */
   addendum: AddendumViewSchema.nullable(),
+  /** Hold, revise or reverse — or the implicit hold — once the Turn has locked; null before it. */
+  turnResponse: TurnResponseViewSchema.nullable(),
   /** FR-107: after the lock, before the record, and not yet used. */
   canAddAddendum: z.boolean(),
   /**
@@ -648,9 +676,9 @@ export const TurnVoiceSchema = z.enum([
 ])
 export type TurnVoiceValue = z.infer<typeof TurnVoiceSchema>
 
-/** `run_turn_responses.response` (DATA-038): the three things a student may do with the Turn. */
-export const TurnResponseKindSchema = z.enum(['hold', 'revise', 'reverse'])
-export type TurnResponseKindValue = z.infer<typeof TurnResponseKindSchema>
+// `TurnResponseKindSchema` and `TurnResponseViewSchema` are declared above, beside
+// `DecisionRecordSchema`: the frozen record carries the response, and a Zod schema is a value, so
+// the one that is referenced has to be built first.
 
 /** FR-112: at most 150 words of justification. */
 export const TURN_JUSTIFICATION_WORD_LIMIT = 150

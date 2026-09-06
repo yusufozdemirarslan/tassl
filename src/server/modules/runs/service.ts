@@ -1765,11 +1765,12 @@ export async function getDecision(actor: SessionUser, runId: string): Promise<De
   }
   if (run.decisionLockedAt === null) decisionNotLocked(run.state)
 
-  const [scenario, frame, brief, addendum] = await Promise.all([
+  const [scenario, frame, brief, addendum, turnResponse] = await Promise.all([
     getStudentScenario(actor, runId),
     repo.findFrame(runId),
     repo.findBrief(runId),
     repo.findAddendum(runId),
+    repo.findTurnResponse(runId),
   ])
 
   return guardStudentPayload(
@@ -1791,6 +1792,15 @@ export async function getDecision(actor: SessionUser, runId: string): Promise<De
         unit: field.unit,
       })),
       addendum: addendum ? toAddendumView(addendum) : null,
+      turnResponse: turnResponse
+        ? {
+            response: turnResponse.response,
+            justification: turnResponse.justification,
+            confidence: turnResponse.confidence,
+            implicit: turnResponse.implicit,
+            lockedAt: turnResponse.lockedAt.toISOString(),
+          }
+        : null,
       canAddAddendum: addendumOpen(run) && addendum === undefined,
       turnRemainingMs:
         run.turnDueAt === null ? null : Math.max(0, run.turnDueAt.getTime() - Date.now()),
@@ -2267,6 +2277,72 @@ export async function consumeForcedAssistantFailure(
   const updated = await repo.updateRun(run.organizationId, run.id, { flags }, tx)
   if (!updated) runNotFound()
   return { run: updated, armed: true }
+}
+
+/**
+ * Stamps `defense_opened_at` the first time the student opens the defense (10 §9), and answers the
+ * row.
+ *
+ * It writes no event of its own. What the open records in the trace is the interview it selected —
+ * one `defense_question` per question, written by the `defense` module in this same transaction —
+ * and a second event saying "the defense was opened" would be a fact the first `defense_question`
+ * already carries with a timestamp.
+ *
+ * It lives here rather than in `defense` because the column is on `runs`, like
+ * `noteFirstDelegation`'s beside it: one module writes a run's columns, so a second reading of "has
+ * this defense already been selected" cannot appear.
+ */
+export async function markDefenseOpened(
+  tx: repo.Tx,
+  run: repo.Run,
+  at: Date = new Date(),
+): Promise<repo.Run> {
+  if (run.defenseOpenedAt !== null) return run
+  const updated = await repo.updateRun(run.organizationId, run.id, { defenseOpenedAt: at }, tx)
+  if (!updated) runNotFound()
+  return updated
+}
+
+/**
+ * `defense_pending → defense_complete`, the last thing a student does to their run (10 §9, FR-120).
+ *
+ * Three writes in the caller's transaction and no fourth: the transition with its `defense_completed`
+ * stamp, the `lifecycle` event that explains it, and the two run columns the completion sets —
+ * `scoring_status = 'queued'`, because the job is enqueued after this transaction commits (D-046),
+ * and `flags.nothing_answered` when FR-125's condition holds.
+ *
+ * Both of those are `runs` columns and neither may be written from anywhere else. `runs.flags` is
+ * forbidden in every student payload (12 §8.1) — a flag is an observation for the instructor, and a
+ * student told their defense was flagged is a student penalised by being told — so the module that
+ * owns the column is the module that sets it, exactly as `consumeForcedAssistantFailure` above.
+ *
+ * The *rule* stays in `defense`: whether every answer was empty or under three words is a question
+ * about the answers, which are that module's rows. This takes the answer, not the evidence.
+ */
+export async function markDefenseComplete(
+  tx: repo.Tx,
+  run: repo.Run,
+  options: { at?: Date; actorId?: string | null; nothingAnswered: boolean },
+): Promise<repo.Run> {
+  const at = options.at ?? new Date()
+  const moved = transition(run, 'defense_complete', { cause: 'defense_completed', at })
+  await append(tx, run, 'lifecycle', moved.payload, {
+    actorId: options.actorId ?? null,
+    occurredAt: at,
+  })
+
+  const next = await repo.updateRun(
+    run.organizationId,
+    run.id,
+    {
+      ...moved.patch,
+      scoringStatus: 'queued',
+      ...(options.nothingAnswered ? { flags: { ...run.flags, nothing_answered: true } } : {}),
+    },
+    tx,
+  )
+  if (!next) runNotFound()
+  return next
 }
 
 /**

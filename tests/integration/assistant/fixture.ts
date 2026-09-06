@@ -36,6 +36,16 @@ export const FIXTURE = JSON.parse(
   // `evidence` and `windowClaimKeys` are named here so a test can assert they never reach the
   // student (12 §8.1): the Turn suite checks the payload against the author's own words.
   turn: { text: string; voice: string; evidence: string; windowClaimKeys: string[] }
+  // The question bank, for the same reason: the defense suite asserts that the follow-up prompts
+  // and the expected-answer notes never reach the student who is being asked (FR-123, 12 §8.1).
+  defenseQuestions: {
+    key: string
+    kind: string
+    claimKey: string | null
+    followUp: string
+    expectedAnswerNotes: string
+    isDefault: boolean
+  }[]
 }
 
 export const claimByKey = (key: string) => {

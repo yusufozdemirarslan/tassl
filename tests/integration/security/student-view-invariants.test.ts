@@ -79,6 +79,7 @@ type RunsRepo = typeof import('@/server/modules/runs/repository')
 type Runs = typeof import('@/server/modules/runs')
 type Reliance = typeof import('@/server/modules/reliance')
 type Trace = typeof import('@/server/modules/trace')
+type Defense = typeof import('@/server/modules/defense')
 
 let f: Factories
 let repo: ScenariosRepo
@@ -86,6 +87,7 @@ let runsRepo: RunsRepo
 let runs: Runs
 let reliance: Reliance
 let trace: Trace
+let defense: Defense
 
 const actorFor = (
   user: { id: string; email: string; name: string },
@@ -338,6 +340,36 @@ async function setup() {
     isDefault: false,
     position: 0,
   })
+  // A figure-provenance question and six defaults, so the defense the sweep below opens is a real
+  // interview rather than one question. Every one of them carries a follow-up prompt and
+  // expected-answer notes, which is what the sweep is looking for: the bank is the instrument, and
+  // none of it may travel with the question a student is asked (FR-123, 12 §8.1).
+  await repo.upsertElement(orgId, versionId, 'defense_question', {
+    key: 'Q2',
+    kind: 'figure_provenance',
+    claimId: null,
+    assumptionIndex: null,
+    template: 'You wrote {figure} into the brief. Which document is that from?',
+    condition: {},
+    followUp: 'If the assistant gave it to you, say so.',
+    expectedAnswerNotes: 'A named-field value resolves to a document or to an assumption they own.',
+    isDefault: false,
+    position: 1,
+  })
+  for (const index of [0, 1, 2, 3, 4, 5]) {
+    await repo.upsertElement(orgId, versionId, 'defense_question', {
+      key: `D${index}`,
+      kind: 'default',
+      claimId: null,
+      assumptionIndex: null,
+      template: `What would you have had to see to decide the other way? (${index})`,
+      condition: {},
+      followUp: `Name the document or the number, not the feeling. (${index})`,
+      expectedAnswerNotes: `The expected answer notes for default ${index}.`,
+      isDefault: true,
+      position: 2 + index,
+    })
+  }
   await repo.upsertElement(orgId, versionId, 'readiness_item', {
     key: 'R1',
     category: 'defect_concept',
@@ -401,6 +433,7 @@ beforeEach(async () => {
   runs ??= await import('@/server/modules/runs')
   reliance ??= await import('@/server/modules/reliance')
   trace ??= await import('@/server/modules/trace')
+  defense ??= await import('@/server/modules/defense')
   fx = await setup()
 })
 
@@ -982,7 +1015,11 @@ describe('the workspace a student works in carries no forbidden key', () => {
         'namedFields',
         'run',
         'turnRemainingMs',
+        // D-341: the frozen record carries the Turn response too, so the defense's artifacts panel
+        // is one read of one shape. It is null here, before the Turn has arrived.
+        'turnResponse',
       ])
+      expect(record.turnResponse).toBeNull()
       expect(Object.keys(record.brief!).sort()).toEqual([
         'assumptions',
         'briefRationale',
@@ -1063,6 +1100,159 @@ describe('the workspace a student works in carries no forbidden key', () => {
         }
         // Nor as a value under another name: the authored evidence sentence is nowhere in it.
         expect(JSON.stringify(view)).not.toContain('The corrected cohort table')
+      })
+    })
+
+    // -----------------------------------------------------------------------------------------
+    // The defense (Step 9.2, FR-120 to FR-126, UI-026)
+    //
+    // The sharpest test of the invariant in the run, because a rendered question *quotes the run*:
+    // it is the one payload in the product where authored prose and the student's own record are
+    // joined into a sentence they read. What it may quote is their own record and the author's
+    // scenario text; what it may never quote is the author's assessment text — the follow-up prompt
+    // before their answer earns it, the expected-answer notes the faculty seat reads against, the
+    // selecting condition, or the bank row's own id (12 §8.1).
+    //
+    // The fixture is deliberately full: a brief with a figure in it, a frame, a filed Turn response
+    // and a bank of eight questions with notes on every one. Phase 8 shipped a sweep that passed
+    // because its fixture had never saved a brief, so the negative control here is an assertion and
+    // not a comment.
+    // -----------------------------------------------------------------------------------------
+    describe('the defense a student takes', () => {
+      /** Files the decision, locks a frame beside it, delivers the Turn and answers it. */
+      async function reachTheDefense(): Promise<void> {
+        await runsRepo.insertFrame(fx.run.id, {
+          decision: 'Whether to move acquisition spend to the premium tier this quarter',
+          assumptions: [
+            'Premium retention holds at the piloted level',
+            'Value tier payback stays near four months',
+            'Supplier cost per bag is stable through the year',
+          ],
+          position: 'Lean toward holding spend until the payback figure is rechecked',
+          confidence: 40,
+          lockedAt: new Date(),
+        })
+        await testSql`update runs set working_started_at = now() where id = ${fx.run.id}`
+        await runs.lockDecision(fx.learner, fx.run.id, {
+          recommendation: 'Hold the acquisition spend in the value tier for this quarter.',
+          rationale:
+            'The premium payback figure is load-bearing and has not been traced to the deck it rests on, so moving spend on it would be a bet on a number nobody has checked.',
+          assumptions: [
+            'Premium retention holds near the piloted level',
+            'Value tier payback stays close to four months',
+            'Supplier cost per bag is stable through the crop year',
+          ],
+          changeMyMind:
+            'A cohort table showing premium payback under six months would change this.',
+          confidence: 45,
+          // 19 months matches no claim (the deck says 11) and appears in no document body, so
+          // FR-025's figure-provenance question is drawn and `{figure}` is rendered from it.
+          namedValues: { premium_payback_months: 19 },
+        })
+        await testSql`update runs set turn_due_at = now() - interval '2 seconds'
+                       where id = ${fx.run.id}`
+        await runs.getTurn(fx.learner, fx.run.id)
+        for (const claim of await reliance.listRunClaims(fx.learner, fx.run.id)) {
+          if (claim.stance === null) {
+            await reliance.setStance(fx.learner, fx.run.id, claim.id, 'verify')
+          }
+        }
+        await runs.respondToTurn(fx.learner, fx.run.id, {
+          response: 'revise',
+          justification:
+            'The corrected retention figure is one cohort under the old pricing, so the share sized on that payback comes down.',
+          confidence: 55,
+        })
+      }
+
+      it('carries no forbidden key, over an interview with something in every field', async () => {
+        await reachTheDefense()
+        const view = await defense.openDefense(fx.learner, fx.run.id)
+
+        // The negative control: an empty finding list must be a statement about a payload.
+        expect(view.questions.length).toBeGreaterThanOrEqual(6)
+        expect(view.questions.every((question) => question.text.length > 0)).toBe(true)
+        expect(view.artifacts.brief?.recommendation.length).toBeGreaterThan(0)
+        expect(view.artifacts.frame?.decision.length).toBeGreaterThan(0)
+        expect(view.artifacts.turnResponse?.justification?.length).toBeGreaterThan(0)
+        expect(view.artifacts.namedFields.length).toBeGreaterThan(0)
+
+        expect(findForbiddenKeys(view, { scored: false })).toEqual([])
+      })
+
+      it('is a closed set of fields, and quotes no authored assessment text', async () => {
+        await reachTheDefense()
+        const view = await defense.openDefense(fx.learner, fx.run.id)
+
+        expect(Object.keys(view).sort()).toEqual(['artifacts', 'questions'])
+        expect(Object.keys(view.artifacts).sort()).toEqual([
+          'addendum',
+          'brief',
+          'frame',
+          'namedFields',
+          'turnResponse',
+        ])
+        expect(Object.keys(view.questions[0] ?? {}).sort()).toEqual([
+          'answer',
+          'answered',
+          'followUpOf',
+          'kind',
+          'runQuestionId',
+          'seq',
+          'text',
+        ])
+
+        // FR-123 and 12 §8.1: the bank's own machinery, under either spelling and at any depth.
+        const keys = keysOf(view)
+        for (const forbidden of [
+          'questionId',
+          'question_id',
+          'selectingEventSeq',
+          'selecting_event_seq',
+          'expectedAnswerNotes',
+          'condition',
+          'isDefault',
+          'template',
+        ]) {
+          expect([forbidden, keys.has(forbidden)]).toEqual([forbidden, false])
+        }
+
+        // Nor as a value under another name. The rendered questions quote the *scenario* — the
+        // claim's own text, the student's own figure — and never the author's reading of it.
+        const serialized = JSON.stringify(view)
+        expect(serialized).not.toContain('Names the positioning deck')
+        expect(serialized).not.toContain('expected answer notes for default')
+        expect(serialized).not.toContain('What date does that document carry?')
+        expect(serialized).not.toContain('Name the document or the number, not the feeling.')
+        // And nothing about what the claim deserved or why (D-117).
+        expect(serialized).not.toContain('deserved Verify')
+        expect(serialized).not.toContain('stale_evidence')
+      })
+
+      it('hands the follow-up over only once the answer has earned it (FR-123)', async () => {
+        await reachTheDefense()
+        const view = await defense.openDefense(fx.learner, fx.run.id)
+        const first = view.questions[0]
+        if (!first) throw new Error('expected a question')
+
+        const result = await defense.answerQuestion(fx.learner, fx.run.id, first.runQuestionId, {
+          text: 'The assistant said so.',
+          durationMs: 5_000,
+        })
+        expect(findForbiddenKeys(result, { scored: false })).toEqual([])
+        expect(result.followUpQuestion?.text.length).toBeGreaterThan(0)
+      })
+
+      it('keeps the trace and the claim table sealed while it is open (D-279)', async () => {
+        await reachTheDefense()
+        await defense.openDefense(fx.learner, fx.run.id)
+
+        await expect(trace.listEvents(fx.learner, fx.run.id)).rejects.toMatchObject({
+          code: 'FORBIDDEN',
+        })
+        await expect(reliance.listRunClaims(fx.learner, fx.run.id)).rejects.toMatchObject({
+          code: 'FORBIDDEN',
+        })
       })
     })
   })

@@ -51,6 +51,14 @@ export const ERROR_STATUS = {
   // claims the window put in front of the student and they have taken no position on.
   TURN_NOT_OPEN: 409,
   TURN_CLAIMS_UNSTANCED: 409,
+  // The defense (Step 9.2, 10 §9). `DEFENSE_NOT_OPEN` is the refusal for a read, an answer or a
+  // completion outside `defense_pending` and carries `details.state`, the same shape `TURN_NOT_OPEN`
+  // uses; `QUESTION_ALREADY_ANSWERED` is FR-124's one answer per question; `DEFENSE_INCOMPLETE`
+  // carries `details.unanswered`, the number of questions still without an answer row — an *empty*
+  // answer is an answer (FR-124), so this counts the questions nobody has submitted anything for.
+  DEFENSE_NOT_OPEN: 409,
+  QUESTION_ALREADY_ANSWERED: 409,
+  DEFENSE_INCOMPLETE: 409,
   // FR-118: the faculty test control, refused when `FEATURE_TEST_CONTROLS` is off. 403 rather than
   // 404: the caller is an instructor of the section who may read the run, and the flag is a
   // deployment fact about the whole installation rather than anything about this run.
@@ -131,6 +139,11 @@ export const DEFAULT_MESSAGES: Record<ErrorCode, string> = {
   // It names no claim: the claims' ids travel in `details.claimIds`, and the Turn screen already
   // holds their words — naming one here would be a second copy of text the student is looking at.
   TURN_CLAIMS_UNSTANCED: 'A claim the Turn raised has no stance yet.',
+  DEFENSE_NOT_OPEN: 'The defense is not open on this run.',
+  QUESTION_ALREADY_ANSWERED: 'That question has already been answered.',
+  // It names no question: the count travels in `details.unanswered` and the screen already holds the
+  // list, so naming one here would be a second copy of what the student is looking at.
+  DEFENSE_INCOMPLETE: 'Every question needs an answer before the defense can be finished.',
   TEST_CONTROLS_DISABLED: 'Test controls are switched off in this environment.',
   RUN_PAUSED: 'The run is paused and the clock is stopped. Resume it to carry on.',
   CLAIM_NOT_SURFACED: 'That claim has not come up in this run yet.',

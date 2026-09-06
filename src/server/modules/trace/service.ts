@@ -32,6 +32,7 @@ import {
   findRunState,
   insertEvent,
   listEventsForRun,
+  type DbOrTx,
   type RunEvent,
   type TraceClock,
   type TraceRun,
@@ -244,6 +245,44 @@ export async function requireOwnerReadAccess(
   const access = ownerAccessFor(state)
   if (access === 'sealed') traceSealed(state)
   return access
+}
+
+/**
+ * One stored event as a server-side pipeline reads it: the record, not a reader's view.
+ *
+ * The payload is the open jsonb the column holds. Narrowing it belongs to the reader that knows
+ * which type it is asking about — `EVENT_PAYLOAD_SCHEMAS` is exported for exactly that — and a
+ * pipeline that walks every event of a run reads a handful of fields from a handful of types.
+ */
+export type TraceRecordEvent = {
+  seq: number
+  type: RunEventTypeValue
+  occurredAt: Date
+  payload: Record<string, unknown>
+}
+
+/**
+ * The run's trace as written, for a pipeline **inside the server** — not for a reader.
+ *
+ * The third function other modules take from this one, and the same shape of seam as `append`: it
+ * is reached with a run id the caller's permission helper has already resolved, and it applies no
+ * view rule of its own. `listEvents` above is the reader's function and is where `owner-view.ts`
+ * lives; this is the record, and every field of it, including the `reviewer_only` ones.
+ *
+ * Two pipelines need it and neither is a reader. The defense's question selection is a pure
+ * function of the run's own events (10 §9), which is what gives each rendered question the
+ * `selecting_event_seq` the replay reads it back by; Phase 10's scoring reads the same list to
+ * build the graphs. Both turn events into something else and hand *that* to a student — so the
+ * events never leave the server, and the projections they produce are guarded where they are built.
+ */
+export async function readEvents(runId: string, dbx?: DbOrTx): Promise<TraceRecordEvent[]> {
+  const events = await listEventsForRun(runId, dbx)
+  return events.map((event) => ({
+    seq: event.seq,
+    type: event.type,
+    occurredAt: event.occurredAt,
+    payload: event.payload,
+  }))
 }
 
 /**

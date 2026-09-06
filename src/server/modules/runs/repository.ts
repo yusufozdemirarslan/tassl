@@ -691,6 +691,19 @@ export async function findRunTurn(
   return row
 }
 
+/** The response the student filed, or the implicit hold the window recorded; one row per run. */
+export async function findTurnResponse(
+  runId: string,
+  dbx: DbOrTx = db,
+): Promise<RunTurnResponse | undefined> {
+  const [row] = await dbx
+    .select()
+    .from(runTurnResponses)
+    .where(eq(runTurnResponses.runId, runId))
+    .limit(1)
+  return row
+}
+
 export async function insertTurnResponse(
   runId: string,
   values: TurnResponseInsert,

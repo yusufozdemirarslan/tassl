@@ -10617,55 +10617,13 @@ paths:
       operationId: getDefense
       summary: Open or resume the defense
       parameters:
-        - $ref: "#/components/parameters/runId"
-      responses:
-        "200":
-          description: OK
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/DefenseView"
-        "409":
-          $ref: "#/components/responses/Conflict"
-  /runs/{runId}/defense/complete:
-    post:
-      tags:
-        - runs
-      operationId: completeDefense
-      summary: Complete the defense and queue scoring
-      parameters:
-        - $ref: "#/components/parameters/runId"
-        - $ref: "#/components/parameters/requestedWith"
-      responses:
-        "200":
-          description: OK
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/RunSummary"
-        "409":
-          $ref: "#/components/responses/Conflict"
-  /runs/{runId}/defense/questions/{runQuestionId}/answer:
-    post:
-      tags:
-        - runs
-      operationId: answerDefenseQuestion
-      summary: Answer a question (may add a follow-up)
-      parameters:
-        - $ref: "#/components/parameters/runId"
-        - name: runQuestionId
-          in: path
-          required: true
+        - in: path
+          name: runId
           schema:
             type: string
             format: uuid
-        - $ref: "#/components/parameters/requestedWith"
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/DefenseAnswer"
+            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+          required: true
       responses:
         "200":
           description: OK
@@ -10673,20 +10631,646 @@ paths:
             application/json:
               schema:
                 type: object
+                properties:
+                  questions:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        runQuestionId:
+                          type: string
+                          format: uuid
+                          pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                        seq:
+                          type: integer
+                          minimum: 1
+                          maximum: 9007199254740991
+                        kind:
+                          type: string
+                          enum:
+                            - provenance
+                            - figure_provenance
+                            - verification
+                            - assumption
+                            - confidence
+                            - frame_vs_response
+                            - counterfactual
+                            - default
+                        text:
+                          type: string
+                          minLength: 1
+                        answered:
+                          type: boolean
+                        followUpOf:
+                          anyOf:
+                            - type: string
+                              format: uuid
+                              pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                            - type: "null"
+                        answer:
+                          anyOf:
+                            - type: object
+                              properties:
+                                text:
+                                  type: string
+                                answeredAt:
+                                  type: string
+                                  format: date-time
+                                  pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z))$
+                              required:
+                                - text
+                                - answeredAt
+                              additionalProperties: false
+                            - type: "null"
+                      required:
+                        - runQuestionId
+                        - seq
+                        - kind
+                        - text
+                        - answered
+                        - followUpOf
+                        - answer
+                      additionalProperties: false
+                  artifacts:
+                    type: object
+                    properties:
+                      frame:
+                        anyOf:
+                          - type: object
+                            properties:
+                              decision:
+                                type: string
+                              assumptions:
+                                minItems: 3
+                                maxItems: 3
+                                type: array
+                                items:
+                                  type: string
+                              position:
+                                type: string
+                              confidence:
+                                type: integer
+                                minimum: 0
+                                maximum: 100
+                              lockedAt:
+                                type: string
+                                format: date-time
+                                pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z))$
+                            required:
+                              - decision
+                              - assumptions
+                              - position
+                              - confidence
+                              - lockedAt
+                            additionalProperties: false
+                          - type: "null"
+                      brief:
+                        anyOf:
+                          - type: object
+                            properties:
+                              recommendation:
+                                type: string
+                              briefRationale:
+                                type: string
+                              assumptions:
+                                minItems: 3
+                                maxItems: 3
+                                type: array
+                                items:
+                                  type: string
+                              changeMyMind:
+                                type: string
+                              confidence:
+                                anyOf:
+                                  - type: integer
+                                    minimum: 0
+                                    maximum: 100
+                                  - type: "null"
+                              namedValues:
+                                type: object
+                                propertyNames:
+                                  type: string
+                                additionalProperties:
+                                  type: number
+                              updatedAt:
+                                type: string
+                                format: date-time
+                                pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z))$
+                              lockedAt:
+                                anyOf:
+                                  - type: string
+                                    format: date-time
+                                    pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z))$
+                                  - type: "null"
+                            required:
+                              - recommendation
+                              - briefRationale
+                              - assumptions
+                              - changeMyMind
+                              - confidence
+                              - namedValues
+                              - updatedAt
+                              - lockedAt
+                            additionalProperties: false
+                          - type: "null"
+                      addendum:
+                        anyOf:
+                          - type: object
+                            properties:
+                              text:
+                                type: string
+                                minLength: 1
+                              createdAt:
+                                type: string
+                                format: date-time
+                                pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z))$
+                            required:
+                              - text
+                              - createdAt
+                            additionalProperties: false
+                          - type: "null"
+                      turnResponse:
+                        anyOf:
+                          - type: object
+                            properties:
+                              response:
+                                type: string
+                                enum:
+                                  - hold
+                                  - revise
+                                  - reverse
+                              justification:
+                                type:
+                                  - string
+                                  - "null"
+                              confidence:
+                                anyOf:
+                                  - type: integer
+                                    minimum: 0
+                                    maximum: 100
+                                  - type: "null"
+                              implicit:
+                                type: boolean
+                              lockedAt:
+                                type: string
+                                format: date-time
+                                pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z))$
+                            required:
+                              - response
+                              - justification
+                              - confidence
+                              - implicit
+                              - lockedAt
+                            additionalProperties: false
+                          - type: "null"
+                      namedFields:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            key:
+                              type: string
+                              minLength: 1
+                            label:
+                              type: string
+                              minLength: 1
+                            unit:
+                              type: string
+                              enum:
+                                - percent
+                                - ratio
+                                - months
+                                - usd
+                                - count
+                                - other
+                          required:
+                            - key
+                            - label
+                            - unit
+                          additionalProperties: false
+                    required:
+                      - frame
+                      - brief
+                      - addendum
+                      - turnResponse
+                      - namedFields
+                    additionalProperties: false
                 required:
-                  - next
-                  - followUp
+                  - questions
+                  - artifacts
+                additionalProperties: false
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+  /runs/{runId}/defense/complete:
+    post:
+      tags:
+        - runs
+      operationId: completeDefense
+      summary: Complete the defense and queue scoring
+      parameters:
+        - in: path
+          name: runId
+          schema:
+            type: string
+            format: uuid
+            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+          required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: string
+                    format: uuid
+                    pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                  assignmentId:
+                    type: string
+                    format: uuid
+                    pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                  attemptNo:
+                    type: integer
+                    exclusiveMinimum: 0
+                    maximum: 9007199254740991
+                  state:
+                    type: string
+                    enum:
+                      - assigned
+                      - readiness
+                      - framing
+                      - working
+                      - paused
+                      - decision_locked
+                      - turn_open
+                      - turn_locked
+                      - defense_pending
+                      - defense_complete
+                      - scored
+                      - confirmed
+                      - recorded
+                      - voided
+                      - abandoned
+                      - defense_missed
+                      - under_appeal
+                      - expired
+                  mode:
+                    type: string
+                    enum:
+                      - guided
+                      - standard
+                      - open
+                  isWalkthrough:
+                    type: boolean
+                  clock:
+                    anyOf:
+                      - type: object
+                        properties:
+                          remainingMs:
+                            type: integer
+                            minimum: 0
+                            maximum: 9007199254740991
+                          paused:
+                            type: boolean
+                          creditedMs:
+                            type: integer
+                            minimum: 0
+                            maximum: 9007199254740991
+                          chargedMs:
+                            type: integer
+                            minimum: 0
+                            maximum: 9007199254740991
+                        required:
+                          - remainingMs
+                          - paused
+                          - creditedMs
+                          - chargedMs
+                        additionalProperties: false
+                      - type: "null"
+                  turn:
+                    anyOf:
+                      - type: object
+                        properties:
+                          dueAt:
+                            type: string
+                            format: date-time
+                            pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z))$
+                          windowEndsAt:
+                            anyOf:
+                              - type: string
+                                format: date-time
+                                pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z))$
+                              - type: "null"
+                        required:
+                          - dueAt
+                          - windowEndsAt
+                        additionalProperties: false
+                      - type: "null"
+                  scoringStatus:
+                    type: string
+                    enum:
+                      - idle
+                      - queued
+                      - running
+                      - held
+                      - done
+                  timestamps:
+                    type: object
+                    properties:
+                      policyDisplayedAt:
+                        anyOf:
+                          - type: string
+                            format: date-time
+                            pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z))$
+                          - type: "null"
+                      workingStartedAt:
+                        anyOf:
+                          - type: string
+                            format: date-time
+                            pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z))$
+                          - type: "null"
+                      decisionLockedAt:
+                        anyOf:
+                          - type: string
+                            format: date-time
+                            pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z))$
+                          - type: "null"
+                      turnDeliveredAt:
+                        anyOf:
+                          - type: string
+                            format: date-time
+                            pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z))$
+                          - type: "null"
+                      turnLockedAt:
+                        anyOf:
+                          - type: string
+                            format: date-time
+                            pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z))$
+                          - type: "null"
+                      defenseCompletedAt:
+                        anyOf:
+                          - type: string
+                            format: date-time
+                            pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z))$
+                          - type: "null"
+                      scoredAt:
+                        anyOf:
+                          - type: string
+                            format: date-time
+                            pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z))$
+                          - type: "null"
+                      confirmedAt:
+                        anyOf:
+                          - type: string
+                            format: date-time
+                            pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z))$
+                          - type: "null"
+                      recordedAt:
+                        anyOf:
+                          - type: string
+                            format: date-time
+                            pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z))$
+                          - type: "null"
+                      voidedAt:
+                        anyOf:
+                          - type: string
+                            format: date-time
+                            pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z))$
+                          - type: "null"
+                    required:
+                      - policyDisplayedAt
+                      - workingStartedAt
+                      - decisionLockedAt
+                      - turnDeliveredAt
+                      - turnLockedAt
+                      - defenseCompletedAt
+                      - scoredAt
+                      - confirmedAt
+                      - recordedAt
+                      - voidedAt
+                    additionalProperties: false
+                  version:
+                    type: integer
+                    minimum: 0
+                    maximum: 9007199254740991
+                  links:
+                    type: object
+                    properties:
+                      next:
+                        type: string
+                    required:
+                      - next
+                    additionalProperties: false
+                required:
+                  - id
+                  - assignmentId
+                  - attemptNo
+                  - state
+                  - mode
+                  - isWalkthrough
+                  - clock
+                  - turn
+                  - scoringStatus
+                  - timestamps
+                  - version
+                  - links
+                additionalProperties: false
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+  /runs/{runId}/defense/questions/{runQuestionId}/answer:
+    post:
+      tags:
+        - runs
+      operationId: answerDefenseQuestion
+      summary: Answer a question (may add a follow-up)
+      parameters:
+        - in: path
+          name: runId
+          schema:
+            type: string
+            format: uuid
+            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+          required: true
+        - in: path
+          name: runQuestionId
+          schema:
+            type: string
+            format: uuid
+            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+          required: true
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                text:
+                  type: string
+                durationMs:
+                  type: number
+              required:
+                - text
+                - durationMs
+              additionalProperties: false
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
                 properties:
                   next:
-                    oneOf:
-                      - $ref: "#/components/schemas/DefenseQuestion"
+                    anyOf:
+                      - type: object
+                        properties:
+                          runQuestionId:
+                            type: string
+                            format: uuid
+                            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                          seq:
+                            type: integer
+                            minimum: 1
+                            maximum: 9007199254740991
+                          kind:
+                            type: string
+                            enum:
+                              - provenance
+                              - figure_provenance
+                              - verification
+                              - assumption
+                              - confidence
+                              - frame_vs_response
+                              - counterfactual
+                              - default
+                          text:
+                            type: string
+                            minLength: 1
+                          answered:
+                            type: boolean
+                          followUpOf:
+                            anyOf:
+                              - type: string
+                                format: uuid
+                                pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                              - type: "null"
+                          answer:
+                            anyOf:
+                              - type: object
+                                properties:
+                                  text:
+                                    type: string
+                                  answeredAt:
+                                    type: string
+                                    format: date-time
+                                    pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z))$
+                                required:
+                                  - text
+                                  - answeredAt
+                                additionalProperties: false
+                              - type: "null"
+                        required:
+                          - runQuestionId
+                          - seq
+                          - kind
+                          - text
+                          - answered
+                          - followUpOf
+                          - answer
+                        additionalProperties: false
                       - type: "null"
-                  followUp:
-                    oneOf:
-                      - $ref: "#/components/schemas/DefenseQuestion"
+                  followUpQuestion:
+                    anyOf:
+                      - type: object
+                        properties:
+                          runQuestionId:
+                            type: string
+                            format: uuid
+                            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                          seq:
+                            type: integer
+                            minimum: 1
+                            maximum: 9007199254740991
+                          kind:
+                            type: string
+                            enum:
+                              - provenance
+                              - figure_provenance
+                              - verification
+                              - assumption
+                              - confidence
+                              - frame_vs_response
+                              - counterfactual
+                              - default
+                          text:
+                            type: string
+                            minLength: 1
+                          answered:
+                            type: boolean
+                          followUpOf:
+                            anyOf:
+                              - type: string
+                                format: uuid
+                                pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                              - type: "null"
+                          answer:
+                            anyOf:
+                              - type: object
+                                properties:
+                                  text:
+                                    type: string
+                                  answeredAt:
+                                    type: string
+                                    format: date-time
+                                    pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z))$
+                                required:
+                                  - text
+                                  - answeredAt
+                                additionalProperties: false
+                              - type: "null"
+                        required:
+                          - runQuestionId
+                          - seq
+                          - kind
+                          - text
+                          - answered
+                          - followUpOf
+                          - answer
+                        additionalProperties: false
                       - type: "null"
-        "409":
-          $ref: "#/components/responses/Conflict"
+                required:
+                  - next
+                  - followUpQuestion
+                additionalProperties: false
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "429":
+          $ref: "#/components/responses/RateLimited"
   /runs/{runId}/delegations:
     get:
       tags:
