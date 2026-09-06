@@ -30,6 +30,7 @@ import {
   runs,
   scenarioDocuments,
   scenarioPackageVersions,
+  scenarioTurns,
   scenarioVariants,
   type Assignment,
   type NewRun,
@@ -648,6 +649,45 @@ export async function insertAddendum(
     .values({ runId, text })
     .onConflictDoNothing({ target: runAddenda.runId })
     .returning()
+  return row
+}
+
+/**
+ * The Turn the run's package version authored, as much of it as the run ever needs (DATA-023).
+ *
+ * Four columns of nine, and the five that are missing are the point (12 §8.1). `warrants_change`,
+ * `proportionate_response`, `evidence` and `disrupted_assumption_keys` are what the student's
+ * response is measured against (FR-114), and `stakeholder_id` is a document's author before the run
+ * is scored — none is loaded here, so none can reach a projection above by being spread. The three
+ * that are: the Turn's own words and voice, which the student reads, and `window_claim_ids`, which
+ * the delivery surfaces and which never leaves the service (D-336).
+ *
+ * Read here rather than through the `scenarios` module for the reason `findReadinessSet` and
+ * `listRunDocuments` are: the question is about *this run* — which Turn its version carries — and
+ * the join that answers it starts at the run row, which is where the tenant filter lives (D-242).
+ */
+export type RunTurn = {
+  id: string
+  text: string
+  voice: (typeof scenarioTurns.voice)['enumValues'][number]
+  windowClaimIds: string[]
+}
+
+export async function findRunTurn(
+  tenantId: string,
+  runId: string,
+  dbx: DbOrTx = db,
+): Promise<RunTurn | undefined> {
+  const [row] = await dbx
+    .select({
+      id: scenarioTurns.id,
+      text: scenarioTurns.text,
+      voice: scenarioTurns.voice,
+      windowClaimIds: scenarioTurns.windowClaimIds,
+    })
+    .from(runs)
+    .innerJoin(scenarioTurns, eq(scenarioTurns.packageVersionId, runs.packageVersionId))
+    .where(and(eq(runs.organizationId, tenantId), eq(runs.id, runId)))
   return row
 }
 

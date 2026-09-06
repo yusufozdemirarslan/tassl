@@ -45,6 +45,12 @@ export const ERROR_STATUS = {
   BRIEF_INVALID: 400,
   LOCK_REFUSED_UNSTANCED_CLAIM: 409,
   ADDENDUM_EXISTS: 409,
+  // The Turn (Step 9.1). `TURN_NOT_OPEN` is 10 §6's refusal for a read or a response outside
+  // `turn_open` and carries `details.state`, so a stale screen follows the run's own `links.next`;
+  // `TURN_CLAIMS_UNSTANCED` is FR-111's gate on the response and carries `details.claimIds`, the
+  // claims the window put in front of the student and they have taken no position on.
+  TURN_NOT_OPEN: 409,
+  TURN_CLAIMS_UNSTANCED: 409,
   // FR-118: the faculty test control, refused when `FEATURE_TEST_CONTROLS` is off. 403 rather than
   // 404: the caller is an instructor of the section who may read the run, and the flag is a
   // deployment fact about the whole installation rather than anything about this run.
@@ -121,6 +127,10 @@ export const DEFAULT_MESSAGES: Record<ErrorCode, string> = {
   // `details.claimText`, which is what the lock dialog puts beside its "Go to claim" control.
   LOCK_REFUSED_UNSTANCED_CLAIM: 'A claim you relied on has no stance.',
   ADDENDUM_EXISTS: 'This run already has its addendum.',
+  TURN_NOT_OPEN: 'The Turn is not open on this run.',
+  // It names no claim: the claims' ids travel in `details.claimIds`, and the Turn screen already
+  // holds their words — naming one here would be a second copy of text the student is looking at.
+  TURN_CLAIMS_UNSTANCED: 'A claim the Turn raised has no stance yet.',
   TEST_CONTROLS_DISABLED: 'Test controls are switched off in this environment.',
   RUN_PAUSED: 'The run is paused and the clock is stopped. Resume it to carry on.',
   CLAIM_NOT_SURFACED: 'That claim has not come up in this run yet.',

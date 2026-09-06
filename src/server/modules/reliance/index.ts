@@ -23,6 +23,7 @@ export {
   escalate,
   findReliedOn,
   findUnstancedReliedOn,
+  findUnstancedWindowClaims,
   listRunClaims,
   markClaimUsed,
   markReliedOnFromNamedFields,

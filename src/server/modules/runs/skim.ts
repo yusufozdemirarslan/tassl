@@ -76,20 +76,30 @@ export function isSkim(openMs: number, wordCount: number): boolean {
 export type OpenRun = ClockRun & { decisionLockedAt: Date | null }
 
 /**
- * The instant beyond which this run's clock can no longer have been running, or null when no clock
- * bounds the open.
+ * The instant beyond which the clock *this open was running against* can no longer have been
+ * running, or null when no clock bounds it.
  *
  * Three readings, in the order they are asked:
  *
- *   * inside the Turn window, the window's own end (D-132);
- *   * in `working` or `paused`, the instant the working clock reaches zero (D-042);
- *   * after the decision is locked, the instant it was locked — the working clock ended there.
+ *   * an open made **inside the Turn window**, the window's own end (D-132);
+ *   * otherwise, in `working` or `paused`, the instant the working clock reaches zero (D-042);
+ *   * otherwise the instant the decision was locked — the working clock ended there.
  *
  * `framing` answers null, and correctly: the Evidence Room opens before the frame and there is no
  * clock running yet, so a long read while framing is a long read, not an overrun.
+ *
+ * **The open's own instant is what picks the clock, not the run's current state** (D-338). A run has
+ * two clocks with a gap between them — the working clock ends at the Decision Lock, nothing runs
+ * through the Turn delay, and the window starts at the delivery read — and a document left open
+ * through all three is a laptop that was shut, not a reading. Answering the window's end for it
+ * would draw reading across a period no clock was running, which is the one thing the cap exists to
+ * prevent. `openedAt >= turn_delivered_at` is the same fact `run_document_opens.in_turn_window`
+ * stores, read from the two instants this function already has.
  */
-export function clockEndsAt(run: OpenRun): Date | null {
-  if (isInTurnWindow(run)) return run.turnWindowEndsAt
+export function clockEndsAt(run: OpenRun, openedAt: Date): Date | null {
+  if (isInTurnWindow(run) && run.turnDeliveredAt && openedAt >= run.turnDeliveredAt) {
+    return run.turnWindowEndsAt
+  }
   return workingExpiresAt(run) ?? run.decisionLockedAt
 }
 
@@ -151,7 +161,7 @@ export function openElapsedMs(openedAt: Date, now: Date): number {
  */
 export function cappedDurationMs(run: OpenRun, openedAt: Date, now: Date): number {
   const elapsed = openElapsedMs(openedAt, now)
-  const endsAt = clockEndsAt(run)
+  const endsAt = clockEndsAt(run, openedAt)
   if (endsAt === null || endsAt.getTime() <= openedAt.getTime()) return elapsed
   return Math.min(elapsed, endsAt.getTime() - openedAt.getTime())
 }

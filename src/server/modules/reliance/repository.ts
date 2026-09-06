@@ -55,8 +55,11 @@ export type RunClaimUpsert = { runClaim: RunClaim; inserted: boolean }
 /** A run claim joined to the scenario claim it refers to (text, source, escalatability). */
 export type RunClaimWithClaim = { runClaim: RunClaim; claim: ScenarioClaim }
 
-/** Optional narrowing for `listRunClaims`; the lock gate asks for `reliedOn` + `unstanced`. */
-export type RunClaimFilter = { reliedOn?: boolean; unstanced?: boolean }
+/**
+ * Optional narrowing for `listRunClaims`. The Decision Lock's gate asks for `reliedOn` +
+ * `unstanced` (FR-084); the Turn's asks for `inTurnWindow` + `unstanced` (FR-111).
+ */
+export type RunClaimFilter = { reliedOn?: boolean; unstanced?: boolean; inTurnWindow?: boolean }
 
 export type StanceUpdate = { stance: Stance; stanceSetAt: Date }
 export type ReliedOnUpdate = { via: ReliedOnVia; usedMarked?: boolean }
@@ -170,6 +173,9 @@ export async function listRunClaims(
       and(
         eq(runClaims.runId, runId),
         filter.reliedOn === undefined ? undefined : eq(runClaims.reliedOn, filter.reliedOn),
+        filter.inTurnWindow === undefined
+          ? undefined
+          : eq(runClaims.inTurnWindow, filter.inTurnWindow),
         filter.unstanced ? isNull(runClaims.stance) : undefined,
       ),
     )

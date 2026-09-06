@@ -42,7 +42,9 @@ import { getLogger } from '@/server/http/request-context'
 import {
   findReliedOn,
   findUnstancedReliedOn,
+  findUnstancedWindowClaims,
   markReliedOnFromNamedFields,
+  surfaceClaims,
   surfaceDocumentClaims,
 } from '@/server/modules/reliance'
 import { getStudentScenario } from '@/server/modules/scenarios'
@@ -52,6 +54,7 @@ import {
   credit,
   isInTurnWindow,
   pause as clockPause,
+  remainingWindowMs,
   resume as clockResume,
   type ClockRun,
 } from './clock'
@@ -84,6 +87,9 @@ import {
   runNotFound,
   testControlsDisabled,
   testRouteUnavailable,
+  turnClaimsUnstanced,
+  turnNotOpen,
+  turnResponseInvalid,
   workspaceNotOpen,
   type FrameInvalidReason,
 } from './errors'
@@ -140,10 +146,19 @@ import type {
   RunSummary,
   RunWorkspace,
   RunsQuery,
+  TurnResponseInput,
+  TurnView,
   VariantKeyValue,
 } from './schema'
 import { readingOf } from './skim'
 import { transition } from './state-machine'
+import {
+  IMPLICIT_HOLD,
+  planTurnDelivery,
+  planTurnResponse,
+  turnDueAtFrom,
+  type TurnResponseFields,
+} from './turn'
 import { toRunSummary } from './summary'
 import { nextTimer, type Timer, type TimerBranch } from './timers'
 
@@ -200,28 +215,40 @@ async function requireOwnerOrReviewer(
 // Timers (10 §8, ADR-019)
 // ---------------------------------------------------------------------------------------------
 
-/** What a branch of 10 §8 does: one state change, its events, and the row it leaves behind. */
-type TimerApplier = (tx: repo.Tx, run: repo.Run, at: Date) => Promise<repo.Run>
+/**
+ * What a branch of 10 §8 does: one state change, its events, and the row it leaves behind.
+ *
+ * `at` is the instant the timer fired, computed from the run's own columns, and `now` is the
+ * instant of the read that noticed. For three of the four branches they are the same thing to write
+ * down — the check expired, the clock reached zero, the window closed, and nobody was there — and
+ * only `at` is used. The Turn's delivery is the one branch where the difference is the rule (FR-115,
+ * D-334): the Turn fired at `at` and reached the student at `now`, and the window starts at the
+ * later of the two.
+ */
+type TimerApplier = (tx: repo.Tx, run: repo.Run, at: Date, now: Date) => Promise<repo.Run>
 
 /**
  * The branches of 10 §8 this build can apply, keyed by the timer that fires them.
  *
- * A branch with no entry is one no step has landed yet, and the table is read in both directions:
- * `dueTimer` will not report a timer nothing can act on, so a poll of a run waiting on an
- * unimplemented branch takes no lock and writes nothing, and the run stays where it is until the
- * step that lands the branch — which is what would have happened anyway.
+ * All four are here from Step 9.1. `dueTimer` still reads the table in both directions, so a branch
+ * removed from it would take no lock and write nothing rather than failing.
  *
  *   * `readiness_expired` — auto-submit the check with the unanswered items as `unknown` and move
  *     to `framing` (10 §8 branch 1).
  *   * `decision_auto_lock` — lock the decision at the instant the working clock reached zero, on
  *     whatever the student had written (10 §8 branch 2, FR-105, D-044).
- *   * `turn_delivery`, `turn_window_expired` — Phase 9.
+ *   * `turn_delivery` — deliver the Turn, open the twelve-minute window, and surface the claims it
+ *     lands on (10 §8 branch 3, FR-110, FR-111, FR-115, D-043, D-077).
+ *   * `turn_window_expired` — the window closed unanswered, so the original decision stands as an
+ *     implicit hold and the run goes on to the defense (10 §8 branch 4, FR-113).
  *   * `paused` is in none of them, by definition: the clock is frozen (FR-001), so `nextTimer`
  *     answers nothing for it.
  */
 const TIMER_APPLIERS: Partial<Record<TimerBranch, TimerApplier>> = {
   readiness_expired: (tx, run, at) => closeReadiness(tx, run, 'expired', at, null),
   decision_auto_lock: (tx, run, at) => autoLockDecision(tx, run, at),
+  turn_delivery: (tx, run, at, now) => deliverTurn(tx, run, at, now),
+  turn_window_expired: (tx, run, at) => lockTurnResponse(tx, run, IMPLICIT_HOLD, at, null),
 }
 
 /** Four branches, each of which fires at most once; the bound is what makes the cascade total. */
@@ -265,7 +292,13 @@ async function materializeTimersTx(
     if (!timer) return current
     const apply = TIMER_APPLIERS[timer.branch]
     if (!apply) return current
-    current = await apply(tx, current, timer.at)
+    const applied = await apply(tx, current, timer.at, now)
+    // A branch that could not act leaves the row exactly as it found it, and going round again
+    // would only ask it the same question. There is one such case — a confirmed package version
+    // with no Turn row, which `TURN_MISSING` (10 §4) makes unreachable — and stopping here is what
+    // keeps it a logged anomaly rather than four repeats of the same query on every read.
+    if (applied === current) return current
+    current = applied
   }
   return current
 }
@@ -1662,7 +1695,7 @@ async function commitDecisionLock(
     {
       ...moved.patch,
       confidenceAtLock: brief.confidence,
-      turnDueAt: new Date(at.getTime() + run.turnDelaySeconds * 1000),
+      turnDueAt: turnDueAtFrom(at, run.turnDelaySeconds),
     },
     tx,
   )
@@ -1799,6 +1832,276 @@ export async function addAddendum(
 
     await append(tx, run, 'addendum', { text }, { actorId: actor.id, occurredAt: new Date() })
   })
+}
+
+// ---------------------------------------------------------------------------------------------
+// The Turn (FR-110 to FR-115, PRD §7.11, 10 §6, 10 §8 branches 3 and 4)
+//
+// The run's last act before it is on its own. Four rules run through everything below; the
+// arithmetic behind them is `./turn.ts` and the reasons are there.
+//
+//   1. **The Turn fires on a clock and is delivered by a read.** `turn_delivered` is stamped at
+//      `turn_due_at` however long afterwards the read arrives (NFR-002); the window's twelve
+//      minutes start at the read, so a student who was offline gets all of them (FR-115, D-043).
+//   2. **The window is a room with its own clock.** The assistant, the Evidence Room and the
+//      interrogation actions reopen (FR-111) and each of them reads `turn_open` for itself —
+//      `ROOM_STATES` and `ASSISTANT_STATES` here, `RELIANCE_STATES` one module along — and charges
+//      the window rather than the working clock, which ended at the Decision Lock (D-132). Nothing
+//      in this section had to be added for that: the states were already listed.
+//   3. **A claim the window raises is relied on by rule** (D-077), which `reliance.surfaceClaims`
+//      applies from the run's own clock, and the response is refused while any of them has no
+//      stance (FR-111) — FR-084's gate one state later.
+//   4. **The response and the implicit hold are one function.** `lockTurnResponse` writes both, so
+//      the record cannot tell them apart except by the field that says so, exactly as the student's
+//      lock and the clock's auto-lock share `commitDecisionLock`.
+// ---------------------------------------------------------------------------------------------
+
+/**
+ * 10 §8 branch 3: the Turn falls due, so it is delivered and the window opens (FR-110, FR-115).
+ *
+ * Three writes and a surfacing, in the order they happened and all under the run's row lock.
+ *
+ * `turn_delivered` is appended **before** the run moves, so the event carries the run as it was when
+ * the Turn fired — the state was `decision_locked` and no clock was running, which is the honest
+ * `clock_remaining_ms` for an instant the window had not opened at (D-334). The claims are surfaced
+ * **after** it, from the row this transaction has just written, because `surfaceClaims` reads the
+ * run's state to decide whether the window's rule applies: surfaced against the old row they would
+ * be ordinary claims, and D-077's "relied on by rule" would silently not happen.
+ *
+ * `actorId` is null on every event: nobody did this, the clock did.
+ */
+async function deliverTurn(tx: repo.Tx, run: repo.Run, at: Date, now: Date): Promise<repo.Run> {
+  const tenantId = run.organizationId
+  const turn = await repo.findRunTurn(tenantId, run.id, tx)
+  // Unreachable through the product: `TURN_MISSING` (10 §4) refuses to confirm a version without a
+  // Turn, and an assignment refuses an unconfirmed version (10 §3). If it happens anyway, the run
+  // stays in `decision_locked` — a window with nothing in it is worse than a Turn that is late —
+  // and the anomaly is logged where it will be read rather than turned into a 500 on a poll.
+  if (!turn) {
+    getLogger().warn(
+      { event: 'turn_missing', runId: run.id, packageVersionId: run.packageVersionId },
+      'the run’s package version has no Turn, so none was delivered',
+    )
+    return run
+  }
+
+  const plan = planTurnDelivery(at, now)
+  await append(
+    tx,
+    run,
+    'turn_delivered',
+    {
+      turn_id: turn.id,
+      text: turn.text,
+      voice: turn.voice,
+      window_ends_at: plan.windowEndsAt.toISOString(),
+      window_claim_ids: turn.windowClaimIds,
+    },
+    { actorId: null, occurredAt: plan.firedAt },
+  )
+
+  const moved = transition(run, 'turn_open', { cause: 'turn_due', at: plan.deliveredAt })
+  await append(tx, run, 'lifecycle', moved.payload, {
+    actorId: null,
+    occurredAt: plan.deliveredAt,
+  })
+
+  const next = await repo.updateRun(
+    tenantId,
+    run.id,
+    { ...moved.patch, turnWindowEndsAt: plan.windowEndsAt },
+    tx,
+  )
+  if (!next) runNotFound()
+
+  await surfaceClaims(tx, next, turn.windowClaimIds, 'turn', turn.id, plan.deliveredAt)
+  return next
+}
+
+/**
+ * The end of the Turn, whoever ended it: the student's response (FR-112) or the window running out
+ * (FR-113).
+ *
+ * One function for both, because the record must not be able to tell them apart except by the two
+ * fields that say so — `implicit` on the row and on the event — and because the transitions are the
+ * same pair either way. `turn_open → turn_locked → defense_pending` happens **in one transaction**
+ * (10 §6): `turn_locked` is not a state a student ever sits in, it is the instant the response
+ * became immutable, and a run left there by a crash between two transactions would be a run with no
+ * screen to be on.
+ *
+ * `confidence_after_turn` is the third reading of the Confidence Line (FR-133) and is written only
+ * when there is one. An implicit hold leaves it null: nobody gave a confidence, and carrying the
+ * lock's forward would draw a line through a point the student never marked.
+ */
+async function lockTurnResponse(
+  tx: repo.Tx,
+  run: repo.Run,
+  fields: TurnResponseFields,
+  at: Date,
+  actorId: string | null,
+): Promise<repo.Run> {
+  const tenantId = run.organizationId
+
+  await repo.insertTurnResponse(
+    run.id,
+    {
+      response: fields.response,
+      justification: fields.justification,
+      confidence: fields.confidence,
+      implicit: fields.implicit,
+      lockedAt: at,
+    },
+    tx,
+  )
+
+  await append(
+    tx,
+    run,
+    'turn_response_locked',
+    {
+      response: fields.response,
+      justification: fields.justification,
+      confidence: fields.confidence,
+      implicit: fields.implicit,
+    },
+    { actorId, occurredAt: at },
+  )
+
+  const locked = transition(run, 'turn_locked', {
+    cause: fields.implicit ? 'turn_window_expired' : 'turn_response_locked',
+    at,
+  })
+  await append(tx, run, 'lifecycle', locked.payload, { actorId, occurredAt: at })
+
+  // 10 §9: `turn_locked → defense_pending` is automatic and stamps nothing. It is applied to the
+  // state the first transition just produced rather than to the run row, which this transaction has
+  // not written yet — the two patches are merged and committed once.
+  const pending = transition({ state: locked.patch.state }, 'defense_pending', {
+    cause: 'automatic',
+    at,
+  })
+  await append(tx, run, 'lifecycle', pending.payload, { actorId, occurredAt: at })
+
+  const next = await repo.updateRun(
+    tenantId,
+    run.id,
+    {
+      ...locked.patch,
+      ...pending.patch,
+      ...(fields.confidence === null ? {} : { confidenceAfterTurn: fields.confidence }),
+    },
+    tx,
+  )
+  if (!next) runNotFound()
+  return next
+}
+
+/**
+ * `GET /runs/{runId}/turn` (07 §7, FR-110 to FR-112): the Turn, its window, and the frozen record.
+ *
+ * Timers first and without a lock when nothing has fired (D-229): this is the read that *delivers*
+ * the Turn for a student who navigated straight to it, and it is polled beside `GET /runs/{runId}`
+ * for the countdown. A run that is not in the window is refused with the state it is in, so the
+ * screen follows the run's own `links.next` — before `turn_due_at` that is `/runs/[id]/locked` and
+ * after the response it is `/runs/[id]/defense`.
+ *
+ * The claims are not on it, and the authored `window_claim_ids` never is (D-336): the student meets
+ * the claims through `GET /runs/{runId}/claims`, which is the shape that carries a stance, the
+ * actions run on it and the escalation reply, and which the Turn screen composes beside this one
+ * exactly as the workspace does (D-268). What is here is the Turn itself, the window, and what the
+ * student decided before it arrived.
+ */
+export async function getTurn(actor: SessionUser, runId: string): Promise<TurnView> {
+  const scope = await requireRunOwner(actor, runId)
+  const tenantId = scope.organizationId
+
+  const first = await repo.findRunWithLabels(tenantId, runId)
+  if (!first) runNotFound()
+  let run = first.run
+  if (await materializeTimers(scope, run)) {
+    const again = await repo.findRunWithLabels(tenantId, runId)
+    if (!again) runNotFound()
+    run = again.run
+  }
+  if (run.state !== 'turn_open' || !run.turnWindowEndsAt) turnNotOpen(run.state)
+
+  const [turn, scenario, frame, brief] = await Promise.all([
+    repo.findRunTurn(tenantId, runId),
+    getStudentScenario(actor, runId),
+    repo.findFrame(runId),
+    repo.findBrief(runId),
+  ])
+  // The delivery that put this run in `turn_open` read the same row, so there is one.
+  if (!turn) runNotFound()
+
+  return guardStudentPayload(
+    {
+      run: toRunSummary(run),
+      text: turn.text,
+      voice: turn.voice,
+      windowEndsAt: run.turnWindowEndsAt.toISOString(),
+      remainingMs: Math.max(0, remainingWindowMs(run) ?? 0),
+      frozen: {
+        frame: frame
+          ? {
+              decision: frame.decision,
+              assumptions: frame.assumptions,
+              position: frame.position,
+              confidence: frame.confidence,
+              lockedAt: frame.lockedAt.toISOString(),
+            }
+          : null,
+        brief: brief ? toBriefView(brief) : null,
+      },
+      namedFields: scenario.namedFields.map((field) => ({
+        key: field.key,
+        label: field.label,
+        unit: field.unit,
+      })),
+    },
+    run,
+  )
+}
+
+/**
+ * `POST /runs/{runId}/turn/response` (07 §7, FR-112): hold, revise or reverse, and the run moves on
+ * to the defense.
+ *
+ * The order is the rule. The state gate is first, under the run's row lock and after the timers have
+ * been materialized, so a response that arrives a moment after the window closed meets the implicit
+ * hold its own read has just written rather than overwriting it (`TURN_NOT_OPEN` with
+ * `details.state`). The response's own rules come next, and FR-111's gate last: a student whose
+ * justification is 300 words is told about their justification, not about a claim.
+ *
+ * `TURN_CLAIMS_UNSTANCED` is thrown rather than recorded, and that is the difference from the
+ * Decision Lock's refusal (D-293). FR-084's gate has an effect to preserve — the reliance
+ * `markReliedOnFromNamedFields` wrote from the student's own figures — so its refusal commits and is
+ * raised afterwards. This one has nothing to preserve: it reads the claims and writes nothing, so
+ * the transaction rolls back with the run exactly where it was, and the student takes the stance
+ * their claim cards are already asking for and files again.
+ */
+export async function respondToTurn(
+  actor: SessionUser,
+  runId: string,
+  input: TurnResponseInput,
+): Promise<RunSummary> {
+  const scope = await requireRunOwner(actor, runId)
+  const tenantId = scope.organizationId
+
+  const updated = await repo.withTransaction(async (tx) => {
+    const run = await lockRunForMutation(tx, tenantId, runId)
+    if (run.state !== 'turn_open') turnNotOpen(run.state)
+
+    const plan = planTurnResponse(input)
+    if (!plan.ok) turnResponseInvalid(plan.field, plan.reason)
+
+    const unstanced = await findUnstancedWindowClaims(tx, run)
+    if (unstanced.length > 0) turnClaimsUnstanced(unstanced.map((claim) => claim.claimId))
+
+    return lockTurnResponse(tx, run, plan.fields, new Date(), actor.id)
+  })
+
+  return toRunSummary(updated)
 }
 
 // ---------------------------------------------------------------------------------------------

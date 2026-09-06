@@ -23,10 +23,12 @@ import {
   getReadiness,
   getRun,
   getRunWorkspace,
+  getTurn,
   listMyRuns,
   lockDecision,
   lockFrame,
   openDocument,
+  respondToTurn,
   resumeRun,
   saveBriefDraft,
   skipReadiness,
@@ -53,6 +55,8 @@ import {
   RunSummarySchema,
   RunWorkspaceSchema,
   RunsQuerySchema,
+  TurnResponseInputSchema,
+  TurnViewSchema,
 } from './schema'
 
 const TAGS = ['runs']
@@ -431,6 +435,54 @@ const addAddendumJson = defineRoute(
 )
 
 export const addAddendumRoute = noContent(addAddendumJson, 'Recorded')
+
+// ---------------------------------------------------------------------------------------------
+// The Turn (07 §7, FR-110 to FR-115)
+//
+// The read is on the `read` bucket and is polled for the window countdown, exactly as the workspace
+// is; the response is a `write`, because it happens once and is irreversible.
+// ---------------------------------------------------------------------------------------------
+
+/**
+ * The read that also *delivers*: a student who opens `/runs/[id]/turn` at or after `turn_due_at`
+ * materializes the Turn here, and the service is what refuses a run that is not in the window with
+ * the state it is in (`TURN_NOT_OPEN`, `details.state`).
+ */
+export const getTurnRoute = defineRoute(
+  {
+    auth: 'session',
+    input: { params: RunIdParamsSchema },
+    output: TurnViewSchema,
+    rateLimit: { bucket: 'read' },
+    openapi: {
+      operationId: 'getTurn',
+      summary: 'The Turn, its window, and the frozen pre-Turn record',
+      tags: TAGS,
+    },
+  },
+  async (ctx) => getTurn(actorOf(ctx), ctx.input.params.runId),
+)
+
+/**
+ * `TurnResponseInputSchema` is the wire shape and `TurnResponseSchema` the rule, applied by the
+ * service so that every caller meets it — the reading D-287 makes of the same choice one module
+ * along. The other refusal is FR-111's, and it carries the claims' ids in `details.claimIds` so
+ * UI-025 can mark the cards that are still waiting for a stance.
+ */
+export const respondToTurnRoute = defineRoute(
+  {
+    auth: 'session',
+    input: { params: RunIdParamsSchema, body: TurnResponseInputSchema },
+    output: RunSummarySchema,
+    rateLimit: { bucket: 'write' },
+    openapi: {
+      operationId: 'respondToTurn',
+      summary: 'Hold, revise, or reverse (irreversible)',
+      tags: TAGS,
+    },
+  },
+  async (ctx) => respondToTurn(actorOf(ctx), ctx.input.params.runId, ctx.input.body),
+)
 
 /**
  * `POST /runs/{runId}/resume` (07 §7, FR-001): the student takes the run off Paused.

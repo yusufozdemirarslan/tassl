@@ -843,6 +843,44 @@ export async function findUnstancedReliedOn(
 }
 
 /**
+ * The claims the Turn window put in front of the student and they have taken no position on, oldest
+ * first (FR-111).
+ *
+ * FR-084's gate one state later, over the set FR-111 names: *"any new claim surfaced in the window
+ * requires a stance"*. `run_claims.in_turn_window` is exactly that fact — the column is written at
+ * the surfacing from the run's own clock (`runs/clock.ts`'s `isInTurnWindow`) and is never
+ * rewritten — so the set is the same one `ClaimView.inTurnWindow` marks on the cards the student is
+ * looking at, and the gate and the screen cannot disagree about which claims it means.
+ *
+ * A claim the student met *before* the window is deliberately not in it, whether or not the Turn
+ * also lands on it. It was there to take a position on for the whole working period, FR-084's gate
+ * read it at the Decision Lock, and an auto-lock is allowed to record it unstanced (FR-105) — so
+ * refusing the Turn response over it would hold the student to a gate their run has already passed.
+ *
+ * It is here rather than in `runs` for the reason `findUnstancedReliedOn` is: `run_claims` is this
+ * module's table, and a second reader of it in another module would be a second definition of the
+ * rule (D-292).
+ */
+export async function findUnstancedWindowClaims(
+  tx: repo.DbOrTx,
+  run: { id: string },
+): Promise<UnstancedReliedOnClaim[]> {
+  const rows = await repo.listRunClaims(run.id, { inTurnWindow: true, unstanced: true }, tx)
+  return rows
+    .map(({ runClaim, claim }) => ({
+      claim,
+      order: { surfacedAt: runClaim.surfacedAt, position: claim.position, key: claim.key },
+    }))
+    .sort((a, b) => bySurfacing(a.order, b.order))
+    .map(({ claim, order }) => ({
+      claimId: claim.id,
+      claimKey: claim.key,
+      claimText: claim.text,
+      surfacedAt: order.surfacedAt,
+    }))
+}
+
+/**
  * Every claim this run has relied on by any route, in the same order (FR-084, FR-101, D-077).
  *
  * The Decision Lock's own record: `decision_locked.relied_on_claim_ids` is the whole set, and

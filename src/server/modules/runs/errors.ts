@@ -3,10 +3,9 @@
 // (`src/lib/errors.ts`), which owns the status and the default message; this file names the ones
 // that belong to this module and gives each rule one call site, so a rule and its code cannot drift.
 //
-// 10 §6 lists thirteen codes for this module. Eleven are here — the lifecycle's, the clock's, the
-// frame's, and Step 8.2's brief, Decision Lock, addendum and test control — and the last two
-// (`TURN_NOT_OPEN`, `TURN_CLAIMS_UNSTANCED`) arrive with Phase 9, so no code sits in the registry
-// without the rule that raises it.
+// 10 §6 lists thirteen codes for this module and all thirteen are here: the lifecycle's, the
+// clock's, the frame's, Step 8.2's brief, Decision Lock, addendum and test control, and Step 9.1's
+// two Turn refusals. No code sits in the registry without the rule that raises it.
 //
 // The throwers return `never` and are function declarations: TypeScript narrows after a
 // `never`-returning call only for declarations, which is what lets a caller read
@@ -27,6 +26,8 @@ export const RUNS_ERROR_CODES = [
   'BRIEF_INVALID',
   'LOCK_REFUSED_UNSTANCED_CLAIM',
   'ADDENDUM_EXISTS',
+  'TURN_NOT_OPEN',
+  'TURN_CLAIMS_UNSTANCED',
   'TEST_CONTROLS_DISABLED',
 ] as const satisfies readonly ErrorCode[]
 
@@ -311,6 +312,56 @@ export function addendumNotAvailable(state: string): never {
  */
 export function decisionNotLocked(state: string): never {
   throw new AppError('ILLEGAL_TRANSITION', t('run.decisionNotLocked'), { details: { state } })
+}
+
+// ---------------------------------------------------------------------------------------------
+// The Turn (FR-110 to FR-115)
+//
+// Two refusals, and neither of them says anything about what the Turn deserves. Whether the new
+// information warrants a hold, a revision or a reversal is the question being asked (FR-114), and
+// `warrants_change` and `proportionate_response` are authored fields no student payload — a refusal
+// included — may carry (`student-view.ts`).
+// ---------------------------------------------------------------------------------------------
+
+/**
+ * The Turn was read or answered outside `turn_open`: before `turn_due_at`, or after the window
+ * closed and the response locked.
+ *
+ * `details.state` is what the screen follows `links.next` from, which is the same shape
+ * `readinessNotOpen` and `workspaceNotOpen` answer with — and it is the whole of what the student
+ * needs, because both refusals have exactly one remedy: read the run again and go where it says.
+ */
+export function turnNotOpen(state: string): never {
+  throw new AppError('TURN_NOT_OPEN', t('run.turnNotOpen'), { details: { state } })
+}
+
+/**
+ * FR-111's gate: a claim the Turn window put in front of the student has no stance, so the response
+ * does not lock.
+ *
+ * It is FR-084's gate one state later and carries the same discipline: `details.claimIds` names the
+ * claims by id and nothing else travels — not what stance any of them deserves, not whether one is
+ * the planted defect, not why the window made them relied on (FR-073, 12 §8.1). The Turn screen is
+ * already showing the claim cards, so it marks the ones it is handed.
+ */
+export function turnClaimsUnstanced(claimIds: readonly string[]): never {
+  throw new AppError('TURN_CLAIMS_UNSTANCED', t('run.turnClaimsUnstanced'), {
+    details: { claimIds: [...claimIds] },
+  })
+}
+
+/**
+ * The response does not meet FR-112: a category that is not one of the three, a justification over
+ * 150 words or empty once markup is stripped, or a confidence outside 0 to 100.
+ *
+ * `VALIDATION_ERROR` rather than a code of its own, because 10 §6 gives this endpoint two refusals
+ * and neither is this one. The shape is `frameInvalid`'s so the form binds to the same `details`:
+ * the field that caused it, and which of the three rules it broke.
+ */
+export function turnResponseInvalid(field: string, reason: FrameInvalidReason): never {
+  throw new AppError('VALIDATION_ERROR', t('run.turnResponseInvalid'), {
+    details: { field, reason },
+  })
 }
 
 /** FR-107: fifty words, and not empty once markup is stripped. */

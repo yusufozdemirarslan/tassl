@@ -46,6 +46,15 @@ export const run = {
   'run.lockRefusedUnstancedClaim':
     'You leaned on a claim you have not taken a position on. Take one, then file the decision.',
   'run.decisionNotLocked': 'This run has not filed a decision yet.',
+
+  // The Turn (FR-110 to FR-115). The same two rules hold here as at the lock. Nothing says what the
+  // Turn warrants — whether it deserves a hold, a revision or a reversal is the thing being asked —
+  // and nothing offers a way back, because the response is as irreversible as the decision was.
+  'run.turnNotOpen': 'The Turn is not open on this run.',
+  'run.turnClaimsUnstanced':
+    'The Turn raised a claim you have not taken a position on. Take one, then file your response.',
+  'run.turnResponseInvalid':
+    'Choose hold, revise or reverse, say why in up to 150 words, and give your confidence.',
   'run.addendumNotAvailable': 'An addendum can be added once the decision is locked.',
   'run.addendumInvalid': 'An addendum is up to fifty words, and it cannot be empty.',
   'run.testControlsDisabled':

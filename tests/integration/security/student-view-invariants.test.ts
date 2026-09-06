@@ -998,6 +998,73 @@ describe('the workspace a student works in carries no forbidden key', () => {
       expect(keysOf(record).has('speedOutlier')).toBe(false)
       expect(keysOf(record).has('autoLocked')).toBe(false)
     })
+
+    // -------------------------------------------------------------------------------------------
+    // The Turn (FR-114, D-336)
+    //
+    // The one payload in the run whose *own* row is mostly oracle. `scenario_turns` carries
+    // `warrants_change`, `proportionate_response`, `evidence`, `disrupted_assumption_keys` and
+    // `window_claim_ids` beside the two fields the student reads, and every one of them is what the
+    // student's response is measured against — so the sweep here is over a Turn row that carries a
+    // real value in each, written by `setup()` above.
+    // -------------------------------------------------------------------------------------------
+    describe('the Turn a student answers', () => {
+      /** Files the decision, then puts `turn_due_at` in the past so the next read delivers. */
+      async function deliverTheTurn() {
+        await lockOne()
+        await testSql`update runs set turn_due_at = now() - interval '2 seconds'
+                       where id = ${fx.run.id}`
+        return runs.getTurn(fx.learner, fx.run.id)
+      }
+
+      it('carries no forbidden key, over a payload with something in every field', async () => {
+        const view = await deliverTheTurn()
+
+        // The negative control for this sweep: the brief and the named fields are populated, so an
+        // empty finding list is a statement about a payload rather than about two nulls.
+        expect(view.frozen.brief?.recommendation.length).toBeGreaterThan(0)
+        expect(view.namedFields.length).toBeGreaterThan(0)
+        expect(view.text.length).toBeGreaterThan(0)
+
+        expect(findForbiddenKeys(view, { scored: false })).toEqual([])
+      })
+
+      it('is a closed set of fields, and says nothing the Turn declares about itself', async () => {
+        const view = await deliverTheTurn()
+
+        expect(Object.keys(view).sort()).toEqual([
+          'frozen',
+          'namedFields',
+          'remainingMs',
+          'run',
+          'text',
+          'voice',
+          'windowEndsAt',
+        ])
+        expect(Object.keys(view.frozen).sort()).toEqual(['brief', 'frame'])
+
+        // FR-114: what the Turn warrants, what response is proportionate, the evidence behind it,
+        // the assumptions it disrupts and the claims it lands on are the instrument, not the
+        // interview — under either spelling, and at any depth.
+        const keys = keysOf(view)
+        for (const forbidden of [
+          'warrantsChange',
+          'warrants_change',
+          'proportionateResponse',
+          'proportionate_response',
+          'evidence',
+          'disruptedAssumptionKeys',
+          'disrupted_assumption_keys',
+          'windowClaimIds',
+          'window_claim_ids',
+          'stakeholderId',
+        ]) {
+          expect([forbidden, keys.has(forbidden)]).toEqual([forbidden, false])
+        }
+        // Nor as a value under another name: the authored evidence sentence is nowhere in it.
+        expect(JSON.stringify(view)).not.toContain('The corrected cohort table')
+      })
+    })
   })
 })
 

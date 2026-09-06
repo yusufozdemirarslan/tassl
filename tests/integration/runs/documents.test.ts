@@ -643,11 +643,15 @@ describe('closeDocument', () => {
     await service.advanceRunClock(fx.student, runId, { ms: WORKING_CLOCK_MS + 3_600_000 })
     await ageOpen(openId, WORKING_CLOCK_MS + 3_600_000)
 
-    // The clock ran out and the decision auto-locked while the document was still open. The lock
-    // does not close it: the expiry instant is not an instant any reading ended at, and closing
-    // there would read the skim flag off the two seconds the clock saw rather than off the hour the
-    // student had it open (D-250, D-299). The close that finally arrives is what records it.
-    expect((await runs.getRun(fx.student, runId)).state).toBe('decision_locked')
+    // The clock ran out and the decision auto-locked while the document was still open — and an
+    // hour is long past the Turn delay as well, so the same read delivered the Turn and opened its
+    // window too (10 §8's cascade, D-297). Neither closes the open: the expiry instant is not an
+    // instant any reading ended at, and closing there would read the skim flag off the two seconds
+    // the clock saw rather than off the hour the student had it open (D-250, D-299). The close that
+    // finally arrives is what records it — and it is capped at the *working* clock's end, because
+    // that is the clock this open was running against, not the window that opened afterwards
+    // (D-338).
+    expect((await runs.getRun(fx.student, runId)).state).toBe('turn_open')
     expect((await openRows(runId))[0]?.closed_at).toBeNull()
 
     await runs.closeDocument(fx.student, runId, openId)
@@ -669,8 +673,13 @@ describe('closeDocument', () => {
     // case comes back (an action inside a window whose end has passed).
     //
     // What this asserts is the door: after the auto-lock there is no new reading to mis-record.
+    //
+    // The shift stops five seconds past the clock's zero rather than an hour past it, and that is
+    // the point rather than a detail: the Turn falls due 60 to 120 seconds after the lock (FR-110),
+    // and past that the same read delivers it and the room opens again for the window (FR-111). The
+    // door this test is about is the one between the auto-lock and the Turn.
     const runId = await runInWorking()
-    await service.advanceRunClock(fx.student, runId, { ms: WORKING_CLOCK_MS + 3_600_000 })
+    await service.advanceRunClock(fx.student, runId, { ms: WORKING_CLOCK_MS + 5_000 })
     expect((await runs.getRun(fx.student, runId)).state).toBe('decision_locked')
 
     const agreement = documentByKey('D4')

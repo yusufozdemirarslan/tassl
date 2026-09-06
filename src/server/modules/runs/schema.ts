@@ -629,6 +629,97 @@ export const DecisionRecordSchema = z.object({
 })
 export type DecisionRecord = z.infer<typeof DecisionRecordSchema>
 
+// ---------------------------------------------------------------------------------------------
+// The Turn (07 §7, §10; FR-110 to FR-115)
+//
+// Two enums restated from `06-data-model.md` §3.3 and §3.4 rather than imported: a module schema
+// may reach `src/lib` and nothing else (04 §2), which is what keeps it readable from a Server
+// Component. `state-machine.ts` restates `run_state` for the same reason.
+// ---------------------------------------------------------------------------------------------
+
+/** `scenario_turns.voice` (DATA-023): the form the new information arrives in (FR-110). */
+export const TurnVoiceSchema = z.enum([
+  'stakeholder_message',
+  'corrected_number',
+  'supplier_notice',
+  'competitor_move',
+  'retracted_source',
+  'regulatory_note',
+])
+export type TurnVoiceValue = z.infer<typeof TurnVoiceSchema>
+
+/** `run_turn_responses.response` (DATA-038): the three things a student may do with the Turn. */
+export const TurnResponseKindSchema = z.enum(['hold', 'revise', 'reverse'])
+export type TurnResponseKindValue = z.infer<typeof TurnResponseKindSchema>
+
+/** FR-112: at most 150 words of justification. */
+export const TURN_JUSTIFICATION_WORD_LIMIT = 150
+
+/**
+ * `GET /runs/{runId}/turn` (07 §7, FR-110 to FR-112): the Turn, its window, and the record it lands
+ * on.
+ *
+ * **The claims are not here, and the authored id list never will be** (D-336). `window_claim_ids`,
+ * `warrants_change`, `proportionate_response`, `evidence` and `disrupted_assumption_keys` are the
+ * instrument the response is measured against and `student-view.ts` forbids every one of them in
+ * every student payload (12 §8.1). What the student meets is the claims themselves, surfaced into
+ * `run_claims` by the delivery and read from `GET /runs/{runId}/claims` — the endpoint the
+ * workspace already composes beside its own for the same reason (D-268), and the one shape that
+ * carries a claim's stance, its actions and its escalation. `ClaimView.inTurnWindow` is how that
+ * list marks the cards the window put in front of the student.
+ *
+ * `frozen` is UI-025's "frozen pre-Turn record beside": the frame the student locked before the
+ * assistant was in the room and the brief they filed, neither of which can change from here. Both
+ * are nullable only for the shapes a run can technically reach — a run with no frame has no locked
+ * decision either — and `namedFields` travels for the reason `DecisionRecord` carries it, so the
+ * brief reads back in the author's words rather than the database's keys.
+ */
+export const TurnViewSchema = z.object({
+  run: RunSummarySchema,
+  /** The Turn verbatim, in the voice of the world (FR-110). */
+  text: z.string().min(1),
+  voice: TurnVoiceSchema,
+  windowEndsAt: z.iso.datetime(),
+  /**
+   * Milliseconds left in the window, floored at zero — a server reading, like `Clock.remainingMs`
+   * and `DecisionRecord.turnRemainingMs`, so a browser whose own clock is wrong still counts down
+   * at the right rate (D-042).
+   */
+  remainingMs: z.int().min(0),
+  frozen: z.object({
+    frame: FrameSchema.nullable(),
+    brief: BriefViewSchema.nullable(),
+  }),
+  namedFields: z.array(BriefNamedFieldSchema),
+})
+export type TurnView = z.infer<typeof TurnViewSchema>
+
+/** The response as it arrives on the wire: shape only; the rule is `TurnResponseSchema`. */
+export const TurnResponseInputSchema = z.strictObject({
+  response: TurnResponseKindSchema,
+  justification: z.string(),
+  confidence: z.number(),
+})
+export type TurnResponseInput = z.infer<typeof TurnResponseInputSchema>
+
+/**
+ * FR-112's rules: one of the three categories, a justification of 1 to 150 words once markup is
+ * stripped, and a confidence between 0 and 100.
+ *
+ * The justification is **required** and the confidence with it (D-335). FR-112 reads "responds
+ * hold, revise, or reverse with at most 150 words of justification and an updated confidence", and
+ * every other artifact the student files under a clock is held to the same rule — the frame's four
+ * fields (FR-040), the brief's six (FR-100). The one response with neither is the implicit hold the
+ * window's expiry writes, where nobody said anything because nobody was there (FR-113), and that is
+ * the difference `implicit` records.
+ */
+export const TurnResponseSchema = z.strictObject({
+  response: TurnResponseKindSchema,
+  justification: wordLimit(TURN_JUSTIFICATION_WORD_LIMIT).min(1),
+  confidence: z.int().min(0).max(100),
+})
+export type TurnResponse = z.infer<typeof TurnResponseSchema>
+
 /** `POST /runs/{runId}/documents/{documentId}/open` addresses one document of one run. */
 export const DocumentParamsSchema = z.object({ runId: z.uuid(), documentId: z.uuid() })
 

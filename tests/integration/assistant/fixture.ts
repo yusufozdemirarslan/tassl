@@ -33,7 +33,9 @@ export const FIXTURE = JSON.parse(
     sourceDocumentKey: string | null
   }[]
   probe: { claimKey: string; scriptedReversal: string }
-  turn: { text: string }
+  // `evidence` and `windowClaimKeys` are named here so a test can assert they never reach the
+  // student (12 §8.1): the Turn suite checks the payload against the author's own words.
+  turn: { text: string; voice: string; evidence: string; windowClaimKeys: string[] }
 }
 
 export const claimByKey = (key: string) => {
