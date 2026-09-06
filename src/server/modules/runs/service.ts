@@ -62,6 +62,7 @@ import {
   assignmentNotOpen,
   briefAlreadyLocked,
   briefInvalid,
+  decisionNotLocked,
   documentNotInRoom,
   documentOpenNotFound,
   frameInvalid,
@@ -117,6 +118,7 @@ import type {
   BriefInput,
   BriefSignalInput,
   BriefView,
+  DecisionRecord,
   DocumentOpened,
   ForcedFailure,
   LockFrame,
@@ -980,6 +982,13 @@ export async function getRunWorkspace(actor: SessionUser, runId: string): Promis
         }
       : null,
     briefDraft: brief ? toBriefView(brief) : null,
+    // Picked field by field for the reason the documents above are (12 §8): the scenarios view and
+    // this one are two projections, never one object shared between them.
+    namedFields: scenario.namedFields.map((field) => ({
+      key: field.key,
+      label: field.label,
+      unit: field.unit,
+    })),
     addendum: addendum ? toAddendumView(addendum) : null,
     pause: pause ? { cause: pause.cause, pausedAt: pause.pausedAt.toISOString() } : null,
     capabilities: {
@@ -1644,6 +1653,66 @@ async function autoLockDecision(tx: repo.Tx, run: repo.Run, at: Date): Promise<r
 function addendumOpen(run: repo.Run): boolean {
   if (run.decisionLockedAt === null) return false
   return run.state !== 'recorded' && run.state !== 'voided'
+}
+
+/**
+ * The frozen record of a filed decision, for UI-024 (`/runs/[runId]/locked`; D-302).
+ *
+ * The owner alone, like the workspace: a reviewer replays a run from its trace after it is scored
+ * (FR-180), and this is the screen the student stands on while they wait for the Turn.
+ *
+ * Timers first, and that is the point of doing it here rather than trusting the caller: a student
+ * who left the page open through the Turn delay is moved on by this read, so the page they get back
+ * is the one their run is actually on (D-042). A run that has not locked a decision has no record to
+ * show, and is refused with the state it is in so a stale screen can follow `links.next`.
+ *
+ * It writes nothing and it is not an endpoint. Nothing polls it — the RunFrame's poll of
+ * `GET /runs/{runId}` is what notices the Turn falling due and refreshes this tree — so adding a
+ * route would publish a shape no client asks for.
+ */
+export async function getDecision(actor: SessionUser, runId: string): Promise<DecisionRecord> {
+  const scope = await requireRunOwner(actor, runId)
+  const tenantId = scope.organizationId
+
+  const first = await repo.findRunWithLabels(tenantId, runId)
+  if (!first) runNotFound()
+  let run = first.run
+  if (await materializeTimers(scope, run)) {
+    const again = await repo.findRunWithLabels(tenantId, runId)
+    if (!again) runNotFound()
+    run = again.run
+  }
+  if (run.decisionLockedAt === null) decisionNotLocked(run.state)
+
+  const [scenario, frame, brief, addendum] = await Promise.all([
+    getStudentScenario(actor, runId),
+    repo.findFrame(runId),
+    repo.findBrief(runId),
+    repo.findAddendum(runId),
+  ])
+
+  return {
+    run: toRunSummary(run),
+    frame: frame
+      ? {
+          decision: frame.decision,
+          assumptions: frame.assumptions,
+          position: frame.position,
+          confidence: frame.confidence,
+          lockedAt: frame.lockedAt.toISOString(),
+        }
+      : null,
+    brief: brief ? toBriefView(brief) : null,
+    namedFields: scenario.namedFields.map((field) => ({
+      key: field.key,
+      label: field.label,
+      unit: field.unit,
+    })),
+    addendum: addendum ? toAddendumView(addendum) : null,
+    canAddAddendum: addendumOpen(run) && addendum === undefined,
+    turnRemainingMs:
+      run.turnDueAt === null ? null : Math.max(0, run.turnDueAt.getTime() - Date.now()),
+  }
 }
 
 /**

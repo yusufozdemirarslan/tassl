@@ -12925,6 +12925,31 @@ paths:
                           - lockedAt
                         additionalProperties: false
                       - type: "null"
+                  namedFields:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        key:
+                          type: string
+                          minLength: 1
+                        label:
+                          type: string
+                          minLength: 1
+                        unit:
+                          type: string
+                          enum:
+                            - percent
+                            - ratio
+                            - months
+                            - usd
+                            - count
+                            - other
+                      required:
+                        - key
+                        - label
+                        - unit
+                      additionalProperties: false
                   addendum:
                     anyOf:
                       - type: object
@@ -12985,6 +13010,7 @@ paths:
                   - openDocuments
                   - frame
                   - briefDraft
+                  - namedFields
                   - addendum
                   - pause
                   - capabilities

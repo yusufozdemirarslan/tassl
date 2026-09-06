@@ -182,8 +182,9 @@ export const workspace = {
   'workspace.briefEditorTitle': 'Your decision brief',
   'workspace.briefEditorLockedBody':
     'The brief is what you hand in: a recommendation, the reasoning under it, and what would change your mind. It opens after you lock your frame.',
-  'workspace.briefEditorUnlockedBody':
-    'Tassl cannot take your decision brief yet, so there is nothing to lock. Read the room and work with what you have.',
+  // `briefEditorUnlockedBody` stood here until Step 8.3 and is gone with the seat it filled: the
+  // working screen draws the editor now, so a sentence saying Tassl cannot take a brief would be
+  // a string describing a state the product no longer has.
 
   // ---------------------------------------------------------------------------------------------
   // The assistant panel (UI-023 middle column; FR-050 to FR-053, FR-056)
@@ -232,12 +233,8 @@ export const workspace = {
   // deserved is the debrief's to say, after the run is scored (12 §8.1).
   // ---------------------------------------------------------------------------------------------
   'workspace.claimHeading': 'Claim {key}',
-  /**
-   * The stance control's seat, until Phase 8 fills it. The panel above it takes the same line the
-   * rest of this screen takes about something Tassl cannot do yet: it says so plainly, and it does
-   * not draw a control that cannot act.
-   */
-  'workspace.claimStancePending': 'Tassl cannot take your stance on this claim yet.',
+  // `claimStancePending` stood here until Step 8.3 filled the seat it described. The card carries
+  // the five stances now, so the sentence that said Tassl could not take one has gone with it.
   'workspace.claimUsed': 'Used',
   'workspace.claimUsedExplain': 'You marked this claim used in the Delegation Log.',
 
@@ -357,6 +354,191 @@ export const workspace = {
     'Claims are yours to work on from the moment your frame is locked until you lock your decision, and again during the Turn.',
   'workspace.actionNotAvailable':
     'This claim does not offer that check. The ones it does offer are on the claim card.',
+
+  // ---------------------------------------------------------------------------------------------
+  // The stance control (FR-080, FR-085, UI-023)
+  //
+  // Five options, one legend, and not one word about which of them a claim deserves. The hint says
+  // the two facts a student acts on: it costs nothing, and it can be changed — and that both are
+  // kept, which is the plain statement of FR-085 rather than a warning.
+  // ---------------------------------------------------------------------------------------------
+  'workspace.stanceLegend': 'Your stance',
+  'workspace.stanceLegendFor': 'Your stance on claim {key}',
+  /**
+   * One line, under every claim card, so it is short on purpose: a screen with five claims on it
+   * carries five copies, and the two facts a student acts on at the moment of the press are that it
+   * is free and that it can be changed. "Both are kept" is FR-085 stated plainly rather than as a
+   * caution — changing your mind is the move the run is measuring, not a confession.
+   */
+  'workspace.stanceHint':
+    'It costs no clock time, and you can change it while the run is open; both are kept.',
+  'workspace.stanceChanged': 'Changed from {stance}.',
+  'workspace.stanceSaved': 'Stance on claim {key}: {stance}.',
+  'workspace.stanceFailed': 'That stance was not recorded. Try it again.',
+  'workspace.stanceClosed': 'Stances are yours to set while the working clock runs.',
+
+  // ---------------------------------------------------------------------------------------------
+  // The interrogation actions (FR-070 to FR-073, UI-023)
+  //
+  // The menu lists what this claim's author wrote a result for and nothing else, with what each one
+  // costs in front of the press. Nothing here says a check is worth running and nothing says what
+  // running one would show: a menu that recommended a check on some claims and not others would be
+  // the product pointing at the claims worth doubting.
+  // ---------------------------------------------------------------------------------------------
+  'workspace.actionsMenu': 'Check it',
+  'workspace.actionsMenuFor': 'Check claim {key}',
+  'workspace.actionsMenuLabel': 'Checks on claim {key}',
+  'workspace.actionsNone': 'This claim offers no checks.',
+  'workspace.actionSourceTrace': 'Source Trace',
+  'workspace.actionReplicationCheck': 'Replication Check',
+  'workspace.actionDecompositionCheck': 'Decomposition Check',
+  /** The cost, in the words UI-023 puts on the menu: "1 min", "3 min", "4 min", "5 min". */
+  'workspace.actionCost': '{minutes} min',
+  'workspace.actionCostSpoken': 'costs {minutes} minutes of your working clock',
+  'workspace.actionCostSpokenOne': 'costs one minute of your working clock',
+  'workspace.actionRunning': 'Running the check…',
+  'workspace.actionFailed': 'That check did not run. Try it again.',
+  'workspace.actionRan': 'Check finished: {action} on claim {key}.',
+  'workspace.actionsReadAgain': 'Read it again',
+
+  // The result sheet. The author's own words, and a sentence saying exactly that: Tassl adds
+  // nothing to a result and draws no conclusion from one (FR-073).
+  'workspace.actionResultTitle': '{action} on claim {key}',
+  'workspace.actionResultDescription':
+    'What the author of this scenario wrote for this check, as they wrote it. Tassl adds nothing to it and draws no conclusion from it.',
+  'workspace.actionResultCost': 'This check cost {minutes} minutes of your working clock.',
+  'workspace.actionResultCostOne': 'This check cost one minute of your working clock.',
+  'workspace.actionResultEmpty': 'The check returned nothing.',
+  /** The keys a `verification_paths` result uses; an unlisted key is shown as the author wrote it. */
+  'workspace.actionResultDocument': 'Document',
+  'workspace.actionResultPassage': 'Passage',
+  'workspace.actionResultDate': 'Date',
+  'workspace.actionResultAuthor': 'Author',
+  'workspace.actionResultFinding': 'Result',
+  'workspace.actionResultSteps': 'Steps',
+  'workspace.actionResultMethod': 'Method',
+  'workspace.actionResultNote': 'Note',
+
+  // ---------------------------------------------------------------------------------------------
+  // Escalation (FR-090 to FR-093, D-116, D-244)
+  //
+  // Every sentence here is about the *run* and never about the claim: how many escalations are
+  // left, what one costs, and what came back. Never whether this claim is one worth escalating,
+  // which is exactly the authored knowledge the run asks the student to work out for themselves.
+  // ---------------------------------------------------------------------------------------------
+  'workspace.escalate': 'Escalate',
+  'workspace.escalateFor': 'Escalate claim {key}',
+  'workspace.escalateTitle': 'Escalate to a colleague',
+  'workspace.escalateBody':
+    'Say in one sentence what you cannot settle yourself. A colleague reads the claim and answers you. It costs five minutes of your working clock.',
+  'workspace.escalateStatementLabel': 'What you cannot settle',
+  'workspace.escalateStatementHint':
+    'One sentence, at least three words, at most {limit} characters.',
+  'workspace.escalateSubmit': 'Send it',
+  'workspace.escalateSending': 'Sending…',
+  'workspace.escalateCancel': 'Cancel',
+  'workspace.escalateTooShort': 'Write at least three words.',
+  'workspace.escalateTooLong':
+    'This is over the limit. Cut it back to {limit} characters to send it.',
+  'workspace.escalateFailed': 'The escalation did not go through. Try it again.',
+  'workspace.escalateRemaining': 'You have {count} escalations left in this run.',
+  'workspace.escalateRemainingOne': 'You have one escalation left in this run.',
+  'workspace.escalateNoneLeft': 'You have used both escalations in this run.',
+  'workspace.escalationTitle': 'The colleague’s reply',
+  'workspace.escalationYouWrote': 'You wrote',
+  'workspace.escalationAnswered': 'They answered',
+  /**
+   * What it cost, from the charge the service actually applied rather than from the price list.
+   *
+   * They are the same number in every ordinary case. They are not when the clock had less than five
+   * minutes left: `chargeCost` applies what there was, the action still completes (FR-072), and a
+   * sentence that said "five minutes" would be telling the student something about their own clock
+   * that is not true.
+   */
+  'workspace.escalationCost': 'This escalation cost {minutes} minutes of your working clock.',
+  'workspace.escalationCostOne': 'This escalation cost one minute of your working clock.',
+  'workspace.escalationCostPartial':
+    'This escalation cost what was left of your working clock, which was under a minute.',
+  'workspace.escalationDone': 'The reply to your escalation on claim {key} has arrived.',
+
+  // ---------------------------------------------------------------------------------------------
+  // The Decision Brief editor (FR-100, FR-101, FR-103, FR-108, UI-023 right column)
+  //
+  // The brief is what the student hands in, so the hints say what each field is for and never how
+  // to answer it, which is the rule the frame's hints follow. The named numeric fields carry the
+  // author's own labels and the unit the figure is entered in; nothing says which of them a claim
+  // holds a matching number for, because FR-101 is decided on the server, at the lock.
+  // ---------------------------------------------------------------------------------------------
+  'workspace.briefDescription':
+    'What you recommend, what it rests on, and what would change your mind. It saves as you type; nothing is filed until you lock the decision.',
+  'workspace.briefRecommendationLabel': 'Your recommendation',
+  'workspace.briefRecommendationHint':
+    'The decision you are actually recommending, in your own words. At most {limit} words.',
+  'workspace.briefRationaleLabel': 'Why',
+  'workspace.briefRationaleHint':
+    'The reasoning under the recommendation, including what you checked and what you did not. At most {limit} words.',
+  'workspace.briefAssumptionsLegend': 'Load-bearing assumptions',
+  'workspace.briefAssumptionsHint':
+    'Three things the recommendation rests on. Load-bearing means it would change if one of them turned out to be false. At most {limit} words each.',
+  'workspace.briefAssumptionLabel': 'Assumption {number}',
+  'workspace.briefChangeMyMindLabel': 'What would change your mind',
+  'workspace.briefChangeMyMindHint':
+    'What you would have to see to recommend something else. At most {limit} words.',
+  'workspace.briefConfidenceLegend': 'Confidence',
+  'workspace.briefConfidenceHint':
+    'How sure you are of the recommendation, from 0 to 100. A low number with a reason behind it reads better than a confident guess.',
+  'workspace.briefConfidenceSlider': 'Confidence in the recommendation, 0 to 100',
+  'workspace.briefConfidenceNumber': 'Confidence as a number',
+  'workspace.briefNamedFieldsLegend': 'The figures you are betting on',
+  'workspace.briefNamedFieldsHint':
+    'The numbers this decision rests on. Numbers only: digits, a decimal point and a minus sign.',
+  'workspace.briefNamedFieldLabel': '{label}, in {unit}',
+  'workspace.briefNumberInvalid':
+    'This field takes a number. Digits, a decimal point, a minus sign.',
+  'workspace.briefWordLimit':
+    'This is over the limit. Cut it back to {limit} words to file the decision.',
+  'workspace.briefRequiredField': 'This is part of the brief. Write something in it.',
+  'workspace.briefConfidenceInvalid': 'Confidence is a whole number from 0 to 100.',
+  'workspace.briefSaving': 'Saving…',
+  'workspace.briefSaved': 'Saved.',
+  'workspace.briefSaveFailed':
+    'The last change did not save. What is on screen is not lost; it saves again as you type.',
+  'workspace.briefClosedNote': 'The brief cannot be written while the run is paused.',
+
+  /** The units a named field is entered in (`named_fields.unit`, 06 §3.1). */
+  'workspace.unitPercent': 'percent',
+  'workspace.unitRatio': 'a ratio',
+  'workspace.unitMonths': 'months',
+  'workspace.unitUsd': 'dollars',
+  'workspace.unitCount': 'a count',
+  'workspace.unitOther': 'the scenario’s own unit',
+
+  // ---------------------------------------------------------------------------------------------
+  // The Decision Lock and its refusal (FR-084, FR-102, FR-103, FR-108, UI-024)
+  //
+  // The confirmation says what filing does, in the order it happens to the student, because the act
+  // is irreversible. The refusal names the claim by the words the student already read and asks for
+  // a stance — not for a particular stance, and with nothing said about why the claim matters.
+  // ---------------------------------------------------------------------------------------------
+  'workspace.decisionLock': 'Lock the decision',
+  'workspace.decisionLocking': 'Filing…',
+  'workspace.decisionLockConfirmTitle': 'File this decision?',
+  'workspace.decisionLockConfirmBody':
+    'Filing is irreversible. The brief is frozen as it stands, the working clock ends, the assistant and the Evidence Room close, and the Turn follows. You may add one short addendum afterwards, which is kept apart from the decision.',
+  'workspace.decisionLockConfirm': 'File it',
+  'workspace.decisionLockCancel': 'Keep working',
+  'workspace.decisionLockFailed': 'The decision was not filed. Try it again.',
+  'workspace.decisionLockLoading': 'Opening the confirmation…',
+  'workspace.decisionLockUnavailable':
+    'The confirmation could not be loaded, so nothing was filed. Your brief is as you left it. Press “Lock the decision” again.',
+  'workspace.lockRefusedTitle': 'A claim you leaned on has no stance',
+  'workspace.lockRefusedBody':
+    'You leaned on this claim and you have not taken a position on it. Take one, then file the decision.',
+  'workspace.lockRefusedClaimLabel': 'The claim',
+  'workspace.lockRefusedGoToClaim': 'Go to the claim',
+  'workspace.lockRefusedClose': 'Back to the brief',
+  'workspace.lockRefusedNotOnScreen':
+    'The claim is in the Delegation Log, under the request that raised it.',
 } as const
 
 /** `t` over this namespace alone; the key is still the full dotted key. */

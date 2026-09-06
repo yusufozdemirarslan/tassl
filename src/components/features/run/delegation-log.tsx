@@ -11,9 +11,12 @@ import { Field, FieldDescription, FieldError, FieldLabel } from '@/components/ui
 import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/cn'
 import { t } from '@/lib/i18n/messages/workspace'
-import { updateDelegationAction } from '@/server/modules/assistant/actions'
 import type { DelegationClaim, DelegationView } from '@/server/modules/assistant/schema'
+import { updateDelegationAction } from '@/server/modules/assistant/actions'
+import type { ClaimView } from '@/server/modules/reliance/schema'
 import { AssistantProse } from './assistant-panel'
+import type { TracedDocument } from './action-result-sheet'
+import { ClaimCard, ClaimControls } from './claim-card'
 import { StanceChip } from './stance-chip'
 
 // UI-023: the Delegation Log (FR-060, FR-063, FR-084).
@@ -67,13 +70,36 @@ export type DelegationLogProps = {
   runId: string
   /** `GET /runs/{runId}/delegations` (07 §7), in the order the run made them. */
   delegations: readonly DelegationView[]
+  /**
+   * `GET /runs/{runId}/claims` (07 §7): every claim this run has surfaced, as its own student
+   * reads it (D-303).
+   *
+   * The log is where a stance survives a reload. The assistant panel draws the reply it is holding
+   * right now and holds one at a time, so the cards in it are gone the moment the next request is
+   * sent — while this list is read on the server for every render and carries every claim the run
+   * has ever surfaced. A claim with a `ClaimView` here gets the same controls it had in the reply;
+   * one without keeps the read-only row, which is what a claim of a *failed* delegation is.
+   *
+   * It is also what the Decision Lock's "Go to the claim" reaches: the refusal names a claim that
+   * may have been surfaced twenty minutes ago, and this is the copy that is still on the page.
+   */
+  claims?: readonly ClaimView[]
+  /** The Evidence Room's documents, so a Source Trace can name the document it leads to. */
+  documents?: readonly TracedDocument[]
   /** The log is written to in `working` and `turn_open` alone (10 §7); false while paused. */
   canWrite: boolean
   /** Why it cannot be written to, when it cannot. */
   readOnlyNote?: string | undefined
 }
 
-export function DelegationLog({ runId, delegations, canWrite, readOnlyNote }: DelegationLogProps) {
+export function DelegationLog({
+  runId,
+  delegations,
+  claims = [],
+  documents = [],
+  canWrite,
+  readOnlyNote,
+}: DelegationLogProps) {
   // The why lines the student has touched in this session, and the claims they have marked used.
   // Both are keyed by id and both only ever grow, so a fresh server render can be rendered against
   // them without either side having to win.
@@ -158,6 +184,9 @@ export function DelegationLog({ runId, delegations, canWrite, readOnlyNote }: De
             >
               <LogEntry
                 entry={entry}
+                runId={runId}
+                claims={claims}
+                documents={documents}
                 canWrite={canWrite}
                 readOnlyId={
                   !canWrite && readOnlyNote !== undefined ? 'delegation-log-readonly' : undefined
@@ -187,6 +216,9 @@ export function DelegationLog({ runId, delegations, canWrite, readOnlyNote }: De
 
 type LogEntryProps = {
   entry: DelegationView
+  runId: string
+  claims: readonly ClaimView[]
+  documents: readonly TracedDocument[]
   canWrite: boolean
   readOnlyId: string | undefined
   marked: readonly string[]
@@ -200,6 +232,9 @@ type LogEntryProps = {
 
 function LogEntry({
   entry,
+  runId,
+  claims,
+  documents,
   canWrite,
   readOnlyId,
   marked,
@@ -255,6 +290,9 @@ function LogEntry({
                   <ClaimRow
                     key={claim.id}
                     claim={claim}
+                    runId={runId}
+                    documents={documents}
+                    view={claims.find((candidate) => candidate.id === claim.id)}
                     used={claim.usedMarked || marked.includes(claim.id)}
                     canWrite={canWrite}
                     readOnlyId={readOnlyId}
@@ -324,8 +362,9 @@ function LogEntry({
             {savingWhy ? t('workspace.logWhySaving') : t('workspace.logWhySave')}
           </Button>
           {/* Stays mounted and collapses when empty, so the announcement fires on the sentence
-              rather than on the region being inserted. */}
-          <p role="status" className="text-ink-muted text-meta empty:hidden">
+              rather than on the region being inserted. It is addressable by id because the claim
+              cards in this entry carry regions of their own, each about its own claim. */}
+          <p id={`${whyId}-status`} role="status" className="text-ink-muted text-meta empty:hidden">
             {saved && !savingWhy ? t('workspace.logWhySaved') : null}
           </p>
         </div>
@@ -336,6 +375,10 @@ function LogEntry({
 
 type ClaimRowProps = {
   claim: DelegationClaim
+  runId: string
+  documents: readonly TracedDocument[]
+  /** The run's own view of this claim, when it has one: the stance, the checks, the escalation. */
+  view: ClaimView | undefined
   used: boolean
   canWrite: boolean
   readOnlyId: string | undefined
@@ -343,39 +386,81 @@ type ClaimRowProps = {
   onMarkUsed: () => void
 }
 
-/** One claim of one delegation: which claim it is, the stance it carries now, and the used mark. */
-function ClaimRow({ claim, used, canWrite, readOnlyId, busy, onMarkUsed }: ClaimRowProps) {
+/**
+ * One claim of one delegation: which claim it is, what it says, the used mark, and — when the run's
+ * claim list carries it — the stance, the checks and the escalation.
+ *
+ * The controls are here as well as in the assistant's reply because this is the copy that lasts. A
+ * reply is client state and there is one at a time, so the cards in the panel are gone as soon as
+ * the next request is sent; the log is read from the server on every render and holds every claim
+ * the run has surfaced. It is also the anchor `data-claim-id` gives the Decision Lock's refusal.
+ *
+ * A claim with no `ClaimView` keeps the plain row it always had. That is not a fallback so much as
+ * the honest rendering of the one case it happens in: a delegation whose reply never landed still
+ * lists what it would have raised, and there is nothing to take a position on.
+ */
+function ClaimRow({
+  claim,
+  runId,
+  documents,
+  view,
+  used,
+  canWrite,
+  readOnlyId,
+  busy,
+  onMarkUsed,
+}: ClaimRowProps) {
+  const mark = used ? (
+    <Badge variant="secondary">
+      {t('workspace.claimUsed')}
+      <span className="sr-only"> {t('workspace.claimUsedExplain')}</span>
+    </Badge>
+  ) : (
+    <Button
+      type="button"
+      variant="secondary"
+      size="sm"
+      aria-label={t('workspace.logMarkUsedFor', { key: claim.key })}
+      aria-disabled={busy || !canWrite ? true : undefined}
+      aria-busy={busy}
+      aria-describedby={!canWrite ? readOnlyId : undefined}
+      onClick={onMarkUsed}
+    >
+      {busy && <Loader2Icon aria-hidden="true" className="size-4 animate-spin" />}
+      {t('workspace.logMarkUsed')}
+    </Button>
+  )
+
+  if (view === undefined) {
+    return (
+      <li
+        data-claim-id={claim.id}
+        className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2"
+      >
+        <div className="min-w-0 flex-1 basis-48">
+          <p className="text-mono-sm text-ink-muted font-mono">
+            {t('workspace.claimHeading', { key: claim.key })}
+          </p>
+          <p className="text-ink text-body mt-0.5 max-w-[72ch]">{claim.text}</p>
+        </div>
+        <div className="flex shrink-0 flex-wrap items-center gap-2">
+          {claim.stance !== null && <StanceChip stance={claim.stance} />}
+          {mark}
+        </div>
+      </li>
+    )
+  }
+
   return (
-    <li className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
-      <div className="min-w-0 flex-1 basis-48">
-        <p className="text-mono-sm text-ink-muted font-mono">
-          {t('workspace.claimHeading', { key: claim.key })}
-        </p>
-        <p className="text-ink text-body mt-0.5 max-w-[72ch]">{claim.text}</p>
-      </div>
-      <div className="flex shrink-0 flex-wrap items-center gap-2">
-        {claim.stance !== null && <StanceChip stance={claim.stance} />}
-        {used ? (
-          <Badge variant="secondary">
-            {t('workspace.claimUsed')}
-            <span className="sr-only"> {t('workspace.claimUsedExplain')}</span>
-          </Badge>
-        ) : (
-          <Button
-            type="button"
-            variant="secondary"
-            size="sm"
-            aria-label={t('workspace.logMarkUsedFor', { key: claim.key })}
-            aria-disabled={busy || !canWrite ? true : undefined}
-            aria-busy={busy}
-            aria-describedby={!canWrite ? readOnlyId : undefined}
-            onClick={onMarkUsed}
-          >
-            {busy && <Loader2Icon aria-hidden="true" className="size-4 animate-spin" />}
-            {t('workspace.logMarkUsed')}
-          </Button>
-        )}
-      </div>
+    <li>
+      <ClaimCard
+        claim={view}
+        headingLevel={4}
+        actions={mark}
+        stanceControl={
+          <ClaimControls runId={runId} claim={view} canWrite={canWrite} documents={documents} />
+        }
+      />
     </li>
   )
 }

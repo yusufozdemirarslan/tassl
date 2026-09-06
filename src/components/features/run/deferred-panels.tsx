@@ -17,10 +17,11 @@ import dynamic from 'next/dynamic'
 // in `working` for `react-hook-form`, its resolver and a `zod/mini` schema it can no longer submit.
 // 172,773 bytes against a 130,000 ceiling, and the excess was entirely the other screen.
 //
-// Reaching the four state-specific panels through `next/dynamic` moves them out of the entry chunk
-// group into async chunks of their own, and the page then fetches the pair it actually rendered.
-// The page stays a Server Component and its JSX is unchanged: these have the same names, the same
-// props and the same markup as the components they stand for.
+// Reaching the state-specific panels through `next/dynamic` moves them out of the entry chunk group
+// into async chunks of their own, and the page then fetches the set it actually rendered. The page
+// stays a Server Component and its JSX is unchanged: these have the same names, the same props and
+// the same markup as the components they stand for. Step 8.3 added the fifth, `BriefEditor`, and
+// the route stands at 101,128.
 //
 // **`ssr` stays on, and that is the whole point of doing it here rather than with a click.** These
 // panels are what the screen *is*, not something behind a control (`use-deferred-module.ts` is the
@@ -55,3 +56,16 @@ export const DelegationLog = dynamic(() => import('./delegation-log').then((m) =
 export const DeclarationControl = dynamic(() =>
   import('./declaration-control').then((m) => m.DeclarationControl),
 )
+
+/**
+ * The `working` screen's right column: the Decision Brief and the Decision Lock (FR-100 to FR-103).
+ *
+ * It is the largest of the five and the clearest case for being here. A run in `framing` cannot
+ * write a brief at all — `capabilities.canWriteBrief` is true in `working` alone — so a static
+ * import would charge the framing period for six fields, an autosave and a lock it is not allowed
+ * to use, on the screen where the first paint is the whole point. Its own confirmation goes one
+ * step further and is fetched on the first focus inside the editor (`brief-editor.tsx`), for the
+ * reason `frame-lock-dialog.tsx` sets out: writing a brief takes minutes, and the press should
+ * wait for nothing.
+ */
+export const BriefEditor = dynamic(() => import('./brief-editor').then((m) => m.BriefEditor))

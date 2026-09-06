@@ -383,6 +383,31 @@ export const AddendumViewSchema = z.object({
 })
 export type AddendumView = z.infer<typeof AddendumViewSchema>
 
+/** `named_fields.unit` (06 §3.1, DATA-018): the unit a figure is entered in. */
+export const BriefFieldUnitSchema = z.enum(['percent', 'ratio', 'months', 'usd', 'count', 'other'])
+export type BriefFieldUnitValue = z.infer<typeof BriefFieldUnitSchema>
+
+/**
+ * One named numeric field of the brief, as the editor draws it (DATA-018, FR-100, FR-101; D-301).
+ *
+ * The key, the author's label and the unit the figure is entered in — which is the whole of what a
+ * student needs to fill the field, and the whole of what `named_fields` holds beyond its position.
+ * There is nothing withheld here: a named field is the same for both variants of a package, it is
+ * authored per version rather than per claim, and `namedValues` already travels on `BriefView`, so
+ * a brief read back without the labels would be a row of bare keys.
+ *
+ * **It says nothing about which claims carry a matching figure.** D-076's tolerance is applied at
+ * the lock, on the server, and the match is what makes a claim relied on (FR-101) — a field that
+ * announced "this figure matches a claim" would be the product pointing at the claims worth
+ * leaning on, which is the map the run asks the student to draw.
+ */
+export const BriefNamedFieldSchema = z.object({
+  key: z.string().min(1),
+  label: z.string().min(1),
+  unit: BriefFieldUnitSchema,
+})
+export type BriefNamedField = z.infer<typeof BriefNamedFieldSchema>
+
 /** `POST /review/runs/{runId}/test-controls/force-assistant-failure` (07 §7, FR-118). */
 export const ForcedFailureSchema = z.object({ armed: z.literal(true) })
 export type ForcedFailure = z.infer<typeof ForcedFailureSchema>
@@ -521,6 +546,8 @@ export const RunWorkspaceSchema = z.object({
   frame: FrameSchema.nullable(),
   /** The brief the student has saved so far, or null before the first save (FR-100, FR-108). */
   briefDraft: BriefViewSchema.nullable(),
+  /** The scenario's named numeric fields, in authored order, with their units (D-301). */
+  namedFields: z.array(BriefNamedFieldSchema),
   /** The one post-lock addendum, or null (FR-107). */
   addendum: AddendumViewSchema.nullable(),
   /** The open pause, when the run is in `paused`; null otherwise (FR-001, UI-023). */
@@ -528,6 +555,48 @@ export const RunWorkspaceSchema = z.object({
   capabilities: WorkspaceCapabilitiesSchema,
 })
 export type RunWorkspace = z.infer<typeof RunWorkspaceSchema>
+
+/**
+ * The frozen record UI-024 reads (`/runs/[runId]/locked`, FR-102, FR-107; D-302).
+ *
+ * Everything on it is immutable by the time it is read: the frame was locked at the end of the
+ * framing period, the brief at the Decision Lock, and neither has an update path in this service or
+ * a grant in the database. So the shape is the record itself plus the two facts the screen acts on
+ * — whether an addendum may still be written, and the addendum if one already was.
+ *
+ * It is deliberately **not** `RunWorkspace` with `decision_locked` added to its states. The
+ * workspace is the room, and the room closes at the lock (`RUN_LOCKED`, 10 §6): a shape that served
+ * both would have to carry documents nobody may open and capabilities that are all false. The
+ * clock is absent for the same reason — the working clock ended at the lock, and what the locked
+ * page counts down is the Turn, which the run's own `turn.dueAt` already carries.
+ *
+ * `namedFields` travels with it because `brief.namedValues` is a record keyed by `named_fields.key`
+ * and a decision read back as `premium_payback_months: 11` is a decision written in the database's
+ * words rather than the author's.
+ */
+export const DecisionRecordSchema = z.object({
+  run: RunSummarySchema,
+  /** The frame locked before the assistant was in the room (FR-041); null only for a run without one. */
+  frame: FrameSchema.nullable(),
+  /** The filed brief. Never null after a lock: the auto-lock files an empty one (FR-105). */
+  brief: BriefViewSchema.nullable(),
+  namedFields: z.array(BriefNamedFieldSchema),
+  /** The one post-lock addendum, or null (FR-107). */
+  addendum: AddendumViewSchema.nullable(),
+  /** FR-107: after the lock, before the record, and not yet used. */
+  canAddAddendum: z.boolean(),
+  /**
+   * Milliseconds until the Turn falls due, floored at zero; null when there is no Turn clock yet.
+   *
+   * A *reading*, like `Clock.remainingMs`, and taken on the server for the same reason (D-042): the
+   * countdown on UI-024 anchors a deadline from it at the instant it reaches the browser, so a
+   * browser whose own clock is set wrong still counts down at the right rate. `turn.dueAt` is
+   * beside it on `RunSummary` and is the instant itself; this is what the screen renders, and
+   * computing it in the page would put `Date.now()` in a render.
+   */
+  turnRemainingMs: z.int().min(0).nullable(),
+})
+export type DecisionRecord = z.infer<typeof DecisionRecordSchema>
 
 /** `POST /runs/{runId}/documents/{documentId}/open` addresses one document of one run. */
 export const DocumentParamsSchema = z.object({ runId: z.uuid(), documentId: z.uuid() })

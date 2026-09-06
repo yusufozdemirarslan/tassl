@@ -45,6 +45,7 @@ export const run = {
   'run.briefAlreadyLocked': 'Your decision is already filed, so the brief can no longer change.',
   'run.lockRefusedUnstancedClaim':
     'You leaned on a claim you have not taken a position on. Take one, then file the decision.',
+  'run.decisionNotLocked': 'This run has not filed a decision yet.',
   'run.addendumNotAvailable': 'An addendum can be added once the decision is locked.',
   'run.addendumInvalid': 'An addendum is up to fifty words, and it cannot be empty.',
   'run.testControlsDisabled':

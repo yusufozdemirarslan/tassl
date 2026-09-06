@@ -15,7 +15,8 @@ import { useDelegation } from '@/lib/hooks/use-delegation'
 import { t } from '@/lib/i18n/messages/workspace'
 import { stripMarkup } from '@/lib/words'
 import type { ClaimView } from '@/server/modules/reliance/schema'
-import { ClaimCard } from './claim-card'
+import type { TracedDocument } from './action-result-sheet'
+import { ClaimCard, ClaimControls } from './claim-card'
 
 // UI-023, middle column in `working`: the AI assistant (FR-050 to FR-053, FR-056, AI-002).
 //
@@ -150,11 +151,29 @@ export type AssistantPanelProps = {
   runId: string
   /** `capabilities.assistantUnlocked` (10 §6): false while the run is paused. */
   canDelegate: boolean
+  /**
+   * `GET /runs/{runId}/claims` (07 §7): the run's claims as the server now holds them (D-303).
+   *
+   * A reply's claim arrives on the stream and is a snapshot of the instant it was surfaced. The
+   * same claim is drawn again in the Delegation Log, which the server renders, and a stance taken
+   * there has to reach the card up here — so a card prefers the server's own view of its claim when
+   * the page has one, and falls back to the streamed snapshot for the moment between `done` and the
+   * render that follows it.
+   */
+  claims?: readonly ClaimView[]
+  /** The Evidence Room's documents, so a Source Trace can name the document it leads to. */
+  documents?: readonly TracedDocument[]
   /** Why it cannot be used, when it cannot. Shown beside the control that is refusing. */
   lockedReason?: string | undefined
 }
 
-export function AssistantPanel({ runId, canDelegate, lockedReason }: AssistantPanelProps) {
+export function AssistantPanel({
+  runId,
+  canDelegate,
+  claims = [],
+  documents = [],
+  lockedReason,
+}: AssistantPanelProps) {
   const router = useRouter()
   const [request, setRequest] = useState('')
   const [invalid, setInvalid] = useState<string | null>(null)
@@ -309,9 +328,16 @@ export function AssistantPanel({ runId, canDelegate, lockedReason }: AssistantPa
           {t('workspace.assistantReplyLabel')}
         </h3>
 
-        {/* The single live region of this panel. It stays mounted and collapses when empty, so the
-            announcement fires on the sentence changing rather than on the region appearing. */}
-        <p role="status" className="text-ink-muted text-meta mt-1 empty:hidden">
+        {/* The panel's own live region, and the only one that speaks about the *reply*. It stays
+            mounted and collapses when empty, so the announcement fires on the sentence changing
+            rather than on the region appearing. The claim cards below carry regions of their own —
+            each speaks about its own claim, and each is empty until something happens to it — which
+            is why this one is addressable by id. */}
+        <p
+          id="assistant-reply-status"
+          role="status"
+          className="text-ink-muted text-meta mt-1 empty:hidden"
+        >
           {announcement}
         </p>
 
@@ -330,13 +356,30 @@ export function AssistantPanel({ runId, canDelegate, lockedReason }: AssistantPa
               <p className="text-ink text-body max-w-[72ch] whitespace-pre-line">{state.request}</p>
             </div>
 
-            {state.segments.map((segment, index) =>
-              segment.type === 'text' ? (
-                <AssistantProse key={`text-${String(index)}`} text={segment.text} />
-              ) : (
-                <ClaimCard key={segment.claim.id} claim={segment.claim} headingLevel={4} />
-              ),
-            )}
+            {state.segments.map((segment, index) => {
+              if (segment.type === 'text') {
+                return <AssistantProse key={`text-${String(index)}`} text={segment.text} />
+              }
+              // The controls are the same ones the Delegation Log draws, on the same claim: a
+              // stance taken here and a stance taken there are one act on one record (FR-080), so
+              // the card reads the server's view of the claim as soon as the page has one.
+              const claim = claims.find((held) => held.id === segment.claim.id) ?? segment.claim
+              return (
+                <ClaimCard
+                  key={claim.id}
+                  claim={claim}
+                  headingLevel={4}
+                  stanceControl={
+                    <ClaimControls
+                      runId={runId}
+                      claim={claim}
+                      canWrite={canDelegate}
+                      documents={documents}
+                    />
+                  }
+                />
+              )
+            })}
           </div>
         )}
       </section>

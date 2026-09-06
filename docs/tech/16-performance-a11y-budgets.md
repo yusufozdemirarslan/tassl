@@ -75,7 +75,7 @@ Authenticated-page lab values: `tests/e2e/perf/web-vitals.spec.ts` signs in as `
 
 | Route group | Budget (gzip JavaScript the route adds to the floor) | Includes |
 |---|---|---|
-| Run routes: `/runs/[runId]/{start,readiness,readiness/result,work,locked,turn,defense,debrief}`, `/runs/[runId]`, `/review/runs/[runId]`, `/records/[runId]` | ≤ 130,000 bytes (measured max 98,501, `/runs/[runId]/work`) | root main files + `(app)` layout + run layout + page chunks |
+| Run routes: `/runs/[runId]/{start,readiness,readiness/result,work,locked,turn,defense,debrief}`, `/runs/[runId]`, `/review/runs/[runId]`, `/records/[runId]` | ≤ 130,000 bytes (measured max 101,128, `/runs/[runId]/work`) | root main files + `(app)` layout + run layout + page chunks |
 | Public pages: `/sign-in`, `/sign-up`, `/verify-email`, `/forgot-password`, `/reset-password`, `/privacy`, `/terms` | ≤ 110,000 bytes (measured max 103,058) | root main files + `(public)` layout + page chunks |
 | Every other route | ≤ 175,000 bytes (measured max 170,303, `/settings/security`) | root main files + ancestor layouts + page chunks |
 

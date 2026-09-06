@@ -302,6 +302,17 @@ export function addendumNotAvailable(state: string): never {
   throw new AppError('ILLEGAL_TRANSITION', t('run.addendumNotAvailable'), { details: { state } })
 }
 
+/**
+ * The frozen record of a run whose decision has not been filed (`getDecision`, D-302).
+ *
+ * `decision_locked_at` is the fact the read is about, so the refusal is the transition table's and
+ * carries the state — which is what sends a screen that arrived at `/locked` too early to the run's
+ * own `links.next` rather than to an error boundary.
+ */
+export function decisionNotLocked(state: string): never {
+  throw new AppError('ILLEGAL_TRANSITION', t('run.decisionNotLocked'), { details: { state } })
+}
+
 /** FR-107: fifty words, and not empty once markup is stripped. */
 export function addendumInvalid(reason: FrameInvalidReason): never {
   throw new AppError('VALIDATION_ERROR', t('run.addendumInvalid'), {

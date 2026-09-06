@@ -42,7 +42,13 @@ const ENTRY: DelegationView = {
 
 const actions = vi.hoisted(() => ({ updateDelegationAction: vi.fn() }))
 
-// The real module drags the assistant service and the database into jsdom.
+// The real modules drag the assistant and reliance services and the database into jsdom.
+vi.mock('@/server/modules/reliance/actions', () => ({
+  setStanceAction: vi.fn(),
+  runActionAction: vi.fn(),
+  escalateAction: vi.fn(),
+}))
+
 vi.mock('@/server/modules/assistant/actions', () => ({
   updateDelegationAction: actions.updateDelegationAction,
 }))

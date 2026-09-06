@@ -4,6 +4,7 @@ import { notFound, redirect } from 'next/navigation'
 import { BriefPanel } from '@/components/features/run/brief-panel'
 import {
   AssistantPanel,
+  BriefEditor,
   DeclarationControl,
   DelegationLog,
   FrameForm,
@@ -16,6 +17,7 @@ import { Panel } from '@/components/layout/panel'
 import { isAppError } from '@/lib/errors'
 import { t } from '@/lib/i18n/t'
 import { listDelegations, type DelegationView } from '@/server/modules/assistant'
+import { listRunClaims, type ClaimView } from '@/server/modules/reliance'
 import { getRunWorkspace, type RunStateValue, type RunWorkspace } from '@/server/modules/runs'
 import { getRunView } from '../run-view'
 import { getViewer } from '../../../viewer'
@@ -35,16 +37,19 @@ export const metadata: Metadata = { title: t('workspace.metaTitle') }
 // the `RunFrame` band refreshes this tree, `getRunStatus` materializes the auto-lock on the read,
 // and the redirect below takes them to `/locked` without them pressing anything (D-042).
 //
-// **The screen composes three module reads rather than one** (D-268). `getRunWorkspace` answers the
-// room, the frame and the pause; the Delegation Log is `assistant.listDelegations`. They are not
-// one call because the `assistant` module imports `runs`, so a workspace that built the log would
-// close the two into a cycle — and composing them side by side is what an app page is for.
+// **The screen composes three module reads rather than one** (D-268, D-303). `getRunWorkspace`
+// answers the room, the frame, the brief draft and the pause; the Delegation Log is
+// `assistant.listDelegations` and the claims are `reliance.listRunClaims`. They are not one call
+// because the `assistant` module imports `runs`, so a workspace that built either would close the
+// two into a cycle — and composing them side by side is what an app page is for. The claim list
+// goes to *both* panels below: a claim is drawn twice on this screen, and a stance taken on one of
+// them is one act on one record, so the copy that did not take it learns from this render.
 //
-// **The four state-specific panels are reached through `deferred-panels.tsx`** (D-282). A run is on
+// **The five state-specific panels are reached through `deferred-panels.tsx`** (D-282). A run is on
 // one of these screens, never both, but `entryJSFiles` is a static union — so `framing` was paying
 // for the assistant and the log and `working` for react-hook-form and its resolver, and the route
-// stood at 172,773 bytes against B4's 130,000. Those four now arrive in async chunks and the route
-// adds 98,501. They are still server-rendered (`ssr` stays on), so the JSX below, the markup, the
+// stood at 172,773 bytes against B4's 130,000. Those five now arrive in async chunks and the route
+// adds 101,128. They are still server-rendered (`ssr` stays on), so the JSX below, the markup, the
 // reading order and the a11y tree are exactly what they were; only their hydration waits.
 //
 // The paused overlay is rendered from the server, when and only when there is an open pause. That
@@ -74,10 +79,20 @@ export default async function RunWorkPage({ params }: PageProps<'/runs/[runId]/w
   const { actor } = await getViewer()
   let workspace: RunWorkspace
   let delegations: readonly DelegationView[] = []
+  let claims: readonly ClaimView[] = []
   try {
     workspace = await getRunWorkspace(actor, runId)
-    // The log is read for every state but `framing`, where there is nothing to have delegated to.
-    if (!workspace.capabilities.canLockFrame) delegations = await listDelegations(actor, runId)
+    // The log and the claims are read for every state but `framing`, where there is nothing to have
+    // delegated to and nothing surfaced but what a document opened. Both are their own module's
+    // read rather than fields on the workspace, for the reason the log already was (D-268): the
+    // `assistant` module imports `runs`, so a workspace that built either would close the two into
+    // a cycle — and composing them side by side is what an app page is for.
+    if (!workspace.capabilities.canLockFrame) {
+      ;[delegations, claims] = await Promise.all([
+        listDelegations(actor, runId),
+        listRunClaims(actor, runId),
+      ])
+    }
   } catch (error) {
     if (!isAppError(error)) throw error
     // The run moved between the read above and this one — the clock ran out, or another tab
@@ -153,6 +168,8 @@ export default async function RunWorkPage({ params }: PageProps<'/runs/[runId]/w
             <AssistantPanel
               runId={run.id}
               canDelegate={capabilities.assistantUnlocked}
+              claims={claims}
+              documents={workspace.documents}
               lockedReason={
                 capabilities.assistantUnlocked ? undefined : t('workspace.assistantPaused')
               }
@@ -160,15 +177,18 @@ export default async function RunWorkPage({ params }: PageProps<'/runs/[runId]/w
           </div>
 
           <div className="flex min-w-0 flex-col gap-6 md:col-span-2 lg:col-span-1">
-            <Panel id="brief-editor-panel" title={t('workspace.briefEditorTitle')} headingLevel={2}>
-              <p className="text-ink-muted text-reading max-w-[72ch]">
-                {t('workspace.briefEditorUnlockedBody')}
-              </p>
-            </Panel>
+            <BriefEditor
+              runId={run.id}
+              draft={workspace.briefDraft}
+              namedFields={workspace.namedFields}
+              canWrite={capabilities.canWriteBrief}
+            />
 
             <DelegationLog
               runId={run.id}
               delegations={delegations}
+              claims={claims}
+              documents={workspace.documents}
               canWrite={capabilities.assistantUnlocked}
               readOnlyNote={
                 capabilities.assistantUnlocked ? undefined : t('workspace.logPausedNote')
