@@ -19,9 +19,9 @@
 | `/runs/[runId]` | `(app)` → `runs/[runId]/layout.tsx` (RunFrame) | run owner or reviewer | run skeleton; boundary with request id | UI-027 |
 | `/runs/[runId]/start` | RunFrame | owner; state `assigned` | | UI-021 |
 | `/runs/[runId]/readiness`, `/runs/[runId]/readiness/result` | RunFrame | owner; state `readiness` / any later | | UI-022 |
-| `/runs/[runId]/work` | RunFrame | owner; state `framing`, `working`, `paused` | | UI-023, UI-024 |
+| `/runs/[runId]/work` | RunFrame | owner; state `framing`, `working`, `paused` (a pause taken on the working clock — D-367) | | UI-023, UI-024 |
 | `/runs/[runId]/locked` | RunFrame | owner; state `decision_locked` | | UI-024 |
-| `/runs/[runId]/turn` | RunFrame | owner; state `turn_open` | | UI-025 |
+| `/runs/[runId]/turn` | RunFrame | owner; state `turn_open`, or `paused` from inside the window (D-367) | | UI-025 |
 | `/runs/[runId]/defense` | RunFrame | owner; state `defense_pending` | | UI-026 |
 | `/runs/[runId]/debrief` | RunFrame | owner or reviewer; state ≥ `scored` | | UI-028 |
 | `/records/[runId]` | `(app)` | owner; state ≥ `confirmed` | | UI-029 |

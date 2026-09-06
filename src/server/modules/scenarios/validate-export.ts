@@ -85,10 +85,12 @@ export function toValidatedVersion(document: PackageExport): ValidatedVersion {
     })),
     turn: document.turn ? { id: 'turn' } : null,
     defenseQuestions: document.defenseQuestions.map((row) => ({
+      id: row.key,
       kind: row.kind,
       claimId: row.claimKey,
       assumptionIndex: row.assumptionIndex,
       template: row.template,
+      followUp: row.followUp,
     })),
     readinessItems: document.readinessItems.map((row) => ({
       id: row.key,

@@ -27,6 +27,7 @@ import {
   codeOf,
   delegate,
   eventsOfType,
+  inLockedRun,
   runClaimRows,
   runInWorking,
   setupAssistantFixture,
@@ -248,6 +249,41 @@ describe('the read that finds the Turn due delivers it (D-043)', () => {
     expect(row.turn_delivered_at?.getTime()).toBeGreaterThanOrEqual(readAt - 1_000)
     expect((row.turn_window_ends_at as Date).getTime() - readAt).toBeGreaterThan(WINDOW_MS - 5_000)
     expect((row.turn_window_ends_at as Date).getTime() - readAt).toBeLessThan(WINDOW_MS + 5_000)
+  })
+
+  // D-364: the test control moves the run's whole timeline, so a run it has advanced is a run
+  // production could have produced. These two assertions are the ones that would have caught the
+  // control shifting the deadlines and not the instants behind them — and they are asserted here
+  // rather than in a file of their own because every Phase 9 fixture, and the walkthrough, reaches
+  // the Turn exactly this way, and Phase 10 replays what they leave behind.
+  it('leaves a shape production could have produced, and a trace that reads forwards', async () => {
+    const runId = await runInTurnWindow()
+
+    const row = await turnRow(runId)
+    // FR-110: the Turn is due the package's delay after the decision was filed, before and after any
+    // shift. The control used to leave `turn_due_at` two seconds *before* the lock.
+    expect(row.turn_due_at?.getTime()).toBe(
+      (row.decision_locked_at as Date).getTime() + TURN_DELAY_MS,
+    )
+    expect((row.turn_due_at as Date).getTime()).toBeGreaterThanOrEqual(
+      (row.decision_locked_at as Date).getTime(),
+    )
+    expect((row.turn_delivered_at as Date).getTime()).toBeGreaterThanOrEqual(
+      (row.turn_due_at as Date).getTime(),
+    )
+
+    // The trace is the record Phase 10 replays, and `seq` is the order it was written in: an
+    // `occurred_at` that goes backwards between two sequences is a record that cannot be drawn.
+    const events = await testSql<{ seq: number; type: string; occurred_at: Date }[]>`
+      select seq, type, occurred_at from run_events where run_id = ${runId} order by seq`
+    expect(events.length).toBeGreaterThan(5)
+    const backwards = events.filter(
+      (event, index) =>
+        index > 0 &&
+        event.occurred_at.getTime() <
+          (events[index - 1] as { occurred_at: Date }).occurred_at.getTime(),
+    )
+    expect(backwards.map((event) => `${event.seq} ${event.type}`)).toEqual([])
   })
 
   it('happens on an ordinary poll, with no scheduler and no test route (ADR-019)', async () => {
@@ -548,6 +584,53 @@ describe('the window running out', () => {
     expect(await eventsOfType(runId, 'decision_locked')).toHaveLength(1)
     expect(await eventsOfType(runId, 'turn_delivered')).toHaveLength(1)
     expect(await turnResponseRow(runId)).toMatchObject({ implicit: true })
+  })
+})
+
+// ---------------------------------------------------------------------------------------------
+// A component failure inside the window (FR-001, D-133, D-367)
+// ---------------------------------------------------------------------------------------------
+
+describe('a pause taken inside the window', () => {
+  it('leaves the run on the Turn, with the Turn still readable behind the overlay', async () => {
+    // `paused` is not a screen: it is the modal overlay drawn over whichever screen the run was on,
+    // and there are two of those. `NEXT_ROUTE.paused` answered the workspace for both, so a student
+    // who met a component failure mid-window and reloaded landed on a locked workspace instead of
+    // the Turn they were answering — and `getTurn` refused `paused` outright, so the screen could
+    // not have drawn it even if the route had sent them there.
+    const runId = await runInTurnWindow()
+    await inLockedRun(fx, runId, async (tx, run) => {
+      await runs.pauseRun(tx, run, 'assistant_failure', {})
+    })
+    expect((await turnRow(runId)).state).toBe('paused')
+
+    const summary = await runs.getRun(fx.student, runId)
+    expect(summary.links.next).toBe(`/runs/${runId}/turn`)
+
+    const turn = await runs.getTurn(fx.student, runId)
+    expect(turn.text).toBe(FIXTURE.turn.text)
+    // The workspace read the screen composes beside it still answers, and it carries the open pause
+    // the overlay is rendered from.
+    const workspace = await runs.getRunWorkspace(fx.student, runId)
+    expect(workspace.pause).toMatchObject({ cause: 'assistant_failure' })
+    // Nothing is writable while it is paused: the response gates on `turn_open` itself.
+    expect(await codeOf(runs.respondToTurn(fx.student, runId, RESPONSE))).toBe('TURN_NOT_OPEN')
+
+    // And the resume puts them back where they were, by the same route.
+    await runs.resumeRun(fx.student, runId)
+    expect((await turnRow(runId)).state).toBe('turn_open')
+    expect((await runs.getRun(fx.student, runId)).links.next).toBe(`/runs/${runId}/turn`)
+  })
+
+  it('still sends a pause taken on the working clock to the workspace', async () => {
+    const runId = await runInWorking(fx)
+    await inLockedRun(fx, runId, async (tx, run) => {
+      await runs.pauseRun(tx, run, 'assistant_failure', {})
+    })
+
+    const summary = await runs.getRun(fx.student, runId)
+    expect(summary.links.next).toBe(`/runs/${runId}/work`)
+    expect(await codeOf(runs.getTurn(fx.student, runId))).toBe('TURN_NOT_OPEN')
   })
 })
 

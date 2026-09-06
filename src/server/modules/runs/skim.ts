@@ -11,7 +11,7 @@
 // sets them from a pilot that has not run — but they are not bounds on a run, which is what that
 // file holds: they are a reading rate, and they exist only to be read by the one rule below. D-082
 // says "edit the constant"; this is the constant, beside the rule, so there is one place to edit.
-import { isInTurnWindow, workingExpiresAt, type ClockRun } from './clock'
+import { workingClockEndsAt, type ClockRun } from './clock'
 
 // ---------------------------------------------------------------------------------------------
 // The skim threshold (D-082, FR-024, PRD §7.2 "Four-second opens")
@@ -69,9 +69,10 @@ export function isSkim(openMs: number, wordCount: number): boolean {
 /**
  * The run columns the cap reads: the clock's, plus the instant the decision was locked.
  *
- * `decisionLockedAt` is here because the working clock is gone from `ClockRun`'s point of view once
- * the run leaves `working` — `workingExpiresAt` answers null — and a close can arrive after the
- * lock, which is the whole case the cap exists for.
+ * `decisionLockedAt` is here because it is a boundary between two clock eras and `ClockRun` does not
+ * carry it: it is where the working clock stopped and where the Turn delay's silence begins. With it
+ * the three columns below — `working_started_at`, `decision_locked_at`, `turn_delivered_at` — divide
+ * the run's whole life into eras an open can be placed in from its own instant (D-361).
  */
 export type OpenRun = ClockRun & { decisionLockedAt: Date | null }
 
@@ -79,28 +80,48 @@ export type OpenRun = ClockRun & { decisionLockedAt: Date | null }
  * The instant beyond which the clock *this open was running against* can no longer have been
  * running, or null when no clock bounds it.
  *
- * Three readings, in the order they are asked:
+ * **The open's own instant picks the clock, and the run's state is not consulted at all** (D-361,
+ * strengthening D-338). A run's life is a line of clock eras with the run's own instants as their
+ * boundaries, and which era an open belongs to is settled the moment it begins; the state the run
+ * happens to be in when the close finally arrives is a fact about the close, and a close may arrive
+ * in any state at all (10 §6 gates it on nothing, which is what lets FR-117's shut laptop record
+ * anything). D-338 fixed one direction of that — an open made *before* the Turn was delivered and
+ * closed inside the window — by reading `turn_delivered_at`; but it kept `isInTurnWindow(run)` in
+ * front of the test, so the mirror stayed open: once the run leaves `turn_open` the window's end
+ * became unreachable and an open made *inside* the window fell through to a `decision_locked_at`
+ * that is earlier than the open, which `cappedDurationMs` reads as "no clock" and records raw. So
+ * the reading below asks the two boundary columns and nothing else, and a state added to the
+ * machine tomorrow cannot reopen either direction of the hole.
  *
- *   * an open made **inside the Turn window**, the window's own end (D-132);
- *   * otherwise, in `working` or `paused`, the instant the working clock reaches zero (D-042);
- *   * otherwise the instant the decision was locked — the working clock ended there.
+ * The eras, in the order they are asked:
  *
- * `framing` answers null, and correctly: the Evidence Room opens before the frame and there is no
- * clock running yet, so a long read while framing is a long read, not an overrun.
+ *   * **the Turn window** — `openedAt >= turn_delivered_at`; the window's own end bounds it
+ *     (D-132). This is the same fact `run_document_opens.in_turn_window` stores, read back from
+ *     the two instants rather than from the column, so the two cannot disagree.
+ *   * **the Turn delay** — `openedAt >= decision_locked_at`, before the delivery. **No clock runs
+ *     here**: the working clock ended at the lock and the window has not opened (D-334), so nothing
+ *     bounds the open and the answer is null. Answering the window's end instead would draw reading
+ *     across the gap, which is the one thing this cap exists to prevent.
+ *   * **the working clock** — everything earlier. It ended at `decision_locked_at` on a run that
+ *     has filed a decision (that instant *is* the clock's zero when the auto-lock fired, and is
+ *     earlier when the student filed first), and otherwise at its own zero, read from the columns
+ *     so that a run parked in `paused` inside the window still answers the working clock's real end
+ *     for an open it inherited from the working period rather than the later instant a resume would
+ *     move it to.
  *
- * **The open's own instant is what picks the clock, not the run's current state** (D-338). A run has
- * two clocks with a gap between them — the working clock ends at the Decision Lock, nothing runs
- * through the Turn delay, and the window starts at the delivery read — and a document left open
- * through all three is a laptop that was shut, not a reading. Answering the window's end for it
- * would draw reading across a period no clock was running, which is the one thing the cap exists to
- * prevent. `openedAt >= turn_delivered_at` is the same fact `run_document_opens.in_turn_window`
- * stores, read from the two instants this function already has.
+ * `framing` answers null through the same last line, and correctly: the Evidence Room opens before
+ * the frame and there is no clock running yet, so a long read while framing is a long read, not an
+ * overrun. Framing is not a gap between two clocks the way the Turn delay is — it is the prologue
+ * to the only clock the run has — so an open carried out of it into `working` is still bounded by
+ * that clock's end, which falls inside it (D-250).
  */
 export function clockEndsAt(run: OpenRun, openedAt: Date): Date | null {
-  if (isInTurnWindow(run) && run.turnDeliveredAt && openedAt >= run.turnDeliveredAt) {
-    return run.turnWindowEndsAt
+  const at = openedAt.getTime()
+  if (run.turnDeliveredAt && at >= run.turnDeliveredAt.getTime()) return run.turnWindowEndsAt
+  if (run.decisionLockedAt) {
+    return at >= run.decisionLockedAt.getTime() ? null : run.decisionLockedAt
   }
-  return workingExpiresAt(run) ?? run.decisionLockedAt
+  return workingClockEndsAt(run)
 }
 
 /**

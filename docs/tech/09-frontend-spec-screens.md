@@ -138,14 +138,14 @@ The largest screen; one column under `2xl` and two from it (see `09-frontend-spe
 
 - **Data:** `getTurn`, `respondToTurnAction`; the assistant, room, claims, and actions as in UI-023 but scoped to the window.
 - **Tree:** `RunFrame` (window countdown 12:00) → `TurnPanel`: the message in the world's voice with the voice type as a chip ("Stakeholder message"); window claims as `ClaimCard`s requiring a stance; reopened `AssistantPanel` and `EvidenceRoom` (collapsible); response form: hold / revise / reverse radio, justification 150 words, updated confidence; the frozen pre-Turn record beside (frame and locked brief) in the `FrameBesideDecision` layout.
-- **States:** open; submitting; window under 1:00; expired (implicit hold notice → redirect to `/defense`); refused because a window claim is unstanced (the claim is named).
+- **States:** open; submitting; window under 1:00; paused (`PausedOverlay` modal over this screen, not the workspace — a pause inside the window freezes the window and the run's next step stays the Turn, D-133, D-367); expired (implicit hold notice → redirect to `/defense`); refused because a window claim is unstanced (the claim is named).
 - **Responsive:** frozen record stacks below the form under `lg`.
 - **Events:** `turn_response_locked` (server).
 
 ### UI-026 Defense (`/runs/[runId]/defense`) — FR-120 to FR-126
 
 - **Data:** `getDefense`, `answerDefenseQuestionAction`, `completeDefenseAction`.
-- **Tree:** `RunFrame` (no clock; "Defense" state) → two columns: `DefenseQuestion` list with the current question expanded (answer textarea, "Submit answer"; follow-up appears beneath when triggered, labeled "Follow-up"); `DefenseArtifacts` (frame, locked brief, addendum, Turn response) read-only; no assistant, no room. "Finish the defense" appears when every question has an answer (empty answers allowed after a confirm dialog: "Unanswered questions count as no answer").
+- **Tree:** `RunFrame` (no clock; "Defense" state) → two columns: `DefenseQuestion` list with the current question expanded (answer textarea, "Submit answer"; follow-up appears beneath when triggered, labeled "Follow-up"); `DefenseArtifacts` (frame, locked brief, addendum, Turn response) read-only; no assistant, no room. "Finish the defense" appears when every question has an answer (empty answers allowed after a confirm dialog: "Unanswered questions count as no answer"); a question the server has already answered is skipped rather than treated as a failure, and the interview is re-read (D-368).
 - **States:** in progress (resumes at the first unanswered); submitting; complete → `/runs/[runId]` status page.
 - **Validation:** ≤ 5,000 characters.
 - **A11y:** questions are a list with headings; the current question receives focus; duration is captured from focus to submit.

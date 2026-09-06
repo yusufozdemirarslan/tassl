@@ -1,0 +1,19 @@
+-- Step 9 fixes (D-365; NFR-004, NFR-005, D-085, DATA-039): the defense's two tables are
+-- append-only, and now the grants say so.
+--
+-- Migration 0009 revoked UPDATE and DELETE on the append-only tables of Phases 2 to 6 and left the
+-- rule for the ones that came after it in its own text: "a later migration that adds an append-only
+-- table must revoke UPDATE and DELETE on it explicitly", because `ALTER DEFAULT PRIVILEGES` grants
+-- all four to every table created afterwards. `run_defense_questions` and `run_defense_answers`
+-- arrived in Step 7.1 without it. A filed answer is the record — one per question, `FR-124`, and the
+-- `defense_answer` event carries the duration from focus to submit — and until now it was immutable
+-- only by a service gate and a unique index, both of which a second writer could be written past.
+--
+-- The question rows are the same fact from the other side: `rendered_text` is the question that was
+-- *asked*, stored rather than re-rendered on each read, and a rewrite of it would change what the
+-- trace says the student was asked.
+--
+-- `tests/integration/db/grants.test.ts` reads `pg_tables` and classifies every table in `public`, so
+-- an append-only table added by a later phase without this revoke fails there rather than in a
+-- walkthrough.
+REVOKE UPDATE, DELETE ON run_defense_questions, run_defense_answers FROM tassl_app;

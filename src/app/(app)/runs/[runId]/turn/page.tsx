@@ -63,8 +63,17 @@ export const metadata: Metadata = { title: t('turn.metaTitle') }
 // `proportionate_response` are the instrument this response is measured against and no student
 // payload carries either (D-336, 12 §8.1).
 
-/** The state `/runs/[runId]/turn` draws (09 §1). Everything else follows the run's own next step. */
-const TURN_STATE = 'turn_open'
+/**
+ * Whether this page is where the run currently belongs (09 §1, D-367).
+ *
+ * It asks the run's own `links.next` rather than reading `state` for itself, and that is the point:
+ * two states draw this screen — `turn_open`, and `paused` from inside the window, which is the same
+ * screen behind the modal `PausedOverlay` already rendered at the bottom of this tree — and the map
+ * that knows which is `runs/summary.ts`. A second copy of the rule here is how the two came apart in
+ * the first place: `NEXT_ROUTE.paused` sent a student answering the Turn to the locked workspace,
+ * and a page that then hard-coded `turn_open` would bounce them straight back to it.
+ */
+const belongsHere = (next: string, runId: string): boolean => next === `/runs/${runId}/turn`
 
 /** `scenario_turns.voice` (DATA-023) in the student's own language, as a chip on the message. */
 const VOICE_LABELS: Record<TurnVoiceValue, string> = {
@@ -81,7 +90,7 @@ export default async function RunTurnPage({ params }: PageProps<'/runs/[runId]/t
   const { status } = await getRunView(runId)
   const next = status.run.links.next as Route
 
-  if (status.run.state !== TURN_STATE) redirect(next)
+  if (!belongsHere(status.run.links.next, runId)) redirect(next)
 
   const { actor } = await getViewer()
   let turn

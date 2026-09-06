@@ -43,6 +43,7 @@
 // variants a student could have drawn, so neither can tell a student whether their run has a defect
 // in it or where.
 import { t } from '@/lib/i18n/t'
+import { QUESTION_PLACEHOLDERS, type QuestionPlaceholder } from '@/lib/question-template'
 // The one definition of "the same number" in this codebase, and it is already FR-025's: the numeric
 // guard exists because "a figure that matches no claim and no document is the assistant's
 // assumption, and defending it is theirs" (`numeric-guard.ts`). A second normalizer here would let a
@@ -156,9 +157,15 @@ export const QUESTIONS_MAX = 9
  */
 export const ASSUMPTION_OVERLAP_MIN = 0.5
 
-/** The five placeholders 10 §9 step 4 fills (FR-122). */
-const PLACEHOLDERS = ['claim_text', 'figure', 'stance', 'document_title', 'assumption'] as const
-type Placeholder = (typeof PLACEHOLDERS)[number]
+/**
+ * The five placeholders 10 §9 step 4 fills (FR-122), from the one list both sides read.
+ *
+ * `scenarios/validate.ts` refuses a template that names anything else (D-369), and the rule and the
+ * renderer have to agree about which names those are — so the list is `src/lib/question-template.ts`
+ * and neither file keeps a second copy of it.
+ */
+const PLACEHOLDERS = QUESTION_PLACEHOLDERS
+type Placeholder = QuestionPlaceholder
 
 // ---------------------------------------------------------------------------------------------
 // Reading a payload without trusting it

@@ -118,7 +118,7 @@ export const decision = {
     'One addendum per run, and this run has its one. It is kept apart from the decision above.',
   'decision.addendumWrittenAt': 'Added {when}',
   'decision.addendumClosed':
-    'An addendum can be added from the lock until the run is recorded. That window has closed.',
+    'An addendum can be added from the lock until the Turn is over. That window has closed.',
   'decision.addendumLoading': 'Opening the addendum…',
   'decision.addendumUnavailable':
     'The addendum form could not be loaded, so nothing was added. Press “Add an addendum” again.',

@@ -382,4 +382,79 @@ describe('DefenseInterview', () => {
       expect((call[0] as { text: string }).text).toBe('')
     }
   })
+
+  // D-368: the loop terminates (D-351) and it also recovers. A question the server has already
+  // answered — a second tab, a response lost after the write landed — used to stop the finish dead:
+  // `apply` never marked the row, so the next press queued the same question, met the same code and
+  // stopped in the same place, for ever, with a manual reload the only way out.
+  it('carries on past a question the server has already answered, and finishes', async () => {
+    const user = userEvent.setup()
+    actions.answerDefenseQuestionAction.mockImplementation((input: unknown) =>
+      Promise.resolve(
+        (input as { runQuestionId: string }).runQuestionId === Q1
+          ? {
+              ok: false,
+              error: {
+                code: 'QUESTION_ALREADY_ANSWERED',
+                message: 'This question already has its answer.',
+                requestId: 'req-1',
+              },
+            }
+          : { ok: true, data: { next: null, followUpQuestion: null } },
+      ),
+    )
+    actions.completeDefenseAction.mockResolvedValue({ ok: true, data: { id: RUN_ID } })
+    render(<DefenseInterview runId={RUN_ID} questions={QUESTIONS} />)
+
+    await user.click(screen.getByRole('button', { name: enUS['defense.finish'] }))
+    const dialog = await screen.findByRole('alertdialog')
+    await user.click(
+      within(dialog).getByRole('button', { name: enUS['defense.finishConfirmAction'] }),
+    )
+
+    // Both questions were attempted, the second was filed, and the defense completed.
+    await waitFor(() => {
+      expect(actions.completeDefenseAction).toHaveBeenCalledWith({ runId: RUN_ID })
+    })
+    expect(actions.answerDefenseQuestionAction).toHaveBeenCalledTimes(2)
+    // Nothing under the scrim claims the answer failed: the run holds one.
+    expect(screen.queryByText(enUS['defense.finishFailed'])).not.toBeInTheDocument()
+    expect(router.refresh).toHaveBeenCalled()
+  })
+
+  it('re-reads the interview when the finish is stopped by something else after a stale question', async () => {
+    const user = userEvent.setup()
+    actions.answerDefenseQuestionAction.mockImplementation((input: unknown) =>
+      Promise.resolve(
+        (input as { runQuestionId: string }).runQuestionId === Q1
+          ? {
+              ok: false,
+              error: {
+                code: 'QUESTION_ALREADY_ANSWERED',
+                message: 'This question already has its answer.',
+                requestId: 'req-1',
+              },
+            }
+          : {
+              ok: false,
+              error: { code: 'RUN_PAUSED', message: 'This run is paused.', requestId: 'req-2' },
+            },
+      ),
+    )
+    render(<DefenseInterview runId={RUN_ID} questions={QUESTIONS} />)
+
+    await user.click(screen.getByRole('button', { name: enUS['defense.finish'] }))
+    const dialog = await screen.findByRole('alertdialog')
+    await user.click(
+      within(dialog).getByRole('button', { name: enUS['defense.finishConfirmAction'] }),
+    )
+
+    // The real refusal is shown where the student is standing …
+    await waitFor(() => {
+      expect(within(dialog).getByText(enUS['defense.finishFailed'])).toBeInTheDocument()
+    })
+    expect(actions.completeDefenseAction).not.toHaveBeenCalled()
+    // … and the list is re-read, so the next press meets a list that is true.
+    expect(router.refresh).toHaveBeenCalled()
+  })
 })

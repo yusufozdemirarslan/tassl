@@ -4,7 +4,7 @@
 // every function that touches it takes `tenantId` first and filters on `organizationId`; the child
 // tables (run_frames, run_briefs, …) have no organization_id and are scoped through the run id the
 // service already resolved. The database handle is always the last parameter (10 §6).
-import { and, desc, eq, isNull, ne, sql } from 'drizzle-orm'
+import { and, desc, eq, getTableColumns, isNull, ne, sql, type SQL } from 'drizzle-orm'
 import { AppError } from '@/lib/errors'
 import { db } from '@/server/db/client'
 import {
@@ -22,6 +22,7 @@ import {
   runAddenda,
   runBriefs,
   runDocumentOpens,
+  runEvents,
   runFrames,
   runPauses,
   runReadinessAnswers,
@@ -235,6 +236,75 @@ export async function updateRun(
     .set(patch)
     .where(and(eq(runs.organizationId, tenantId), eq(runs.id, runId)))
     .returning()
+  return row
+}
+
+// ---------------------------------------------------------------------------------------------
+// The test control's own writer (D-109, D-364)
+// ---------------------------------------------------------------------------------------------
+
+/**
+ * Every column of `runs` that records **an instant in the run's own life**, by its TypeScript name.
+ *
+ * Read out of the table rather than listed here, so that a column a later phase adds is shifted
+ * with the rest instead of being silently left behind — which is the whole defect D-364 is about,
+ * and the same reasoning `tests/integration/db/run-delete-cascade.test.ts` applies to the cascade.
+ * `created_at` and `updated_at` are excluded by name: they are the row's bookkeeping, written by the
+ * default and by the `set_updated_at` trigger, and they say when Postgres saw the row rather than
+ * when anything happened in the run.
+ */
+const RUN_INSTANT_COLUMNS: readonly string[] = Object.entries(getTableColumns(runs))
+  .filter(
+    ([key, column]) =>
+      column.columnType === 'PgTimestamp' && key !== 'createdAt' && key !== 'updatedAt',
+  )
+  .map(([key]) => key)
+
+/**
+ * Moves the run's whole timeline back by `ms`: every instant it has recorded, and every instant its
+ * trace has (D-109, D-364). Test-only; `advanceRunClock` is the one caller and it refuses outside a
+ * test process, twice.
+ *
+ * **It is one shift or none.** Shifting some of the run's instants and not others manufactures a
+ * shape production cannot produce — a `turn_due_at` before the `decision_locked_at` it is defined as
+ * ninety seconds after, a `turn_delivered_at` that never moved while the window it opened did — and
+ * a fixture in that shape is a fixture every later phase reads as a run. So the columns come out of
+ * the table, and `run_events.occurred_at` moves with them: an event's instant is `occurred_at`,
+ * every one of them was stamped from these columns or from the wall at the time, and leaving them
+ * where they were inverts the trace against itself (`turn_delivered` carrying an instant earlier
+ * than the `decision_locked` before it).
+ *
+ * This is the one writer in the product that rewrites `run_events`, and it is deliberate rather than
+ * an oversight of migration 0009: the grant refuses UPDATE to `tassl_app`, which is the role preview
+ * and production connect with, so the rewrite is impossible anywhere the control is not already
+ * refused by `assertTestEnvironment`. It writes no *new* event and changes no payload — the record
+ * of what happened is untouched; only the clock the record hangs on moves.
+ */
+export async function shiftRunTimeline(
+  tenantId: string,
+  runId: string,
+  ms: number,
+  dbx: DbOrTx = db,
+): Promise<Run | undefined> {
+  const back = sql`${`${Math.trunc(ms)} milliseconds`}::interval`
+  const patch: Record<string, SQL> = {}
+  for (const key of RUN_INSTANT_COLUMNS) {
+    const column = getTableColumns(runs)[key as keyof typeof runs.$inferSelect]
+    if (column) patch[key] = sql`${column} - ${back}`
+  }
+
+  const [row] = await dbx
+    .update(runs)
+    .set(patch)
+    .where(and(eq(runs.organizationId, tenantId), eq(runs.id, runId)))
+    .returning()
+  if (!row) return undefined
+
+  await dbx
+    .update(runEvents)
+    .set({ occurredAt: sql`${runEvents.occurredAt} - ${back}` })
+    .where(eq(runEvents.runId, runId))
+
   return row
 }
 

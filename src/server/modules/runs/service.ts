@@ -1724,16 +1724,32 @@ async function autoLockDecision(tx: repo.Tx, run: repo.Run, at: Date): Promise<r
 // ---------------------------------------------------------------------------------------------
 
 /**
- * The states an addendum may be written in: after the lock, before the record (10 §6).
+ * When an addendum may be written: **after the decision is filed and before the defense opens**
+ * (FR-107; D-295 as D-363 corrects it).
  *
- * Read from `decision_locked_at` rather than from a list of state names, because that column *is*
- * the fact the rule is about — the decision was filed — and a list would have to be revisited every
- * time the machine gains a state. `recorded` is the end of it, and a voided run is excluded because
- * it counts for nothing (FR-002): an addendum to a discarded attempt is a note nobody will read.
+ * Two columns bound it and neither is a list of state names, which is D-295's reading and stands:
+ * the columns *are* the two facts the rule is about, so the machine can gain a state without this
+ * having to be revisited. `decision_locked_at` opens the window — non-null exactly when the decision
+ * has been filed, by the student or by the clock. `turn_locked_at` closes it: that is the instant
+ * the Turn ends and the defense begins, stamped by both routes out of `turn_open` (the response and
+ * the implicit hold), so the addendum stays open through the lock, the Turn delay and the whole
+ * twelve minutes — which is exactly the span FR-107's pressure lives in — and is over when the
+ * interview starts.
+ *
+ * D-295 said "any state after lock and before `recorded`", and that was too long by two states.
+ * `addAddendum` therefore **succeeded after `completeDefense`**, with the run in `defense_complete`,
+ * `scoring_status = 'queued'` and `score_run` already on the queue: a new `run_addenda` row landing
+ * in the record the in-flight job was reading. And the defense's questions are drawn from the run
+ * and say what is being probed, so fifty words written after reading them are not the artifact
+ * FR-107 describes — they are a second draft with the marker's questions in hand.
+ *
+ * A voided run is still excluded, for D-295's own reason: it counts for nothing (FR-002), so an
+ * addendum to a discarded attempt is a note nobody will read.
  */
 function addendumOpen(run: repo.Run): boolean {
   if (run.decisionLockedAt === null) return false
-  return run.state !== 'recorded' && run.state !== 'voided'
+  if (run.turnLockedAt !== null) return false
+  return run.state !== 'voided'
 }
 
 /**
@@ -2033,7 +2049,12 @@ export async function getTurn(actor: SessionUser, runId: string): Promise<TurnVi
     if (!again) runNotFound()
     run = again.run
   }
-  if (run.state !== 'turn_open' || !run.turnWindowEndsAt) turnNotOpen(run.state)
+  // The window, and a pause taken inside it (D-367). `isInTurnWindow` is the same derivation the
+  // clock uses — delivered and not yet locked — so a component failure during the twelve minutes
+  // leaves the student on the Turn behind the paused overlay rather than bouncing them to a locked
+  // workspace. Nothing here is writable while paused: `respondToTurn` gates on `turn_open` itself,
+  // and every other in-run write refuses a paused run with `RUN_PAUSED`.
+  if (!isInTurnWindow(run) || !run.turnWindowEndsAt) turnNotOpen(run.state)
 
   const [turn, scenario, frame, brief] = await Promise.all([
     repo.findRunTurn(tenantId, runId),
@@ -2482,7 +2503,7 @@ export function assertTestEnvironment(): void {
 }
 
 /**
- * Moves a run's clock columns back by `ms` and materializes whatever that makes true (D-109).
+ * Moves a run's whole timeline back by `ms` and materializes whatever that makes true (D-109).
  *
  * It exists so a test can reach an expiry without waiting for one: timers are server timestamps
  * materialized lazily on read (ADR-019), so shifting the timestamps is the only honest way to make
@@ -2490,13 +2511,21 @@ export function assertTestEnvironment(): void {
  * shift makes true is written by `materializeTimersTx` in the same transaction, stamped at the
  * instant the timer fired rather than now (NFR-002).
  *
- * Every deadline the run stores moves together, which is what makes one call able to reach a timer
- * two branches away: `readiness_started_at` moves with `readiness_expires_at` so the eight minutes
- * keep their length, `working_started_at` moves the working clock, and `turn_due_at` and
- * `turn_window_ends_at` move the Turn's two (D-109). A shift long enough to expire the working clock
- * therefore also brings the Turn delay forward by the same span, and the cascade in
- * `materializeTimersTx` applies each branch in turn — the same run a closed browser would come back
- * to (FR-117).
+ * **Every instant the run has recorded moves together, and so does its trace** (D-364). That is what
+ * makes one call able to reach a timer two branches away — `readiness_started_at` moves with
+ * `readiness_expires_at` so the eight minutes keep their length, `working_started_at` moves the
+ * working clock, `turn_due_at` and `turn_window_ends_at` move the Turn's two — and it is also the
+ * only way the control can produce a run **production could have produced**. Shifting the deadlines
+ * and not the instants behind them left `turn_due_at = decision_locked_at − 2s` on every Phase 9
+ * fixture, when the delivery is defined as `decision_locked_at + turn_delay_seconds` and can be
+ * nothing else; and it left the trace inverted against itself, `turn_delivered` carrying an instant
+ * earlier than the `decision_locked` at the sequence before it. A test control that only tests
+ * shapes the product cannot make is not a control, and Phase 10 replays these fixtures.
+ *
+ * What it does **not** move is the run's children — an open's `opened_at`, the frame's `locked_at`.
+ * Those are append-only records of single acts, and a test that needs one aged says so itself
+ * (`ageOpen` in `tests/integration/runs/documents.test.ts`), which keeps this from becoming a second
+ * writer of the record and keeps a test from being shifted twice without saying so.
  */
 export async function advanceRunClock(
   actor: SessionUser,
@@ -2511,20 +2540,7 @@ export async function advanceRunClock(
     const locked = await repo.findRunForUpdate(tenantId, runId, tx)
     if (!locked) runNotFound()
 
-    const shiftBack = (at: Date | null): Date | undefined =>
-      at === null ? undefined : new Date(at.getTime() - input.ms)
-    const patch: repo.RunPatch = {
-      readinessStartedAt: shiftBack(locked.readinessStartedAt),
-      readinessExpiresAt: shiftBack(locked.readinessExpiresAt),
-      workingStartedAt: shiftBack(locked.workingStartedAt),
-      turnDueAt: shiftBack(locked.turnDueAt),
-      turnWindowEndsAt: shiftBack(locked.turnWindowEndsAt),
-    }
-
-    // A run whose clocks have not started has nothing to shift — `assigned`, before the policy
-    // display is acknowledged. There is no write to make, and Drizzle refuses an empty `set`.
-    const shifting = Object.values(patch).some((value) => value !== undefined)
-    const shifted = shifting ? await repo.updateRun(tenantId, runId, patch, tx) : locked
+    const shifted = await repo.shiftRunTimeline(tenantId, runId, input.ms, tx)
     if (!shifted) runNotFound()
     return materializeTimersTx(tx, shifted)
   })

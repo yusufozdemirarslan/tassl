@@ -417,6 +417,41 @@ describe('answering a question', () => {
     expect(rows.filter((row) => row.follow_up_of !== null)).toHaveLength(1)
   })
 
+  it('asks one authored follow-up sentence once, across the questions that share a bank row (D-366)', async () => {
+    // The brief files two figures no claim carries and no document states, so `figure_provenance`
+    // draws two questions — and both reuse the one bank row D-135 requires, because `question_id` is
+    // not unique per run. There is one authored sentence on that row and nothing renders it, so two
+    // empty answers used to earn the identical question twice, with nothing in either saying which
+    // figure it was pressing on.
+    const runId = await runInDefense()
+    const view = await defense.openDefense(fx.student, runId)
+
+    const rows = await questionRows(runId)
+    const figures = rows.filter((row) => row.kind === 'figure_provenance')
+    expect(figures.length).toBeGreaterThanOrEqual(2)
+    expect(new Set(figures.map((row) => row.key)).size).toBe(1)
+
+    const asked: (string | null)[] = []
+    for (const row of figures) {
+      const question = view.questions.find((entry) => entry.runQuestionId === row.id)
+      if (!question) throw new Error(`the interview is missing question ${row.seq}`)
+      const result = await defense.answerQuestion(fx.student, runId, question.runQuestionId, {
+        text: '',
+        durationMs: 0,
+      })
+      asked.push(result.followUpQuestion?.text ?? null)
+    }
+
+    // The first press lands; the second is the same sentence and is not asked again.
+    expect(asked[0]).not.toBeNull()
+    expect(asked.slice(1).every((text) => text === null)).toBe(true)
+
+    const after = await questionRows(runId)
+    const followUps = after.filter((row) => row.follow_up_of !== null)
+    expect(followUps).toHaveLength(1)
+    expect(new Set(after.map((row) => row.rendered_text)).size).toBe(after.length)
+  })
+
   it('refuses a second answer to the same question (FR-124)', async () => {
     const runId = await runInDefense()
     const view = await defense.openDefense(fx.student, runId)
@@ -456,6 +491,38 @@ describe('answering a question', () => {
     })
     expect(await codeOf(promise)).toBe('VALIDATION_ERROR')
     expect(await answerRows(runId)).toHaveLength(0)
+  })
+
+  it('records a nonsense duration as a day at most, rather than failing on int4 (D-362)', async () => {
+    // `duration_ms` is a client measurement the server cannot check, and `run_defense_answers`
+    // stores it in an `integer` (DATA-039). Unbounded, 3,000,000,000 passed the schema, reached the
+    // insert and came back as a raw Postgres 22003 — a 500 with no code, on the answer itself, which
+    // is the student's own work. It is clamped instead: the ceiling is the same day D-249 puts on a
+    // document open, and the answer is stored.
+    const runId = await runInDefense()
+    const view = await defense.openDefense(fx.student, runId)
+    const [first, second] = view.questions
+    if (!first || !second) throw new Error('expected at least two questions')
+
+    await defense.answerQuestion(fx.student, runId, first.runQuestionId, {
+      text: 'From the cohort table of 15 July 2026, which I opened after the Turn.',
+      durationMs: 3_000_000_000,
+    })
+    const rows = await answerRows(runId)
+    expect(rows[0]?.duration_ms).toBe(86_400_000)
+    expect((await eventsOfType(runId, 'defense_answer'))[0]?.payload).toMatchObject({
+      duration_ms: 86_400_000,
+    })
+
+    // A negative reading is nothing rather than a refusal, for the same reason.
+    await defense.answerQuestion(fx.student, runId, second.runQuestionId, {
+      text: 'The positioning review of February 2025 gives the 61 percent figure.',
+      durationMs: -5,
+    })
+    const both = await answerRows(runId)
+    expect(
+      both.find((row) => row.run_defense_question_id === second.runQuestionId)?.duration_ms,
+    ).toBe(0)
   })
 
   it('stores an empty answer, and it is an answer (FR-124)', async () => {
@@ -607,6 +674,76 @@ describe('completing the defense', () => {
     // The read still serves the interview the student gave.
     const after = await defense.openDefense(fx.student, runId)
     expect(after.questions.every((question) => question.answered)).toBe(true)
+  })
+})
+
+// ---------------------------------------------------------------------------------------------
+// The addendum's far edge (FR-107, D-363)
+// ---------------------------------------------------------------------------------------------
+
+describe('the addendum closes when the defense opens', () => {
+  const NOTE = 'On reflection the payback figure should have been traced before the spend moved.'
+
+  it('is open through the lock and the whole Turn window', async () => {
+    const runId = await runInWorking(fx)
+    await runs.lockDecision(fx.student, runId, BRIEF)
+    // `decision_locked`: the pressure FR-107 exists for, and where the control is on UI-024.
+    expect((await runRow(runId)).state).toBe('decision_locked')
+    expect((await runs.getDecision(fx.student, runId)).canAddAddendum).toBe(true)
+
+    // And still open inside the window, which is where a student is when the news lands on the
+    // decision they just filed.
+    await advance(runId, TURN_DELAY_MS + 2_000)
+    expect((await runRow(runId)).state).toBe('turn_open')
+    expect((await runs.getDecision(fx.student, runId)).canAddAddendum).toBe(true)
+
+    await runs.addAddendum(fx.student, runId, { text: NOTE })
+    expect((await eventsOfType(runId, 'addendum'))[0]?.payload).toEqual({ text: NOTE })
+  })
+
+  it('is refused once the Turn is over, in `defense_pending`', async () => {
+    // The questions are drawn from the run and say what is being probed, so fifty words written
+    // after reading them are not the artifact FR-107 offers.
+    const runId = await runInDefense()
+    expect((await runRow(runId)).state).toBe('defense_pending')
+
+    expect(await codeOf(runs.addAddendum(fx.student, runId, { text: NOTE }))).toBe(
+      'ILLEGAL_TRANSITION',
+    )
+    expect(await detailsOf(runs.addAddendum(fx.student, runId, { text: NOTE }))).toEqual({
+      state: 'defense_pending',
+    })
+    expect((await runs.getDecision(fx.student, runId)).canAddAddendum).toBe(false)
+    expect(await eventsOfType(runId, 'addendum')).toEqual([])
+  })
+
+  it('is refused after the window expired into the implicit hold (FR-113)', async () => {
+    // The other route out of `turn_open` stamps the same column, so the rule needs no second clause.
+    const runId = await runInWorking(fx)
+    await runs.lockDecision(fx.student, runId, BRIEF)
+    await advance(runId, TURN_DELAY_MS + 2_000)
+    await advance(runId, runs.TURN_WINDOW_MS + 5_000)
+    expect((await runRow(runId)).state).toBe('defense_pending')
+
+    expect(await codeOf(runs.addAddendum(fx.student, runId, { text: NOTE }))).toBe(
+      'ILLEGAL_TRANSITION',
+    )
+  })
+
+  it('cannot land on a record already handed to scoring', async () => {
+    // The demonstrated race: `completeDefense` enqueues `score_run` and leaves the run in
+    // `defense_complete` with `scoring_status = 'queued'`, and an addendum written a moment later
+    // was a new `run_addenda` row in the record the in-flight job was reading.
+    const runId = await runInDefense()
+    await answerEverything(runId, '')
+    await defense.completeDefense(fx.student, runId)
+    const row = await runRow(runId)
+    expect([row.state, row.scoring_status]).toEqual(['defense_complete', 'queued'])
+
+    expect(await codeOf(runs.addAddendum(fx.student, runId, { text: NOTE }))).toBe(
+      'ILLEGAL_TRANSITION',
+    )
+    expect(await eventsOfType(runId, 'addendum')).toEqual([])
   })
 })
 

@@ -145,3 +145,120 @@ describe('tassl_app grants', () => {
     ).resolves.toBeDefined()
   })
 })
+
+// ---------------------------------------------------------------------------------------------
+// Every table in `public` is classified, and the grants agree with the classification (D-365)
+// ---------------------------------------------------------------------------------------------
+//
+// Migration 0009 revokes UPDATE and DELETE table by table, and warns in its own text that a later
+// migration adding an append-only table must repeat the revoke — because `ALTER DEFAULT PRIVILEGES`
+// hands all four rights to every table created after it. Step 7.1 added `run_defense_questions` and
+// `run_defense_answers` without it, and the omission was invisible: the service refuses a second
+// answer, a unique index refuses a second row, and nothing anywhere said the record was rewritable
+// by the role production connects with.
+//
+// So the tables come out of `pg_tables` and the *classification* is here, the same division of
+// labour `run-delete-cascade.test.ts` uses for the cascade. A table a later phase adds appears in
+// neither list and fails on the first assertion, which is a question — "is this a record or a
+// working row?" — asked of whoever added it rather than of whoever reads the grants next.
+describe('the append-only classification is complete', () => {
+  /** The record: written once, read for ever, never rewritten and never erased (NFR-005). */
+  const APPEND_ONLY: readonly string[] = [
+    'audit_logs',
+    'course_exports',
+    'llm_calls',
+    'run_addenda',
+    'run_defense_answers',
+    'run_defense_questions',
+    'run_events',
+    'run_frames',
+    'run_turn_responses',
+  ]
+
+  /**
+   * Everything else: rows the application legitimately rewrites or removes.
+   *
+   * `run_briefs` is here and belongs here — it is a draft the student edits until it is filed, and
+   * the `run_briefs_locked` trigger (migration 0006) is what makes the *locked* row immutable rather
+   * than a grant, because the same row is both.
+   */
+  const MUTABLE: readonly string[] = [
+    'account',
+    'answer_space_positions',
+    'assignments',
+    'claim_neutralizations',
+    'course_mapping_changes',
+    'courses',
+    'data_agreements',
+    'defense_questions',
+    'element_confirmations',
+    'generation_runs',
+    'institution_settings',
+    'invitation',
+    'member',
+    'named_fields',
+    'notifications',
+    'organization',
+    'rate_limit',
+    'rate_limit_buckets',
+    'readiness_items',
+    'run_actions',
+    'run_bands',
+    'run_briefs',
+    'run_claims',
+    'run_debrief_answers',
+    'run_delegations',
+    'run_document_opens',
+    'run_escalations',
+    'run_pauses',
+    'run_readiness_answers',
+    'run_readiness_results',
+    'run_records',
+    'run_scores',
+    'runs',
+    'scenario_claims',
+    'scenario_documents',
+    'scenario_package_versions',
+    'scenario_packages',
+    'scenario_turns',
+    'scenario_variants',
+    'section_memberships',
+    'sections',
+    'seed_records',
+    'session',
+    'stakeholders',
+    'sycophancy_probes',
+    'user',
+    'variant_claim_states',
+    'verification',
+  ]
+
+  async function tablesWithGrants() {
+    return testSql<{ tablename: string; upd: boolean; del: boolean }[]>`
+      select tablename,
+             has_table_privilege('tassl_app', ('public.' || tablename)::regclass, 'UPDATE') as upd,
+             has_table_privilege('tassl_app', ('public.' || tablename)::regclass, 'DELETE') as del
+        from pg_tables where schemaname = 'public' order by tablename`
+  }
+
+  it('classifies every table the catalogue reports', async () => {
+    const catalogue = (await tablesWithGrants()).map((row) => row.tablename)
+    const classified = [...APPEND_ONLY, ...MUTABLE].sort()
+    // Named both ways, so the failure says which side is out of date.
+    expect(catalogue.filter((name) => !classified.includes(name))).toEqual([])
+    expect(classified.filter((name) => !catalogue.includes(name))).toEqual([])
+  })
+
+  it('refuses tassl_app UPDATE and DELETE on exactly the append-only tables', async () => {
+    const rows = await tablesWithGrants()
+    const denied = rows.filter((row) => !row.upd).map((row) => row.tablename)
+    const undeletable = rows.filter((row) => !row.del).map((row) => row.tablename)
+
+    expect(denied).toEqual([...APPEND_ONLY])
+    expect(undeletable).toEqual([...APPEND_ONLY])
+    // And the role can still write the rest, which is what makes the list above a statement.
+    expect(rows.filter((row) => row.upd && row.del).map((row) => row.tablename)).toEqual([
+      ...MUTABLE,
+    ])
+  })
+})

@@ -293,11 +293,16 @@ export function addendumExists(): never {
 }
 
 /**
- * An addendum on a run whose decision is not locked yet, or one that has been recorded or voided
- * (10 §6: "any state after lock and before `recorded`").
+ * An addendum outside its window: before the decision is filed, after the Turn is over, or on a
+ * voided run (10 §6 as D-363 corrects it — after the lock and before the defense).
  *
  * Before the lock the student has the brief itself, and an addendum would be a second draft of it;
- * after the record there is nothing left to add to.
+ * once the defense has opened the questions are in front of them, and fifty words written with those
+ * in hand are a different artifact from the one FR-107 offers.
+ *
+ * `ILLEGAL_TRANSITION` with the state in `details`, like every other refusal that turns on where the
+ * run has got to: it is what lets a screen holding a stale `canAddAddendum` follow the run's own
+ * `links.next` instead of showing an error (07 §7).
  */
 export function addendumNotAvailable(state: string): never {
   throw new AppError('ILLEGAL_TRANSITION', t('run.addendumNotAvailable'), { details: { state } })

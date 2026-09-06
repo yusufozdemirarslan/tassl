@@ -14,7 +14,7 @@
 // seat's reading of a good answer (FR-123) and `variant_claim_states` is the answer key itself
 // (D-117); neither is selected, so neither is loaded and then dropped — 12 §8's rule, and the same
 // reading D-336 applied to the Turn's own row.
-import { and, asc, desc, eq, inArray } from 'drizzle-orm'
+import { and, asc, desc, eq, inArray, isNotNull } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/pg-core'
 import { AppError } from '@/lib/errors'
 import { db } from '@/server/db/client'
@@ -147,6 +147,33 @@ export async function findRunQuestion(
     .where(and(eq(runDefenseQuestions.runId, runId), eq(runDefenseQuestions.id, runQuestionId)))
     .limit(1)
   return row ?? null
+}
+
+/**
+ * Whether this run has already been asked the follow-up authored on one bank question (D-366).
+ *
+ * A follow-up row carries its parent's `question_id` — there is one authored sentence per bank row
+ * and nothing renders it — so two run questions drawn from the *same* bank row would earn the same
+ * sentence twice. `question_id` is therefore not unique per run, which is the fact this query is
+ * built on: it looks for a row that is a follow-up (`follow_up_of` set) and carries the id.
+ */
+export async function hasFollowUpFor(
+  runId: string,
+  questionId: string,
+  dbx: DbOrTx = db,
+): Promise<boolean> {
+  const [row] = await dbx
+    .select({ id: runDefenseQuestions.id })
+    .from(runDefenseQuestions)
+    .where(
+      and(
+        eq(runDefenseQuestions.runId, runId),
+        eq(runDefenseQuestions.questionId, questionId),
+        isNotNull(runDefenseQuestions.followUpOf),
+      ),
+    )
+    .limit(1)
+  return row !== undefined
 }
 
 // ---------------------------------------------------------------------------------------------

@@ -57,10 +57,23 @@ export const DefenseAnswerInputSchema = z.strictObject({
 })
 export type DefenseAnswerInput = z.infer<typeof DefenseAnswerInputSchema>
 
+/**
+ * The longest `duration_ms` an answer may record: a day, the same ceiling `brief_closed` puts on the
+ * same quantity (`runs/schema.ts` `BriefSignalSchema`) and the same one D-249 puts on a document
+ * open (D-362).
+ *
+ * It is not a judgement about how long an answer may take. It is the point past which "how long was
+ * this question in front of the student" has stopped having an answer — the laptop was shut — and,
+ * more plainly, the point past which the number stops fitting: `run_defense_answers.duration_ms` is
+ * an `integer` (DATA-039), so an unbounded client measurement overflows int4 at about 24 days and
+ * the insert fails with a raw Postgres 22003 carrying no code any screen can act on.
+ */
+export const ANSWER_DURATION_MAX_MS = 86_400_000
+
 /** The rule the service applies to an answer: markup stripped, at most 5,000 characters. */
 export const DefenseAnswerSchema = z.strictObject({
   text: z.string().max(ANSWER_MAX_CHARS),
-  durationMs: z.int().min(0),
+  durationMs: z.int().min(0).max(ANSWER_DURATION_MAX_MS),
 })
 export type DefenseAnswer = z.infer<typeof DefenseAnswerSchema>
 

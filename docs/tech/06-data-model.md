@@ -439,9 +439,11 @@ Unique `(run_id, claim_id)`. `relied_on` is a generated column: `cardinality(rel
 
 **`run_turn_responses`** (DATA-038): run_id PK FK, response enum `turn_response` NN, justification text null, confidence integer null, implicit boolean NN default false, locked_at NN. No UPDATE/DELETE grant.
 
-**`run_defense_questions`** (DATA-039): id, run_id FK, question_id FK defense_questions, seq integer NN, rendered_text text NN, follow_up_of uuid null FK run_defense_questions, selecting_event_seq integer null, asked_at NN. Unique `(run_id, seq)`.
+**`run_defense_questions`** (DATA-039): id, run_id FK, question_id FK defense_questions, seq integer NN, rendered_text text NN, follow_up_of uuid null FK run_defense_questions, selecting_event_seq integer null, asked_at NN. Unique `(run_id, seq)`. **`question_id` is not unique per run** and nothing may key on it: `figure_provenance` draws one question per unsourced figure in the brief and they all reuse the single bank row D-135 requires, so a run's questions are identified by `id` and ordered by `seq` (D-366).
 
-**`run_defense_answers`** (DATA-039): id, run_id FK, run_defense_question_id FK (unique), text text NN, duration_ms integer NN, answered_at NN.
+**`run_defense_answers`** (DATA-039): id, run_id FK, run_defense_question_id FK (unique), text text NN, duration_ms integer NN (bounded at 86,400,000 before the insert — an `integer` cannot hold an unbounded client measurement, D-362), answered_at NN.
+
+Both are **append-only**: migration 0015 revokes UPDATE and DELETE on them from `tassl_app`, the rule migration 0009 states for every append-only table added after it (D-365).
 
 **`run_pauses`** (DATA-040): id, run_id FK, cause enum `pause_cause` (`assistant_failure`,`document_failure`,`action_failure`,`connection`), paused_at NN, resumed_at null, credited_ms integer NN default 0, related_delegation_id uuid null, created_at. Index `(run_id)`.
 

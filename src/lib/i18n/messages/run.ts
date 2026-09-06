@@ -55,7 +55,8 @@ export const run = {
     'The Turn raised a claim you have not taken a position on. Take one, then file your response.',
   'run.turnResponseInvalid':
     'Choose hold, revise or reverse, say why in up to 150 words, and give your confidence.',
-  'run.addendumNotAvailable': 'An addendum can be added once the decision is locked.',
+  'run.addendumNotAvailable':
+    'An addendum can be added after the decision is locked and before the defense opens.',
   'run.addendumInvalid': 'An addendum is up to fifty words, and it cannot be empty.',
   'run.testControlsDisabled':
     'Test controls are switched off in this environment, so nothing was armed.',

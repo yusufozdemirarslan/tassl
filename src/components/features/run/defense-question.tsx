@@ -384,11 +384,17 @@ export function DefenseInterview({ runId, questions: initial }: DefenseInterview
   /**
    * One answer. `ok` is whether it was recorded; `followUp` is null when none was earned, which is
    * a different fact and is why the two are not one return value.
+   *
+   * `alreadyAnswered` is a third fact and not a fourth kind of failure: the question **has** its
+   * answer, this list was simply behind — a second tab, a request whose response was lost after the
+   * write landed, a resumed page (D-368). Whoever is asking gets what they need out of it: the
+   * single-question path shows the refusal and refreshes, so the answer the server holds appears in
+   * place of the box; `finish()` treats the question as filed and carries on, because it is.
    */
   async function submit(
     question: Question,
     input: { text: string; durationMs: number },
-  ): Promise<{ ok: boolean; followUp: Question | null }> {
+  ): Promise<{ ok: boolean; followUp: Question | null; alreadyAnswered: boolean }> {
     setAnswering(question.runQuestionId)
     setError(null)
     const result = await answerDefenseQuestionAction({
@@ -407,10 +413,27 @@ export function DefenseInterview({ runId, questions: initial }: DefenseInterview
             ? t('defense.answerFailed')
             : result.error.message || t('defense.answerFailed'),
       })
-      return { ok: false, followUp: null }
+      return {
+        ok: false,
+        followUp: null,
+        alreadyAnswered: result !== null && result.error.code === 'QUESTION_ALREADY_ANSWERED',
+      }
     }
     apply(result.data.followUpQuestion, question.runQuestionId, input.text)
-    return { ok: true, followUp: result.data.followUpQuestion }
+    return { ok: true, followUp: result.data.followUpQuestion, alreadyAnswered: false }
+  }
+
+  /**
+   * The single-question path: one answer, and a re-read when this list turns out to be behind.
+   *
+   * The refusal stands and is shown — the text the student just wrote was not filed, and saying so
+   * is the honest thing — and the tree is re-read so that the answer the run already holds takes the
+   * box's place rather than leaving them looking at a form for a question that is closed (D-368).
+   */
+  function answerOne(question: Question, input: { text: string; durationMs: number }): void {
+    void submit(question, input).then((written) => {
+      if (written.alreadyAnswered) router.refresh()
+    })
   }
 
   /**
@@ -419,6 +442,15 @@ export function DefenseInterview({ runId, questions: initial }: DefenseInterview
    * The loop is not a retry: an empty answer earns a follow-up under D-031 — it names no source, no
    * number and no reason, which is exactly what it is — and that follow-up is itself unanswered.
    * A follow-up never earns one of its own (D-344), so the queue drains in at most two passes.
+   *
+   * **A question the server has already answered is not a failure of the finish** (D-368). Stopping
+   * on `QUESTION_ALREADY_ANSWERED` was a dead end rather than a refusal: the row was never marked in
+   * this list, so the next press queued the same question, met the same code and stopped in the same
+   * place, for ever, and the only way out was a manual reload. But that question *has* its answer —
+   * the goal of the pass is met for it — so the loop carries on, `completeDefense` finds every
+   * question answered, and the refresh at the end replaces this stale list with the server's. When
+   * something else does stop the finish, the refresh happens anyway if any question was stale, so
+   * the student presses again against a list that is true rather than the one that got them here.
    */
   async function finish() {
     setFinishing(true)
@@ -427,10 +459,18 @@ export function DefenseInterview({ runId, questions: initial }: DefenseInterview
 
     const queue = [...held].filter((question) => !question.answered).sort((a, b) => a.seq - b.seq)
     let filed = 0
+    let stale = false
     while (queue.length > 0) {
       const question = queue.shift()
       if (question === undefined) break
       const written = await submit(question, { text: '', durationMs: 0 })
+      if (!written.ok && written.alreadyAnswered) {
+        // The refusal belongs to the list, not to the student: nothing under the scrim should say
+        // an answer failed when the run already holds one.
+        setError(null)
+        stale = true
+        continue
+      }
       if (!written.ok) {
         setFinishing(false)
         setFinishError(
@@ -438,6 +478,7 @@ export function DefenseInterview({ runId, questions: initial }: DefenseInterview
             ? t('defense.finishFailed')
             : `${t('defense.finishFailed')} ${t('defense.finishPartial')}`,
         )
+        if (stale) router.refresh()
         return
       }
       filed += 1
@@ -452,6 +493,7 @@ export function DefenseInterview({ runId, questions: initial }: DefenseInterview
           ? t('defense.finishFailed')
           : result.error.message || t('defense.finishFailed')
       setFinishError(filed === 0 ? said : `${said} ${t('defense.finishPartial')}`)
+      if (stale) router.refresh()
       return
     }
     setConfirmOpen(false)
@@ -485,7 +527,7 @@ export function DefenseInterview({ runId, questions: initial }: DefenseInterview
               }
               resumed={index > 0}
               onAnswer={(input) => {
-                void submit(question, input)
+                answerOne(question, input)
               }}
               {...(followUp === undefined
                 ? {}
@@ -503,7 +545,7 @@ export function DefenseInterview({ runId, questions: initial }: DefenseInterview
                             : null
                         }
                         onAnswer={(input) => {
-                          void submit(followUp, input)
+                          answerOne(followUp, input)
                         }}
                       />
                     ),

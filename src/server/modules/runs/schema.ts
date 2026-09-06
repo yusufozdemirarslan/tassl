@@ -807,8 +807,9 @@ export type LockFrame = z.infer<typeof LockFrameSchema>
 
 /**
  * Test-only (D-109, 07 §7): how far back `POST /api/v1/test/runs/{runId}/advance-clock` shifts the
- * run's clock columns, so an end-to-end test can reach an expiry without waiting for one. Bounded at
- * a day, which is longer than any timer in the build.
+ * run's whole timeline — every instant it records and every `occurred_at` in its trace (D-364) — so
+ * an end-to-end test can reach an expiry without waiting for one. Bounded at a day, which is longer
+ * than any timer in the build.
  */
 export const AdvanceClockSchema = z.strictObject({
   ms: z.int().positive().max(86_400_000),

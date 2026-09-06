@@ -572,6 +572,15 @@ export const runDefenseQuestions = pgTable(
     runId: uuid('run_id')
       .notNull()
       .references(() => runs.id, { onDelete: 'cascade' }),
+    /**
+     * The bank row this question was rendered from — **not unique per run** (D-366).
+     *
+     * `figure_provenance` draws one question per unsourced figure in the brief and every one of them
+     * reuses the single bank row D-135 requires, and a follow-up carries its parent's id as well. So
+     * a run's questions are identified by `id` and ordered by `seq`; a reader that groups or joins on
+     * `question_id` — a replay, a graph, a score — collapses two questions the student was actually
+     * asked into one.
+     */
     questionId: uuid('question_id')
       .notNull()
       .references(() => defenseQuestions.id),

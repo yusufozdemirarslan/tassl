@@ -63,6 +63,7 @@ import { followUpReasonFor } from './follow-up'
 import * as repo from './repository'
 import { withTransaction, type Tx } from './repository'
 import {
+  ANSWER_DURATION_MAX_MS,
   DefenseAnswerSchema,
   type DefenseAnswerInput,
   type DefenseAnswerResult,
@@ -260,6 +261,25 @@ export async function openDefense(actor: SessionUser, runId: string): Promise<De
 // Answering (FR-123, FR-124, FR-125)
 // ---------------------------------------------------------------------------------------------
 
+/**
+ * The client's focus-to-submit measurement, as a number the record can hold (D-362).
+ *
+ * It is **clamped, never refused**, and the direction matters: the duration is a fact the server
+ * cannot check — it sees one request and cannot tell thinking from a closed laptop — and it is
+ * recorded, never scored on its own (UI-026). Refusing the request over it would throw away the
+ * answer, which is the student's own work and the thing the defense exists to collect, because of a
+ * number nobody reads on its own. So a day is the most it can say (`ANSWER_DURATION_MAX_MS`), zero
+ * the least, and anything that is not a finite number at all — which the wire schema already
+ * refuses, and a Server Action caller could still hand over — records nothing rather than throwing.
+ *
+ * The bound is on the schema as well, so no path reaches the insert with a number
+ * `run_defense_answers.duration_ms` cannot hold; this is what makes that bound unreachable.
+ */
+function recordableDuration(value: number): number {
+  if (!Number.isFinite(value)) return 0
+  return Math.min(ANSWER_DURATION_MAX_MS, Math.max(0, Math.round(value)))
+}
+
 /** The brief as D-090 reads it: the recommendation and the rationale, joined. */
 function briefTextOf(record: DecisionRecord): string {
   return record.brief === null
@@ -300,7 +320,7 @@ export async function answerQuestion(
   // stripped first, so the text the limit was measured over is the text that is stored (10 §5).
   const parsed = DefenseAnswerSchema.safeParse({
     text: stripMarkup(input.text),
-    durationMs: Math.max(0, Math.round(input.durationMs)),
+    durationMs: recordableDuration(input.durationMs),
   })
   if (!parsed.success) answerTooLong()
   const { text, durationMs } = parsed.data
@@ -356,11 +376,20 @@ export async function answerQuestion(
 /**
  * Inserts the question's one authored follow-up when the answer earned it (D-031, D-090).
  *
- * Answers `null` in four cases, and they are different: the question **is** a follow-up (FR-123's
+ * Answers `null` in five cases, and they are different: the question **is** a follow-up (FR-123's
  * "one authored follow-up" per question, and PRD §7.12 puts deeper follow-up in future-state — a
  * chain would also re-ask the same authored sentence, because a follow-up carries its parent's bank
- * row), the question already has one, the answer named a source, a number or a reason and was not
+ * row), the question already has one, **the run has already been asked this bank row's follow-up
+ * under some other question** (D-366), the answer named a source, a number or a reason and was not
  * the brief read back, or the author wrote no follow-up for this bank question.
+ *
+ * The third is the one that is not obvious. `run_defense_questions.question_id` is **not unique per
+ * run**: `figure_provenance` draws one candidate per unsourced figure in the brief and they all
+ * reuse the single bank row D-135 requires, so a brief with two such figures is asked two questions
+ * from one row. There is one authored follow-up sentence on that row and nothing renders it — the
+ * prompt is stripped and stored verbatim, with no `{figure}` filled in — so two empty answers earned
+ * the identical sentence twice, with nothing in either to say which figure it was pressing on. One
+ * authored sentence is asked once, which is the plain reading of FR-123's "one authored follow-up".
  */
 async function insertFollowUp(
   tx: Tx,
@@ -374,6 +403,7 @@ async function insertFollowUp(
   if (detail.question.followUpOf !== null) return null
   if (detail.followUp !== null) return null
   if (followUpReasonFor(text, context) === null) return null
+  if (await repo.hasFollowUpFor(detail.question.runId, detail.question.questionId, tx)) return null
 
   const prompts = await repo.findFollowUpTexts([detail.question.questionId], tx)
   const prompt = stripMarkup(prompts.get(detail.question.questionId) ?? '')

@@ -63,22 +63,22 @@ export function remainingMs(run: ClockRun, now: Date = new Date()): number | nul
 }
 
 /**
- * The instant the working clock reaches zero, or null when the run has no working clock.
+ * The instant the working clock reaches zero, read from the run's **columns alone**, or null when
+ * the run never started one (`working_started_at` unset — `assigned`, `readiness`, `framing`).
  *
  * It is `remainingMs` solved for the instant that makes it zero — `working_started_at +
- * working_clock_seconds*1000 + total_paused_ms + credited_ms − charged_ms` — and the two must stay
- * each other's inverse: `remainingMs(run, workingExpiresAt(run))` is zero for every run in
- * `working`. That is what lets `materializeTimers` stamp the auto-lock at the moment the clock ran
- * out rather than at the moment somebody next looked (10 §8, NFR-002), and what lets a read decide
- * whether a timer is pending without taking the writer's lock (`./timers.ts`).
+ * working_clock_seconds*1000 + total_paused_ms + credited_ms − charged_ms`.
  *
- * A paused run answers the instant its clock *would* reach zero if it resumed now, which is not a
- * deadline: `nextTimer` reads the state and returns nothing for `paused`, because the clock is
- * frozen (FR-001).
+ * No state is consulted, and that is what separates it from `workingExpiresAt` below: this answers
+ * for a run that has *left* `working` as well as one still in it, which is what a reader asking
+ * "when did the clock this open was running against end" needs (`./skim.ts`, D-361). A run past the
+ * Decision Lock has a better answer than this one — `decision_locked_at`, the instant the clock
+ * actually stopped, which is this instant when the auto-lock fired (10 §8 branch 2) and earlier
+ * when the student filed first — so the one caller that reads across the lock prefers that column
+ * and falls back here only while it is null.
  */
-export function workingExpiresAt(run: ClockRun): Date | null {
+export function workingClockEndsAt(run: ClockRun): Date | null {
   if (!run.workingStartedAt) return null
-  if (!WORKING_STATES.includes(run.state)) return null
   return new Date(
     run.workingStartedAt.getTime() +
       run.workingClockSeconds * 1000 +
@@ -86,6 +86,25 @@ export function workingExpiresAt(run: ClockRun): Date | null {
       run.creditedMs -
       run.chargedMs,
   )
+}
+
+/**
+ * The instant the working clock reaches zero *for a run that is under it*, or null when the run has
+ * no working clock — before the frame is locked, and after the decision is locked (D-042).
+ *
+ * `remainingMs` and this must stay each other's inverse: `remainingMs(run, workingExpiresAt(run))`
+ * is zero for every run in `working`. That is what lets `materializeTimers` stamp the auto-lock at
+ * the moment the clock ran out rather than at the moment somebody next looked (10 §8, NFR-002), and
+ * what lets a read decide whether a timer is pending without taking the writer's lock
+ * (`./timers.ts`).
+ *
+ * A paused run answers the instant its clock *would* reach zero if it resumed now, which is not a
+ * deadline: `nextTimer` reads the state and returns nothing for `paused`, because the clock is
+ * frozen (FR-001).
+ */
+export function workingExpiresAt(run: ClockRun): Date | null {
+  if (!WORKING_STATES.includes(run.state)) return null
+  return workingClockEndsAt(run)
 }
 
 /**
