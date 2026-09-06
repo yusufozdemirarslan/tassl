@@ -182,7 +182,7 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
 /** A quoted passage: the words as the document has them, set to read rather than to scan. */
 function Passage({ children }: { children: ReactNode }) {
   return (
-    <blockquote className="border-line text-ink text-reading max-w-[72ch] border-l-2 pl-4">
+    <blockquote className="border-line text-ink text-reading max-w-measure border-l-2 pl-4">
       {children}
     </blockquote>
   )
@@ -216,7 +216,9 @@ function VerificationPaths({
     <div className="flex flex-col gap-4">
       <h5 className="text-ink text-body font-semibold">{t('claimObject.pathsTitle')}</h5>
 
-      {empty && <p className="text-ink-muted text-body max-w-[72ch]">{t('claimObject.noPaths')}</p>}
+      {empty && (
+        <p className="text-ink-muted text-body max-w-measure">{t('claimObject.noPaths')}</p>
+      )}
 
       {trace !== undefined && (
         <div className="flex flex-col gap-2">
@@ -237,7 +239,7 @@ function VerificationPaths({
       {replication !== undefined && (
         <div className="flex flex-col gap-2">
           <p className="text-ink text-body font-medium">{t('claimObject.pathReplication')}</p>
-          <p className="text-ink text-reading max-w-[72ch]">{replication.result}</p>
+          <p className="text-ink text-reading max-w-measure">{replication.result}</p>
         </div>
       )}
 
@@ -248,7 +250,7 @@ function VerificationPaths({
             {decomposition.steps.map((step, index) => (
               <li key={`${String(index)}-${step.label}`} className="flex flex-col gap-0.5">
                 <span className="text-ink text-body font-medium">{step.label}</span>
-                <span className="text-ink-muted text-body max-w-[72ch]">{step.result}</span>
+                <span className="text-ink-muted text-body max-w-measure">{step.result}</span>
               </li>
             ))}
           </ol>
@@ -305,14 +307,14 @@ export function ClaimObjectView({
           )}
         </dl>
         {sourceDocument === null ? (
-          <p className="text-ink-muted text-body max-w-[72ch]">{t('claimObject.noDocument')}</p>
+          <p className="text-ink-muted text-body max-w-measure">{t('claimObject.noDocument')}</p>
         ) : claim.sourcePassage.length > 0 ? (
           <div className="flex flex-col gap-2">
             <h4 className="text-reading">{t('claimObject.passageLabel')}</h4>
             <Passage>{claim.sourcePassage}</Passage>
           </div>
         ) : (
-          <p className="text-ink-muted text-body max-w-[72ch]">
+          <p className="text-ink-muted text-body max-w-measure">
             {claim.sourceKind === 'assistant'
               ? t('claimObject.noPassageAssistant')
               : t('claimObject.noPassage')}
@@ -342,7 +344,7 @@ export function ClaimObjectView({
         <div className="flex flex-col gap-2">
           <h4 className="text-reading">{t('claimObject.carriedValuesLabel')}</h4>
           {claim.carriedValues.length === 0 ? (
-            <p className="text-ink-muted text-body max-w-[72ch]">
+            <p className="text-ink-muted text-body max-w-measure">
               {t('claimObject.noCarriedValues')}
             </p>
           ) : (
@@ -362,10 +364,10 @@ export function ClaimObjectView({
 
       <Section title={t('claimObject.triggersTitle')}>
         {claim.triggerDescription.length > 0 && (
-          <p className="text-ink text-reading max-w-[72ch]">{claim.triggerDescription}</p>
+          <p className="text-ink text-reading max-w-measure">{claim.triggerDescription}</p>
         )}
         {claim.triggerPhrases.length === 0 ? (
-          <p className="text-ink-muted text-body max-w-[72ch]">{t('claimObject.noTriggers')}</p>
+          <p className="text-ink-muted text-body max-w-measure">{t('claimObject.noTriggers')}</p>
         ) : (
           <ul className="flex flex-wrap gap-2">
             {claim.triggerPhrases.map((phrase) => (
@@ -378,7 +380,7 @@ export function ClaimObjectView({
       </Section>
 
       <Section title={t('claimObject.escalationTitle')}>
-        <p className="text-ink-muted text-body max-w-[72ch]">
+        <p className="text-ink-muted text-body max-w-measure">
           {claim.escalatable ? t('claimObject.escalatableYes') : t('claimObject.escalatableNo')}
         </p>
         {claim.escalationReply !== null && claim.escalationReply.length > 0 && (
@@ -391,15 +393,15 @@ export function ClaimObjectView({
 
       <Section title={t('claimObject.rationaleTitle')}>
         {claim.rationale.length > 0 ? (
-          <p className="text-ink text-reading max-w-[72ch]">{claim.rationale}</p>
+          <p className="text-ink text-reading max-w-measure">{claim.rationale}</p>
         ) : (
-          <p className="text-ink-muted text-body max-w-[72ch]">{t('claimObject.noRationale')}</p>
+          <p className="text-ink-muted text-body max-w-measure">{t('claimObject.noRationale')}</p>
         )}
       </Section>
 
       <Section title={t('claimObject.statesTitle')}>
         {states.length === 0 ? (
-          <p className="text-ink-muted text-body max-w-[72ch]">{t('claimObject.noStates')}</p>
+          <p className="text-ink-muted text-body max-w-measure">{t('claimObject.noStates')}</p>
         ) : (
           <div className="flex flex-col gap-6">
             {states.map((state) => (

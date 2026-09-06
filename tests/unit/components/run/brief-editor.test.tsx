@@ -238,7 +238,7 @@ describe('BriefEditor (UI-023, FR-100, FR-103)', () => {
     })
   })
 
-  it('names the field the server refused and puts the focus in it (FR-108)', async () => {
+  it('reframes the confirmation on a refused field and offers the way back to it (FR-108, D-320)', async () => {
     actions.lockDecisionAction.mockResolvedValue({
       ok: false,
       error: {
@@ -254,10 +254,22 @@ describe('BriefEditor (UI-023, FR-100, FR-103)', () => {
     await user.click(lockButton())
     await user.click(screen.getByRole('button', { name: enUS['workspace.decisionLockConfirm'] }))
 
-    await waitFor(() => {
-      expect(screen.getByText(enUS['workspace.briefRequiredField'])).toBeInTheDocument()
+    // The same dialog, answering the same press: it names the field the way the form does rather
+    // than closing and marking something behind a scrim the student has to dismiss first (D-320).
+    const dialog = await screen.findByRole('alertdialog', undefined, {
+      timeout: DIALOG_TIMEOUT_MS,
     })
-    expect(changeMyMind()).toHaveFocus()
+    await waitFor(() => {
+      expect(dialog).toHaveTextContent(enUS['workspace.lockRefusedBriefTitle'])
+    })
+    expect(dialog).toHaveTextContent(enUS['workspace.briefChangeMyMindLabel'])
+    expect(dialog).toHaveTextContent(enUS['workspace.briefRequiredField'])
+
+    // And it is marked in the form behind it, and reachable from the dialog.
+    await user.click(screen.getByRole('button', { name: enUS['workspace.lockRefusedBriefGo'] }))
+    await waitFor(() => {
+      expect(changeMyMind()).toHaveFocus()
+    })
     // Nothing was cleared: the student comes back to the brief exactly as they left it.
     expect(valueOf(recommendation())).toBe(
       'Hold the premium share where it is for one more quarter.',

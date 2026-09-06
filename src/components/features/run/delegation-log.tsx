@@ -1,10 +1,12 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { Loader2Icon } from 'lucide-react'
 import { FormAlert } from '@/components/features/account/form-feedback'
 import { EmptyState } from '@/components/layout/empty-state'
 import { Panel } from '@/components/layout/panel'
+import { LabelChip } from '@/components/layout/label-chip'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Field, FieldDescription, FieldError, FieldLabel } from '@/components/ui/field'
@@ -17,6 +19,7 @@ import type { ClaimView } from '@/server/modules/reliance/schema'
 import { AssistantProse } from './assistant-panel'
 import type { TracedDocument } from './action-result-sheet'
 import { ClaimCard, ClaimControls } from './claim-card'
+import { useRunWork } from './run-work-context'
 import { StanceChip } from './stance-chip'
 
 // UI-023: the Delegation Log (FR-060, FR-063, FR-084).
@@ -38,6 +41,17 @@ import { StanceChip } from './stance-chip'
 //   * **The why line is the student's own and changes nothing else.** It writes no trace event —
 //     the `delegation` event was written when the reply landed and is immutable, and carries the
 //     why line as it stood then (D-272). Editing it here edits the row the log reads.
+//
+// **A claim is worked in one place at a time** (D-313). Every claim of every delegation used to
+// carry the full instrument here *and* in the assistant's reply — nine affordances twice over on
+// one claim, with nothing to say which copy counted. While the reply is holding a claim, this log
+// draws it as the record and says where it is being worked; the moment the reply moves on or the
+// page is reloaded, this is the instrument again, which is the durability D-303 put the controls
+// here for.
+//
+// The two sentences that never change are drawn once for the panel rather than once per claim: the
+// stance hint and the used note (D-314). Three delegations of three claims each carried nine copies
+// of the first and three of the second.
 //
 // The log shows the reply as it was stored: the guarded prose with the claim objects in place. The
 // `[[claim:<id>]]` markers that separate the two are a wire detail and are taken out for reading —
@@ -65,6 +79,9 @@ const WHY_MAX_CHARS = 200
  * Only this one is removed. `[[figure:…]]` is left in the text for `AssistantProse` to draw.
  */
 const CLAIM_MARKER = /\[\[claim:[^\]]+\]\] ?/g
+
+/** The panel's one copy of the stance hint; every radio group inside it points here (D-314). */
+const STANCE_HINT_ID = 'delegation-log-stance-hint'
 
 export type DelegationLogProps = {
   runId: string
@@ -103,11 +120,13 @@ export function DelegationLog({
   // The why lines the student has touched in this session, and the claims they have marked used.
   // Both are keyed by id and both only ever grow, so a fresh server render can be rendered against
   // them without either side having to win.
+  const router = useRouter()
   const [drafts, setDrafts] = useState<Record<string, string>>({})
   const [marked, setMarked] = useState<readonly string[]>([])
   const [busy, setBusy] = useState<string | null>(null)
   const [saved, setSaved] = useState<string | null>(null)
-  const [failed, setFailed] = useState<string | null>(null)
+  const [failed, setFailed] = useState<{ message: string; requestId?: string } | null>(null)
+  const { worked, announce } = useRunWork()
 
   function markUsed(delegationId: string, claimId: string): void {
     if (busy !== null || !canWrite) return
@@ -117,14 +136,24 @@ export function DelegationLog({
       (result) => {
         setBusy(null)
         if (!result.ok) {
-          setFailed(result.error.message || t('workspace.logWriteFailed'))
+          const message = result.error.message || t('workspace.logWriteFailed')
+          setFailed({ message, requestId: result.error.requestId })
+          announce(message)
           return
         }
         setMarked((held) => (held.includes(claimId) ? held : [...held, claimId]))
+        announce(t('workspace.claimUsedExplain'))
+        // A used mark is one of FR-084's three routes into `relied_on_via`, so it changes what the
+        // Decision Lock will ask for — and the screen now says that before the press: the claim
+        // wears "No stance yet" and the lock carries a count (D-319). Both are read on the server,
+        // so this write asks for the page again. The why line does not: it changes no rule, and the
+        // reason the actions revalidate nothing is that a workspace re-render should be earned.
+        router.refresh()
       },
       () => {
         setBusy(null)
-        setFailed(t('workspace.logWriteFailed'))
+        setFailed({ message: t('workspace.logWriteFailed') })
+        announce(t('workspace.logWriteFailed'))
       },
     )
   }
@@ -138,14 +167,18 @@ export function DelegationLog({
       (result) => {
         setBusy(null)
         if (!result.ok) {
-          setFailed(result.error.message || t('workspace.logWriteFailed'))
+          const message = result.error.message || t('workspace.logWriteFailed')
+          setFailed({ message, requestId: result.error.requestId })
+          announce(message)
           return
         }
         setSaved(delegationId)
+        announce(t('workspace.logWhySaved'))
       },
       () => {
         setBusy(null)
-        setFailed(t('workspace.logWriteFailed'))
+        setFailed({ message: t('workspace.logWriteFailed') })
+        announce(t('workspace.logWriteFailed'))
       },
     )
   }
@@ -163,9 +196,28 @@ export function DelegationLog({
         </p>
       )}
 
+      {/* The two sentences every claim in this panel is governed by, said once (D-314). D-270's is
+          here rather than under each delegation's claims because a mark is permanent and the
+          sentence has to be read *before* a press, which is what putting it at the head does. */}
+      {delegations.length > 0 && (
+        <div className="mb-4 flex flex-col gap-1">
+          <p className="text-ink-muted text-meta max-w-measure">{t('workspace.logUsedNote')}</p>
+          <p id={STANCE_HINT_ID} className="text-ink-muted text-meta max-w-measure">
+            {t('workspace.stanceHint')}
+          </p>
+        </div>
+      )}
+
       {failed !== null && (
         <div className="mb-3">
-          <FormAlert message={failed} />
+          <FormAlert
+            message={failed.message}
+            reference={
+              failed.requestId === undefined
+                ? undefined
+                : { label: t('workspace.errorReference'), id: failed.requestId }
+            }
+          />
         </div>
       )}
 
@@ -187,6 +239,7 @@ export function DelegationLog({
                 runId={runId}
                 claims={claims}
                 documents={documents}
+                worked={worked}
                 canWrite={canWrite}
                 readOnlyId={
                   !canWrite && readOnlyNote !== undefined ? 'delegation-log-readonly' : undefined
@@ -219,6 +272,8 @@ type LogEntryProps = {
   runId: string
   claims: readonly ClaimView[]
   documents: readonly TracedDocument[]
+  /** Claim ids the assistant's reply is currently drawing with controls (D-313). */
+  worked: readonly string[]
   canWrite: boolean
   readOnlyId: string | undefined
   marked: readonly string[]
@@ -235,6 +290,7 @@ function LogEntry({
   runId,
   claims,
   documents,
+  worked,
   canWrite,
   readOnlyId,
   marked,
@@ -264,13 +320,13 @@ function LogEntry({
 
       <div className="flex flex-col gap-1">
         <p className="text-ink-muted text-meta font-medium">{t('workspace.logAsked')}</p>
-        <p className="text-ink text-body max-w-[72ch] whitespace-pre-line">{entry.requestText}</p>
+        <p className="text-ink text-body max-w-measure whitespace-pre-line">{entry.requestText}</p>
       </div>
 
       <div className="flex flex-col gap-1">
         <p className="text-ink-muted text-meta font-medium">{t('workspace.logAnswered')}</p>
         {entry.failed ? (
-          <p className="text-ink-muted text-body max-w-[72ch]">{t('workspace.logFailed')}</p>
+          <p className="text-ink-muted text-body max-w-measure">{t('workspace.logFailed')}</p>
         ) : (
           <AssistantProse text={answer} />
         )}
@@ -284,27 +340,25 @@ function LogEntry({
           {entry.claims.length === 0 ? (
             <p className="text-ink-muted text-body">{t('workspace.logNoClaims')}</p>
           ) : (
-            <>
-              <ul aria-labelledby={claimsId} className="flex flex-col gap-3">
-                {entry.claims.map((claim) => (
-                  <ClaimRow
-                    key={claim.id}
-                    claim={claim}
-                    runId={runId}
-                    documents={documents}
-                    view={claims.find((candidate) => candidate.id === claim.id)}
-                    used={claim.usedMarked || marked.includes(claim.id)}
-                    canWrite={canWrite}
-                    readOnlyId={readOnlyId}
-                    busy={busy === `used:${claim.id}`}
-                    onMarkUsed={() => {
-                      onMarkUsed(claim.id)
-                    }}
-                  />
-                ))}
-              </ul>
-              <p className="text-ink-muted text-meta">{t('workspace.logUsedNote')}</p>
-            </>
+            <ul aria-labelledby={claimsId} className="flex flex-col gap-3">
+              {entry.claims.map((claim) => (
+                <ClaimRow
+                  key={claim.id}
+                  claim={claim}
+                  runId={runId}
+                  documents={documents}
+                  view={claims.find((candidate) => candidate.id === claim.id)}
+                  workedInReply={worked.includes(claim.id)}
+                  used={claim.usedMarked || marked.includes(claim.id)}
+                  canWrite={canWrite}
+                  readOnlyId={readOnlyId}
+                  busy={busy === `used:${claim.id}`}
+                  onMarkUsed={() => {
+                    onMarkUsed(claim.id)
+                  }}
+                />
+              ))}
+            </ul>
           )}
         </div>
       )}
@@ -321,9 +375,9 @@ function LogEntry({
           onChange={(event) => {
             onDraft(event.target.value)
           }}
-          className={cn('max-w-[72ch]', over && 'border-red')}
+          className={cn('max-w-measure', over && 'border-red')}
         />
-        <div className="flex max-w-[72ch] flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+        <div className="max-w-measure flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
           <div className="min-w-0 flex-1">
             {over ? (
               <FieldError id={`${whyId}-error`}>
@@ -349,7 +403,6 @@ function LogEntry({
           <Button
             type="button"
             variant="secondary"
-            size="sm"
             aria-disabled={savingWhy || over || !canWrite ? true : undefined}
             aria-busy={savingWhy}
             aria-describedby={!canWrite ? readOnlyId : undefined}
@@ -361,10 +414,9 @@ function LogEntry({
             {savingWhy && <Loader2Icon aria-hidden="true" className="size-4 animate-spin" />}
             {savingWhy ? t('workspace.logWhySaving') : t('workspace.logWhySave')}
           </Button>
-          {/* Stays mounted and collapses when empty, so the announcement fires on the sentence
-              rather than on the region being inserted. It is addressable by id because the claim
-              cards in this entry carry regions of their own, each about its own claim. */}
-          <p id={`${whyId}-status`} role="status" className="text-ink-muted text-meta empty:hidden">
+          {/* The save's own line, on screen beside the control it belongs to. It is not a live
+              region: the screen has one and this sentence was already said into it (D-314). */}
+          <p id={`${whyId}-status`} className="text-ink-muted text-meta empty:hidden">
             {saved && !savingWhy ? t('workspace.logWhySaved') : null}
           </p>
         </div>
@@ -379,6 +431,8 @@ type ClaimRowProps = {
   documents: readonly TracedDocument[]
   /** The run's own view of this claim, when it has one: the stance, the checks, the escalation. */
   view: ClaimView | undefined
+  /** The assistant's reply is holding this claim, so it carries the instrument and this does not. */
+  workedInReply: boolean
   used: boolean
   canWrite: boolean
   readOnlyId: string | undefined
@@ -404,22 +458,19 @@ function ClaimRow({
   runId,
   documents,
   view,
+  workedInReply,
   used,
   canWrite,
   readOnlyId,
   busy,
   onMarkUsed,
 }: ClaimRowProps) {
-  const mark = used ? (
-    <Badge variant="secondary">
-      {t('workspace.claimUsed')}
-      <span className="sr-only"> {t('workspace.claimUsedExplain')}</span>
-    </Badge>
-  ) : (
+  // The mark itself is drawn by `ClaimCard` from the claim's own `usedMarked`; this seat carries
+  // the control that has not been pressed yet, and nothing once it has.
+  const mark = used ? null : (
     <Button
       type="button"
       variant="secondary"
-      size="sm"
       aria-label={t('workspace.logMarkUsedFor', { key: claim.key })}
       aria-disabled={busy || !canWrite ? true : undefined}
       aria-busy={busy}
@@ -433,20 +484,34 @@ function ClaimRow({
 
   if (view === undefined) {
     return (
-      <li
-        data-claim-id={claim.id}
-        className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2"
-      >
+      <li className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
         <div className="min-w-0 flex-1 basis-48">
           <p className="text-mono-sm text-ink-muted font-mono">
             {t('workspace.claimHeading', { key: claim.key })}
           </p>
-          <p className="text-ink text-body mt-0.5 max-w-[72ch]">{claim.text}</p>
+          <p className="text-ink text-body max-w-measure mt-0.5">{claim.text}</p>
         </div>
         <div className="flex shrink-0 flex-wrap items-center gap-2">
           {claim.stance !== null && <StanceChip stance={claim.stance} />}
+          {used && <LabelChip kind="used" />}
           {mark}
         </div>
+      </li>
+    )
+  }
+
+  // The reply above is holding this claim, so it is where the stance is taken and the checks are
+  // run; this copy is the record, and says so rather than leaving a blank where controls were
+  // (D-313). The used mark stays here in both cases: it is the log's own control (D-270).
+  if (workedInReply) {
+    return (
+      <li>
+        <ClaimCard
+          claim={view}
+          headingLevel={4}
+          actions={mark}
+          deferredNote={t('workspace.claimWorkedInReply')}
+        />
       </li>
     )
   }
@@ -458,7 +523,13 @@ function ClaimRow({
         headingLevel={4}
         actions={mark}
         stanceControl={
-          <ClaimControls runId={runId} claim={view} canWrite={canWrite} documents={documents} />
+          <ClaimControls
+            runId={runId}
+            claim={view}
+            canWrite={canWrite}
+            documents={documents}
+            stanceHintId={STANCE_HINT_ID}
+          />
         }
       />
     </li>

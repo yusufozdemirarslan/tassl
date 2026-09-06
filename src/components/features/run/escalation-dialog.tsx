@@ -73,7 +73,7 @@ export function EscalationDialog({
   const [statement, setStatement] = useState('')
   const [sending, setSending] = useState(false)
   const [invalid, setInvalid] = useState<string | null>(null)
-  const [failed, setFailed] = useState<string | null>(null)
+  const [failed, setFailed] = useState<{ message: string; requestId?: string } | null>(null)
 
   const stripped = stripMarkup(statement)
   const characters = stripped.length
@@ -98,7 +98,10 @@ export function EscalationDialog({
       (result) => {
         setSending(false)
         if (!result.ok) {
-          setFailed(result.error.message || t('workspace.escalateFailed'))
+          setFailed({
+            message: result.error.message || t('workspace.escalateFailed'),
+            requestId: result.error.requestId,
+          })
           return
         }
         setStatement('')
@@ -107,7 +110,7 @@ export function EscalationDialog({
       },
       () => {
         setSending(false)
-        setFailed(t('workspace.escalateFailed'))
+        setFailed({ message: t('workspace.escalateFailed') })
       },
     )
   }
@@ -184,7 +187,16 @@ export function EscalationDialog({
               what keeps it from saying anything about this one (D-244). */}
           <p className="text-ink-muted text-meta">{remainingSentence}</p>
 
-          {failed !== null && <FormAlert message={failed} />}
+          {failed !== null && (
+            <FormAlert
+              message={failed.message}
+              reference={
+                failed.requestId === undefined
+                  ? undefined
+                  : { label: t('workspace.errorReference'), id: failed.requestId }
+              }
+            />
+          )}
 
           <DialogFooter>
             <Button

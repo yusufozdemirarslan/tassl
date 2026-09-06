@@ -93,17 +93,34 @@ export type ActionsMenuProps = {
   /** True while a check is in flight: one at a time, and the trigger says so. */
   running: boolean
   onRun: (type: ActionTypeValue) => void
+  /**
+   * The trigger's treatment, which the claim card sets (`WELL_CONTROL` in `claim-card.tsx`).
+   *
+   * A check spends the clock, and DESIGN.md keeps the one accent for the act the student is there
+   * to take — the stance (D-323) — so on a claim card this is an ink label on a control hairline
+   * rather than the teal secondary. It is a prop rather than a constant here because the class
+   * belongs to the surface the control sits on, and importing it from the card would close the two
+   * files into a cycle.
+   */
+  className?: string
 }
 
-export function ActionsMenu({ claimKey, available, canWrite, running, onRun }: ActionsMenuProps) {
+export function ActionsMenu({
+  claimKey,
+  available,
+  canWrite,
+  running,
+  onRun,
+  className,
+}: ActionsMenuProps) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
         render={
           <Button
             type="button"
-            variant="secondary"
-            size="sm"
+            variant="ghost"
+            className={className}
             aria-label={t('workspace.actionsMenuFor', { key: claimKey })}
             aria-disabled={canWrite && !running ? undefined : true}
             aria-busy={running}
@@ -211,7 +228,7 @@ function ResultValue({ value }: { value: unknown }): ReactNode {
     return (
       <ol className="flex list-inside list-decimal flex-col gap-2">
         {value.map((step, index) => (
-          <li key={`step-${String(index)}`} className="text-ink text-reading max-w-[72ch]">
+          <li key={`step-${String(index)}`} className="text-ink text-reading max-w-measure">
             <span className="font-medium">{String(step.label ?? '')}</span>
             {step.result === undefined ? null : <span> — {String(step.result)}</span>}
           </li>
@@ -223,7 +240,7 @@ function ResultValue({ value }: { value: unknown }): ReactNode {
     return (
       <ul className="flex list-inside list-disc flex-col gap-1">
         {value.map((entry, index) => (
-          <li key={`entry-${String(index)}`} className="text-ink text-reading max-w-[72ch]">
+          <li key={`entry-${String(index)}`} className="text-ink text-reading max-w-measure">
             {String(entry)}
           </li>
         ))}
@@ -231,7 +248,7 @@ function ResultValue({ value }: { value: unknown }): ReactNode {
     )
   }
   return (
-    <p className="text-ink text-reading max-w-[72ch] whitespace-pre-line">
+    <p className="text-ink text-reading max-w-measure whitespace-pre-line">
       {typeof value === 'string' ? value : JSON.stringify(value)}
     </p>
   )
@@ -257,13 +274,13 @@ function DocumentValue({
   const found =
     typeof value === 'string' ? documents.find((entry) => entry.id === value) : undefined
   if (found === undefined) {
-    return <p className="text-ink text-reading max-w-[72ch]">{String(value)}</p>
+    return <p className="text-ink text-reading max-w-measure">{String(value)}</p>
   }
   // The separator is joined here rather than left as JSX text, so the key and the title are read as
   // one line rather than run together.
   const titled = ` · ${found.title}`
   return (
-    <p className="text-ink text-reading max-w-[72ch]">
+    <p className="text-ink text-reading max-w-measure">
       <span className="text-mono-sm text-ink-muted font-mono">{found.key}</span>
       <span>{titled}</span>
     </p>

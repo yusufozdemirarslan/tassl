@@ -47,6 +47,8 @@ export const workspace = {
   // The description says the two true things a student is owed: everything is readable, and reading
   // is recorded. It recommends nothing and characterises nothing.
   // ---------------------------------------------------------------------------------------------
+  /** The `aside` the reference panels sit in, so landmark navigation has more than `main` (09 §6). */
+  'workspace.referenceRegion': 'The scenario and its documents',
   'workspace.roomTitle': 'Evidence Room',
   'workspace.roomDescription':
     'Every document in this scenario. All of them are open to you, in any order, for as long as you like. Tassl records which ones you open and how long each stays open; it draws no conclusion from that.',
@@ -199,7 +201,7 @@ export const workspace = {
     'Ask for anything inside this scenario. Claims the assistant raises arrive as their own cards, and every request is kept in the Delegation Log.',
   'workspace.assistantRequestLabel': 'Your request',
   'workspace.assistantRequestHint':
-    'Ask in your own words. Asking costs you no clock time. At most {limit} characters.',
+    'Ask in your own words. Asking costs you no clock time. At most {limit} characters. Ctrl or ⌘ with Enter sends it.',
   'workspace.assistantCharCount': '{count} of {limit} characters',
   'workspace.assistantSend': 'Ask the assistant',
   'workspace.assistantSending': 'Asking…',
@@ -235,8 +237,28 @@ export const workspace = {
   'workspace.claimHeading': 'Claim {key}',
   // `claimStancePending` stood here until Step 8.3 filled the seat it described. The card carries
   // the five stances now, so the sentence that said Tassl could not take one has gone with it.
-  'workspace.claimUsed': 'Used',
+  // `claimUsed` went the same way in the critique pass: the mark is `LabelChip kind="used"` and the
+  // word is `label.used`, because DESIGN.md reserves `Badge` for counts and ad-hoc tags (D-315).
   'workspace.claimUsedExplain': 'You marked this claim used in the Delegation Log.',
+  /**
+   * A claim the run has recorded reliance on, with no stance on it yet (FR-084, FR-101, D-319).
+   *
+   * It is a statement about the student's own record and about nothing else. `relied_on` is set by
+   * their own acts — a used mark in the log, a figure of theirs matching a claim's at the lock, a
+   * claim the Turn put in front of them — and never by anything the author wrote, so drawing it
+   * reveals nothing the student may not see. What it replaces is finding out at the irreversible
+   * press: the product knew which claims would refuse the lock and said nothing until then.
+   */
+  'workspace.claimNeedsStance': 'No stance yet',
+  'workspace.claimNeedsStanceExplain':
+    'The run has recorded that you leaned on this claim. Filing the decision asks for a stance on it.',
+  /**
+   * The log's copy of a claim the assistant's reply is currently holding (D-313).
+   *
+   * The same claim is drawn twice on this screen and only one of the two carries the instrument, so
+   * the copy that does not says where the controls are rather than leaving a blank where they were.
+   */
+  'workspace.claimWorkedInReply': 'You are taking a position on this claim in the reply above.',
 
   // ---------------------------------------------------------------------------------------------
   // Unverified numbers (D-068, D-281)
@@ -277,7 +299,12 @@ export const workspace = {
   'workspace.logNoClaims': 'No claim came back with this reply.',
   'workspace.logMarkUsed': 'Mark as used',
   'workspace.logMarkUsedFor': 'Mark claim {key} as used',
-  /** D-270: reliance is not taken back, so the control says what it does before it is pressed. */
+  /**
+   * D-270: reliance is not taken back, so the control says what it does before it is pressed.
+   *
+   * It is drawn once, at the head of the log, rather than under every delegation's claims: three
+   * delegations carried three copies of one sentence that never changes (D-314).
+   */
   'workspace.logUsedNote':
     'Marking a claim used records that you leaned on it. A mark stays on the record.',
   'workspace.logWhyLabel': 'Why you asked',
@@ -445,6 +472,12 @@ export const workspace = {
   'workspace.escalateRemainingOne': 'You have one escalation left in this run.',
   'workspace.escalateNoneLeft': 'You have used both escalations in this run.',
   'workspace.escalationTitle': 'The colleague’s reply',
+  /**
+   * The sentence the student raised it with, read back beside the answer (D-318).
+   *
+   * Five minutes of a working clock bought this exchange, and a card that showed only the reply
+   * left them, after a reload, with an answer and no record of the question. Their own words.
+   */
   'workspace.escalationYouWrote': 'You wrote',
   'workspace.escalationAnswered': 'They answered',
   /**
@@ -539,6 +572,44 @@ export const workspace = {
   'workspace.lockRefusedClose': 'Back to the brief',
   'workspace.lockRefusedNotOnScreen':
     'The claim is in the Delegation Log, under the request that raised it.',
+
+  /**
+   * What the lock will ask for, said before the irreversible press rather than by it (D-319).
+   *
+   * A count of the student's own unstanced reliance, with no claim named and nothing about any of
+   * them: the same fact the refusal carries, moved to where it can still be acted on cheaply.
+   */
+  'workspace.lockPreflight':
+    '{count} claims you leaned on have no stance yet. Filing asks for one on each.',
+  'workspace.lockPreflightOne':
+    'One claim you leaned on has no stance yet. Filing asks for one on it.',
+
+  /**
+   * The read-back inside the confirmation (D-319).
+   *
+   * An irreversible press deserves to show what it is about to file, and an empty field is named
+   * the way the locked screen already names one — "Left empty." is what FR-105 files and what the
+   * student will read back, so the dialog says the same words rather than warning about them.
+   */
+  'workspace.lockReadBackTitle': 'What will be filed',
+  'workspace.lockReadBackEmpty': 'Left empty.',
+  'workspace.lockReadBackWords': '{count} words',
+  'workspace.lockReadBackWordsOne': '1 word',
+  'workspace.lockReadBackConfidence': 'Confidence {value} of 100',
+  'workspace.lockReadBackNoConfidence': 'No confidence recorded.',
+
+  /**
+   * `BRIEF_INVALID` as a face of the same dialog, for the reason the unstanced refusal is one
+   * (D-306, D-320): it answers a press the student has already confirmed. It used to close the
+   * dialog and mark the field behind it, so two refusals of one press behaved differently.
+   */
+  'workspace.lockRefusedBriefTitle': 'One field is not ready',
+  'workspace.lockRefusedBriefBody':
+    'Nothing was filed and nothing was lost. The field is marked in the brief behind this dialog, and the rest is exactly as you left it.',
+  'workspace.lockRefusedBriefGo': 'Go to the field',
+
+  /** The envelope's `requestId`, shown with a refusal so it can be quoted (DESIGN.md §Error state). */
+  'workspace.errorReference': 'Reference',
 } as const
 
 /** `t` over this namespace alone; the key is still the full dotted key. */

@@ -82,6 +82,16 @@ export const ESCALATION_LIMIT = 2
  * them fails the invariants suite. The replay and the debrief show them afterwards.
  */
 export const EscalationResultSchema = z.object({
+  /**
+   * The one sentence the student wrote to raise it, as it was stored (D-318).
+   *
+   * Their own words, so nothing about it is authored and no invariant reaches it: D-116 withholds
+   * `response_id` and `counts_against_limit` and nothing else, and `student-view.ts` forbids no key
+   * named `statement`. It travels because five minutes of a working clock bought this exchange and
+   * a card that showed only the answer left the student, after a reload, with a reply and no
+   * memory of the question it answered.
+   */
+  statement: z.string(),
   responseText: z.string(),
   clockCostMs: z.number().int().nonnegative(),
   remainingEscalations: z.number().int().min(0).max(ESCALATION_LIMIT),

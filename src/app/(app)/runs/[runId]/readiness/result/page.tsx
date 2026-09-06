@@ -69,7 +69,7 @@ export default async function ReadinessResultPage({
             title={t('readiness.resultIncompleteTitle')}
             headingLevel={2}
           >
-            <p className="text-ink-muted text-reading max-w-[72ch]">
+            <p className="text-ink-muted text-reading max-w-measure">
               {t('readiness.resultIncompleteBody')}
             </p>
           </Panel>

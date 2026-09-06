@@ -189,7 +189,7 @@ export default function ComponentGalleryPage() {
               ))}
             </TableBody>
           </Table>
-          <p className="text-ink-muted text-meta mt-3 max-w-[72ch]">
+          <p className="text-ink-muted text-meta max-w-measure mt-3">
             Values are read from the DESIGN.md frontmatter when the page renders; globals.css
             declares the same values on :root, and a unit test keeps the two in sync.
           </p>

@@ -168,14 +168,14 @@ export function ConfirmBar({
           aria-label={t('confirm.rejectDialogTitle', { name: elementName })}
           className="flex flex-col gap-3"
         >
-          <p className="text-ink-muted text-body max-w-[72ch]">{t('confirm.rejectDialogBody')}</p>
+          <p className="text-ink-muted text-body max-w-measure">{t('confirm.rejectDialogBody')}</p>
           <Field data-invalid={noteError ? 'true' : undefined}>
             <FieldLabel htmlFor="confirm-reject-note">{t('confirm.rejectNoteLabel')}</FieldLabel>
             <Textarea
               id="confirm-reject-note"
               ref={noteField}
               rows={3}
-              className="max-w-[72ch]"
+              className="max-w-measure"
               value={note}
               aria-invalid={noteError ? true : undefined}
               aria-describedby={noteError ? 'confirm-reject-note-error' : undefined}

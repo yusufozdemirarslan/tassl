@@ -14,7 +14,25 @@ import { Button } from '@/components/ui/button'
 // Sixteen screens across courses, packages, invitations and the roster import this chrome, and a
 // namespace read here would ride into all of them (B4).
 
-export function FormAlert({ message, action }: { message: string | null; action?: ReactNode }) {
+/**
+ * A refusal under a form: the plain message, the request id in Mono, and a way to try again.
+ *
+ * That triple is DESIGN.md's error-state contract, and `reference` is the part that was missing:
+ * every refusal this product raises travels in an envelope carrying a `requestId`, and a student
+ * who cannot quote it is asking their instructor to find one refusal among a term's worth of logs
+ * (D-322). It is optional because a client-side refusal — a word limit, an empty box — has no
+ * request behind it and inventing one would be worse than leaving it out. The label travels with
+ * the id so this module keeps reading no namespace of its own: sixteen screens import it.
+ */
+export function FormAlert({
+  message,
+  action,
+  reference,
+}: {
+  message: string | null
+  action?: ReactNode
+  reference?: { label: string; id: string } | undefined
+}) {
   return (
     <div role="alert" className="empty:hidden">
       {message !== null && (
@@ -22,6 +40,12 @@ export function FormAlert({ message, action }: { message: string | null; action?
           <CircleAlertIcon aria-hidden="true" className="text-red mt-0.5 size-4 shrink-0" />
           <div className="flex min-w-0 flex-1 flex-col items-start gap-2">
             <p>{message}</p>
+            {reference !== undefined && (
+              <p className="text-mono-sm text-ink font-mono break-all">
+                <span className="font-sans">{reference.label}: </span>
+                {reference.id}
+              </p>
+            )}
             {action}
           </div>
         </div>

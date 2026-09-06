@@ -409,12 +409,21 @@ test('walkthrough step 6: delegate, take stances, check a claim, escalate, and r
 
   await entry.getByLabel('Why you asked, delegation 1').fill(WHY)
   await entry.getByRole('button', { name: 'Save' }).click()
-  await expect(entry.locator('p[role="status"][id$="-status"]')).toHaveText('Saved.')
+  // The line stands beside the control it belongs to, and the sentence is said once into the one
+  // polite region the working screen owns rather than into a region of this entry's own (D-314).
+  await expect(entry.locator('p[id$="-status"]')).toHaveText('Saved.')
+  await expect(page.locator('#run-announcer')).toHaveText('Saved.')
 
-  // D-270 is said before the control is pressed, because the mark is permanent.
-  await expect(entry).toContainText(
+  // D-270 is said before the control is pressed, because the mark is permanent — once, at the head
+  // of the log, rather than once per delegation's claims (D-314).
+  await expect(log).toContainText(
     'Marking a claim used records that you leaned on it. A mark stays on the record.',
   )
+  await expect(
+    log.getByText(
+      'Marking a claim used records that you leaned on it. A mark stays on the record.',
+    ),
+  ).toHaveCount(1)
 
   const markUsed = entry.getByRole('button', { name: `Mark claim ${CLAIM_KEY} as used` })
   await expect(markUsed).toBeVisible()
@@ -523,7 +532,17 @@ test('walkthrough step 6: delegate, take stances, check a claim, escalate, and r
     await expect(replyStatus).toHaveText(announced)
   }
 
-  /** The claim card as the Delegation Log draws it, with its controls. */
+  /**
+   * The claim card that carries the controls, which is the reply's while the reply is holding it.
+   *
+   * A claim is worked where it was most recently surfaced (D-313): the assistant's reply draws the
+   * instrument for the claims it is showing, and the Delegation Log's copy of those draws the
+   * record and says where they are being worked. Everything below acts on claims the reply above
+   * has just raised, so this is the assistant's card.
+   */
+  const workCard = (key: string) => assistant.getByRole('article', { name: `Claim ${key}` })
+
+  /** The same claim in the log, which is the copy that survives the next request and a reload. */
   const logCard = (key: string) => log.getByRole('article', { name: `Claim ${key}` })
 
   /** The run's charged clock, in milliseconds: exactly what the checks and escalations took. */
@@ -541,14 +560,20 @@ test('walkthrough step 6: delegate, take stances, check a claim, escalate, and r
   // many a reply produced, and never anything about which of them is worth looking at.
   await ask(SECOND_REQUEST, 'Reply complete. 3 claims surfaced.')
   for (const key of [TRACED_CLAIM_KEY, REJECTED_CLAIM_KEY, ESCALATED_CLAIM_KEY]) {
+    await expect(workCard(key)).toBeVisible()
+    // The log lists the same claim and draws it as the record: one claim, one instrument (D-313).
     await expect(logCard(key)).toBeVisible()
+    await expect(logCard(key)).toContainText(
+      'You are taking a position on this claim in the reply above.',
+    )
+    await expect(logCard(key).getByRole('radiogroup')).toHaveCount(0)
   }
 
   const beforeTrace = await chargedMs()
 
   // A stance, taken *before* the check, so that changing it afterwards is a change and not a first
   // answer. The control is a radio group with the five stances and no default (FR-080).
-  const traced = logCard(TRACED_CLAIM_KEY)
+  const traced = workCard(TRACED_CLAIM_KEY)
   const stances = traced.getByRole('radiogroup', {
     name: `Your stance on claim ${TRACED_CLAIM_KEY}`,
   })
@@ -593,7 +618,7 @@ test('walkthrough step 6: delegate, take stances, check a claim, escalate, and r
   await expect(traced).toContainText('Changed from Accept.')
 
   // Reject, on the low-stakes claim the same reply raised.
-  const rejected = logCard(REJECTED_CLAIM_KEY)
+  const rejected = workCard(REJECTED_CLAIM_KEY)
   const rejectedStances = rejected.getByRole('radiogroup', {
     name: `Your stance on claim ${REJECTED_CLAIM_KEY}`,
   })
@@ -604,7 +629,7 @@ test('walkthrough step 6: delegate, take stances, check a claim, escalate, and r
   )
 
   // The escalation: one sentence, five minutes, and the colleague's reply verbatim (FR-090).
-  const escalated = logCard(ESCALATED_CLAIM_KEY)
+  const escalated = workCard(ESCALATED_CLAIM_KEY)
   const beforeEscalation = await chargedMs()
 
   await escalated.getByRole('button', { name: `Escalate claim ${ESCALATED_CLAIM_KEY}` }).click()
@@ -617,6 +642,10 @@ test('walkthrough step 6: delegate, take stances, check a claim, escalate, and r
   await escalation.getByRole('button', { name: 'Send it' }).click()
   await expect(escalation).toBeHidden()
 
+  // Their own sentence is read back beside the answer it bought: five minutes of clock, and the
+  // card used to show only half of the exchange (D-318).
+  await expect(escalated).toContainText('You wrote')
+  await expect(escalated).toContainText(STATEMENT)
   await expect(escalated).toContainText('They answered')
   await expect(escalated).toContainText(ESCALATION_REPLY)
   await expect(escalated).toContainText('This escalation cost 5 minutes of your working clock.')
@@ -637,6 +666,8 @@ test('walkthrough step 6: delegate, take stances, check a claim, escalate, and r
   const reply = escalatedClaim?.escalation as Record<string, unknown>
   expect(reply).not.toHaveProperty('responseId')
   expect(reply).not.toHaveProperty('countsAgainstLimit')
+  // What it *does* carry is the student's own sentence, which is theirs and no invariant's (D-318).
+  expect(reply.statement).toBe(STATEMENT)
 
   // -------------------------------------------------------------------------------------------
   // What part 2 recorded (FR-007, 10 §10)

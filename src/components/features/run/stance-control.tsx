@@ -5,6 +5,7 @@ import { cn } from '@/lib/cn'
 import { t } from '@/lib/i18n/messages/workspace'
 import { setStanceAction } from '@/server/modules/reliance/actions'
 import type { ClaimView } from '@/server/modules/reliance/schema'
+import { useRunWork } from './run-work-context'
 import { STANCE_ICONS, STANCE_LABELS, STANCE_ORDER, type StanceValue } from './stance-chip'
 
 // UI-023: the stance control (FR-080, FR-085). Five chips, one of which is the student's position
@@ -17,11 +18,20 @@ import { STANCE_ICONS, STANCE_LABELS, STANCE_ORDER, type StanceValue } from './s
 // answer to the thing being measured.
 //
 // **A stance is free and a stance is changeable, and the control says both.** FR-080 charges
-// nothing, FR-085 keeps the previous stance beside the new one, and the sentence under the chips is
-// that fact rather than a caution — "both are kept" is what makes changing your mind a move the
-// record can show rather than a confession. The previous stance is drawn beside the group as soon
-// as there is one, because a student coming back to a claim they re-thought should be able to see
-// that they did.
+// nothing, FR-085 keeps the previous stance beside the new one, and the sentence saying so is that
+// fact rather than a caution — "both are kept" is what makes changing your mind a move the record
+// can show rather than a confession. It is drawn **once for the panel** rather than under every
+// group (`hintId`, D-314): a reply with three claims carried three copies of one sentence that
+// never changes, and every radio group in the panel points at that one paragraph instead. The
+// previous stance is drawn beside the group as soon as there is one, because a student coming back
+// to a claim they re-thought should be able to see that they did.
+//
+// **The group is where the screen's accent goes** (D-323). DESIGN.md keeps one accent per screen —
+// "teal for the action the visitor is there to take" — and the act being assessed on a claim is the
+// stance, while the teal used to sit on the two controls that spend the clock. So until the claim
+// has a stance the five chips wear the primary on their border and their icon, and once it has one
+// they fall back to the control hairline with the chosen chip in its stance colour. The accent
+// marks the open question and is spent by answering it.
 //
 // **A radio group by hand, and the reason is the chip.** DESIGN.md reserves pill geometry at 40 px
 // for stance chips and requires the colour to arrive with its icon and its text label; a 16 px
@@ -45,11 +55,24 @@ export type StanceControlProps = {
   canWrite: boolean
   /** The claim as the server now holds it, for a parent drawing the rest of the card. */
   onChanged?: (claim: ClaimView) => void
+  /**
+   * The id of the panel's one copy of the hint (D-314). Absent, the control draws its own — which
+   * is what a claim outside a panel that hoists it needs.
+   */
+  hintId?: string | undefined
 }
 
-export function StanceControl({ runId, claim, canWrite, onChanged }: StanceControlProps) {
+export function StanceControl({
+  runId,
+  claim,
+  canWrite,
+  onChanged,
+  hintId: sharedHintId,
+}: StanceControlProps) {
   const legendId = useId()
-  const hintId = useId()
+  const ownHintId = useId()
+  const hintId = sharedHintId ?? ownHintId
+  const { announce } = useRunWork()
 
   // The stance as this control knows it: what the server last answered here, or what the student
   // has just pressed. It is seeded from the prop, held here while the write is in flight, and
@@ -72,7 +95,6 @@ export function StanceControl({ runId, claim, canWrite, onChanged }: StanceContr
 
   const [pending, setPending] = useState<StanceValue | null>(null)
   const [failed, setFailed] = useState<string | null>(null)
-  const [announced, setAnnounced] = useState('')
   // Which chip the keyboard is standing on, which is not the same question as which stance is
   // taken: a refused write leaves the selection where it was while the focus stays where the
   // student put it, and an arrow from there must move from the chip they can see the ring on.
@@ -89,16 +111,19 @@ export function StanceControl({ runId, claim, canWrite, onChanged }: StanceContr
       (result) => {
         setPending(null)
         if (!result.ok) {
-          setFailed(result.error.message || t('workspace.stanceFailed'))
+          const message = result.error.message || t('workspace.stanceFailed')
+          setFailed(message)
+          announce(message)
           return
         }
         setHeld({ stance: result.data.stance, previous: result.data.previousStance })
-        setAnnounced(t('workspace.stanceSaved', { key: claim.key, stance: STANCE_LABELS[next]() }))
+        announce(t('workspace.stanceSaved', { key: claim.key, stance: STANCE_LABELS[next]() }))
         onChanged?.(result.data)
       },
       () => {
         setPending(null)
         setFailed(t('workspace.stanceFailed'))
+        announce(t('workspace.stanceFailed'))
       },
     )
   }
@@ -129,13 +154,17 @@ export function StanceControl({ runId, claim, canWrite, onChanged }: StanceContr
 
   return (
     <div className="flex flex-col gap-2">
-      <p id={legendId} className="text-ink text-meta font-medium">
-        {t('workspace.stanceLegendFor', { key: claim.key })}
+      {/* Two names for one group. The visible one is short, because a card that carries the claim's
+          key in its own heading does not need it again in the legend; the accessible one carries
+          the key, so a screen-reader user moving between groups can tell which claim they are
+          standing on and the lock's refusal names the same thing the control is called. */}
+      <p id={legendId} aria-hidden="true" className="text-ink text-meta font-medium">
+        {t('workspace.stanceLegend')}
       </p>
 
       <div
         role="radiogroup"
-        aria-labelledby={legendId}
+        aria-label={t('workspace.stanceLegendFor', { key: claim.key })}
         aria-describedby={hintId}
         onKeyDown={onKeyDown}
         className="flex flex-wrap gap-2"
@@ -169,7 +198,10 @@ export function StanceControl({ runId, claim, canWrite, onChanged }: StanceContr
                 'aria-disabled:opacity-45',
                 selected
                   ? SELECTED_TONE[option]
-                  : 'border-line-control bg-paper-raised hover:bg-paper-sunken [&_svg]:text-ink-muted',
+                  : shown === null
+                    ? // The open question wears the screen's one accent (D-323).
+                      'border-primary bg-paper-raised hover:bg-paper-sunken [&_svg]:text-primary'
+                    : 'border-line-control bg-paper-raised hover:bg-paper-sunken [&_svg]:text-ink-muted',
               )}
             >
               <Icon aria-hidden="true" className="size-4" />
@@ -179,9 +211,11 @@ export function StanceControl({ runId, claim, canWrite, onChanged }: StanceContr
         })}
       </div>
 
-      <p id={hintId} className="text-ink-muted text-meta max-w-[72ch]">
-        {t('workspace.stanceHint')}
-      </p>
+      {sharedHintId === undefined && (
+        <p id={hintId} className="text-ink-muted text-meta max-w-measure">
+          {t('workspace.stanceHint')}
+        </p>
+      )}
 
       {/* FR-085: the stance this one replaced, once there is one. A fact about the student's own
           record, never a comment on either stance. */}
@@ -193,11 +227,9 @@ export function StanceControl({ runId, claim, canWrite, onChanged }: StanceContr
 
       {!canWrite && <p className="text-ink-muted text-meta">{t('workspace.stanceClosed')}</p>}
 
-      {/* Stays mounted and collapses when empty, so the announcement fires on the sentence
-          changing rather than on the region being inserted. */}
-      <p role="status" className="text-ink-muted text-meta empty:hidden">
-        {failed ?? announced}
-      </p>
+      {/* A refusal stays on screen beside the control that refused. It is not a live region of its
+          own: the screen has one, and this sentence was already said into it (D-314). */}
+      {failed !== null && <p className="text-red text-meta max-w-measure">{failed}</p>}
     </div>
   )
 }

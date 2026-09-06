@@ -10153,6 +10153,8 @@ paths:
                       anyOf:
                         - type: object
                           properties:
+                            statement:
+                              type: string
                             responseText:
                               type: string
                             clockCostMs:
@@ -10164,6 +10166,7 @@ paths:
                               minimum: 0
                               maximum: 2
                           required:
+                            - statement
                             - responseText
                             - clockCostMs
                             - remainingEscalations
@@ -10331,6 +10334,8 @@ paths:
               schema:
                 type: object
                 properties:
+                  statement:
+                    type: string
                   responseText:
                     type: string
                   clockCostMs:
@@ -10342,6 +10347,7 @@ paths:
                     minimum: 0
                     maximum: 2
                 required:
+                  - statement
                   - responseText
                   - clockCostMs
                   - remainingEscalations
@@ -10496,6 +10502,8 @@ paths:
                     anyOf:
                       - type: object
                         properties:
+                          statement:
+                            type: string
                           responseText:
                             type: string
                           clockCostMs:
@@ -10507,6 +10515,7 @@ paths:
                             minimum: 0
                             maximum: 2
                         required:
+                          - statement
                           - responseText
                           - clockCostMs
                           - remainingEscalations

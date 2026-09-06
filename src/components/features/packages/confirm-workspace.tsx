@@ -610,7 +610,7 @@ export function ConfirmWorkspace(props: ConfirmWorkspaceProps) {
           </div>
 
           {ruleFailures.length > 0 && (
-            <section className="border-red bg-red-soft text-ink text-body flex w-full max-w-[72ch] items-start gap-2 rounded-md border p-3">
+            <section className="border-red bg-red-soft text-ink text-body max-w-measure flex w-full items-start gap-2 rounded-md border p-3">
               <CircleAlertIcon aria-hidden="true" className="text-red mt-0.5 size-4 shrink-0" />
               <div className="flex min-w-0 flex-1 flex-col gap-3">
                 <p className="font-medium">{t('confirm.rulesTitle')}</p>
@@ -764,7 +764,7 @@ export function ConfirmWorkspace(props: ConfirmWorkspaceProps) {
                   <Button type="button" aria-disabled>
                     {t('confirm.confirmVersion')}
                   </Button>
-                  <p className="text-ink-muted text-meta max-w-[72ch]">
+                  <p className="text-ink-muted text-meta max-w-measure">
                     {t('confirm.readOnlyBody')}
                   </p>
                 </>
@@ -808,7 +808,7 @@ export function ConfirmWorkspace(props: ConfirmWorkspaceProps) {
 
         {selected === null ? (
           <Panel id="element-editor" title={t('confirm.editorNoneTitle')} headingLevel={2}>
-            <p className="text-ink-muted text-body max-w-[72ch]">{t('confirm.editorNoneBody')}</p>
+            <p className="text-ink-muted text-body max-w-measure">{t('confirm.editorNoneBody')}</p>
           </Panel>
         ) : (
           <ElementEditor

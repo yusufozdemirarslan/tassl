@@ -1,11 +1,8 @@
 'use client'
 
-import { useCallback, useId, useState, type ReactNode } from 'react'
+import { useCallback, type ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
-import { ChevronDownIcon } from 'lucide-react'
 import { LabelChip } from '@/components/layout/label-chip'
-import { Button } from '@/components/ui/button'
-import { cn } from '@/lib/cn'
 import { useRunPoll } from '@/lib/hooks/use-run-poll'
 import { t } from '@/lib/i18n/messages/run'
 import type { RunStateValue, RunSummary } from '@/server/modules/runs/schema'
@@ -13,8 +10,7 @@ import { Clock } from './clock'
 import { RunStateChip } from './run-state-chip'
 
 // UI-027, the base. The band that sits above every `/runs/[runId]` screen: which assignment this
-// is, where the run has got to, how long is left, the locked frame within reach, and the place a
-// declaration of outside-tool use is written.
+// is, where the run has got to, and how long is left.
 //
 // It is the one client component on a run page that is always mounted, so it is where the poll
 // lives (09 §8): every five seconds it asks `GET /api/v1/runs/{runId}` with `If-None-Match`, and
@@ -23,12 +19,22 @@ import { RunStateChip } from './run-state-chip'
 // anything. Nothing here decides that a timer fired — the server does, on the read the poll makes
 // (D-042).
 //
-// The frame and the declaration are slots rather than components this file builds. `FramePanel` is
-// the locked frame's own component and the declaration is `declareOutsideTool`, which lands with
-// the reliance phase; the disclosure around the first and the seat for the second are here, so
-// every run screen gets them in the same place at the same size the moment they exist. A slot that
-// is not passed draws nothing at all: a "Frame" button on a run with no frame would be a control
-// that opens an empty box.
+// **The band is sticky, because a student under a clock should never have to look for the clock**
+// (D-311). The working screen is many viewports tall, and `clock.tsx` marks the last five minutes
+// amber and the last minute red — a *visual* signal, which a band that scrolled away fired
+// off-screen for exactly the sighted students it is for. `role="status"` covered the other half of
+// the room and nobody else. It sticks at every width rather than from `md`, because a phone is
+// where the page is tallest; what keeps that honest is that the band is three things on one line —
+// the label, the state chip and the clock — and nothing else. It carries no disclosure and no form,
+// so it cannot grow under the student while they scroll.
+//
+// **The frame and the declaration are not slots here, and the two components that would have
+// filled them are drawn as panels on the screens that have them** (D-312). `FramePanel` is already
+// the workspace's own "The frame you locked" panel and the locked screen's, and
+// `DeclarationControl` is a panel whose FR-061/FR-062 sentence — a declaration never lowers a band
+// — has to be on screen *before* the control is pressed, which a button in a band cannot carry.
+// Slots that no caller passed described a band that did not exist; UI-023's tree is corrected with
+// the row.
 //
 // The assignment label arrives as a string, and only as a string. The view it is read from
 // (`courses.AssignmentView`) also carries `variantKey` — which defect, if any, was planted in this
@@ -59,21 +65,11 @@ export type RunFrameProps = {
   run: RunSummary
   /** The assignment's label — the student's name for this run. Never the assignment view itself. */
   label: string
-  /**
-   * The locked frame, when there is one (`FramePanel`). The disclosure draws only with it, and what
-   * is passed is the frame's *content*: this band is already a panel, and DESIGN.md's One-Layer
-   * Rule puts sections inside a panel, never another panel.
-   */
-  frame?: ReactNode
-  /** `DeclarationControl`, when the run is in a state that accepts one. */
-  declaration?: ReactNode
   children: ReactNode
 }
 
-export function RunFrame({ run, label, frame, declaration, children }: RunFrameProps) {
+export function RunFrame({ run, label, children }: RunFrameProps) {
   const router = useRouter()
-  const framePanelId = useId()
-  const [frameOpen, setFrameOpen] = useState(false)
 
   // A poll that finds the run somewhere else re-renders the tree on the server, and the page for
   // the state it is now in decides where the student belongs. Scoring is watched with it, because
@@ -96,58 +92,30 @@ export function RunFrame({ run, label, frame, declaration, children }: RunFrameP
 
   return (
     <div className="flex flex-col gap-6">
-      <section
-        aria-label={t('run.frameRegion')}
-        className="border-line bg-paper-raised flex flex-wrap items-center gap-x-4 gap-y-3 rounded-md border p-4"
-      >
-        <div className="flex min-w-0 flex-1 basis-64 flex-wrap items-center gap-x-3 gap-y-2">
-          <span className="text-ink text-body min-w-0 font-medium break-words">
-            <span className="sr-only">{t('run.frameAssignmentLabel')} </span>
-            {label}
-          </span>
-          {live.isWalkthrough && <LabelChip kind="walkthrough" />}
-          {/* `held` is read off the polled run rather than taken as a prop: it is the one field
-              that can change while the page sits still, and the chip is what says so (FR-140). */}
-          <RunStateChip state={live.state} underReview={live.scoringStatus === 'held'} />
-        </div>
-
-        <div className="flex shrink-0 flex-wrap items-center gap-2">
-          <Clock clock={live.clock} />
-
-          {frame !== undefined && (
-            <Button
-              type="button"
-              variant="secondary"
-              aria-expanded={frameOpen}
-              aria-controls={framePanelId}
-              onClick={() => {
-                setFrameOpen((open) => !open)
-              }}
-            >
-              <ChevronDownIcon
-                aria-hidden="true"
-                className={cn(
-                  'size-4 transition-transform duration-150 ease-out',
-                  frameOpen && 'rotate-180',
-                )}
-              />
-              {t('run.frameToggle')}
-            </Button>
-          )}
-
-          {declaration}
-        </div>
-
-        {frame !== undefined && (
-          <div
-            id={framePanelId}
-            hidden={!frameOpen}
-            className="border-line basis-full border-t pt-4"
-          >
-            {frame}
+      {/* The paper ground travels with the band, pulled out to `main`'s own gutter, so the panels
+          below scroll *under* it rather than through the 24 px gap beside it. `top-0` is the top of
+          the scrolling viewport: the app header is not sticky, so nothing sits above this. */}
+      <div className="bg-paper sticky top-0 z-30 -mx-4 px-4 pt-2 pb-1 md:-mx-6 md:px-6 md:pt-3">
+        <section
+          aria-label={t('run.frameRegion')}
+          className="border-line bg-paper-raised flex flex-wrap items-center gap-x-4 gap-y-2 rounded-md border p-3 md:p-4"
+        >
+          <div className="flex min-w-0 flex-1 basis-56 flex-wrap items-center gap-x-3 gap-y-2">
+            <span className="text-ink text-body min-w-0 truncate font-medium">
+              <span className="sr-only">{t('run.frameAssignmentLabel')} </span>
+              {label}
+            </span>
+            {live.isWalkthrough && <LabelChip kind="walkthrough" />}
+            {/* `held` is read off the polled run rather than taken as a prop: it is the one field
+                that can change while the page sits still, and the chip is what says so (FR-140). */}
+            <RunStateChip state={live.state} underReview={live.scoringStatus === 'held'} />
           </div>
-        )}
-      </section>
+
+          <div className="flex shrink-0 flex-wrap items-center gap-2">
+            <Clock clock={live.clock} />
+          </div>
+        </section>
+      </div>
 
       {children}
     </div>

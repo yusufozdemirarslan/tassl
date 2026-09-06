@@ -61,9 +61,14 @@ describe('Dialog', () => {
     expect(title.className).toContain('font-serif')
     expect(screen.getByText('This cannot be undone.').className).toContain('text-ink-muted')
 
+    // Whitespace and one full-bleed hairline, never a filled well: a tinted, rounded, bordered
+    // strip inside the raised-paper dialog is a card inside a card, which DESIGN.md's One-Layer
+    // Rule bans outright (D-316).
     const footer = document.querySelector('[data-slot="dialog-footer"]')
-    expect(footer?.className).toContain('rounded-b-lg')
     expect(footer?.className).toContain('-mx-6')
+    expect(footer?.className).toContain('border-t')
+    expect(footer?.className).not.toContain('bg-paper-sunken')
+    expect(footer?.className).not.toContain('rounded-b-lg')
   })
 })
 

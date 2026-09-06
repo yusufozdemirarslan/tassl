@@ -162,7 +162,7 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
 function ConceptSet({ concepts }: { concepts: readonly string[] }) {
   return (
     <Section title={t('packageVersion.conceptsTitle')}>
-      <p className="text-ink-muted text-body max-w-[72ch]">
+      <p className="text-ink-muted text-body max-w-measure">
         {t('packageVersion.conceptsDescription')}
       </p>
       <ul className="flex flex-wrap gap-2">
@@ -214,7 +214,7 @@ function Warnings({ warnings }: { warnings: readonly PackageWarningValue[] }) {
         {warnings.map((warning) => (
           <li key={warning} className="flex flex-col items-start gap-2">
             <LabelChip kind="warning" label={WARNINGS[warning].label()} />
-            <p className="text-ink-muted text-body max-w-[72ch]">{WARNINGS[warning].help()}</p>
+            <p className="text-ink-muted text-body max-w-measure">{WARNINGS[warning].help()}</p>
           </li>
         ))}
       </ul>
@@ -230,7 +230,7 @@ function Warnings({ warnings }: { warnings: readonly PackageWarningValue[] }) {
  */
 function RuleFailures({ failures }: { failures: readonly ValidationFailure[] }) {
   return (
-    <div className="border-red bg-red-soft text-ink text-body flex w-full max-w-[72ch] items-start gap-2 rounded-md border p-3">
+    <div className="border-red bg-red-soft text-ink text-body max-w-measure flex w-full items-start gap-2 rounded-md border p-3">
       <CircleAlertIcon aria-hidden="true" className="text-red mt-0.5 size-4 shrink-0" />
       <div className="flex min-w-0 flex-1 flex-col gap-3">
         <p>{t('packageVersion.rulesFailing', { count: failures.length })}</p>
@@ -351,7 +351,7 @@ export function VersionHeader({ version, confirmHref }: VersionHeaderProps) {
           {version.status === 'draft' && !version.restricted && (
             <Section title={t('packageVersion.rulesTitle')}>
               {failures.length === 0 ? (
-                <p className="text-ink-muted text-body max-w-[72ch]">
+                <p className="text-ink-muted text-body max-w-measure">
                   {t('packageVersion.rulesPass')}
                 </p>
               ) : (
@@ -362,7 +362,7 @@ export function VersionHeader({ version, confirmHref }: VersionHeaderProps) {
                   {t('packageVersion.openWorkspace')}
                 </Link>
               ) : (
-                <p className="text-ink-muted text-body max-w-[72ch]">
+                <p className="text-ink-muted text-body max-w-measure">
                   {t('packageVersion.draftReadOnly')}
                 </p>
               )}

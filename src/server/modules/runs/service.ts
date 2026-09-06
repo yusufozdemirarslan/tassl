@@ -86,6 +86,12 @@ import {
   type FrameInvalidReason,
 } from './errors'
 import { READINESS_MS } from './limits'
+
+// The Turn window's length, re-exported so the module's public index can hand it to the screen
+// that names it in prose (`decision.turnBody`, D-327). An index may reach this file and `schema`
+// and nothing else (the `boundaries` policy), and a pilot parameter no page may restate has to
+// arrive through the same door every other public value does.
+export { TURN_WINDOW_MS } from './limits'
 import {
   elapsedWorkingMs,
   isSpeedOutlier,

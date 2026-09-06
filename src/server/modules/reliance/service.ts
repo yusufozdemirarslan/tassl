@@ -137,6 +137,9 @@ function toActionResult(row: repo.RunAction): ActionResult {
  */
 function toEscalationResult(row: repo.RunEscalation, remaining: number): EscalationResult {
   return {
+    // The student's own sentence, which is why it is picked here rather than withheld: D-116's two
+    // fields (`responseId`, `countsAgainstLimit`) are the authored bookkeeping and neither is below.
+    statement: row.statement,
     responseText: row.responseText,
     clockCostMs: row.clockCostMs,
     remainingEscalations: remaining,

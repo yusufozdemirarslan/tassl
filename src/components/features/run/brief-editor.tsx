@@ -19,6 +19,8 @@ import {
   saveBriefDraftAction,
 } from '@/server/modules/runs/actions'
 import type { BriefFieldUnitValue, BriefNamedField, BriefView } from '@/server/modules/runs/schema'
+import type { LockReadBackEntry } from './lock-dialog'
+import { useRunWork } from './run-work-context'
 
 // UI-023, right column: the Decision Brief (FR-100, FR-101, FR-103, FR-108) and the Decision Lock.
 //
@@ -42,8 +44,16 @@ import type { BriefFieldUnitValue, BriefNamedField, BriefView } from '@/server/m
 //     one sentence until it parses. What is sent is the parsed number.
 //   * **A refusal returns the student to the brief exactly as they left it** (FR-108). Neither
 //     `BRIEF_INVALID` nor `LOCK_REFUSED_UNSTANCED_CLAIM` writes anything, so nothing here clears,
-//     re-reads or re-orders the form: the first marks the field the server named, and the second is
-//     handed to the lock dialog, which names the claim and offers a way to it.
+//     re-reads or re-orders the form. Both are handed to the lock dialog, which is the thing the
+//     student pressed: one names the claim and offers a way to it, the other names the field and
+//     offers a way to it, and the field is marked in the form behind either (D-320). `BRIEF_INVALID`
+//     used to close the dialog silently, so two refusals of one press behaved differently.
+//
+// **The lock says what it is going to ask for before it is pressed** (D-319). The run already knows
+// which claims the student has recorded leaning on with no stance on them — it is their own record,
+// not anything authored — so the count stands beside the button as a fact, and the confirmation
+// reads back what is about to be filed. Neither evaluates: the pre-flight line names no claim and
+// the read-back marks no field short.
 //
 // **The lock confirmation is a separate chunk, fetched on the first focus inside the editor.** It
 // is the reasoning `frame-form.tsx` sets out for the frame's own confirmation and the same trade:
@@ -128,19 +138,39 @@ export type BriefEditorProps = {
   namedFields: readonly BriefNamedField[]
   /** `capabilities.canWriteBrief`: true in `working` alone — never while the run is paused. */
   canWrite: boolean
+  /**
+   * How many claims the run has recorded reliance on with no stance on them (FR-084, D-319).
+   *
+   * A count of the student's own acts, computed on the server from the same `reliedOn` the lock
+   * gate reads. It names no claim and says nothing about any of them — every one of them is on the
+   * screen already, wearing the same mark on its own card.
+   */
+  unstancedRelied?: number
 }
 
-export function BriefEditor({ runId, draft, namedFields, canWrite }: BriefEditorProps) {
+export function BriefEditor({
+  runId,
+  draft,
+  namedFields,
+  canWrite,
+  unstancedRelied = 0,
+}: BriefEditorProps) {
   const router = useRouter()
+  const { announce } = useRunWork()
   const [values, setValues] = useState<BriefValues>(() => valuesOf(draft, namedFields))
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [saveFailed, setSaveFailed] = useState(false)
   const [fieldError, setFieldError] = useState<{ field: BriefPath; message: string } | null>(null)
-  const [formError, setFormError] = useState<string | null>(null)
+  const [formError, setFormError] = useState<{ message: string; requestId?: string } | null>(null)
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [locking, setLocking] = useState(false)
   const [refusal, setRefusal] = useState<{ claimId: string; claimText: string } | null>(null)
+  const [briefRefusal, setBriefRefusal] = useState<{
+    fieldId: string
+    label: string
+    message: string
+  } | null>(null)
 
   const {
     loaded: lockModule,
@@ -202,13 +232,17 @@ export function BriefEditor({ runId, draft, namedFields, canWrite }: BriefEditor
         setSaving(false)
         setSaveFailed(!result.ok)
         setSaved(result.ok)
+        // A save that failed is news and goes to the screen's one region; a save that worked is
+        // not, and stays a line beside the control that reads it (D-314).
+        if (!result.ok) announce(t('workspace.briefSaveFailed'))
       },
       () => {
         setSaving(false)
         setSaveFailed(true)
+        announce(t('workspace.briefSaveFailed'))
       },
     )
-  }, [runId])
+  }, [runId, announce])
 
   const change = useCallback(
     (next: BriefValues) => {
@@ -237,7 +271,7 @@ export function BriefEditor({ runId, draft, namedFields, canWrite }: BriefEditor
   )
 
   function lock(): void {
-    if (locking) return
+    if (locking || !canWrite) return
     setLocking(true)
     setFormError(null)
     setFieldError(null)
@@ -260,11 +294,16 @@ export function BriefEditor({ runId, draft, namedFields, canWrite }: BriefEditor
         }
         setLocking(false)
         if (result.error.code === 'BRIEF_INVALID') {
-          const named = briefRefusal(result.error.details)
+          const named = refusedField(result.error.details)
           if (named) {
-            setConfirmOpen(false)
+            // The field is marked in the form *and* the dialog says so: the same press, answered,
+            // exactly as the unstanced-claim refusal is (D-320).
             setFieldError(named)
-            document.getElementById(fieldId(named.field))?.focus()
+            setBriefRefusal({
+              fieldId: fieldId(named.field),
+              label: labelOf(named.field),
+              message: named.message,
+            })
             return
           }
         }
@@ -278,16 +317,19 @@ export function BriefEditor({ runId, draft, namedFields, canWrite }: BriefEditor
         }
         setConfirmOpen(false)
         if (result.error.code === 'ILLEGAL_TRANSITION' || result.error.code === 'RUN_LOCKED') {
-          setFormError(t('workspace.lockMoved'))
+          setFormError({ message: t('workspace.lockMoved') })
           router.refresh()
           return
         }
-        setFormError(result.error.message || t('workspace.decisionLockFailed'))
+        setFormError({
+          message: result.error.message || t('workspace.decisionLockFailed'),
+          requestId: result.error.requestId,
+        })
       },
       () => {
         setLocking(false)
         setConfirmOpen(false)
-        setFormError(t('workspace.decisionLockFailed'))
+        setFormError({ message: t('workspace.decisionLockFailed') })
       },
     )
   }
@@ -300,6 +342,37 @@ export function BriefEditor({ runId, draft, namedFields, canWrite }: BriefEditor
       : confidenceOver || Number(values.confidence) > 100
         ? t('workspace.briefConfidenceInvalid')
         : undefined
+
+  /**
+   * What the press is about to file, in the order the brief asks for it (D-319).
+   *
+   * Built from the values on screen rather than from the draft the server holds, because the
+   * student may have typed since the last autosave and it is *this* text the lock will send.
+   */
+  const readBack: LockReadBackEntry[] = [
+    entryOf(t('workspace.briefRecommendationLabel'), values.recommendation),
+    entryOf(t('workspace.briefRationaleLabel'), values.rationale),
+    ...values.assumptions.map((assumption, index) =>
+      entryOf(t('workspace.briefAssumptionLabel', { number: index + 1 }), assumption),
+    ),
+    entryOf(t('workspace.briefChangeMyMindLabel'), values.changeMyMind),
+    {
+      label: t('workspace.briefConfidenceLegend'),
+      value: CONFIDENCE_PATTERN.test(values.confidence.trim())
+        ? t('workspace.lockReadBackConfidence', { value: Number(values.confidence) })
+        : null,
+    },
+    ...namedFields.map((field) => ({
+      label: t('workspace.briefNamedFieldLabel', {
+        label: field.label,
+        unit: UNIT_LABELS[field.unit](),
+      }),
+      value:
+        (values.namedValues[field.key] ?? '').trim() === ''
+          ? null
+          : (values.namedValues[field.key] ?? '').trim(),
+    })),
+  ]
 
   const status = saveFailed
     ? t('workspace.briefSaveFailed')
@@ -326,8 +399,13 @@ export function BriefEditor({ runId, draft, namedFields, canWrite }: BriefEditor
         }}
         onSubmit={(event) => {
           event.preventDefault()
+          // `aria-disabled` keeps the control reachable and its reason readable, which is
+          // DESIGN.md's rule; it does not stop a press, and every other control in these files
+          // guards its own handler. This one did not (D-325).
+          if (locking || !canWrite) return
           setFormError(null)
           setRefusal(null)
+          setBriefRefusal(null)
           requestLockDialog()
           setConfirmOpen(true)
         }}
@@ -365,7 +443,7 @@ export function BriefEditor({ runId, draft, namedFields, canWrite }: BriefEditor
           <legend className="text-ink text-body mb-1 font-medium">
             {t('workspace.briefAssumptionsLegend')}
           </legend>
-          <p id="brief-assumptions-hint" className="text-ink-muted text-meta -mt-3 max-w-[72ch]">
+          <p id="brief-assumptions-hint" className="text-ink-muted text-meta max-w-measure -mt-3">
             {t('workspace.briefAssumptionsHint', { limit: LIMITS.assumption })}
           </p>
           {values.assumptions.map((assumption, index) => (
@@ -404,7 +482,7 @@ export function BriefEditor({ runId, draft, namedFields, canWrite }: BriefEditor
             <legend className="text-ink text-body mb-1 font-medium">
               {t('workspace.briefNamedFieldsLegend')}
             </legend>
-            <p id="brief-figures-hint" className="text-ink-muted text-meta -mt-3 max-w-[72ch]">
+            <p id="brief-figures-hint" className="text-ink-muted text-meta max-w-measure -mt-3">
               {t('workspace.briefNamedFieldsHint')}
             </p>
             {namedFields.map((field) => (
@@ -427,7 +505,7 @@ export function BriefEditor({ runId, draft, namedFields, canWrite }: BriefEditor
           <legend className="text-ink text-body mb-1 font-medium">
             {t('workspace.briefConfidenceLegend')}
           </legend>
-          <p id="brief-confidence-hint" className="text-ink-muted text-meta -mt-1 max-w-[72ch]">
+          <p id="brief-confidence-hint" className="text-ink-muted text-meta max-w-measure -mt-1">
             {t('workspace.briefConfidenceHint')}
           </p>
           <div className="flex flex-wrap items-center gap-4">
@@ -475,7 +553,16 @@ export function BriefEditor({ runId, draft, namedFields, canWrite }: BriefEditor
         {!canWrite && <p className="text-ink-muted text-body">{t('workspace.briefClosedNote')}</p>}
 
         <FormAlert
-          message={confirmUnavailable ? t('workspace.decisionLockUnavailable') : formError}
+          message={
+            confirmUnavailable
+              ? t('workspace.decisionLockUnavailable')
+              : (formError?.message ?? null)
+          }
+          reference={
+            confirmUnavailable || formError?.requestId === undefined
+              ? undefined
+              : { label: t('workspace.errorReference'), id: formError.requestId }
+          }
         />
 
         <div className="flex flex-wrap items-center gap-3">
@@ -483,23 +570,30 @@ export function BriefEditor({ runId, draft, namedFields, canWrite }: BriefEditor
             type="submit"
             aria-disabled={locking || !canWrite ? true : undefined}
             aria-busy={locking || waitingForConfirm}
+            aria-describedby={`${unstancedRelied > 0 ? 'brief-lock-preflight ' : ''}brief-lock-status`.trim()}
           >
             {locking && <Loader2Icon aria-hidden="true" className="size-4 animate-spin" />}
             {locking ? t('workspace.decisionLocking') : t('workspace.decisionLock')}
           </Button>
 
-          {waitingForConfirm && (
-            <p role="status" className="text-ink-muted text-meta">
-              {t('workspace.decisionLockLoading')}
-            </p>
-          )}
-
-          {/* The autosave's own line. It stays mounted and collapses when empty, so a screen
-              reader hears "Saved." once rather than the region appearing and disappearing. */}
-          <p role="status" className="text-ink-muted text-meta empty:hidden">
-            {waitingForConfirm ? null : status}
+          {/* The autosave's line and the confirmation's, in one place beside the control that
+              reads them. Neither is a live region: the screen has one, and a "Saved." spoken every
+              time the debounce fires is the noise DESIGN.md's counters rule already refuses. The
+              button points at it, so a student who reaches the lock hears where the save stands. */}
+          <p id="brief-lock-status" className="text-ink-muted text-meta empty:hidden">
+            {waitingForConfirm ? t('workspace.decisionLockLoading') : status}
           </p>
         </div>
+
+        {/* FR-084 said before the irreversible press rather than by it (D-319). A count of the
+            student's own record; the claims themselves are marked on their own cards. */}
+        {unstancedRelied > 0 && (
+          <p id="brief-lock-preflight" className="text-ink text-meta max-w-measure">
+            {unstancedRelied === 1
+              ? t('workspace.lockPreflightOne')
+              : t('workspace.lockPreflight', { count: unstancedRelied })}
+          </p>
+        )}
       </form>
 
       {LockDialog !== undefined && (
@@ -507,15 +601,30 @@ export function BriefEditor({ runId, draft, namedFields, canWrite }: BriefEditor
           open={confirmOpen}
           onOpenChange={(open) => {
             setConfirmOpen(open)
-            if (!open) setRefusal(null)
+            if (!open) {
+              setRefusal(null)
+              setBriefRefusal(null)
+            }
           }}
           locking={locking}
           refusal={refusal}
+          briefRefusal={briefRefusal}
+          readBack={readBack}
           onConfirm={lock}
+          onGoToField={(id) => {
+            document.getElementById(id)?.focus()
+          }}
         />
       )}
     </Panel>
   )
+}
+
+/** One written field of the read-back: the words, or the neutral note that it is empty. */
+function entryOf(label: string, value: string): LockReadBackEntry {
+  const trimmed = value.trim()
+  if (trimmed === '') return { label, value: null }
+  return { label, value: trimmed, words: countWords(trimmed) }
 }
 
 /** The DOM id of one field, so a server-named refusal can be focused where the student left it. */
@@ -536,7 +645,7 @@ function numbersOf(typed: Record<string, string>): Record<string, number> {
 }
 
 /** `BRIEF_INVALID`'s `details` (10 §6): which field, and which of FR-100's rules it broke. */
-function briefRefusal(details: unknown): { field: BriefPath; message: string } | null {
+function refusedField(details: unknown): { field: BriefPath; message: string } | null {
   if (typeof details !== 'object' || details === null) return null
   const { field, reason } = details as { field?: unknown; reason?: unknown }
   if (typeof field !== 'string') return null
@@ -548,6 +657,21 @@ function briefRefusal(details: unknown): { field: BriefPath; message: string } |
     return { field: path, message: t('workspace.briefWordLimit', { limit: limitOf(path) }) }
   }
   return { field: path, message: t('workspace.briefRequiredField') }
+}
+
+/**
+ * The label the editor puts on a field, so the refusal names it the way the form does.
+ *
+ * `BriefPath` is the closed set `BRIEF_INVALID` can name (10 §6) — the four written fields, the
+ * three assumptions and the confidence — so the fall-through is an assumption index and not a
+ * default.
+ */
+function labelOf(field: BriefPath): string {
+  if (field === 'recommendation') return t('workspace.briefRecommendationLabel')
+  if (field === 'rationale') return t('workspace.briefRationaleLabel')
+  if (field === 'changeMyMind') return t('workspace.briefChangeMyMindLabel')
+  if (field === 'confidence') return t('workspace.briefConfidenceLegend')
+  return t('workspace.briefAssumptionLabel', { number: Number(field.split('.')[1] ?? '0') + 1 })
 }
 
 /** The word limit behind a server-named field, for the `word_limit` refusal's message. */
@@ -598,11 +722,11 @@ function WritingField({ id, label, hint, limit, rows, value, error, onChange }: 
         onChange={(event) => {
           onChange(event.target.value)
         }}
-        className={cn('text-reading max-w-[72ch]', over && 'border-red')}
+        className={cn('text-reading max-w-measure', over && 'border-red')}
         aria-invalid={message ? true : undefined}
         aria-describedby={`${message ? `${id}-error` : hint ? `${id}-hint` : ''} ${countId}`.trim()}
       />
-      <div className="flex max-w-[72ch] flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+      <div className="max-w-measure flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
         <div className="min-w-0 flex-1">
           {message ? (
             <FieldError id={`${id}-error`}>{message}</FieldError>

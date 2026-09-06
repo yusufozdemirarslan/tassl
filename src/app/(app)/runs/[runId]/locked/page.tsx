@@ -2,8 +2,8 @@ import type { Metadata } from 'next'
 import type { Route } from 'next'
 import { notFound, redirect } from 'next/navigation'
 import { AddendumControl } from '@/components/features/run/addendum-dialog'
-import { Clock } from '@/components/features/run/clock'
 import { FramePanel } from '@/components/features/run/frame-panel'
+import { TurnWait } from '@/components/features/run/turn-wait'
 import { PageHeader } from '@/components/layout/page-header'
 import { Panel } from '@/components/layout/panel'
 import { isAppError } from '@/lib/errors'
@@ -11,6 +11,7 @@ import { formatDateTime } from '@/lib/format/date-time'
 import { t } from '@/lib/i18n/t'
 import {
   getDecision,
+  TURN_WINDOW_MS,
   type BriefFieldUnitValue,
   type BriefNamedField,
   type BriefView,
@@ -44,6 +45,20 @@ export const metadata: Metadata = { title: t('decision.metaTitle') }
 // the RunFrame band above it polls `GET /runs/{runId}` every five seconds, and when the Turn is
 // delivered the state changes and the band refreshes the tree, which sends the student to `/turn`
 // through the guard below (D-042).
+//
+// **What happens next comes first** (D-327). The common way onto this screen is the bad one:
+// FR-105's auto-lock, the clock running out on a student who may have been mid-sentence. The two
+// columns stacked in markup order under `lg`, so the first thing that student met was an inventory
+// of their own blank fields and the sentence that matters — "You do not need to do anything until
+// then; this page moves on by itself" — was third, past the whole brief and the whole frame. The
+// Turn is now a full-width band directly under the header at every width, and the filed record sits
+// below it. The lock's own timestamp comes with the panel title rather than as a footnote at the
+// bottom of a long panel: "Filed 3:12 pm" is the answer to "what just happened to me".
+//
+// **The columns split at `2xl`** and at no width below it, for the reason the workspace's do
+// (D-310): a filed brief is reading matter, and DESIGN.md's 72-character measure needs about 650 px
+// of column, which two columns cannot give it until 1536. Below that the record runs full width and
+// the prose is clamped to the measure.
 
 /** The states `/runs/[runId]/locked` draws (09 §1): the decision is filed, the Turn has not landed. */
 const LOCKED_STATE = 'decision_locked'
@@ -84,61 +99,62 @@ export default async function RunLockedPage({ params }: PageProps<'/runs/[runId]
     <>
       <PageHeader title={t('decision.title')} description={t('decision.description')} />
 
-      {/* Two columns from `lg`: what was filed, and what happens next. Under it they stack in the
-          reading order the markup already has, so the visual order and the focus order agree. */}
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,7fr)_minmax(0,5fr)]">
-        <div className="flex min-w-0 flex-col gap-6">
-          <Panel
-            id="locked-brief"
-            title={t('decision.briefTitle')}
-            description={t('decision.briefPermanent')}
-            headingLevel={2}
-            padding="reading"
-          >
-            {brief === null ? (
-              <div className="flex flex-col gap-2">
-                <h3 className="text-h4">{t('decision.briefMissingTitle')}</h3>
-                <p className="text-ink-muted text-reading max-w-[72ch]">
-                  {t('decision.briefMissingBody')}
-                </p>
-              </div>
-            ) : (
-              <FiledBrief brief={brief} namedFields={namedFields} />
-            )}
-            {brief?.lockedAt != null && (
-              <p className="border-line text-ink-muted text-meta mt-6 border-t pt-4">
-                {t('decision.briefLockedAt', { when: formatDateTime(brief.lockedAt) })}
-              </p>
-            )}
-          </Panel>
+      <div className="flex flex-col gap-6">
+        {/* What happens next, first and full width, because the common way onto this screen is the
+            auto-lock and the sentence a student needs then is "you do not need to do anything"
+            (D-327). `tabIndex={-1}` is where the focus goes when the countdown reaches zero. */}
+        <Panel id="turn-wait" title={t('decision.turnTitle')} headingLevel={2} tabIndex={-1}>
+          <div className="flex flex-col gap-3">
+            <TurnWait remainingMs={turnRemainingMs} panelId="turn-wait" />
+            <p className="text-ink-muted text-reading max-w-measure">
+              {t('decision.turnBody', { limit: Math.round(TURN_WINDOW_MS / 60_000) })}
+            </p>
+          </div>
+        </Panel>
 
-          {frame !== null && (
+        {/* Two columns from `2xl`: what was filed, and the one thing that can still be written
+            beside it. Below that they stack in the reading order the markup already has, so the
+            visual order and the focus order agree. */}
+        <div className="grid gap-6 2xl:grid-cols-[minmax(0,7fr)_minmax(0,5fr)] 2xl:items-start">
+          <div className="flex min-w-0 flex-col gap-6">
             <Panel
-              id="locked-frame"
-              title={t('decision.frameTitle')}
-              description={t('decision.frameBody')}
+              id="locked-brief"
+              title={t('decision.briefTitle')}
+              description={t('decision.briefPermanent')}
               headingLevel={2}
               padding="reading"
+              actions={
+                brief?.lockedAt == null ? undefined : (
+                  <p className="text-ink text-mono-sm font-mono tabular-nums">
+                    {t('decision.briefLockedAt', { when: formatDateTime(brief.lockedAt) })}
+                  </p>
+                )
+              }
             >
-              <FramePanel frame={frame} />
-            </Panel>
-          )}
-        </div>
-
-        <div className="flex min-w-0 flex-col gap-6">
-          <Panel id="turn-wait" title={t('decision.turnTitle')} headingLevel={2}>
-            <div className="flex flex-col gap-3">
-              {turnRemainingMs === null ? null : (
-                <Clock
-                  clock={{ remainingMs: turnRemainingMs, paused: false }}
-                  label={t('decision.turnCountdownLabel')}
-                  thresholds={false}
-                  className="w-fit"
-                />
+              {brief === null ? (
+                <div className="flex flex-col gap-2">
+                  <h3 className="text-h4">{t('decision.briefMissingTitle')}</h3>
+                  <p className="text-ink-muted text-reading max-w-measure">
+                    {t('decision.briefMissingBody')}
+                  </p>
+                </div>
+              ) : (
+                <FiledBrief brief={brief} namedFields={namedFields} />
               )}
-              <p className="text-ink-muted text-reading max-w-[72ch]">{t('decision.turnBody')}</p>
-            </div>
-          </Panel>
+            </Panel>
+
+            {frame !== null && (
+              <Panel
+                id="locked-frame"
+                title={t('decision.frameTitle')}
+                description={t('decision.frameBody')}
+                headingLevel={2}
+                padding="reading"
+              >
+                <FramePanel frame={frame} />
+              </Panel>
+            )}
+          </div>
 
           <Panel
             id="addendum"
@@ -147,24 +163,25 @@ export default async function RunLockedPage({ params }: PageProps<'/runs/[runId]
             }
             {...(addendum === null ? { description: t('decision.addendumBody') } : {})}
             headingLevel={2}
+            className="min-w-0 self-start"
           >
             {addendum === null ? (
               canAddAddendum ? (
                 <AddendumControl runId={run.id} canAdd />
               ) : (
-                <p className="text-ink-muted text-body max-w-[72ch]">
+                <p className="text-ink-muted text-body max-w-measure">
                   {t('decision.addendumClosed')}
                 </p>
               )
             ) : (
               <div className="flex flex-col gap-2">
-                <p className="text-ink text-reading max-w-[72ch] whitespace-pre-line">
+                <p className="text-ink text-reading max-w-measure whitespace-pre-line">
                   {addendum.text}
                 </p>
                 <p className="text-ink-muted text-meta">
                   {t('decision.addendumWrittenAt', { when: formatDateTime(addendum.createdAt) })}
                 </p>
-                <p className="text-ink-muted text-meta max-w-[72ch]">
+                <p className="text-ink-muted text-meta max-w-measure">
                   {t('decision.addendumUsedNote')}
                 </p>
               </div>
@@ -206,14 +223,14 @@ function FiledBrief({
           <ol className="flex flex-col gap-2">
             {brief.assumptions.map((assumption, index) => (
               <li key={`assumption-${String(index)}`} className="flex flex-col gap-0.5">
-                <span className="text-ink-muted text-meta">
+                <span className="text-ink-muted text-meta max-w-measure">
                   {t('decision.briefAssumption', { number: index + 1 })}
                 </span>
                 <span
                   className={
                     assumption.trim() === ''
-                      ? 'text-ink-muted text-reading'
-                      : 'text-ink text-reading max-w-[72ch]'
+                      ? 'text-ink-muted text-reading max-w-measure'
+                      : 'text-ink text-reading max-w-measure'
                   }
                 >
                   {assumption.trim() === '' ? t('decision.briefEmptyField') : assumption}
@@ -244,7 +261,7 @@ function FiledBrief({
                 const value = brief.namedValues[field.key]
                 return (
                   <li key={field.key} className="flex flex-col gap-0.5">
-                    <span className="text-ink-muted text-meta">
+                    <span className="text-ink-muted text-meta max-w-measure">
                       {t('decision.briefFigureUnit', {
                         label: field.label,
                         unit: UNIT_LABELS[field.unit],
@@ -253,7 +270,7 @@ function FiledBrief({
                     <span
                       className={
                         value === undefined
-                          ? 'text-ink-muted text-body'
+                          ? 'text-ink-muted text-body max-w-measure'
                           : 'text-ink text-mono font-mono tabular-nums'
                       }
                     >
@@ -278,8 +295,8 @@ function Entry({ label, value }: { label: string; value: string }) {
       <dd
         className={
           empty
-            ? 'text-ink-muted text-reading'
-            : 'text-ink text-reading max-w-[72ch] whitespace-pre-line'
+            ? 'text-ink-muted text-reading max-w-measure'
+            : 'text-ink text-reading max-w-measure whitespace-pre-line'
         }
       >
         {empty ? t('decision.briefEmptyField') : value}

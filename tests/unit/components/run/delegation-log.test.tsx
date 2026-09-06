@@ -41,6 +41,20 @@ const ENTRY: DelegationView = {
 }
 
 const actions = vi.hoisted(() => ({ updateDelegationAction: vi.fn() }))
+const router = vi.hoisted(() => ({ refresh: vi.fn() }))
+
+// A used mark changes what the Decision Lock will ask for (FR-084), so the log asks for the page
+// again after one; nothing else here re-renders the workspace (D-319).
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({
+    push: vi.fn(),
+    refresh: router.refresh,
+    replace: vi.fn(),
+    prefetch: vi.fn(),
+    back: vi.fn(),
+    forward: vi.fn(),
+  }),
+}))
 
 // The real modules drag the assistant and reliance services and the database into jsdom.
 vi.mock('@/server/modules/reliance/actions', () => ({
@@ -185,19 +199,21 @@ describe('DelegationLog (UI-023, FR-060)', () => {
     })
 
     const claims = screen.getByRole('list', { name: enUS['workspace.logClaimsTitle'] })
-    expect(within(claims).getByText(enUS['workspace.claimUsed'])).toBeInTheDocument()
+    expect(within(claims).getByText(enUS['label.used'])).toBeInTheDocument()
     expect(
       screen.queryByRole('button', {
         name: enUS['workspace.logMarkUsedFor'].replace('{key}', 'C3'),
       }),
     ).not.toBeInTheDocument()
     expect(screen.queryByRole('checkbox')).not.toBeInTheDocument()
+    // The mark is a route into reliance, so the screen that reads reliance is asked for again.
+    expect(router.refresh).toHaveBeenCalled()
   })
 
   it('keeps a mark the run already carries, with no control to undo it', () => {
     renderLog([{ ...ENTRY, claims: [{ ...ENTRY.claims[0]!, usedMarked: true, stance: 'verify' }] }])
 
-    expect(screen.getByText(enUS['workspace.claimUsed'])).toBeInTheDocument()
+    expect(screen.getByText(enUS['label.used'])).toBeInTheDocument()
     expect(screen.getByText(enUS['stance.verify'])).toBeInTheDocument()
     expect(
       screen.queryByRole('button', {

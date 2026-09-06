@@ -204,7 +204,6 @@ export function DocumentReader({ runId, documentId, labelledBy }: DocumentReader
               <Button
                 type="button"
                 variant="secondary"
-                size="sm"
                 onClick={() => {
                   setReading({ status: 'opening' })
                   setAttempt((n) => n + 1)
@@ -224,7 +223,7 @@ export function DocumentReader({ runId, documentId, labelledBy }: DocumentReader
   return (
     <article aria-labelledby={labelledBy} className="flex flex-col gap-4 py-3">
       {reading.notice !== null && <FormAlert message={reading.notice} />}
-      <div className="flex max-w-[72ch] flex-col gap-4">
+      <div className="max-w-measure flex flex-col gap-4">
         {paragraphs.map((paragraph, index) => (
           <p
             key={paragraph.slice(0, 48) + String(index)}

@@ -55,6 +55,12 @@ export {
 
 export type { PauseOptions, PausingRun } from './service'
 
+// The Turn window's length, so a screen that names it in prose and a screen that counts it down
+// read one number (`decision.turnBody`, D-327). It is a pilot parameter rather than a constant of
+// the product, which is exactly why no page may restate it; it travels through the service because
+// that is the one internal file this index may reach (the `boundaries` policy).
+export { TURN_WINDOW_MS } from './service'
+
 export type {
   AddendumInput,
   AddendumView,

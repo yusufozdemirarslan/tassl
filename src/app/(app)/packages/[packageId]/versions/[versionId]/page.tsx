@@ -234,7 +234,7 @@ export default async function PackageVersionPage({
             <div className="flex flex-col gap-5">
               <section className="border-line flex flex-col gap-2 border-b pb-5">
                 <h3 className="text-h4">{t('packageVersion.restrictedTitle')}</h3>
-                <p className="text-ink-muted text-body max-w-[72ch]">
+                <p className="text-ink-muted text-body max-w-measure">
                   {t('packageVersion.restrictedBody')}
                 </p>
               </section>
@@ -302,7 +302,7 @@ function Fact({ label, children }: { label: string; children: ReactNode }) {
  */
 function Refusal({ children, action }: { children: ReactNode; action?: ReactNode }) {
   return (
-    <div className="border-red bg-red-soft text-ink text-body flex max-w-[72ch] items-start gap-2 rounded-md border p-3">
+    <div className="border-red bg-red-soft text-ink text-body max-w-measure flex items-start gap-2 rounded-md border p-3">
       <CircleAlertIcon aria-hidden="true" className="text-red mt-0.5 size-4 shrink-0" />
       <div className="flex min-w-0 flex-1 flex-col items-start gap-3">
         <p>{children}</p>
@@ -367,7 +367,7 @@ function AuthoringRecord({
         <h3 className="text-h4">{t('packageVersion.seedTitle')}</h3>
 
         {seed === null ? (
-          <p className="text-ink-muted text-body max-w-[72ch]">
+          <p className="text-ink-muted text-body max-w-measure">
             {t('packageVersion.seedWithheld')}
           </p>
         ) : (
@@ -380,9 +380,9 @@ function AuthoringRecord({
               <h4 className="text-reading">{t('packageVersion.licenseTermsLabel')}</h4>
               {/* Licence boilerplate at the reading size was the largest body copy on the screen;
                   it is quoted terms, not a passage anybody reads at length. */}
-              <p className="text-ink text-body max-w-[72ch]">{seed.licenseTerms}</p>
+              <p className="text-ink text-body max-w-measure">{seed.licenseTerms}</p>
               {seed.licensePermitsAdaptation ? (
-                <p className="text-ink text-body flex max-w-[72ch] items-start gap-2">
+                <p className="text-ink text-body max-w-measure flex items-start gap-2">
                   <BadgeCheckIcon
                     aria-hidden="true"
                     className="text-green mt-0.5 size-4 shrink-0"

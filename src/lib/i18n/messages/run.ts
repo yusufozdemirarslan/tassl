@@ -172,7 +172,9 @@ export const run = {
   // ---------------------------------------------------------------------------------------------
   'run.frameRegion': 'Run',
   'run.frameAssignmentLabel': 'Assignment',
-  'run.frameToggle': 'Frame',
+  // `frameToggle` stood here for a disclosure in the band that no caller ever passed. The frozen
+  // frame is `FramePanel` on the screens that have one and the band is the label, the state and the
+  // clock, which is what lets it be sticky at every width (D-311, D-312).
   'run.clockLabel': 'Working clock',
   'run.clockPaused': 'Paused',
   // Announced once, at the moment the clock reads it, and never on the seconds in between

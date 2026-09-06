@@ -130,9 +130,9 @@ export function DeclarationControl({ runId }: DeclarationControlProps) {
                   }}
                   aria-invalid={message ? true : undefined}
                   aria-describedby={`${message ? `${formId}-error` : `${formId}-hint`} ${formId}-count`}
-                  className={cn('max-w-[72ch]', over && 'border-red')}
+                  className={cn('max-w-measure', over && 'border-red')}
                 />
-                <div className="flex max-w-[72ch] flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+                <div className="max-w-measure flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
                   <div className="min-w-0 flex-1">
                     {message ? (
                       <FieldError id={`${formId}-error`}>{message}</FieldError>
@@ -187,7 +187,7 @@ export function DeclarationControl({ runId }: DeclarationControlProps) {
         </div>
 
         {/* The sentence that makes the control safe to use, always on screen (FR-061, FR-062). */}
-        <p className="text-ink-muted text-body max-w-[72ch]">
+        <p className="text-ink-muted text-body max-w-measure">
           {t('workspace.declarationNoPenalty')}
         </p>
 

@@ -40,7 +40,7 @@ export function BriefPanel({ text }: BriefPanelProps) {
       {paragraphs.length === 0 ? (
         <p className="text-ink-muted text-reading">{t('workspace.briefEmpty')}</p>
       ) : (
-        <div className="flex max-w-[72ch] flex-col gap-4">
+        <div className="max-w-measure flex flex-col gap-4">
           {paragraphs.map((paragraph, index) => (
             <p
               key={paragraph.slice(0, 48) + String(index)}

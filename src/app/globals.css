@@ -146,6 +146,15 @@
   --text-h1: 2.25rem;
   --text-h1--line-height: 2.75rem;
 
+  /* The Reading Measure (DESIGN.md §Typography): 72 *characters*, which is not 72 `ch`.
+     The `ch` unit is the advance of "0", and IBM Plex Sans sets its digits wider than its average
+     letter — a 72ch clamp measured 86 characters a line in the browser, well past the 65–75 a
+     reading measure is. 60ch is the width that renders ~72 characters in this face, and because it
+     is still a `ch` it holds at every step of the type scale: the same utility gives the same
+     character count on 16/26 reading text and on 13/20 meta. Used as `max-w-measure` on every
+     prose surface (D-317). */
+  --container-measure: 60ch;
+
   --radius-sm: 2px;
   --radius-md: 6px;
   --radius-lg: 10px;
@@ -274,6 +283,13 @@
     html {
       scroll-padding-bottom: 5rem;
     }
+  }
+
+  /* The run's `RunFrame` band is sticky at the top of every `/runs/[runId]` screen (D-311), so an
+     element scrolled to by an anchor, a focus move or "Go to the claim" must clear it or it lands
+     underneath. 6.5rem is the band at its tallest (two wrapped rows plus its paper gutter). */
+  html {
+    scroll-padding-top: 6.5rem;
   }
 
   @media (prefers-reduced-motion: reduce) {

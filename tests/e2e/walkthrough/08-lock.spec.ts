@@ -191,10 +191,21 @@ test('walkthrough step 8: the lock gate refuses, the decision is filed, and the 
   await assistant.getByRole('button', { name: 'Ask the assistant' }).click()
   await expect(assistant.locator('#assistant-reply-status')).toContainText('Reply complete')
 
+  // The mark is the log's own control (D-270); the claim is *worked* in the reply that raised it,
+  // which is where the stance below is taken (D-313).
   const logCard = log.getByRole('article', { name: `Claim ${CLAIM_KEY}` })
+  const workCard = assistant.getByRole('article', { name: `Claim ${CLAIM_KEY}` })
   await expect(logCard).toBeVisible()
+  await expect(logCard).toContainText('You are taking a position on this claim in the reply above.')
   await log.getByRole('button', { name: `Mark claim ${CLAIM_KEY} as used` }).click()
   await expect(logCard).toContainText('You marked this claim used in the Delegation Log.')
+
+  // FR-084 said before the irreversible press rather than by it (D-319): the claim now wears the
+  // mark on its own card, and the lock says how many claims it is going to ask about.
+  await expect(workCard).toContainText('No stance yet')
+  await expect(editor).toContainText(
+    'One claim you leaned on has no stance yet. Filing asks for one on it.',
+  )
 
   // -------------------------------------------------------------------------------------------
   // The brief (FR-100), written into the editor the workspace's third column carries
@@ -220,6 +231,10 @@ test('walkthrough step 8: the lock gate refuses, the decision is filed, and the 
   await editor.getByRole('button', { name: 'Lock the decision' }).click()
   const confirm = page.getByRole('alertdialog')
   await expect(confirm).toContainText('File this decision?')
+  // An irreversible press shows what it is about to file, in the student's own words and with no
+  // mark on any of it (D-319).
+  await expect(confirm).toContainText('What will be filed')
+  await expect(confirm).toContainText(BRIEF.recommendation)
   await confirm.getByRole('button', { name: 'File it' }).click()
 
   const claims = await readJson<{ id: string; key: string; text: string }[]>(
@@ -259,7 +274,7 @@ test('walkthrough step 8: the lock gate refuses, the decision is filed, and the 
   // The stance, then the lock with the figure the decision rests on (FR-080, FR-101, FR-102)
   // -------------------------------------------------------------------------------------------
 
-  const stances = logCard.getByRole('radiogroup', { name: `Your stance on claim ${CLAIM_KEY}` })
+  const stances = workCard.getByRole('radiogroup', { name: `Your stance on claim ${CLAIM_KEY}` })
   await stances.getByRole('radio', { name: 'Challenge' }).click()
   await expect(stances.getByRole('radio', { name: 'Challenge' })).toHaveAttribute(
     'aria-checked',

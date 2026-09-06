@@ -228,10 +228,15 @@ test('the student run screens have no axe violations', async ({ page, request })
 
   // A claim card with its controls, and the brief editor with something in it: a form nobody has
   // typed into has no counter to associate and no numeric field to name.
-  const claimCard = page
-    .locator('#delegation-log')
-    .getByRole('article', { name: `Claim ${CLAIM_KEY}` })
+  //
+  // The card with the controls is the assistant's: a claim is worked where it was most recently
+  // surfaced, and the Delegation Log's copy of a claim the reply is holding draws the record
+  // instead of a second identical instrument (D-313).
+  const claimCard = assistant.getByRole('article', { name: `Claim ${CLAIM_KEY}` })
   await expect(claimCard.getByRole('radiogroup')).toBeVisible()
+  await expect(
+    page.locator('#delegation-log').getByRole('article', { name: `Claim ${CLAIM_KEY}` }),
+  ).toContainText('You are taking a position on this claim in the reply above.')
   const editor = page.locator('#brief-editor-panel')
   await editor
     .getByLabel('Your recommendation')

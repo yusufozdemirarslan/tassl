@@ -90,7 +90,7 @@ export default async function AcceptInvitationPage({
         headingLevel={2}
       >
         <div className="flex flex-col gap-4">
-          <p className="text-ink text-body max-w-[72ch]">
+          <p className="text-ink text-body max-w-measure">
             {t('invitation.body', { name: invitation.organizationName })}
           </p>
           <dl className="text-body flex flex-wrap items-baseline gap-x-2">

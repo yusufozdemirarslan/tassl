@@ -3,7 +3,7 @@
 import { useId, useState, type ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
 import { FormAlert } from '@/components/features/account/form-feedback'
-import { Badge } from '@/components/ui/badge'
+import { LabelChip } from '@/components/layout/label-chip'
 import { Button } from '@/components/ui/button'
 import { t } from '@/lib/i18n/messages/workspace'
 import { runActionAction } from '@/server/modules/reliance/actions'
@@ -20,6 +20,7 @@ import {
   type TracedDocument,
 } from './action-result-sheet'
 import { EscalationDialog } from './escalation-dialog'
+import { useRunWork } from './run-work-context'
 import { StanceControl } from './stance-control'
 import { StanceChip } from './stance-chip'
 
@@ -33,42 +34,59 @@ import { StanceChip } from './stance-chip'
 // student before their run is scored (12 §8.1, CLAIM invariants in CLAUDE.md). What a claim
 // deserved is the debrief's to say, afterwards.
 //
+// **The one mark it does draw is about the student's own record** (D-319). `reliedOn` is set by
+// their acts and by nothing an author wrote — a used mark in the log, a figure of theirs matching a
+// claim's at the lock, a claim the Turn put in front of them — so a claim they leaned on with no
+// stance on it wears "No stance yet". It is the same fact FR-084's refusal carries, said where it
+// can still be acted on cheaply instead of at the irreversible press.
+//
 // It is an `article` with a heading because that is what it is: a discrete object a student reads,
 // positions themselves on, and comes back to. UI-023 asks for exactly that, and it is what lets a
 // screen-reader user step through a reply by heading and land on each claim rather than on one wall
-// of prose. `data-claim-id` and a `-1` tabindex are on the article for one reason: the Decision
-// Lock's refusal names a claim and offers "Go to the claim" (UI-024), and that control has to be
-// able to reach this element and put the focus in it.
+// of prose. `data-claim-id` and a `-1` tabindex go on the copy that carries the controls and on no
+// other: the Decision Lock's refusal names a claim and offers "Go to the claim" (UI-024, D-306),
+// and that control must land on the card that can answer it rather than on whichever copy the
+// document happened to reach first.
 //
 // **It is not a card inside a card.** DESIGN.md's One-Layer Rule keeps raised, bordered surfaces
 // from nesting, and this always renders inside a `Panel`. So the claim object reads as a sunken
 // well — the same paper the product uses for a highlight — with no border and no shadow.
 //
 // The stance control is a *slot*, and `ClaimControls` below is what fills it. The two are separate
-// because a claim is drawn in two places and the controls are the same in both: inside the
-// assistant's live reply, and in the Delegation Log, which is server-rendered and therefore the
-// copy that survives a reload. A card with no controls passed still draws — that is the Turn's
-// read-only record and the reviewer's replay, later — and says nothing where the controls would be.
+// because a claim is drawn in two places: inside the assistant's live reply, and in the Delegation
+// Log, which is server-rendered and therefore the copy that survives a reload. Only one of them
+// carries the instrument at a time — the reply while it is holding the claim, the log otherwise
+// (`run-work-context.tsx`, D-313) — and a card with no controls passed still draws, which is also
+// the Turn's read-only record and the reviewer's replay.
 
 export type ClaimCardProps = {
-  claim: Pick<ClaimView, 'id' | 'key' | 'text' | 'stance' | 'usedMarked'>
+  claim: Pick<ClaimView, 'id' | 'key' | 'text' | 'stance' | 'usedMarked' | 'reliedOn'>
   /** `ClaimControls`, or a mark control a caller supplies. Absent, the seat draws nothing. */
   stanceControl?: ReactNode
   /** Controls that belong to the card's own header rather than to the claim: the used mark. */
   actions?: ReactNode
+  /** Where the claim is worked, when it is not worked here (`workspace.claimWorkedInReply`). */
+  deferredNote?: string
   /** The reply's cards sit under the panel's h2; the Turn's window claims sit a level deeper. */
   headingLevel?: 3 | 4
 }
 
-export function ClaimCard({ claim, stanceControl, actions, headingLevel = 3 }: ClaimCardProps) {
+export function ClaimCard({
+  claim,
+  stanceControl,
+  actions,
+  deferredNote,
+  headingLevel = 3,
+}: ClaimCardProps) {
   const headingId = useId()
   const Heading = `h${headingLevel}` as const
+  // The copy that can answer the Decision Lock's refusal is the copy that carries the controls.
+  const anchored = stanceControl !== undefined
 
   return (
     <article
       aria-labelledby={headingId}
-      data-claim-id={claim.id}
-      tabIndex={-1}
+      {...(anchored ? { 'data-claim-id': claim.id, tabIndex: -1 } : {})}
       className="bg-paper-sunken focus-visible:outline-focus flex flex-col gap-3 rounded-md p-4 focus-visible:outline-2 focus-visible:outline-offset-2"
     >
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
@@ -81,18 +99,30 @@ export function ClaimCard({ claim, stanceControl, actions, headingLevel = 3 }: C
           {stanceControl === undefined && claim.stance !== null && (
             <StanceChip stance={claim.stance} />
           )}
+          {/* The student's own record, drawn before the lock rather than by it (FR-084, D-319).
+              The amber warning chip is DESIGN.md's provisional mark and takes its own wording. */}
+          {claim.reliedOn && claim.stance === null && (
+            <span className="inline-flex items-center">
+              <LabelChip kind="warning" label={t('workspace.claimNeedsStance')} />
+              <span className="sr-only"> {t('workspace.claimNeedsStanceExplain')}</span>
+            </span>
+          )}
           {claim.usedMarked && (
-            <Badge variant="secondary">
-              {t('workspace.claimUsed')}
+            <span className="inline-flex items-center">
+              <LabelChip kind="used" />
               <span className="sr-only"> {t('workspace.claimUsedExplain')}</span>
-            </Badge>
+            </span>
           )}
           {actions}
         </div>
       </div>
 
       {/* The author's words, and the one thing on this screen a student may treat as evidence. */}
-      <p className="text-ink text-reading max-w-[72ch]">{claim.text}</p>
+      <p className="text-ink text-reading max-w-measure">{claim.text}</p>
+
+      {deferredNote !== undefined && (
+        <p className="text-ink-muted text-meta max-w-measure">{deferredNote}</p>
+      )}
 
       {stanceControl}
     </article>
@@ -117,6 +147,19 @@ function escalationCostSentence(clockCostMs: number): string {
   return t('workspace.escalationCost', { minutes })
 }
 
+/**
+ * The two clock-spending controls, in the register DESIGN.md's accent rule leaves them.
+ *
+ * "Keep one accent per screen: teal for the action the visitor is there to take." The act being
+ * assessed on a claim is the stance, and the teal used to sit on the two controls that *spend* the
+ * clock while the five stance chips sat in ink on white — the screen was pointing at its costs
+ * (D-323). So the checks and the escalation take the ghost treatment with a control hairline: they
+ * keep their target, their boundary and their focus ring, and the accent goes to the stance group,
+ * where an unanswered claim now wears it. The hover lifts to raised paper rather than to the sunken
+ * wash, because the claim card *is* the sunken wash.
+ */
+const WELL_CONTROL = 'border-line-control bg-transparent hover:bg-paper-raised'
+
 export type ClaimControlsProps = {
   runId: string
   /** The claim as the page last read it; the controls hold the changes they make to it. */
@@ -130,6 +173,15 @@ export type ClaimControlsProps = {
    * from": the room already lists every document by key and title, and this is the same list.
    */
   documents?: readonly TracedDocument[]
+  /**
+   * The id of the panel's one copy of the stance hint (D-314).
+   *
+   * The sentence under the chips never changes, and a reply with three claims drew it three times
+   * while the log drew it once per claim of every delegation. The panel draws it once and every
+   * radio group in the panel points at that one paragraph; a control drawn outside a panel that
+   * hoists it keeps its own.
+   */
+  stanceHintId?: string | undefined
 }
 
 /**
@@ -147,10 +199,21 @@ export type ClaimControlsProps = {
  * the number in the RunFrame is materialized on read from the server's own timestamps (D-042) — so
  * asking the page for the reading is the rule for every timer in the product, and doing the
  * arithmetic here would be a second opinion about it.
+ *
+ * **Nothing here announces on its own.** Every sentence a claim act produces goes to the screen's
+ * one polite region (`run-work-context.tsx`, D-314); a busy reply used to carry a live region per
+ * claim, and three of them could speak at once with nobody owning the order.
  */
-export function ClaimControls({ runId, claim, canWrite, documents = [] }: ClaimControlsProps) {
+export function ClaimControls({
+  runId,
+  claim,
+  canWrite,
+  documents = [],
+  stanceHintId,
+}: ClaimControlsProps) {
   const router = useRouter()
   const spentId = useId()
+  const { announce } = useRunWork()
   const [held, setHeld] = useState<ClaimView>(claim)
   const [seed, setSeed] = useState<ClaimView>(claim)
   if (seed !== claim) {
@@ -162,8 +225,7 @@ export function ClaimControls({ runId, claim, canWrite, documents = [] }: ClaimC
   const [sheetOpen, setSheetOpen] = useState(false)
   const [running, setRunning] = useState(false)
   const [escalating, setEscalating] = useState(false)
-  const [failed, setFailed] = useState<string | null>(null)
-  const [announced, setAnnounced] = useState('')
+  const [failed, setFailed] = useState<{ message: string; requestId?: string } | null>(null)
 
   const actions: readonly ActionResult[] = held.actions
   const escalation: EscalationResult | null = held.escalation
@@ -177,13 +239,16 @@ export function ClaimControls({ runId, claim, canWrite, documents = [] }: ClaimC
       (result) => {
         setRunning(false)
         if (!result.ok) {
-          setFailed(result.error.message || t('workspace.actionFailed'))
+          setFailed({
+            message: result.error.message || t('workspace.actionFailed'),
+            requestId: result.error.requestId,
+          })
           return
         }
         setHeld((current) => ({ ...current, actions: [...current.actions, result.data] }))
         setReading(result.data)
         setSheetOpen(true)
-        setAnnounced(
+        announce(
           t('workspace.actionRan', {
             action: ACTION_LABELS[result.data.type](),
             key: claim.key,
@@ -194,7 +259,7 @@ export function ClaimControls({ runId, claim, canWrite, documents = [] }: ClaimC
       },
       () => {
         setRunning(false)
-        setFailed(t('workspace.actionFailed'))
+        setFailed({ message: t('workspace.actionFailed') })
       },
     )
   }
@@ -205,6 +270,7 @@ export function ClaimControls({ runId, claim, canWrite, documents = [] }: ClaimC
         runId={runId}
         claim={held}
         canWrite={canWrite}
+        hintId={stanceHintId}
         onChanged={(next) => {
           setHeld(next)
           // The same claim is drawn in the assistant's reply and in the log; the copy that did not
@@ -221,6 +287,7 @@ export function ClaimControls({ runId, claim, canWrite, documents = [] }: ClaimC
             canWrite={canWrite}
             running={running}
             onRun={run}
+            className={WELL_CONTROL}
           />
         ) : (
           <p className="text-ink-muted text-meta">{t('workspace.actionsNone')}</p>
@@ -232,7 +299,7 @@ export function ClaimControls({ runId, claim, canWrite, documents = [] }: ClaimC
           <Button
             type="button"
             variant="ghost"
-            size="sm"
+            className={WELL_CONTROL}
             onClick={() => {
               setReading(actions[actions.length - 1] ?? null)
               setSheetOpen(true)
@@ -248,8 +315,8 @@ export function ClaimControls({ runId, claim, canWrite, documents = [] }: ClaimC
         {escalation === null && (
           <Button
             type="button"
-            variant="secondary"
-            size="sm"
+            variant="ghost"
+            className={WELL_CONTROL}
             aria-label={t('workspace.escalateFor', { key: claim.key })}
             aria-disabled={canWrite && remaining > 0 ? undefined : true}
             // A control that stays reachable says why it is refusing (DESIGN.md §Buttons): the run
@@ -272,26 +339,34 @@ export function ClaimControls({ runId, claim, canWrite, documents = [] }: ClaimC
         </p>
       )}
 
-      {failed !== null && <FormAlert message={failed} />}
-
-      {/* Stays mounted and collapses when empty, so the announcement fires on the sentence
-          changing rather than on the region being inserted. */}
-      <p role="status" className="text-ink-muted text-meta empty:hidden">
-        {announced}
-      </p>
+      {failed !== null && (
+        <FormAlert
+          message={failed.message}
+          reference={
+            failed.requestId === undefined
+              ? undefined
+              : { label: t('workspace.errorReference'), id: failed.requestId }
+          }
+        />
+      )}
 
       {escalation !== null && (
         <section
           aria-label={t('workspace.escalationTitle')}
           className="border-line flex flex-col gap-2 border-t pt-3"
         >
-          {/* A labelled paragraph rather than a heading: the section is already named, and
+          {/* Labelled paragraphs rather than headings: the section is already named, and
               DESIGN.md's Descending-Heading Rule puts the rung below h5 in bold body rather than
               in a heading set smaller than the prose it introduces. */}
           <p className="text-ink-muted text-meta font-medium">
+            {t('workspace.escalationYouWrote')}
+          </p>
+          {/* Their own sentence, kept beside the answer it bought (D-318). */}
+          <p className="text-ink text-reading max-w-measure">{escalation.statement}</p>
+          <p className="text-ink-muted text-meta font-medium">
             {t('workspace.escalationAnswered')}
           </p>
-          <p className="text-ink text-reading max-w-[72ch] whitespace-pre-line">
+          <p className="text-ink text-reading max-w-measure whitespace-pre-line">
             {escalation.responseText}
           </p>
           <p className="text-ink-muted text-meta">
@@ -329,7 +404,7 @@ export function ClaimControls({ runId, claim, canWrite, documents = [] }: ClaimC
               previousStance:
                 current.stance === 'escalate' ? current.previousStance : current.stance,
             }))
-            setAnnounced(t('workspace.escalationDone', { key: claim.key }))
+            announce(t('workspace.escalationDone', { key: claim.key }))
             // Five minutes came off the clock; the band above reads it from the server.
             router.refresh()
           }}

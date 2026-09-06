@@ -261,12 +261,16 @@ their own style; this rule governs prose headings written inside a section.
 
 **The Tabular Clock Rule.** Anything that counts (the clock, word counts, confidence) uses Mono with tabular figures so digits never shift.
 
-**The Reading Measure Rule.** Student writing surfaces use 16/26 Sans at a 72ch maximum; UI chrome stays at 14/22.
+**The Reading Measure Rule.** Student writing surfaces use 16/26 Sans at a **72-character** maximum; UI chrome stays at 14/22.
+
+The clamp is the `max-w-measure` utility, backed by `--container-measure: 60ch` in `src/app/globals.css`, and never a hand-written `max-w-[72ch]`. Seventy-two `ch` is not seventy-two characters: the `ch` unit is the advance of "0", IBM Plex Sans sets its digits wider than its average letter, and a 72ch clamp measured 86 characters a line in the browser — past the top of the 65–75 band a measure lives in. 60ch renders about 72 characters in this face, and because it is still a `ch` it holds at every step of the scale: the same utility gives the same character count on 16/26 reading text and on 13/20 meta (D-317).
 
 ## Layout
 
 - Spacing scale: 4, 8, 12, 16, 24, 32, 48, 64 px (`--space-1` … `--space-8`). In Tailwind classes these are `p-1`, `p-2`, `p-3`, `p-4`, `p-6`, `p-8`, `p-12`, `p-16` on the default 4 px scale, which is never remapped. Page gutter 24 px at `md` and above (16 px under it); panel padding 16 px; dense table cells 8 px.
-- Breakpoints: `sm` 640, `md` 768, `lg` 1024, `xl` 1280. The app shell is a 56 px header, a 224 px left rail, and `main` at `md` and above; under `md` the rail becomes a fixed bottom bar and `main` keeps 80 px clear beneath its content for it. The run workspace is three columns at `lg` (Evidence Room | assistant and claims | brief and log), two at `md` with tabs, one under `md` with a bottom tab bar.
+- Breakpoints: `sm` 640, `md` 768, `lg` 1024, `xl` 1280, `2xl` 1536. The app shell is a 56 px header, a 224 px left rail, and `main` at `md` and above; under `md` the rail becomes a fixed bottom bar and `main` keeps 80 px clear beneath its content for it.
+- **The writing screens split at `2xl` and at no width below it.** A screen a student writes on is one column until the width at which a two-column split can still hold the full reading measure in the writing column, and two columns from there. `2xl` (1536) is that width: `main` is then 1264 px, and a 5/6 split leaves the writing column about 677 px, which is the ~650 px a 60ch measure needs plus its 24 px panel padding. Below it the writing runs full width and the measure clamps it. The rule exists because the alternative was measured and is worse: the run workspace's three columns at `lg` gave the Decision Brief 216 px and about twenty characters a line, and dragging the window from 1023 to 1024 made the editor _narrower_. A layout that shrinks the writing surface as the window grows is a bug, not a breakpoint (D-310).
+- **The run's `RunFrame` band is sticky** at the top of every `/runs/[runId]` screen, with the paper ground carried out to `main`'s gutter so panels scroll under it. The clock's amber and red thresholds are a visual signal, and a band that scrolls away fires them off-screen. `html { scroll-padding-top }` clears it for anchors and focus moves (D-311).
 - Density: matrix and timeline at 12/18 Mono with 8 px cells and a sticky first column when scrolling horizontally; writing surfaces at 16/26 with 24 px padding.
 - Minimum touch target 40 px; nothing requires hover; every action is reachable by keyboard and tap.
 - Sections are separated by whitespace and hairlines, never by nested containers.
@@ -307,7 +311,7 @@ Every component takes its strings from `t()`, is keyboard operable, and shows th
 
 ### Chips
 
-- **Label chips** (`draft`, `confirmed`, `uncalibrated`, `walkthrough`, `provisional`, `unreviewed`, `sample`, `warning`, `planted`): 2 px radius, 13/20 weight 500 ink text, a soft fill (`--amber-soft`, `--green-soft`, `--primary-soft`, `--paper-sunken`, and `--red-soft` for `planted` alone — the one label that names something an author placed for a student to find), a 2 px left border and a 16 px icon in the strong color.
+- **Label chips** (`draft`, `confirmed`, `uncalibrated`, `walkthrough`, `provisional`, `unreviewed`, `sample`, `warning`, `planted`, `used`): 2 px radius, 13/20 weight 500 ink text, a soft fill (`--amber-soft`, `--green-soft`, `--primary-soft`, `--paper-sunken`, and `--red-soft` for `planted` alone — the one label that names something an author placed for a student to find), a 2 px left border and a 16 px icon in the strong color. `used` is teal (`--primary-soft`, anchor icon): the student's own record that they leaned on a claim, and the one label chip that appears on a run screen (D-315).
 - **Stance chips:** pill, 40 px tall, `--paper-raised` fill with a hairline border at rest; when selected the fill is the stance color's wash and the border and icon are the stance color; the text stays ink. Five chips behave as a radio group.
 - **Badge** (shadcn primitive): the same shape as a label chip (24 px tall, 2 px radius, 13/20 weight 500, soft fill with the strong color for text or border, no glow); product labels use `LabelChip`, Badge is for counts and ad-hoc tags.
 
@@ -336,7 +340,7 @@ Every component takes its strings from `t()`, is keyboard operable, and shows th
 ### Overlays, tabs, tables, and feedback
 
 - **Menus and popovers:** raised paper, 1 px `--line` border, 6 px radius, `--shadow-float`, 200 ms `--ease-out`; menu rows 40 px with a `--paper-sunken` highlight (select options highlight in `--primary-soft` with `--primary` text) and the focus recipe inset; a menu is at least as wide as its anchor and never wider than 384 px or the viewport minus 32 px, a select popup matches its anchor’s width, and a popover is 288 px.
-- **Dialogs and sheets:** dialogs take the 10 px radius and edge-anchored sheets stay square; raised paper, `--shadow-float`, serif title in the h4 size, body text in `--ink-muted`; the scrim is `--ink` at 10 %.
+- **Dialogs and sheets:** dialogs take the 10 px radius and edge-anchored sheets stay square; raised paper, `--shadow-float`, serif title in the h4 size, body text in `--ink-muted`; the scrim is `--ink` at 10 %. A dialog footer is separated by whitespace and one full-bleed hairline and never by a tinted, rounded, bordered strip: that is a card inside a card, which the One-Layer Rule bans in a dialog exactly as it bans it on a page (D-316).
 - **Tooltip:** `--ink` fill, `--paper` text, 13/20, 2 px radius, 150 ms fade; the popup has `role="tooltip"` and the trigger points at it with `aria-describedby`.
 - **Toast:** Plex Sans on raised paper with `--shadow-float`, title in ink, description in `--ink-muted`; the region is labelled "Messages".
 - **Tabs:** a `--paper-sunken` list with 40 px triggers in 13/20 weight 500; the active trigger is raised paper with a hairline, no shadow. A `line` variant drops the well and marks the active trigger with a 2 px `--primary` underline.
@@ -351,7 +355,7 @@ Every component takes its strings from `t()`, is keyboard operable, and shows th
 ### Do:
 
 - **Do** use the token variables (`--paper`, `--ink`, `--primary` …) and the Tailwind color names that map to them; never a raw hex in a component.
-- **Do** keep one accent per screen: teal for the action the visitor is there to take.
+- **Do** keep one accent per screen: teal for the action the visitor is there to take. On a claim card that is the _stance_, not the checks: an unanswered stance group wears the primary on its chip borders and icons and spends it the moment a stance is taken, while the controls that cost clock take an ink label on a control hairline (D-323).
 - **Do** pair every stance and semantic color with a text label and an icon.
 - **Do** separate sections with whitespace and hairlines; one panel level only.
 - **Do** keep motion at 150 ms (state) and 200 ms (panels) with `cubic-bezier(0.2, 0, 0, 1)`, and remove it under `prefers-reduced-motion`.

@@ -173,7 +173,7 @@ export function PolicyForm({
                 aria-labelledby={legendId}
                 aria-describedby={legendNoteId}
                 onValueChange={(next) => field.onChange(next as OutsideAiPolicy)}
-                className="max-w-[72ch]"
+                className="max-w-measure"
               >
                 {POLICY_OPTIONS.map((option) => {
                   const itemId = `${fieldId}-${option.value}`
@@ -224,7 +224,7 @@ export function PolicyForm({
           </FieldDescription>
         </Field>
 
-        <Field className="max-w-[72ch]" data-invalid={errors.taughtConcepts ? 'true' : undefined}>
+        <Field className="max-w-measure" data-invalid={errors.taughtConcepts ? 'true' : undefined}>
           <FieldLabel htmlFor={conceptsId}>{t('courses.conceptsLabel')}</FieldLabel>
           <Textarea
             id={conceptsId}

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, type ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
 import { Loader2Icon, TriangleAlertIcon } from 'lucide-react'
 import { FormAlert } from '@/components/features/account/form-feedback'
@@ -17,6 +17,7 @@ import { stripMarkup } from '@/lib/words'
 import type { ClaimView } from '@/server/modules/reliance/schema'
 import type { TracedDocument } from './action-result-sheet'
 import { ClaimCard, ClaimControls } from './claim-card'
+import { useRunWork } from './run-work-context'
 
 // UI-023, middle column in `working`: the AI assistant (FR-050 to FR-053, FR-056, AI-002).
 //
@@ -35,7 +36,18 @@ import { ClaimCard, ClaimControls } from './claim-card'
 // read the whole reply aloud twice — once in pieces as it arrived, once when the student navigated
 // into it. The line below says the two facts a non-visual reader needs at the end of a stream —
 // that it is over, and how many claims it produced — and the reply beneath it is ordinary content,
-// navigable by heading.
+// navigable by heading. It is one of only two regions on the working screen that is not the
+// screen's own announcer (`run-work-context.tsx`, D-314): it speaks about the *reply* rather than
+// about a claim, so it keeps its id and its place.
+//
+// **A request that failed is still in the box.** The text used to be cleared at the press and the
+// student had to copy it back out of the echo above the reply, under a clock, to try again — so it
+// is cleared when the stream *completes* instead (D-324). ⌘ or Ctrl with Enter sends it, which is
+// what a multi-line box in a form with one submit owes a keyboard.
+//
+// **The panel holds the claims its reply is drawing, and says so.** The same claim is listed again
+// in the Delegation Log, and only one of the two copies carries the instrument: this one while the
+// reply is on screen, the log's the rest of the time (D-313).
 //
 // **Nothing on screen says whether a claim is reliable.** No hedge, no warning, no ordering by
 // trust, no marker on one claim and not another: the assistant never reveals defect status
@@ -68,6 +80,9 @@ const REQUEST_MAX_CHARS = 2000
  * where the digits were taken out and only the mark is left.
  */
 const FIGURE_MARKER = /\[\[figure:([^\]]*)\]\]/g
+
+/** The panel's one copy of the stance hint; every radio group inside it points here (D-314). */
+const STANCE_HINT_ID = 'assistant-stance-hint'
 
 /**
  * A figure the assistant used that no claim, document or request put in front of the student (D-068).
@@ -134,7 +149,7 @@ export function AssistantProse({ text, className }: AssistantProseProps) {
   if (paragraphs.length === 0) return null
 
   return (
-    <div className={cn('flex max-w-[72ch] flex-col gap-3', className)}>
+    <div className={cn('max-w-measure flex flex-col gap-3', className)}>
       {paragraphs.map((paragraph, index) => (
         <p
           key={`${paragraph.slice(0, 48)}-${String(index)}`}
@@ -175,6 +190,7 @@ export function AssistantPanel({
   lockedReason,
 }: AssistantPanelProps) {
   const router = useRouter()
+  const { setWorked } = useRunWork()
   const [request, setRequest] = useState('')
   const [invalid, setInvalid] = useState<string | null>(null)
 
@@ -183,6 +199,9 @@ export function AssistantPanel({
     // claim list beside this panel are read on the server, so the page is asked for them again —
     // this panel's own reply is client state and survives the refresh.
     onComplete: () => {
+      // The request the student typed has landed and been echoed above the reply; the box is theirs
+      // again. It is cleared here rather than at the press so a failed request is still in it.
+      setRequest('')
       router.refresh()
     },
     onFailed: (failure) => {
@@ -214,10 +233,20 @@ export function AssistantPanel({
     }
     setInvalid(null)
     // The stripped text is what the service stores and what the log will show, so it is what the
-    // reply above is captioned with as well: one request, one record of it.
-    setRequest('')
+    // reply above is captioned with as well: one request, one record of it. The box keeps it until
+    // the stream completes, so a refusal leaves the student's words where they typed them (D-324).
     send(stripped)
   }
+
+  // The claims this reply is drawing with controls. Reported to the screen so the Delegation Log's
+  // copy of each of them draws the record instead of a second identical instrument (D-313).
+  const replyClaimIds = state.segments
+    .filter((segment) => segment.type === 'claim')
+    .map((segment) => (segment.type === 'claim' ? segment.claim.id : ''))
+  const replyClaimKey = replyClaimIds.join('|')
+  useEffect(() => {
+    setWorked(replyClaimKey === '' ? [] : replyClaimKey.split('|'))
+  }, [replyClaimKey, setWorked])
 
   const failure =
     state.error === null
@@ -266,11 +295,19 @@ export function AssistantPanel({
               setRequest(event.target.value)
               if (invalid !== null) setInvalid(null)
             }}
+            onKeyDown={(event) => {
+              // A textarea takes Enter for a newline, so the send shortcut is the one every editor
+              // in a form uses: the platform modifier with Enter. It is named in the hint below.
+              if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
+                event.preventDefault()
+                ask()
+              }
+            }}
             aria-invalid={message ? true : undefined}
             aria-describedby={`${message ? 'assistant-request-error' : 'assistant-request-hint'} assistant-request-count`}
-            className={cn('text-reading max-w-[72ch]', over && 'border-red')}
+            className={cn('text-reading max-w-measure', over && 'border-red')}
           />
-          <div className="flex max-w-[72ch] flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+          <div className="max-w-measure flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
             <div className="min-w-0 flex-1">
               {message ? (
                 <FieldError id="assistant-request-error">{message}</FieldError>
@@ -319,7 +356,14 @@ export function AssistantPanel({
 
       {failure !== null && (
         <div className="mt-4">
-          <FormAlert message={failure} />
+          <FormAlert
+            message={failure}
+            reference={
+              state.error === null || state.error.requestId === undefined
+                ? undefined
+                : { label: t('workspace.errorReference'), id: state.error.requestId }
+            }
+          />
         </div>
       )}
 
@@ -330,9 +374,9 @@ export function AssistantPanel({
 
         {/* The panel's own live region, and the only one that speaks about the *reply*. It stays
             mounted and collapses when empty, so the announcement fires on the sentence changing
-            rather than on the region appearing. The claim cards below carry regions of their own —
-            each speaks about its own claim, and each is empty until something happens to it — which
-            is why this one is addressable by id. */}
+            rather than on the region appearing. Everything a claim *act* produces goes to the
+            screen's one announcer instead (`run-work-context.tsx`, D-314), which is why this one
+            keeps its id: it is about the stream, not about a claim. */}
         <p
           id="assistant-reply-status"
           role="status"
@@ -353,16 +397,27 @@ export function AssistantPanel({
               <p className="text-ink-muted text-meta font-medium">
                 {t('workspace.assistantAsked')}
               </p>
-              <p className="text-ink text-body max-w-[72ch] whitespace-pre-line">{state.request}</p>
+              <p className="text-ink text-body max-w-measure whitespace-pre-line">
+                {state.request}
+              </p>
             </div>
+
+            {/* FR-080 and FR-085, once for the panel rather than under every claim: a reply with
+                three claims drew three copies of a sentence that never changes (D-314). Every
+                stance group below points at this paragraph. */}
+            <p id={STANCE_HINT_ID} className="text-ink-muted text-meta max-w-measure">
+              {t('workspace.stanceHint')}
+            </p>
 
             {state.segments.map((segment, index) => {
               if (segment.type === 'text') {
                 return <AssistantProse key={`text-${String(index)}`} text={segment.text} />
               }
-              // The controls are the same ones the Delegation Log draws, on the same claim: a
-              // stance taken here and a stance taken there are one act on one record (FR-080), so
-              // the card reads the server's view of the claim as soon as the page has one.
+              // The controls are the same ones the Delegation Log draws, on the same claim — but
+              // never at the same time: while this reply is on screen it is the copy that carries
+              // them and the log's copy draws the record (D-313). A stance taken here and a stance
+              // taken there are one act on one record (FR-080), so the card reads the server's view
+              // of the claim as soon as the page has one.
               const claim = claims.find((held) => held.id === segment.claim.id) ?? segment.claim
               return (
                 <ClaimCard
@@ -375,6 +430,7 @@ export function AssistantPanel({
                       claim={claim}
                       canWrite={canDelegate}
                       documents={documents}
+                      stanceHintId={STANCE_HINT_ID}
                     />
                   }
                 />

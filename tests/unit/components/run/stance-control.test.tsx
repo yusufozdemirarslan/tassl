@@ -1,6 +1,7 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { RunWorkProvider } from '@/components/features/run/run-work-context'
 import { StanceControl } from '@/components/features/run/stance-control'
 import { enUS } from '@/lib/i18n/en-US'
 import type { ClaimView } from '@/server/modules/reliance/schema'
@@ -63,8 +64,19 @@ const group = () =>
 
 const chip = (label: string) => screen.getByRole('radio', { name: label })
 
+/**
+ * The control inside the screen's announcer, which is where every claim act now speaks (D-314).
+ *
+ * The provider is what the workspace wraps its working column in; a control rendered outside one
+ * still works and says nothing, which is what the Turn's read-only record and the reviewer's replay
+ * want. Here it is present, so the assertions can read the one region the screen owns.
+ */
 function renderControl(claim: ClaimView = CLAIM, canWrite = true) {
-  render(<StanceControl runId={RUN_ID} claim={claim} canWrite={canWrite} />)
+  render(
+    <RunWorkProvider>
+      <StanceControl runId={RUN_ID} claim={claim} canWrite={canWrite} />
+    </RunWorkProvider>,
+  )
   return userEvent.setup()
 }
 
@@ -155,9 +167,12 @@ describe('StanceControl (UI-023, FR-080, FR-085)', () => {
 
     await user.click(chip(enUS['stance.reject']))
 
+    // The refusal stands beside the control that refused, and is said once into the screen's one
+    // polite region rather than into a fourteenth live region of this card's own (D-314).
     await waitFor(() => {
       expect(screen.getByRole('status')).toHaveTextContent('The run is paused.')
     })
+    expect(screen.getByText('The run is paused.', { selector: 'p.text-red' })).toBeInTheDocument()
     expect(chip(enUS['stance.accept'])).toHaveAttribute('aria-checked', 'true')
     expect(chip(enUS['stance.reject'])).toHaveAttribute('aria-checked', 'false')
   })

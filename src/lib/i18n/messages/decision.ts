@@ -74,11 +74,19 @@ export const decision = {
   // student has nothing to do until it ends. The screen moves on by itself when the Turn lands.
   // ---------------------------------------------------------------------------------------------
   'decision.turnTitle': 'The Turn',
+  /** `{limit}` is `TURN_WINDOW_MS` in minutes, so the prose and the timer name one number. */
   'decision.turnBody':
-    'A message from the world arrives shortly, and the run reopens for twelve minutes so you can hold, revise or reverse. You do not need to do anything until then; this page moves on by itself.',
+    'A message from the world arrives shortly, and the run reopens for {limit} minutes so you can hold, revise or reverse. You do not need to do anything until then; this page moves on by itself.',
   'decision.turnCountdownLabel': 'Time until the Turn',
+  /**
+   * Announced on the tick that reaches zero, with the focus moved into the Turn panel (UI-024 A11y).
+   *
+   * `turnArrived` stood beside this and was unreachable: `/locked` redirects to `links.next` for any
+   * state but `decision_locked`, so this page never renders while the Turn is open and an
+   * announcement of its arrival here could never be spoken. The arrival belongs to `/turn`, which is
+   * where UI-024's own wording puts it — "focus moved to the Turn panel *after navigation*" (D-321).
+   */
   'decision.turnDue': 'The Turn is due now. This page opens it as soon as it lands.',
-  'decision.turnArrived': 'The Turn has arrived. Opening it now.',
 
   // ---------------------------------------------------------------------------------------------
   // The addendum (FR-107)
@@ -112,6 +120,9 @@ export const decision = {
   'decision.addendumLoading': 'Opening the addendum…',
   'decision.addendumUnavailable':
     'The addendum form could not be loaded, so nothing was added. Press “Add an addendum” again.',
+
+  /** The envelope's `requestId`, shown with a refusal so it can be quoted (DESIGN.md §Error state). */
+  'decision.errorReference': 'Reference',
 } as const
 
 /** `t` over this namespace alone; the key is still the full dotted key. */

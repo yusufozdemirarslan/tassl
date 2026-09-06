@@ -99,8 +99,12 @@ function DialogFooter({
   return (
     <div
       data-slot="dialog-footer"
+      // Whitespace and one full-bleed hairline, never a filled well: a tinted, rounded, bordered
+      // strip inside the raised-paper dialog is a card inside a card, which DESIGN.md's One-Layer
+      // Rule bans outright (D-316). The rule still separates the actions from the form above it;
+      // the negative inline margins are what carry it to the dialog's own edges.
       className={cn(
-        'bg-paper-sunken/50 border-line -mx-6 -mb-6 flex flex-col-reverse gap-2 rounded-b-lg border-t px-6 py-4 sm:flex-row sm:justify-end',
+        'border-line -mx-6 flex flex-col-reverse gap-2 border-t px-6 pt-4 sm:flex-row sm:justify-end',
         className,
       )}
       {...props}
