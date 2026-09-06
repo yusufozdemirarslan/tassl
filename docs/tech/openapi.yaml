@@ -4171,20 +4171,10 @@ components:
                                     - proficient
                                     - professional
                                 - type: "null"
-                          points_before:
-                            type:
-                              - number
-                              - "null"
-                          points_after:
-                            type:
-                              - number
-                              - "null"
                         required:
                           - dimensions
                           - bands_before
                           - bands_after
-                          - points_before
-                          - points_after
                         additionalProperties: false
                     required:
                       - neutralization_id

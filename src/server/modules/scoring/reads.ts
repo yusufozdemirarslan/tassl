@@ -19,12 +19,18 @@
 // likes into `quotes`, and a band's quotes are read back in the faculty replay as what the placement
 // rested on. So a returned quote is kept only when it is actually present in one of the fields this
 // file sent, and it is anchored to the trace event that field came from — `run_bands.quotes` carries
-// `{ event_seq, text }`, and an unanchored quote is not evidence.
+// `{ event_seq, text }`, and an unanchored quote is not evidence. Presence is necessary and it is
+// not sufficient: a fragment lifted out of the middle of a sentence can say the opposite of the
+// sentence, so a quote that leaves a negation behind it is refused (`anchorQuotes`, D-429).
 //
-// **A rationale is shown to a student, so it goes through the defect-word filter.** D-396 forbids a
-// band rationale that names an evidence status, a failure family or a planted claim. The prompts say
-// so and the reads are never told any of it, but an instruction is a request and a filter is a
-// guarantee (§3), so the model's sentence is filtered before it is stored.
+// **A rationale is shown to a student, so it goes through two filters.** D-396 forbids a band
+// rationale that names an evidence status, a failure family or a planted claim; 12 §8.1 forbids
+// three more things the reads are actually *given* — the Turn's `warrantsChange` and
+// `proportionateResponse` and the defense bank's `expectedAnswerNotes` — and FR-131 forbids a total,
+// a rank or a percentile anywhere. The prompts say all of it, but an instruction is a request and a
+// filter is a guarantee (§3), so the model's sentence goes through §3's list, then through
+// `BAND_RATIONALE_TERMS`, and is dropped whole if it echoes a span of the answer-key prose it was
+// shown (D-426).
 //
 // **A read that does not come back is not a low band.** Each of the five is asked independently and
 // a failure is recorded rather than thrown: `bands.ts` then places what the recorded events still
@@ -33,7 +39,7 @@
 import type { ZodType } from 'zod'
 import { isAppError } from '@/lib/errors'
 import { getLogger } from '@/server/http/request-context'
-import { defectWordFilter } from '@/server/llm/guardrails/defect-words'
+import { defectWordFilter, redactTerms } from '@/server/llm/guardrails/defect-words'
 import { QUOTE_MAX_CHARS } from '@/server/llm/prompts/band-read'
 import { bandReadAdaptationPrompt } from '@/server/llm/prompts/band-read-adaptation'
 import { bandReadDecisionQualityPrompt } from '@/server/llm/prompts/band-read-decision-quality'
@@ -219,6 +225,12 @@ export function buildReadInputs(context: ReadContext): BuiltReads {
     reasonForNotDelegating,
     defenseAnswers,
   }
+  // The defense answers are in this read's input either way — as `reasonForNotDelegating` when the
+  // run made no delegation, and as `defenseAnswers` beside the log when it did — so both are
+  // anchorable. The label is the field the answers were actually *sent* as: a quote filed against
+  // `reasonForNotDelegating` on a run full of delegations names a field that read never saw.
+  const defenseAnswerField =
+    reasonForNotDelegating === null ? 'defenseAnswers' : 'reasonForNotDelegating'
   const delegationSources = withText([
     ...delegationEvents.flatMap((event) => [
       { field: 'request', text: event.payload.request_text, eventSeq: event.seq },
@@ -229,7 +241,7 @@ export function buildReadInputs(context: ReadContext): BuiltReads {
         ? []
         : [
             {
-              field: 'reasonForNotDelegating',
+              field: defenseAnswerField,
               text: entry.answer,
               eventSeq: entry.answerEventSeq,
             },
@@ -358,12 +370,48 @@ const forMatch = (text: string): string => collapse(withoutEllipsis(text)).toLow
 export const MAX_BAND_QUOTES = 3
 
 /**
- * The quotes a read may keep: the ones this file can find in the text it actually sent.
+ * The shortest span that is a quotation rather than a token (D-429). "11 months" is a figure the
+ * band can name in its rationale; as a *quote* it is an unfalsifiable citation of three words the
+ * student happened to type, and a single character anchors against anything at all.
+ */
+export const QUOTE_MIN_CHARS = 12
+export const QUOTE_MIN_WORDS = 3
+
+/**
+ * What, standing between the start of a sentence and the quote, changes what the quote means
+ * (D-429). A fragment is kept only when nothing in its own sentence's prefix reverses it.
+ */
+const NEGATION_BEFORE =
+  /\b(?:not|n't|no|never|nobody|nothing|none|neither|nor|hardly|barely|scarcely|without|unless|doubt|doubted|doubts|deny|denied|denies|disagree|disagreed|reject|rejected|refute|refuted|dispute|disputed|question|questioned|cannot|can't|won't|wouldn't|didn't|don't|isn't|aren't|wasn't|weren't|instead|rather)\b/i
+
+/** Where the sentence containing `at` begins. */
+function sentenceStartBefore(text: string, at: number): number {
+  let start = 0
+  for (let index = 0; index < at; index += 1) {
+    if (/[.!?;\n]/.test(text[index] ?? '')) start = index + 1
+  }
+  return start
+}
+
+/**
+ * The quotes a read may keep: the ones this file can find in the text it actually sent, with the
+ * meaning they had there.
  *
- * A model that invented a sentence, echoed an injected instruction, or paraphrased a field into
- * something the student did not write produces no quote at all rather than a quote nobody can check.
- * The field name is a preference and not a requirement — a real provider labels fields loosely — but
- * presence in a source is absolute.
+ * A model that invented a sentence or paraphrased a field into something the student did not write
+ * produces no quote at all rather than a quote nobody can check. The field name is a preference and
+ * not a requirement — a real provider labels fields loosely — but presence in a source is absolute.
+ *
+ * Presence is not enough on its own, which is the narrowing D-429 adds to D-404. `the payback is 11
+ * months` is present in `I do not believe the payback is 11 months, because nobody traced it`, and
+ * filing it as the band's evidence would put the opposite of the student's sentence under their
+ * band. So a fragment that starts inside a sentence is refused when the part of that sentence it
+ * leaves behind negates it, and a quote shorter than `QUOTE_MIN_CHARS` or `QUOTE_MIN_WORDS` is
+ * refused outright: a token is not a quotation.
+ *
+ * What anchoring cannot do is refuse an instruction the student typed into their own frame and the
+ * model echoed back: it *is* present in the text that was sent, because the student wrote it. That
+ * case is held by the `untrusted()` block and the system message around it (11 §3), not here —
+ * D-404 said otherwise and is corrected by D-429.
  */
 export function anchorQuotes(
   quotes: readonly { field: string; text: string }[],
@@ -374,9 +422,10 @@ export function anchorQuotes(
 
   for (const quote of quotes) {
     const text = collapse(withoutEllipsis(quote.text)).slice(0, QUOTE_MAX_CHARS)
-    if (text === '') continue
+    if (text.length < QUOTE_MIN_CHARS) continue
+    if (text.split(' ').filter((word) => word !== '').length < QUOTE_MIN_WORDS) continue
     const needle = forMatch(text)
-    const matches = sources.filter((source) => forMatch(source.text).includes(needle))
+    const matches = sources.filter((source) => keepsItsMeaning(source.text, needle))
     const anchor = matches.find((source) => source.field === quote.field) ?? matches[0]
     if (!anchor) continue
     const key = `${String(anchor.eventSeq)}:${text}`
@@ -388,11 +437,119 @@ export function anchorQuotes(
   return kept
 }
 
-/** §3's defect-word filter over the model's own sentence, because the debrief shows it (D-396). */
-export function filterRationale(rationale: string): string {
+/** True when `needle` is in `source` and nothing before it in its own sentence reverses it. */
+function keepsItsMeaning(source: string, needle: string): boolean {
+  const haystack = forMatch(source)
+  const at = haystack.indexOf(needle)
+  if (at === -1) return false
+  const start = sentenceStartBefore(haystack, at)
+  return !NEGATION_BEFORE.test(haystack.slice(start, at))
+}
+
+/**
+ * Terms a band rationale may never carry, on top of §3's list (D-426).
+ *
+ * §3's list is what the assistant may not say to a student *during* a run. This is the second list,
+ * for the one sentence the scoring pipeline writes and the debrief shows (D-396), and it is built
+ * from what the reads are actually given: the Adaptation input carries the Turn's `warrantsChange`
+ * and `proportionateResponse` and the Ownership input carries the bank's `expectedAnswerNotes`, and
+ * all three are 12 §8.1 fields that may not reach a student payload in any state. The rest is
+ * FR-131 — no total, no rank, no percentile, and no sentence that places this student beside
+ * another one.
+ *
+ * The same test each term has to pass is §3's: does the *band read* have a legitimate use for it?
+ * "The response went further than the new information warranted" is the sentence D-396 approves, so
+ * bare `warranted` is not on the list; `warrants change` and `was proportionate` state the authored
+ * answer and are.
+ */
+export const BAND_RATIONALE_TERMS: readonly string[] = [
+  // 12 §8.1, Turn internals (FR-114): what the Turn warranted and what response was proportionate.
+  'warrants change',
+  'warrants a change',
+  'warranted change',
+  'change was warranted',
+  'change is warranted',
+  'proportionate response',
+  'proportionate responses',
+  'disproportionate response',
+  'was proportionate',
+  'is proportionate',
+  'were proportionate',
+  // 12 §8.1, the question bank's machinery (FR-123): the notes beside each defense question.
+  'expected answer',
+  'expected answers',
+  'answer notes',
+  'model answer',
+  'model answers',
+  // FR-131: no composite, no total, no rank, no percentile, and nothing peer-relative.
+  'score',
+  'scores',
+  'composite',
+  'percentile',
+  'percentiles',
+  'quartile',
+  'quartiles',
+  'decile',
+  'deciles',
+  'rank',
+  'ranks',
+  'ranked',
+  'ranking',
+  'rankings',
+  'class median',
+  'cohort median',
+  'class average',
+  'cohort average',
+  'other students',
+  'their peers',
+  'peer group',
+  'compared to other',
+]
+
+/** A span of this many words, repeated verbatim, is an echo rather than a coincidence. */
+const ECHO_WINDOW_WORDS = 6
+
+const wordsOf = (text: string): string[] =>
+  forMatch(text)
+    .replace(/[^a-z0-9]+/g, ' ')
+    .split(' ')
+    .filter((word) => word !== '')
+
+/**
+ * True when `text` repeats `ECHO_WINDOW_WORDS` consecutive words of any string in `sources`.
+ *
+ * The list of terms above catches a rationale that *names* the answer key; this catches one that
+ * quotes it. `expectedAnswerNotes` is the only prose in any of the five inputs that a student may
+ * never read (12 §8.1), and a read that hands it back sentence by sentence would leak it without
+ * using a single word from the list.
+ */
+function echoes(text: string, sources: readonly string[]): boolean {
+  const haystack = wordsOf(text)
+  if (haystack.length < ECHO_WINDOW_WORDS) return false
+  const joined = ` ${haystack.join(' ')} `
+  return sources.some((source) => {
+    const words = wordsOf(source)
+    for (let at = 0; at + ECHO_WINDOW_WORDS <= words.length; at += 1) {
+      if (joined.includes(` ${words.slice(at, at + ECHO_WINDOW_WORDS).join(' ')} `)) return true
+    }
+    return false
+  })
+}
+
+/**
+ * The model's own sentence, made safe to show a student (D-396, D-426).
+ *
+ * §3's defect-word filter, then this module's own list, then a whole-rationale refusal if what came
+ * back quotes the answer-key prose the read was given. The refusal is the whole string rather than
+ * the span, because `bands.ts` falls back to the categorical sentence when the read contributes
+ * nothing — a rationale that was reciting the notes has nothing left worth splicing in.
+ */
+export function filterRationale(rationale: string, neverEcho: readonly string[] = []): string {
   const result = defectWordFilter([{ type: 'text', text: collapse(rationale) }])
   const segment = result.segments[0]
-  return segment && segment.type === 'text' ? segment.text : ''
+  const filtered = segment && segment.type === 'text' ? segment.text : ''
+  const narrowed = redactTerms(filtered, BAND_RATIONALE_TERMS).text
+  return echoes(narrowed, neverEcho) ? '' : narrowed
 }
 
 /** FR-109's vocabulary, from the position key the read named and the answer space it was given. */
@@ -413,11 +570,15 @@ export function matchedPositionOf(
 }
 
 /** One read's answer as `bands.ts` takes it: anchored quotes, a filtered rationale, nothing else. */
-export function toBandRead(raw: RawBandRead, sources: readonly QuoteSource[]): BandRead {
+export function toBandRead(
+  raw: RawBandRead,
+  sources: readonly QuoteSource[],
+  neverEcho: readonly string[] = [],
+): BandRead {
   return {
     band: raw.band,
     quotes: anchorQuotes(raw.quotes, sources),
-    rationale: filterRationale(raw.rationale),
+    rationale: filterRationale(raw.rationale, neverEcho),
   }
 }
 
@@ -507,6 +668,13 @@ export async function runBandReads(
 ): Promise<BandReadsResult> {
   const { inputs, sources } = buildReadInputs(context)
 
+  // The one piece of prose in any of the five inputs that a student may never read (12 §8.1,
+  // FR-123). Every read is held to it, not only Ownership: a prompt that grows the field later is
+  // covered without anyone having to remember this line (D-426).
+  const neverEcho = context.defense
+    .map((entry) => entry.expectedAnswerNotes)
+    .filter((notes) => notes.trim() !== '')
+
   const [framing, delegation, decisionQuality, adaptation, ownership] = await Promise.all([
     readOne('framing', bandReadFramingPrompt, inputs.framing, provider, callContext),
     readOne('delegation', bandReadDelegationPrompt, inputs.delegation, provider, callContext),
@@ -534,14 +702,14 @@ export async function runBandReads(
     completed.push(outcome.dimension)
   }
 
-  if (!('failure' in framing)) reads.framing = toBandRead(framing.value, sources.framing)
+  if (!('failure' in framing)) reads.framing = toBandRead(framing.value, sources.framing, neverEcho)
   if (!('failure' in delegation)) {
-    reads.delegation = toBandRead(delegation.value, sources.delegation)
+    reads.delegation = toBandRead(delegation.value, sources.delegation, neverEcho)
   }
   if (!('failure' in decisionQuality)) {
     const recommendation = context.graphs.frame_beside_decision.brief?.recommendation ?? ''
     const read: DecisionQualityRead = {
-      ...toBandRead(decisionQuality.value, sources.decision_quality),
+      ...toBandRead(decisionQuality.value, sources.decision_quality, neverEcho),
       matchedPosition: matchedPositionOf(
         decisionQuality.value.matchedPositionKey,
         context.positions,
@@ -552,8 +720,9 @@ export async function runBandReads(
     reads.decision_quality = read
   }
   if (!('failure' in adaptation))
-    reads.adaptation = toBandRead(adaptation.value, sources.adaptation)
-  if (!('failure' in ownership)) reads.ownership = toBandRead(ownership.value, sources.ownership)
+    reads.adaptation = toBandRead(adaptation.value, sources.adaptation, neverEcho)
+  if (!('failure' in ownership))
+    reads.ownership = toBandRead(ownership.value, sources.ownership, neverEcho)
 
   return { reads, failures, completed }
 }

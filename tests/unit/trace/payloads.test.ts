@@ -205,9 +205,11 @@ const PAYLOADS: { [T in RunEventTypeValue]: EventPayload<T> } = {
       dimensions: ['verification', 'calibration'],
       bands_before: { verification: 'developing', calibration: 'novice' },
       bands_after: { verification: 'proficient', calibration: 'developing' },
-      points_before: 2,
-      points_after: 2.5,
     },
+    // Top level, not inside `recompute`: `owner-view.ts` classifies the top level of a payload, and
+    // these two are the course's arithmetic, which never enters the record export form (D-420).
+    points_before: 2,
+    points_after: 2.5,
   },
   run_voided: {
     reason: 'unscoreable',

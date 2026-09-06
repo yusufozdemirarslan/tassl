@@ -2,7 +2,7 @@
 // per-dimension bands and the score row (DATA-041, DATA-042), both children scoped through the
 // runId the service resolved, plus the run row's `scoring_status`, which is tenant-scoped and so
 // takes tenantId first (D-006). `updated_at` is maintained by the set_updated_at() trigger.
-import { and, asc, eq, inArray, sql } from 'drizzle-orm'
+import { and, asc, eq, getTableColumns, inArray, sql } from 'drizzle-orm'
 import type { PgColumn } from 'drizzle-orm/pg-core'
 import { AppError } from '@/lib/errors'
 import { db } from '@/server/db/client'
@@ -47,9 +47,50 @@ function one<T>(row: T | undefined): T {
 const excluded = (column: PgColumn) => sql`excluded.${sql.identifier(column.name)}`
 
 /**
- * Inserts or replaces bands keyed by (run, dimension): the draft fields, the decision fields, and
- * the correction fields all come from the given rows, so callers pass complete rows (drafts from
- * the pipeline, decided rows from review, corrected rows from a neutralization recompute).
+ * The SET clause of an upsert, built from **the columns the caller actually named** (D-423).
+ *
+ * A SET clause written out by hand lists every column of the table, and `excluded.<column>` for a
+ * column the insert did not carry is that column's default — which for every nullable column here is
+ * NULL. So an upsert that names four fields would blank the other eleven, and the caller would never
+ * know: the insert path is correct, and only the second write of the same key is wrong. That is not
+ * a defect to remember not to write; it is a defect this function makes unrepresentable. A column
+ * absent from every row keeps whatever the conflicting row already holds.
+ *
+ * `undefined` counts as absent, because that is how Drizzle reads it in `.values()` — a caller who
+ * spreads a partial object gets the same answer from the SET clause as from the INSERT.
+ */
+function setFromNamedColumns<Row extends Record<string, unknown>>(
+  columns: Record<string, PgColumn>,
+  rows: readonly Row[],
+  target: readonly string[],
+): Record<string, ReturnType<typeof excluded>> {
+  const named = new Set<string>()
+  for (const row of rows) {
+    for (const [key, value] of Object.entries(row)) {
+      if (value !== undefined) named.add(key)
+    }
+  }
+  const set: Record<string, ReturnType<typeof excluded>> = {}
+  for (const [key, column] of Object.entries(columns)) {
+    // The conflict target matched, so setting it to itself is noise; every other named column is
+    // the caller saying what this row should now hold.
+    if (!named.has(key) || target.includes(key)) continue
+    set[key] = excluded(column)
+  }
+  // `DO UPDATE SET` with nothing in it is a syntax error, and a caller that named only the key
+  // meant `DO NOTHING` — which is a different function, not a silent one.
+  if (Object.keys(set).length === 0) {
+    throw new AppError('INTERNAL_ERROR', 'An upsert named no column to write.')
+  }
+  return set
+}
+
+/**
+ * Inserts or replaces bands keyed by (run, dimension).
+ *
+ * Every column the rows name is written; every column they do not is left alone. The three groups on
+ * this table are written by three different callers — the pipeline drafts, `review` decides, a
+ * neutralization recompute corrects — and none of them holds the other two's values (D-423).
  */
 export async function upsertBands(
   runId: string,
@@ -57,58 +98,34 @@ export async function upsertBands(
   dbx: DbOrTx = db,
 ): Promise<RunBand[]> {
   if (rows.length === 0) return []
+  const values = rows.map((row) => ({ ...row, runId }))
   return dbx
     .insert(runBands)
-    .values(rows.map((row) => ({ ...row, runId })))
+    .values(values)
     .onConflictDoUpdate({
       target: [runBands.runId, runBands.dimension],
-      set: {
-        draftBand: excluded(runBands.draftBand),
-        draftStatus: excluded(runBands.draftStatus),
-        draftReason: excluded(runBands.draftReason),
-        basis: excluded(runBands.basis),
-        provisional: excluded(runBands.provisional),
-        graphKeys: excluded(runBands.graphKeys),
-        evidenceEventSeqs: excluded(runBands.evidenceEventSeqs),
-        quotes: excluded(runBands.quotes),
-        rationale: excluded(runBands.rationale),
-        decision: excluded(runBands.decision),
-        decidedBand: excluded(runBands.decidedBand),
-        decidedBy: excluded(runBands.decidedBy),
-        decidedAt: excluded(runBands.decidedAt),
-        note: excluded(runBands.note),
-        bandBeforeCorrection: excluded(runBands.bandBeforeCorrection),
-        bandAfterCorrection: excluded(runBands.bandAfterCorrection),
-      },
+      set: setFromNamedColumns(getTableColumns(runBands), values, ['runId', 'dimension']),
     })
     .returning()
 }
 
-/** Inserts or replaces the one score row of a run (graphs, FCR, matched share, points, flags). */
+/**
+ * Inserts or replaces the one score row of a run (graphs, FCR, matched share, points, flags).
+ *
+ * Same rule as `upsertBands`: `scoreRun` writes the draft half and §11.5's recompute writes the
+ * correction half, and neither may blank the other's columns by not mentioning them (D-423).
+ */
 export async function upsertScore(
   runId: string,
   row: Omit<NewRunScore, 'runId'>,
   dbx: DbOrTx = db,
 ): Promise<RunScore> {
+  const values = { ...row, runId }
+  const set = setFromNamedColumns(getTableColumns(runScores), [values], ['runId'])
   const [score] = await dbx
     .insert(runScores)
-    .values({ ...row, runId })
-    .onConflictDoUpdate({
-      target: runScores.runId,
-      set: {
-        rubricVersion: excluded(runScores.rubricVersion),
-        graphs: excluded(runScores.graphs),
-        falseChallengeRate: excluded(runScores.falseChallengeRate),
-        matchedStanceShare: excluded(runScores.matchedStanceShare),
-        pointsDraft: excluded(runScores.pointsDraft),
-        pointsConfirmed: excluded(runScores.pointsConfirmed),
-        pointsBeforeCorrection: excluded(runScores.pointsBeforeCorrection),
-        pointsAfterCorrection: excluded(runScores.pointsAfterCorrection),
-        pointsEffective: excluded(runScores.pointsEffective),
-        flags: excluded(runScores.flags),
-        scoredAt: excluded(runScores.scoredAt),
-      },
-    })
+    .values(values)
+    .onConflictDoUpdate({ target: runScores.runId, set })
     .returning()
   return one(score)
 }

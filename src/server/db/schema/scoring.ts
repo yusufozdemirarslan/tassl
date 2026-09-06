@@ -72,7 +72,9 @@ export const runBands = pgTable(
     decidedBy: text('decided_by').references(() => user.id),
     decidedAt: timestamp('decided_at', { withTimezone: true }),
     note: text('note'),
-    // Set by a neutralization recompute; effective_band = max(before, after) is computed in code.
+    // Set by a neutralization recompute. The effective band is computed in code (`effectiveBandOf`,
+    // D-422): the instructor's decision, or the draft, with `band_after_correction` as a floor under
+    // it. `band_before_correction` records what the recompute saw and is not read back into it.
     bandBeforeCorrection: band('band_before_correction'),
     bandAfterCorrection: band('band_after_correction'),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),

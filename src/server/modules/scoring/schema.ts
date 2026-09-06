@@ -11,7 +11,7 @@
 // carried the string would make every reader parse it again and disagree about how.
 //
 // Two things are deliberately absent. There is no `score`, `total`, `rank` or `percentile` field —
-// FR-131, enforced by `tests/unit/scoring/field-names.test.ts` walking this file. And there is no
+// FR-131, enforced by `tests/unit/scoring/field-names.test.ts` walking this file (D-430). And there is no
 // student projection: a student reads their bands in the debrief once the run is scored (10 §13),
 // through that module's own projection, because `evidence_event_seqs` and `quotes` are
 // `reviewer_only` in every state (`trace/owner-view.ts`).
@@ -75,10 +75,11 @@ export const bandQuoteSchema = z.object({
 /**
  * One dimension of a scored run, as a reviewer reads it.
  *
- * `effectiveBand` is the one derived field: the decided band where a reviewer decided one, the
- * higher of the two correction bands after a neutralization, the draft otherwise — the value points
- * are computed from (10 §11.4, FR-005). It is on the view rather than in every reader because three
- * readers would be three chances to apply the FR-005 floor differently.
+ * `effectiveBand` is the one derived field, and the value points are computed from (10 §11.4): the
+ * instructor's decision where a reviewer made one and the draft where they did not, with the
+ * recomputed band as a floor under it that raises and never lowers (FR-182, FR-005, D-422). An
+ * `unassessed` decision is terminal and answers null. It is on the view rather than in every reader
+ * because three readers would be three chances to compose those two rules differently.
  */
 export const bandViewSchema = z.object({
   dimension: DimensionSchema,
@@ -120,10 +121,16 @@ export const runScoreViewSchema = z.object({
 })
 export type RunScoreView = z.infer<typeof runScoreViewSchema>
 
-/** What `scoreRun` reports back to the job handler and the tests (never to a reader). */
+/**
+ * What `scoreRun` reports back to the job handler and the tests (never to a reader).
+ *
+ * `already_held` is the held path's counterpart to `already_scored` (D-424). A hold leaves the run
+ * at `defense_complete` (D-405), so the second job of a pair cannot report the outcome by the run's
+ * state the way the scored path does: it says the run was already held, and writes nothing.
+ */
 export const scoreRunResultSchema = z.object({
   runId: z.uuid(),
-  outcome: z.enum(['scored', 'held', 'already_scored']),
+  outcome: z.enum(['scored', 'held', 'already_scored', 'already_held']),
   holdReason: HoldReasonSchema.nullable(),
   durationMs: z.int().nonnegative(),
   provider: z.string(),

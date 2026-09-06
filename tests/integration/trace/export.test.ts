@@ -544,7 +544,17 @@ describe('the two forms', () => {
     const runId = await runThroughDefense()
     const record = await trace.buildExport(fx.orgId, runId, 'record')
 
-    const found = [...keysOf(record)].filter((key) => ['weight', 'mapping', 'points'].includes(key))
+    // A *name-containment* filter, not the three literal names. `points_before` satisfied the
+    // literal list to the letter and carried the run's points into a student's downloaded record
+    // (D-421); the rule §8.1's last row states is the course's arithmetic, however it is spelled.
+    const found = [...keysOf(record)].filter((key) =>
+      ['weight', 'mapping', 'points'].some((term) =>
+        key
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, '')
+          .includes(term),
+      ),
+    )
     expect(found).toEqual([])
 
     // And the course form does carry them, so the assertion above is about the form and not about
@@ -657,7 +667,9 @@ describe('the record export', () => {
     const document = await records.exportRecord(fx.student, runId)
     expect(header(document).run_id).toBe(runId)
     expect(
-      [...keysOf(document)].filter((key) => ['weight', 'mapping', 'points'].includes(key)),
+      findForbiddenKeys(document, { scored: true, form: 'record' }).filter(
+        (finding) => finding.set === 'record_form',
+      ),
     ).toEqual([])
   })
 

@@ -711,10 +711,10 @@
         "recompute": {
           "dimensions": ["verification", "calibration"],
           "bands_before": { "verification": null, "calibration": null },
-          "bands_after": { "verification": null, "calibration": null },
-          "points_before": null,
-          "points_after": null
-        }
+          "bands_after": { "verification": null, "calibration": null }
+        },
+        "points_before": null,
+        "points_after": null
       }
     },
     {
@@ -731,10 +731,10 @@
         "recompute": {
           "dimensions": ["verification", "calibration"],
           "bands_before": { "verification": null, "calibration": null },
-          "bands_after": { "verification": null, "calibration": null },
-          "points_before": null,
-          "points_after": null
-        }
+          "bands_after": { "verification": null, "calibration": null }
+        },
+        "points_before": null,
+        "points_after": null
       }
     },
     {
@@ -751,10 +751,10 @@
         "recompute": {
           "dimensions": ["verification", "calibration"],
           "bands_before": { "verification": null, "calibration": null },
-          "bands_after": { "verification": null, "calibration": null },
-          "points_before": null,
-          "points_after": null
-        }
+          "bands_after": { "verification": null, "calibration": null }
+        },
+        "points_before": null,
+        "points_after": null
       }
     }
   ]

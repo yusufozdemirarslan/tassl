@@ -75,6 +75,51 @@ describe('band names', () => {
   })
 })
 
+// D-427. §3's threat model is an *injected instruction* the model half-obeys, so the interesting
+// spellings are the ones that read as the word on the screen and are not the string on the list.
+describe('the spellings an evasion arrives in', () => {
+  it.each([
+    ['a Cyrillic е', 'That claim is dеfective.'],
+    ['a zero-width space', 'That claim is defe​ctive.'],
+    ['a zero-width non-joiner', 'That claim is de‌fective.'],
+    ['a soft hyphen', 'That claim is de­fective.'],
+    ['a hyphen', 'That claim is de-fective.'],
+    ['full stops between every letter', 'That claim is d.e.f.e.c.t.i.v.e.'],
+    ['fullwidth letters', 'That claim is ｄefective.'],
+    ['a combining acute', 'That claim is défective.'],
+  ])('catches %s', (_name, sentence) => {
+    expect(containsDefectWord(sentence)).toBe(true)
+    expect(filterText(sentence)).toContain(DEFECT_REDACTION)
+    expect(filterText(sentence).toLowerCase()).not.toContain('fective')
+  })
+
+  it('catches a multi-word term broken the same way', () => {
+    expect(containsDefectWord('Its evidence​status is unknown.')).toBe(true)
+    expect(containsDefectWord('Its evidence-status is unknown.')).toBe(true)
+    expect(containsDefectWord('The failure­family here is obvious.')).toBe(true)
+  })
+
+  it('redacts the invisible characters with the word, not around them', () => {
+    // The replacement has to consume what the normalisation stepped over, or the zero-width space
+    // is left sitting beside `[…]` and the next reader of the stored text finds a stray character.
+    expect(filterText('That claim is defe​ctive.')).toBe(`That claim is ${DEFECT_REDACTION}.`)
+    expect(filterText('That claim is de-fective.')).toBe(`That claim is ${DEFECT_REDACTION}.`)
+  })
+
+  it('does not treat an ordinary space inside a word as noise, and says why', () => {
+    // Deliberate (D-427). Tolerating a space would catch `de fective` and would also catch every
+    // sentence below, because `planted` with a space is `plan ted` and `novice` is `no vice`.
+    expect(containsDefectWord('That claim is de fective.')).toBe(false)
+    for (const ordinary of [
+      'The plan Ted proposed keeps the spend where it is.',
+      'There is no vice in taking the slower route.',
+      'The sound claimed by the room is not the sound in the memo.',
+    ]) {
+      expect(filterText(ordinary)).toBe(ordinary)
+    }
+  })
+})
+
 describe('what the filter must not eat', () => {
   it.each([
     'That is an extrapolation from two cohorts, and the evidence is a little stale.',

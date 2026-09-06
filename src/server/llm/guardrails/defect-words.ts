@@ -43,6 +43,21 @@
 // That is not a rule this file follows carefully — it is a shape `segments.ts` gives the input, so
 // that a claim's text cannot arrive here as prose (D-264). An imported package (FR-186) is ordinary
 // business writing, and "the defect rate fell to 2.1 percent" is a sentence a scenario may contain.
+//
+// WHAT THE MATCH TOLERATES, AND WHAT IT DELIBERATELY DOES NOT (D-427)
+//
+// A filter that only matched the exact ASCII spelling would be a filter an injected instruction can
+// step around: `dеfective` with a Cyrillic е, `defe<ZWSP>ctive` and `de-fective` all read as the
+// word on the screen and none of them is the string on the list. So every candidate is matched
+// against a *normalised* copy of the text — compatibility-decomposed, combining marks and
+// zero-width/format characters removed, confusable Cyrillic and Greek letters folded to Latin,
+// lower-cased — and the offsets are mapped back so the redaction lands on the original bytes.
+// Inside a word, any run of `_ . -` (and the Unicode dashes) is noise the match steps over.
+//
+// A single *space* inside a word is not, and that is a decision rather than an oversight: `planted`
+// with a space is `plan ted`, and "the plan Ted proposed" is a sentence; `novice` with a space is
+// `no vice`. Tolerating a space inside a word buys `de fective` and costs ordinary sentences, which
+// is the trade this file's own test refuses to make everywhere else.
 import type { GuardSegment } from '@/server/llm/guardrails/segments'
 
 /** §3: what a match is replaced with. */
@@ -167,13 +182,30 @@ const CONTEXT_RADIUS = 60
 const escapeRegExp = (text: string): string => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 
 /**
+ * Characters that never separate two words in English prose, so a run of them inside one word is
+ * noise a match steps over: the underscore and full stop of a slug, and every dash Unicode has.
+ * Whitespace is deliberately absent — see the header note.
+ */
+const INTRA_WORD = '[_.\\u2010-\\u2015\\-]*'
+
+/**
+ * Between two words of a term: the same noise, plus whitespace, and *optional* — the zero-width
+ * space in `evidence<ZWSP>status` is gone by the time the match runs, so the two words are adjacent
+ * and a separator the pattern requires would be a separator the evasion removed.
+ */
+const INTER_WORD = '[\\s_.\\u2010-\\u2015\\-]*'
+
+/** One word of a term, with the noise class between every pair of its characters. */
+const wordPattern = (word: string): string => [...word].map(escapeRegExp).join(INTRA_WORD)
+
+/**
  * One alternation, longest term first so `defective` is not consumed by `defect` (the word boundary
  * would reject that anyway, but ordering makes it true rather than incidental).
  */
 const alternation = (terms: readonly string[]): string =>
   [...terms]
     .sort((a, b) => b.length - a.length)
-    .map((term) => term.split(' ').map(escapeRegExp).join('[\\s_-]+'))
+    .map((term) => term.split(' ').map(wordPattern).join(INTER_WORD))
     .join('|')
 
 const pattern = (terms: readonly string[], flags = 'gi'): RegExp =>
@@ -184,6 +216,104 @@ const CONTEXTUAL = pattern(CONTEXTUAL_BAND_TERMS)
 // Not global: `test` on a global regex carries `lastIndex` from one call to the next, and this one
 // is asked two questions about two different strings for every match.
 const BAND_CONTEXT = pattern(BAND_CONTEXT_TERMS, 'i')
+
+// ---------------------------------------------------------------------------------------------
+// Normalising the haystack (D-427)
+// ---------------------------------------------------------------------------------------------
+
+/**
+ * Letters from other alphabets that render as a Latin letter. Folding them is what makes `dеfective`
+ * with a Cyrillic е the same string as `defective` for the purpose of the match; nothing else in the
+ * pipeline reads the folded copy, so an ordinary reply in another script is unaffected on the way
+ * to the student — only the offsets the filter redacts at are taken from it.
+ */
+const CONFUSABLES = new Map<string, string>(
+  Object.entries({
+    // Cyrillic
+    а: 'a',
+    б: 'b',
+    в: 'b',
+    г: 'r',
+    ԁ: 'd',
+    е: 'e',
+    ѕ: 's',
+    і: 'i',
+    ї: 'i',
+    ј: 'j',
+    к: 'k',
+    м: 'm',
+    н: 'h',
+    о: 'o',
+    р: 'p',
+    с: 'c',
+    т: 't',
+    у: 'y',
+    х: 'x',
+    ц: 'u',
+    ѵ: 'v',
+    ѡ: 'w',
+    // Greek
+    α: 'a',
+    β: 'b',
+    γ: 'y',
+    ε: 'e',
+    ζ: 'z',
+    η: 'n',
+    ι: 'i',
+    κ: 'k',
+    μ: 'm',
+    ν: 'v',
+    ο: 'o',
+    ρ: 'p',
+    σ: 'o',
+    τ: 't',
+    υ: 'u',
+    φ: 'o',
+    χ: 'x',
+    ω: 'w',
+    // Latin look-alikes that NFKD leaves alone
+    ɑ: 'a',
+    ɡ: 'g',
+    ɩ: 'i',
+    ɪ: 'i',
+    ʏ: 'y',
+    ʙ: 'b',
+    ʜ: 'h',
+    ʟ: 'l',
+    ʀ: 'r',
+  }),
+)
+
+/** Zero-width, directional and other invisible marks: unseen on the screen, unseen by the match. */
+const INVISIBLE =
+  /^[\u00ad\u034f\u061c\u115f\u1160\u17b4\u17b5\u180e\u200b-\u200f\u202a-\u202e\u2060-\u2064\u206a-\u206f\u3164\ufe00-\ufe0f\ufeff\uffa0]$/u
+
+/**
+ * The text as the match reads it, with an offset per normalised character back into the original.
+ *
+ * `offsets[i]` is where the character that produced `text[i]` starts in the source, and the array
+ * carries one extra entry — `source.length` — so a match that runs to the end has an end offset
+ * like every other. A source character that normalises to several characters (a ligature) maps all
+ * of them to its own index, so a match landing inside one redacts the whole character.
+ */
+function normalize(source: string): { text: string; offsets: number[] } {
+  const characters: string[] = []
+  const offsets: number[] = []
+  let at = 0
+  for (const point of source) {
+    const start = at
+    at += point.length
+    if (INVISIBLE.test(point)) continue
+    const stripped = point.normalize('NFKD').replace(/\p{M}/gu, '')
+    if (stripped === '') continue
+    for (const character of stripped.toLowerCase()) {
+      characters.push(CONFUSABLES.get(character) ?? character)
+      offsets.push(start)
+    }
+  }
+  offsets.push(source.length)
+  return { text: characters.join(''), offsets }
+}
 
 const contextAround = (text: string, at: number, length: number): string => {
   const start = Math.max(0, at - CONTEXT_RADIUS)
@@ -201,19 +331,49 @@ function inBandContext(text: string, at: number, length: number): boolean {
 
 type Hit = { index: number; length: number; term: string }
 
-function hits(text: string): Hit[] {
+/**
+ * One match, in the source's own offsets. The end offset is where the *next* surviving character
+ * begins, so anything the normalisation dropped inside the match — a zero-width space between two
+ * letters — is inside the span that gets replaced rather than left behind beside the redaction.
+ */
+function hitIn(source: string, offsets: readonly number[], at: number, length: number): Hit {
+  const start = offsets[at] ?? source.length
+  const end = offsets[at + length] ?? source.length
+  return { index: start, length: end - start, term: source.slice(start, end).toLowerCase() }
+}
+
+/**
+ * Every match in one piece of text, matched on the normalised copy and reported in the source's
+ * offsets (D-427). `terms` defaults to §3's own list; a caller with a second list of its own — the
+ * band rationale of D-426 — passes one and gets the same matching rule.
+ */
+function hits(source: string, terms?: readonly string[]): Hit[] {
+  const { text, offsets } = normalize(source)
   const found: Hit[] = []
-  for (const match of text.matchAll(ALWAYS)) {
-    found.push({ index: match.index, length: match[0].length, term: match[0].toLowerCase() })
+  for (const match of text.matchAll(terms === undefined ? ALWAYS : patternFor(terms))) {
+    found.push(hitIn(source, offsets, match.index, match[0].length))
   }
-  for (const match of text.matchAll(CONTEXTUAL)) {
-    if (inBandContext(text, match.index, match[0].length)) {
-      found.push({ index: match.index, length: match[0].length, term: match[0].toLowerCase() })
+  if (terms === undefined) {
+    for (const match of text.matchAll(CONTEXTUAL)) {
+      if (inBandContext(text, match.index, match[0].length)) {
+        found.push(hitIn(source, offsets, match.index, match[0].length))
+      }
     }
   }
   // Two patterns walk the text separately, so reading order has to be restored; the lists cannot
   // overlap, because no contextual band name is a substring of an answer-key term.
   return found.sort((a, b) => a.index - b.index)
+}
+
+/** Compiled once per list: a caller's terms are a module constant, not a per-call string. */
+const PATTERN_CACHE = new Map<string, RegExp>()
+function patternFor(terms: readonly string[]): RegExp {
+  const key = terms.join(' ')
+  const cached = PATTERN_CACHE.get(key)
+  if (cached) return cached
+  const compiled = pattern(terms)
+  PATTERN_CACHE.set(key, compiled)
+  return compiled
 }
 
 /** Every match in one piece of text, in reading order. */
@@ -225,6 +385,28 @@ export const defectWordsIn = (text: string): DefectWordMatch[] =>
 
 /** The predicate the evals and the leak tests assert on a whole reply. */
 export const containsDefectWord = (text: string): boolean => hits(text).length > 0
+
+/** What `redactTerms` answers: the text with every match replaced, and what it replaced. */
+export type TermRedaction = { text: string; matches: DefectWordMatch[] }
+
+/**
+ * The same replacement over a caller's own list of terms (D-426).
+ *
+ * §3's list is what the *assistant* may not say to a student mid-run. A band rationale is a second
+ * string shown to a student, written by a different prompt, under a rule of its own — so the rule
+ * lives with that caller and the machinery lives here, rather than the scoring module growing a
+ * second, subtly different matcher.
+ */
+export function redactTerms(text: string, terms: readonly string[]): TermRedaction {
+  const found = hits(text, terms)
+  return {
+    text: redact(text, found),
+    matches: found.map((hit) => ({
+      term: hit.term,
+      context: contextAround(text, hit.index, hit.length),
+    })),
+  }
+}
 
 /** Replaces every match with `[…]`, right to left so earlier offsets stay valid. */
 function redact(text: string, found: readonly Hit[]): string {

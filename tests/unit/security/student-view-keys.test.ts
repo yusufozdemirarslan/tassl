@@ -17,6 +17,7 @@ import {
   STUDENT_FORBIDDEN_KEYS_ALWAYS,
   STUDENT_FORBIDDEN_KEYS_BEFORE_SCORED,
   STUDENT_FORBIDDEN_KEYS_RECORD_FORM,
+  findForbiddenKeys,
 } from '@/server/auth/student-view'
 
 // ---------------------------------------------------------------------------------------------
@@ -255,5 +256,71 @@ describe('the student-view key sets cover the tables of 12-security.md §8', () 
     const before = new Set(STUDENT_FORBIDDEN_KEYS_BEFORE_SCORED)
     const shared = STUDENT_FORBIDDEN_KEYS_ALWAYS.filter((key) => before.has(key))
     expect(shared).toEqual([])
+  })
+})
+
+// ---------------------------------------------------------------------------------------------
+// §8.1's last row is a rule about *names*, not about three particular fields (D-421)
+// ---------------------------------------------------------------------------------------------
+
+describe('the record-form rule reads a key name for the course’s arithmetic', () => {
+  const RECORD = { scored: true, form: 'record' } as const
+  const found = (payload: unknown): string[] =>
+    findForbiddenKeys(payload, RECORD)
+      .filter((finding) => finding.set === 'record_form')
+      .map((finding) => finding.path)
+
+  it('catches the two keys that shipped a student their own points (D-421)', () => {
+    // The exact shape that reached the record: the `claim_neutralized` event's recompute block was
+    // classified `after_scored`, and it carried the run's points before and after the correction.
+    // A guard matching the three literal names reported nothing.
+    expect(
+      found({
+        events: [
+          {
+            type: 'claim_neutralized',
+            payload: {
+              recompute: { dimensions: ['verification'] },
+              points_before: 3,
+              points_after: 3.143,
+            },
+          },
+        ],
+      }),
+    ).toEqual(['events[0].payload.points_before', 'events[0].payload.points_after'])
+  })
+
+  it('catches every other spelling the same number arrives under', () => {
+    expect(
+      found({
+        pointsConfirmed: 3,
+        points_draft: 2,
+        pointsEffective: 3,
+        band_mapping: {},
+        weighted: 1,
+        computed: { points: 3 },
+      }).sort(),
+    ).toEqual([
+      'band_mapping',
+      'computed.points',
+      'pointsConfirmed',
+      'pointsEffective',
+      'points_draft',
+      'weighted',
+    ])
+  })
+
+  it('is the record form’s rule alone, and the other two sets still match by name', () => {
+    // `points_before` is not a §8.1 "always" key and must not become one: the debrief shows a
+    // student their points (§8.3, FR-170). Only `{ form: 'record' }` asks this question.
+    expect(findForbiddenKeys({ points_before: 3 }, { scored: true })).toEqual([])
+    // And an exact §8.1 name is still matched exactly, so `answer_key_note` is not a finding while
+    // `answer_key` is — containment there would report the documented collisions as leaks.
+    const always = findForbiddenKeys({ answer_key: 'a', answer_key_note: 'b' }, { scored: true })
+    expect(always.map((finding) => finding.key)).toEqual(['answer_key'])
+  })
+
+  it('leaves the sets themselves alone, so §8.1 still reads as three names', () => {
+    expect([...STUDENT_FORBIDDEN_KEYS_RECORD_FORM].sort()).toEqual([...RECORD_FORM_ROW].sort())
   })
 })

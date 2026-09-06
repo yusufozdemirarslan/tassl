@@ -167,6 +167,23 @@ function transitionsOf(events: readonly ExportEvent[]) {
  * the owner's projection at the `scored` tier (`owner-view.ts`), which is this codebase's one
  * compiler-total statement of which payload fields a student may read, and then a second pick on
  * `policy_displayed` for the two keys FR-170 keeps out of the record (D-370).
+ *
+ * **Where this and `service.listEvents` deliberately differ, and why** (D-428). That endpoint drops
+ * `probe_fired` entirely and renumbers what is left densely, so a hole in the sequence cannot tell a
+ * student where the Sycophancy Probe fired (FR-053, D-088). This file drops the probe's *payload* —
+ * both fields are `reviewer_only`, so the record carries an empty body — and keeps the envelope,
+ * with the trace's own `seq`. Three reasons, and none of them applies to the endpoint:
+ *
+ *   1. The endpoint answers from `assigned` onward, including while the probe has not fired yet and
+ *      while the run is live. A record exists only from `confirmed` (`records.exportRecord`), by
+ *      which point 10 §13 has shown that same student the probe transcript in their own debrief.
+ *      There is nothing left for the envelope to give away.
+ *   2. The record is the student's copy of a file the course also holds, and FR-243 makes the two
+ *      forms differ by the course's arithmetic and by 12 §8.1's fields and by nothing else. Dropping
+ *      an event would make the student's file a different list of events from the instructor's.
+ *   3. Dropping one would force this file to renumber, and then `seq 14` in the student's record and
+ *      `seq 14` in the course's would name two different events — of a document whose whole use is
+ *      being read beside the run it records (FR-240).
  */
 function payloadFor(event: ExportEvent, form: TraceExportForm): Record<string, unknown> {
   if (form === 'course') return event.payload

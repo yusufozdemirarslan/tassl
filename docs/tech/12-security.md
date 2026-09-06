@@ -616,7 +616,7 @@ A student view is any response produced for an actor whose relation to the run i
 | Readiness `answer_key` | `readiness_items` | FR-012 |
 | Instructor flags: `forced_failure_armed`, `speed_outlier`, `all_novice`, `all_professional`, `nothing_answered` | `runs.flags`, `run_briefs` | FR-106, FR-118, FR-141 |
 | Any other student's run, debrief, record, or list row | `runs` | FR-154 |
-| `weight`, `mapping`, `points` inside the record export form | export | FR-170, FR-243 (they appear in the debrief, never in the record) |
+| `weight`, `mapping`, `points` inside the record export form - matched as **terms a key name contains**, at any depth, so `points_before`, `points_effective` and `band_mapping` are the same rule (D-421) | export | FR-170, FR-243 (they appear in the debrief, never in the record) |
 
 ### 8.2 Never before the run is `scored`; afterwards only for the student's own run through the debrief and record projections
 
@@ -640,7 +640,11 @@ Enforcement: `src/server/auth/student-view.ts` exports three sets as `readonly s
 
 ```ts
 import { describe, expect, it } from 'vitest'
-import { STUDENT_FORBIDDEN_KEYS_ALWAYS, STUDENT_FORBIDDEN_KEYS_BEFORE_SCORED } from '@/server/auth/student-view'
+import {
+  STUDENT_FORBIDDEN_KEYS_ALWAYS,
+  STUDENT_FORBIDDEN_KEYS_BEFORE_SCORED,
+  findForbiddenKeys,
+} from '@/server/auth/student-view'
 import { asStudent, seedRunInState } from '@tests/setup/integration'
 
 const ALWAYS = new Set(STUDENT_FORBIDDEN_KEYS_ALWAYS)
@@ -686,7 +690,8 @@ describe('student views never carry answer keys', () => {
     const res = await asStudent(student).get(`/api/v1/runs/${runId}/record/export`)
     expect(res.status).toBe(200)
     expectNone(res.json, ALWAYS)
-    expectNone(res.json, new Set(['weight', 'mapping', 'points']))
+    // The record-form row is matched by containment, not by name (D-421).
+    expect(findForbiddenKeys(res.json, { scored: true, form: 'record' })).toEqual([])
   })
 
   it('another student in the same section gets 403; another organization gets 404', async () => {

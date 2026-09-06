@@ -29,6 +29,8 @@ import { draftBands } from '@/server/modules/scoring/bands'
 import { categoricalFacts } from '@/server/modules/scoring/facts'
 import { buildGraphs, type GraphEvent, type GraphInput } from '@/server/modules/scoring/graphs'
 import {
+  BAND_RATIONALE_TERMS,
+  QUOTE_MIN_CHARS,
   anchorQuotes,
   buildReadInputs,
   filterRationale,
@@ -491,6 +493,110 @@ describe('mapping a read’s output', () => {
     expect(filterRationale('The frame names three assumptions.')).toBe(
       'The frame names three assumptions.',
     )
+  })
+
+  // D-426. §3's list is what the assistant may not say during a run; three of the fields the *reads*
+  // are given are 12 §8.1 items in their own right, and nothing on §3's list names any of them.
+  describe('the second list, for what the reads are actually shown', () => {
+    it.each([
+      [
+        'the Turn’s warrant',
+        'The message warrants change, and the response held.',
+        'warrants change',
+      ],
+      [
+        'the proportionate response',
+        'A revise was proportionate here and the run reversed instead.',
+        'proportionate',
+      ],
+      [
+        'the bank’s notes',
+        'The answer does not reach the expected answer notes for this question.',
+        'expected answer',
+      ],
+      [
+        'a peer-relative sentence',
+        'This run sits in the top percentile and ranks above the class median.',
+        'percentile',
+      ],
+    ])('redacts %s', (_name, rationale, leaked) => {
+      const filtered = filterRationale(rationale)
+      expect(filtered.toLowerCase()).not.toContain(leaked)
+      expect(filtered).toContain('[…]')
+    })
+
+    it('keeps the sentence D-396 approves, which says the placement without the warrant', () => {
+      const approved =
+        'The response went further than the new information warranted, beside the frame locked before the assistant was in the room.'
+      expect(filterRationale(approved)).toBe(approved)
+    })
+
+    it('names the three 12 §8.1 fields the reads are given, so the list can be read back', () => {
+      const list = BAND_RATIONALE_TERMS.join(' ')
+      expect(list).toContain('warrants change')
+      expect(list).toContain('proportionate response')
+      expect(list).toContain('percentile')
+    })
+
+    it('drops the whole rationale when it quotes the answer-key prose it was shown', () => {
+      const notes = DEFENSE[0]?.expectedAnswerNotes ?? ''
+      // Six consecutive words of the notes is an echo, not a coincidence: a rationale that recites
+      // them leaks FR-123's expected-answer notes without using one word from the list above.
+      expect(filterRationale(`The answer does not say ${notes}`, [notes])).toBe('')
+      // And an ordinary rationale about the same question survives the same check.
+      expect(
+        filterRationale('The answer names the document it came from and when it was read.', [
+          notes,
+        ]),
+      ).toBe('The answer names the document it came from and when it was read.')
+    })
+  })
+
+  // D-429. Presence in a source is necessary and was treated as sufficient.
+  describe('a quote has to keep the meaning it had in the run', () => {
+    const doubted: QuoteSource[] = [
+      {
+        field: 'rationale',
+        text: 'I do not believe the payback is 11 months, because nobody traced it.',
+        eventSeq: 30,
+      },
+    ]
+
+    it('refuses a fragment whose sentence negates it', () => {
+      expect(
+        anchorQuotes([{ field: 'rationale', text: 'the payback is 11 months' }], doubted),
+      ).toEqual([])
+    })
+
+    it('keeps the same words when the sentence around them does not reverse them', () => {
+      const asserted: QuoteSource[] = [
+        { field: 'rationale', text: 'I traced it: the payback is 11 months.', eventSeq: 30 },
+      ]
+      expect(
+        anchorQuotes([{ field: 'rationale', text: 'the payback is 11 months' }], asserted),
+      ).toEqual([{ event_seq: 30, text: 'the payback is 11 months' }])
+    })
+
+    it('reads the quote’s own sentence and not the whole field', () => {
+      // The negation is in an earlier sentence, so it does not reach this one.
+      const twoSentences: QuoteSource[] = [
+        {
+          field: 'rationale',
+          text: 'I did not check the supplier letter. The payback is 11 months on the March figure.',
+          eventSeq: 30,
+        },
+      ]
+      expect(
+        anchorQuotes([{ field: 'rationale', text: 'The payback is 11 months' }], twoSentences),
+      ).toHaveLength(1)
+    })
+
+    it('refuses a token: a single character anchored against anything at all', () => {
+      expect(anchorQuotes([{ field: 'position', text: 'L' }], sources)).toEqual([])
+      expect(anchorQuotes([{ field: 'position', text: 'Lean' }], sources)).toEqual([])
+      expect(anchorQuotes([{ field: 'position', text: 'the spend' }], sources)).toEqual([])
+      expect(QUOTE_MIN_CHARS).toBeGreaterThan(1)
+    })
   })
 
   it('turns a position key into FR-109’s vocabulary, and an invented key into `none`', () => {

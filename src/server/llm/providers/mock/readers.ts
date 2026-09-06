@@ -459,7 +459,12 @@ export function readAdaptation(raw: unknown): BandRead {
       firstSentence(input.justification) === ''
         ? []
         : [{ field: 'justification', text: firstSentence(input.justification) }],
-    rationale: `The response was ${input.response} where ${input.proportionateResponse} was proportionate; the justification ${mentionsTurn ? 'engages with' : 'does not engage with'} the message and ${mentionsAssumption ? 'names' : 'does not name'} a frame assumption.`,
+    // The rationale is shown to the student in the debrief (D-396), so it says what the *response*
+    // did and never what the Turn warranted: `proportionateResponse` is a 12 §8.1 field that may
+    // not reach a student payload in any state, and naming its value here would put it there. The
+    // scoring module's filter would redact the sentence; a stand-in that has to be redacted is a
+    // stand-in that is wrong (D-426).
+    rationale: `The response was ${input.response}${proportionate ? '' : ', which is out of step with what the message brought'}; the justification ${mentionsTurn ? 'engages with' : 'does not engage with'} the message and ${mentionsAssumption ? 'names' : 'does not name'} a frame assumption.`,
   }
 }
 

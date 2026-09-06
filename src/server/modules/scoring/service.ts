@@ -133,6 +133,7 @@ export {
   type NeutralizationReason,
   type RecomputeArgs,
   type RecomputeBlock,
+  type RecomputePoints,
   type RecomputeResult,
   type RecomputedDimension,
 } from './recompute'
@@ -212,7 +213,10 @@ export {
 } from './schema'
 
 export {
+  BAND_RATIONALE_TERMS,
   MAX_BAND_QUOTES,
+  QUOTE_MIN_CHARS,
+  QUOTE_MIN_WORDS,
   READ_DIMENSIONS,
   anchorQuotes,
   buildReadInputs,
@@ -340,8 +344,39 @@ async function loadRun(runId: string): Promise<ScoringLoad> {
 /** The states a `score_run` job can legitimately arrive at a run in and find nothing left to do. */
 const ALREADY_SCORED: ReadonlySet<string> = new Set(['scored', 'confirmed', 'recorded'])
 
-/** D-047: eight minutes is the alert, three the target, five seconds the mock's budget (NFR-001). */
-export const SCORING_SLOW_MS = 480_000
+/**
+ * When one scoring *attempt* has taken long enough to be worth an alert (13 §5, D-425).
+ *
+ * Four minutes, not D-047's eight. The number has to be reachable, and the ceiling on one attempt is
+ * not NFR-001's ten minutes: `score_run` has `expireInSeconds: 280` (10 §7) and the drain that runs
+ * it in production has a 270-second budget inside a route capped at 300 by the platform, so an
+ * attempt that ran for eight minutes would have been expired and re-dispatched — beside the first
+ * one, which is still running — a full three minutes before it could raise this. A threshold nothing
+ * can cross is not a threshold.
+ *
+ * D-047's eight minutes is not lost and does not belong here: it is *end to end*, from the defense
+ * completing to the debrief existing, which is what NFR-001 states and what queue wait and retries
+ * are part of. 13 §5 gives that figure to `scoring_overdue`, emitted by the drain over
+ * `defense_completed_at`, and both alerts feed the one Sentry rule (`ops:scoring_slow` or
+ * `ops:scoring_overdue`, one or more in an hour). Four minutes sits above NFR-001's three-minute p95
+ * target for the real provider and below the expiry, so a healthy run is silent and a run heading
+ * for a silent re-dispatch is not.
+ */
+export const SCORING_SLOW_MS = 240_000
+
+/**
+ * The payload of every notification this module sends (SYS-010).
+ *
+ * They are built here rather than written inline at the three `notify` calls so that there is an
+ * artifact to walk. `tests/unit/scoring/field-names.test.ts` reads these shapes for FR-131's
+ * field-name rule; a key added inline inside a call would be a payload no walker in that file could
+ * see, and a notification payload is the one shape this module produces that no schema covers.
+ */
+export const SCORING_NOTIFICATION_PAYLOADS = {
+  runScoredStudent: (runId: string) => ({ runId }),
+  runScoredReviewer: (runId: string, sectionId: string) => ({ runId, sectionId }),
+  runHeld: (runId: string, reason: HoldReason) => ({ runId, reason }),
+} as const
 
 /**
  * `score_run`: the run's trace becomes four graphs, seven draft bands and a set of points, or the
@@ -366,6 +401,10 @@ export async function scoreRun(runId: string): Promise<ScoreRunResult> {
       provider: provider.name,
     }
   }
+  // A held run is deliberately *not* short-circuited here. It is still `defense_complete` (D-405),
+  // and a later attempt is how FR-140's held run recovers when the provider comes back — so the job
+  // runs again in full and only the *writes* are guarded, under the run's lock, by `holdRun`. That
+  // is what makes a second hold a no-op without making a retry impossible (D-424).
   if (run.state !== 'defense_complete') runNotScorable(run.state, 'not_complete')
 
   const graphs = buildGraphs(input)
@@ -465,7 +504,7 @@ export async function scoreRun(runId: string): Promise<ScoreRunResult> {
       title: t('notifications.runScored.title'),
       body: t('notifications.runScored.body'),
       link: `/runs/${runId}`,
-      payload: { runId },
+      payload: SCORING_NOTIFICATION_PAYLOADS.runScoredStudent(runId),
       orgId: run.organizationId,
     })
     const reviewers = (
@@ -477,7 +516,7 @@ export async function scoreRun(runId: string): Promise<ScoreRunResult> {
       title: t('notifications.runScoredReviewer.title'),
       body: t('notifications.runScoredReviewer.body'),
       link: `/review/runs/${runId}`,
-      payload: { runId, sectionId: run.sectionId },
+      payload: SCORING_NOTIFICATION_PAYLOADS.runScoredReviewer(runId, run.sectionId),
       orgId: run.organizationId,
     })
     return true
@@ -515,6 +554,14 @@ export async function scoreRun(runId: string): Promise<ScoreRunResult> {
  * `scoring_status = 'held'` is the one thing about scoring a student is shown (10 §6): their run
  * reads "under review" rather than a state they cannot act on. The notice goes to the section's
  * instructors and TAs, who band it by hand or void it from the replay (FR-140, Phase 11).
+ *
+ * **Holding twice is holding once, and here the state cannot be the guard** (D-424). The scoring
+ * transaction is idempotent because scoring *moves* the run and the second job finds it moved
+ * (D-400); a hold moves nothing on purpose (D-405), so the run is still `defense_complete`
+ * afterwards and the state gate below would admit a second hold — a second `run_held` notification
+ * per reviewer, a second `ops_run_held`, a second `ops_scoring_completed{held:true}` and a second
+ * alert about one run. So the column the hold actually writes is the one it reads back under the
+ * lock: a run already `held` is left exactly as it is.
  */
 async function holdRun(
   run: repo.ScoringRunRow,
@@ -526,7 +573,8 @@ async function holdRun(
     const locked = await lockRunForMutation(tx, run.organizationId, run.id)
     // The same lock and the same reading as the scoring transaction: a run another job has already
     // scored is not held, and saying so would raise an alert about a run that is fine.
-    if (locked.state !== 'defense_complete') return false
+    if (locked.state !== 'defense_complete') return 'moved'
+    if (locked.scoringStatus === 'held') return 'held_already'
     await repo.updateScoringStatus(run.organizationId, run.id, 'held', tx)
     const reviewers = (
       await repo.listSectionReviewerIds(run.organizationId, run.sectionId, tx)
@@ -537,17 +585,17 @@ async function holdRun(
       title: t('notifications.runHeld.title'),
       body: t('notifications.runHeld.body'),
       link: `/review/runs/${run.id}`,
-      payload: { runId: run.id, reason },
+      payload: SCORING_NOTIFICATION_PAYLOADS.runHeld(run.id, reason),
       orgId: run.organizationId,
     })
-    return true
+    return 'wrote'
   })
 
   const durationMs = elapsed(startedAt)
-  if (!held) {
+  if (held !== 'wrote') {
     return {
       runId: run.id,
-      outcome: 'already_scored',
+      outcome: held === 'held_already' ? 'already_held' : 'already_scored',
       holdReason: null,
       durationMs,
       provider: providerName,
@@ -639,11 +687,26 @@ function draftBandPayload(band: DraftBand) {
 // ---------------------------------------------------------------------------------------------
 
 /**
- * FR-005 and 10 §11.4's effective band: the instructor's decision where there is one, the higher of
- * the two correction bands after a neutralization, the draft otherwise.
+ * FR-005, FR-182 and 10 §11.4's effective band: **the instructor's decision, with the correction as
+ * a floor under it** — and the draft where there is no decision.
  *
- * The correction is applied last and only ever raises, which is the FR-005 floor — "a correction for
- * Tassl's own error can raise a band and never lowers one".
+ * Two rules meet here and both are absolute, so the order they are applied in is the whole of this
+ * function (D-422).
+ *
+ *   *FR-182 — the instructor's judgment is final.* `decided` is what the run stands on: the decided
+ *   band where a faculty seat decided one, the draft where they have not. `unassessed` is terminal
+ *   and returns before the floor is applied at all: nothing may band a dimension a faculty seat has
+ *   said this run cannot be assessed on, and there is no band there for a floor to protect.
+ *
+ *   *FR-005 — a correction for Tassl's own error can raise a band and never lowers one.* So the
+ *   recomputed band is a floor under `decided`, never a replacement for it: D-397 says in as many
+ *   words that "a correction has no business undoing an override".
+ *
+ * `bandBeforeCorrection` is deliberately **not** an input. It is the record of what the recompute
+ * saw — when the decision came first it *is* `decided`, and when the decision came later `decided`
+ * is the fresher of the two and the one FR-182 makes final. Reading it instead of `decided` is the
+ * defect this replaces: it made every decision on a corrected dimension a no-op, including an
+ * override that *raised* the band, and including `unassessed`.
  */
 export function effectiveBandOf(row: {
   draftBand: Band | null
@@ -652,14 +715,9 @@ export function effectiveBandOf(row: {
   bandBeforeCorrection: Band | null
   bandAfterCorrection: Band | null
 }): Band | null {
-  const decided =
-    row.decision === null
-      ? row.draftBand
-      : row.decision === 'unassessed'
-        ? null
-        : (row.decidedBand ?? row.draftBand)
-  if (row.bandBeforeCorrection === null && row.bandAfterCorrection === null) return decided
-  return higherBand(row.bandBeforeCorrection ?? decided, row.bandAfterCorrection)
+  if (row.decision === 'unassessed') return null
+  const decided = row.decision === null ? row.draftBand : (row.decidedBand ?? row.draftBand)
+  return higherBand(decided, row.bandAfterCorrection)
 }
 
 const asNumber = (value: string | null): number | null => (value === null ? null : Number(value))

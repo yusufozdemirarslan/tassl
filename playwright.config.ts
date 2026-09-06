@@ -1,5 +1,23 @@
 import { defineConfig, devices } from '@playwright/test'
 
+// The lane serves the database it resets.
+//
+// `pnpm db:reset` resets TEST_DATABASE_URL; `pnpm start` reads DATABASE_URL. In CI those are the
+// same value, so the reset lands on the database the server serves. Locally `.env` points them at
+// `tassl_test` and `tassl`, so the reset wiped one database while the suite ran against another —
+// e2e state accumulated in `tassl` forever, and a spec that asserted an empty list passed on a new
+// machine and failed on one that had run the suite before. Pinning the server to the same URL the
+// reset targets makes local behave as CI does, and keeps the developer's own `tassl` untouched.
+const TEST_DATABASE_URL =
+  process.env.TEST_DATABASE_URL ?? 'postgres://tassl:tassl@localhost:5432/tassl_test'
+
+// Set on this process too, not only on the server's. `global-setup.ts` writes the confirmed
+// package version through `@/server/db/client`, which reads `env.DATABASE_URL` from whatever
+// process imports it — so pinning only the server would have the setup seed one database while the
+// suite queried another. This runs before the config is used and therefore before that import.
+process.env.DATABASE_URL = TEST_DATABASE_URL
+process.env.DATABASE_URL_UNPOOLED = TEST_DATABASE_URL
+
 // docs/tech/04-repo-structure.md §9. CI installs chromium only and runs --project=chromium (D-126).
 export default defineConfig({
   testDir: 'tests/e2e',
@@ -34,6 +52,8 @@ export default defineConfig({
       FEATURE_AI: 'false',
       EMAIL_TRANSPORT: 'console',
       APP_ENV: 'test',
+      DATABASE_URL: TEST_DATABASE_URL,
+      DATABASE_URL_UNPOOLED: TEST_DATABASE_URL,
     },
   },
 })

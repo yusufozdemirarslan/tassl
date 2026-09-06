@@ -476,7 +476,7 @@ Every panel and alert below reads from one of these emitters. The builder adds e
 |---|---|---|
 | `runs.service` after every state write and in `materializeTimers` | `countOps('ops_run_state_changed')` | `state`, `from_state`, `auto` |
 | `materializeTimers` when it writes `turn_delivered` | `countOps('ops_turn_delivered')` | `lag_ms = deliveryReadTime - turn_due_at` |
-| `scoring.service.scoreRun` on success | `countOps('ops_scoring_completed')`; `alertOps('scoring_slow')` when `duration_ms > 480000` (D-047) | `duration_ms`, `provider`, `provisional_dimensions`, `unassessed_dimensions` |
+| `scoring.service.scoreRun` on success | `countOps('ops_scoring_completed')`; `alertOps('scoring_slow')` when `duration_ms > 240000` (D-425: a threshold on one *attempt*, which `score_run`'s `expireInSeconds: 280` and the drain's 270 s budget bound; D-047's eight minutes is end to end and belongs to `scoring_overdue` below) | `duration_ms`, `provider`, `provisional_dimensions`, `unassessed_dimensions` |
 | `scoring.service.scoreRun` when it sets `runs.scoring_status = 'held'` (FR-140) | `countOps('ops_run_held')` and `alertOps('run_held')` | `reason` (`read_failed`, `budget_exceeded`, `provider_error`, `record_lost`), `run_id` |
 | `drainQueues()` at the start of every drain | `alertOps('scoring_overdue')` per run where `scoring_status in ('queued','running') and defense_completed_at < now() - interval '8 minutes'` | `run_id`, `age_ms` |
 | `src/server/llm/calls.ts` after writing the `llm_calls` row | `countOps('ops_llm_call')`; `alertOps('llm_error')` when `outcome in ('timeout','error')` | `feature`, `provider`, `model`, `prompt_name`, `prompt_version`, `outcome`, `latency_ms`, `input_tokens`, `output_tokens`, `cost_estimate_usd`, `user_daily_tokens_after`, `global_monthly_tokens_after` |
@@ -576,7 +576,7 @@ Destination for every rule: the Sentry account email of the builder (Sentry → 
 | `NFR-008 write latency` | NFR-008 | Metric alert, Transactions | `p95(transaction.duration)` on `route_group:api_write OR route_group:action` | 10 min | critical above 800 ms, warning above 600 ms |
 | `NFR-008 page latency` | NFR-008 | Metric alert, Transactions | `p95(transaction.duration)` on `route_group:page` | 10 min | critical above 2500 ms |
 | `NFR-008 assistant first token` | NFR-008 | Metric alert, Transactions | `p95(measurements.assistant_first_token)` on `llm_provider:openai-compatible OR llm_provider:anthropic` | 15 min | critical above 3000 ms |
-| `NFR-001 scoring slow` | NFR-001 | Issue alert | events tagged `ops:scoring_slow` or `ops:scoring_overdue` | 1 hour | 1 or more (D-047: 8 minutes) |
+| `NFR-001 scoring slow` | NFR-001 | Issue alert | events tagged `ops:scoring_slow` or `ops:scoring_overdue` | 1 hour | 1 or more (D-047: 8 minutes end to end via `scoring_overdue`; 4 minutes for one attempt via `scoring_slow`, D-425) |
 | `NFR-001 run held` | NFR-001, FR-140 | Issue alert | `ops:run_held` | 1 hour | 1 or more |
 | `NFR-015 nightly backup` | NFR-015 | Cron monitor `nightly-backup` | schedule `30 3 * * *` UTC, check-in margin 30 min, max runtime 60 min | per run | missed or failed check-in |
 | `NFR-015 restore drill` | NFR-015 | Cron monitor `restore-drill` | schedule `0 6 * * 1` UTC, margin 120 min, max runtime 90 min | per run | missed or failed check-in |

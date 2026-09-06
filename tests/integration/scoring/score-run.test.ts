@@ -478,6 +478,191 @@ describe('when the band reads do not come back', () => {
     expect(await runRow(runId)).toMatchObject({ state: 'scored', scoring_status: 'done' })
     expect(await bandRows(runId)).toHaveLength(7)
   })
+
+  // D-424. Holding twice is holding once, and the state cannot be what says so: a hold moves nothing
+  // on purpose (D-405), so the run is still `defense_complete` afterwards and the scored path's own
+  // idempotency guard — "the second job finds the run already moved" — does not apply here.
+  it('holds once however many jobs arrive, sequentially', async () => {
+    const runId = await scorableRun()
+    process.env.MOCK_FAIL_READS = 'true'
+
+    const first = await scoring.scoreRun(runId)
+    expect(first.outcome).toBe('held')
+    const before = await notificationRows(runId)
+    expect(before).toHaveLength(2) // one instructor, one TA
+
+    const second = await scoring.scoreRun(runId)
+    expect(second.outcome).toBe('already_held')
+    expect(second.holdReason).toBeNull()
+
+    // No second notice, no second row of anything, and the run is exactly where it was.
+    expect(await notificationRows(runId)).toEqual(before)
+    expect(await runRow(runId)).toMatchObject({
+      state: 'defense_complete',
+      scoring_status: 'held',
+      scored_at: null,
+    })
+    expect(await bandRows(runId)).toEqual([])
+  })
+
+  it('holds once however many jobs arrive, concurrently', async () => {
+    const runId = await scorableRun()
+    process.env.MOCK_FAIL_READS = 'true'
+
+    const results = await Promise.all([scoring.scoreRun(runId), scoring.scoreRun(runId)])
+    expect(results.filter((result) => result.outcome === 'held')).toHaveLength(1)
+    expect(results.filter((result) => result.outcome === 'already_held')).toHaveLength(1)
+
+    // Two reviewers, one notice each — not two each, which is what a second hold wrote before, and
+    // with them a second `ops_run_held`, a second `ops_scoring_completed` and a second alert.
+    const notifications = await notificationRows(runId)
+    expect(notifications).toHaveLength(2)
+    expect(notifications.map((row) => row.user_id).sort()).toEqual(
+      [fx.instructor.id, fx.ta.id].sort(),
+    )
+  })
+})
+
+// ---------------------------------------------------------------------------------------------
+// The two upserts, and the columns their callers do not mention (D-423)
+//
+// `run_scores` and `run_bands` are each written by more than one caller: `scoreRun` writes the draft
+// half, `review` writes the decisions, §11.5's recompute writes the correction. A SET clause written
+// out column by column sets every column a caller did not name to `excluded.<column>`, which for a
+// column the insert never carried is that column's default — NULL. So the second write of a key
+// blanks whatever the first one put there, and only the second write is wrong, which is why nothing
+// in the pipeline noticed: `scoreRun` is the only writer today.
+// ---------------------------------------------------------------------------------------------
+
+describe('an upsert writes the columns its caller named and leaves the rest alone', () => {
+  /** The row the pipeline just wrote. Narrowing here keeps the writes below about the columns. */
+  function notNull<T>(value: T | null | undefined): T {
+    expect(value).toBeTruthy()
+    return value as T
+  }
+
+  const fullScoreRow = async (runId: string) => {
+    const [row] = await testSql<
+      {
+        rubric_version: string
+        false_challenge_rate: string | null
+        points_draft: string | null
+        points_confirmed: string | null
+        points_before_correction: string | null
+        points_after_correction: string | null
+        points_effective: string | null
+        scored_at: Date | null
+        flags: string[]
+      }[]
+    >`select rubric_version, false_challenge_rate, points_draft, points_confirmed,
+             points_before_correction, points_after_correction, points_effective, scored_at, flags
+        from run_scores where run_id = ${runId}`
+    return row
+  }
+
+  it('keeps the confirmed and corrected points a second write does not mention', async () => {
+    const runId = await scorableRun()
+    await scoring.scoreRun(runId)
+
+    // What Phase 11's confirmation will write: the course's arithmetic, on the row the pipeline made.
+    await testSql`update run_scores
+                     set points_confirmed = 3.000, points_effective = 3.500,
+                         points_before_correction = 3.000, points_after_correction = 3.500
+                   where run_id = ${runId}`
+
+    // The pipeline's own write, exactly as `scoreRun` shapes it: the draft half and nothing else.
+    const repository = await import('@/server/modules/scoring/repository')
+    const existing = await repository.findScore(runId)
+    await repository.upsertScore(runId, {
+      rubricVersion: 'v1',
+      graphs: notNull(existing).graphs,
+      falseChallengeRate: '0.2500',
+      matchedStanceShare: '0.7500',
+      pointsDraft: '2.000',
+      flags: [],
+      scoredAt: new Date(),
+    })
+
+    const row = await fullScoreRow(runId)
+    // The four the second caller never named survive it.
+    expect(row?.points_confirmed).toBe('3.000')
+    expect(row?.points_effective).toBe('3.500')
+    expect(row?.points_before_correction).toBe('3.000')
+    expect(row?.points_after_correction).toBe('3.500')
+    // And the ones it did name are written.
+    expect(row?.points_draft).toBe('2.000')
+    expect(row?.false_challenge_rate).toBe('0.2500')
+  })
+
+  it('keeps the draft half a correction write does not mention', async () => {
+    const runId = await scorableRun()
+    await scoring.scoreRun(runId)
+    const before = await fullScoreRow(runId)
+    expect(before?.points_draft).not.toBeNull()
+
+    // §11.5's writer: the correction's three numbers, plus the three columns the *insert* path of an
+    // upsert cannot leave out because the table declares them not-null. Everything else — the draft
+    // points, the two rates, the flags — is the other caller's, and this one does not mention it.
+    const repository = await import('@/server/modules/scoring/repository')
+    const existing = await repository.findScore(runId)
+    await repository.upsertScore(runId, {
+      rubricVersion: notNull(existing).rubricVersion,
+      graphs: notNull(existing).graphs,
+      scoredAt: notNull(existing).scoredAt,
+      pointsBeforeCorrection: '3.000',
+      pointsAfterCorrection: '3.143',
+      pointsEffective: '3.143',
+    })
+
+    const row = await fullScoreRow(runId)
+    expect(row?.points_effective).toBe('3.143')
+    expect(row?.points_before_correction).toBe('3.000')
+    expect(row?.points_draft).toBe(before?.points_draft)
+    expect(row?.false_challenge_rate).toBe(before?.false_challenge_rate)
+    expect(row?.flags).toEqual(before?.flags)
+  })
+
+  it('keeps an instructor’s decision when the pipeline re-drafts the same band', async () => {
+    const runId = await scorableRun()
+    await scoring.scoreRun(runId)
+
+    // What `review.decideBand` will write in Phase 11.
+    await testSql`update run_bands
+                     set decision = 'overridden', decided_band = 'professional',
+                         note = 'The Source Trace was read correctly in the defense.'
+                   where run_id = ${runId} and dimension = 'verification'`
+
+    // A second pass of the pipeline's own writer, which names the draft columns only.
+    const repository = await import('@/server/modules/scoring/repository')
+    await repository.upsertBands(runId, [
+      {
+        dimension: 'verification',
+        draftBand: 'developing',
+        draftStatus: 'drafted',
+        draftReason: 'redrafted',
+        basis: 'trace',
+        provisional: true,
+        graphKeys: [],
+        evidenceEventSeqs: [],
+        quotes: [],
+        rationale: 'A second draft.',
+      },
+    ])
+
+    const [row] = await testSql<
+      {
+        draft_band: string
+        decision: string | null
+        decided_band: string | null
+        note: string | null
+      }[]
+    >`select draft_band, decision, decided_band, note
+        from run_bands where run_id = ${runId} and dimension = 'verification'`
+    expect(row?.draft_band).toBe('developing')
+    expect(row?.decision).toBe('overridden')
+    expect(row?.decided_band).toBe('professional')
+    expect(row?.note).toBe('The Source Trace was read correctly in the defense.')
+  })
 })
 
 // ---------------------------------------------------------------------------------------------

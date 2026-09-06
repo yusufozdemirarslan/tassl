@@ -310,6 +310,59 @@ describe('the record form carries nothing a student may never see', () => {
       expect(removed).toContain(field)
     }
   })
+
+  it('refuses the correction’s two point totals, and keeps the bands it moved (D-420)', () => {
+    // §8.1's last row, in the one payload that carried a `points_*` into a student's own record.
+    // The two are top-level fields precisely so this table can classify them; the `recompute` block
+    // beside them stays, because FR-005 entitles the student to know a correction raised their band.
+    expect(reviewerOnlyKeys('claim_neutralized')).toEqual(
+      expect.arrayContaining(['points_before', 'points_after']),
+    )
+    expect(reviewerOnlyKeys('claim_neutralized')).not.toContain('recompute')
+
+    const withPoints = recordExample()
+    withPoints.events = [
+      {
+        seq: 1,
+        type: 'claim_neutralized',
+        occurred_at: '2026-09-02T09:00:00.000Z',
+        clock_remaining_ms: null,
+        payload: {
+          neutralization_id: '00000000-0000-4000-8000-0000000000f1',
+          claim_id: '00000000-0000-4000-8000-0000000000f2',
+          reason: 'unintended_defect',
+          credit_challenge: true,
+          recompute: { dimensions: [], bands_before: {}, bands_after: {} },
+          points_before: 3,
+        },
+      },
+    ] as typeof withPoints.events
+    expect(RecordTraceExportSchema.safeParse(withPoints).success).toBe(false)
+
+    // And the same event without them parses, so the refusal is about the two fields.
+    const withoutPoints = recordExample()
+    withoutPoints.events = [
+      {
+        seq: 1,
+        type: 'claim_neutralized',
+        occurred_at: '2026-09-02T09:00:00.000Z',
+        clock_remaining_ms: null,
+        payload: {
+          neutralization_id: '00000000-0000-4000-8000-0000000000f1',
+          claim_id: '00000000-0000-4000-8000-0000000000f2',
+          reason: 'unintended_defect',
+          credit_challenge: true,
+          recompute: {
+            dimensions: ['verification'],
+            bands_before: { verification: 'developing' },
+            bands_after: { verification: 'proficient' },
+          },
+        },
+      },
+    ] as typeof withoutPoints.events
+    const parsed = RecordTraceExportSchema.safeParse(withoutPoints)
+    expect(parsed.error?.issues ?? []).toEqual([])
+  })
 })
 
 // ---------------------------------------------------------------------------------------------

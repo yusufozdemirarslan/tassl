@@ -174,9 +174,17 @@ describe('neutralizing the claim raises Calibration from Developing to Proficien
       dimensions: ['verification', 'calibration'],
       bands_before: { verification: 'professional', calibration: 'developing' },
       bands_after: { verification: 'professional', calibration: 'proficient' },
-      points_before: 3,
-      points_after: 3.143,
     })
+  })
+
+  it('hands the two point totals over separately, because the record withholds them (D-420)', () => {
+    // They are fields of the `claim_neutralized` payload, not members of its `recompute` block:
+    // `trace/owner-view.ts` classifies the top level of a payload, so a `points_*` inside the block
+    // was carried into the student's copy of their own record by the block's own classification —
+    // the last row of 12 §8.1, `points` inside the record export form.
+    expect(result.points).toStrictEqual({ points_before: 3, points_after: 3.143 })
+    expect(Object.keys(result.block)).not.toContain('points_before')
+    expect(Object.keys(result.block)).not.toContain('points_after')
   })
 })
 

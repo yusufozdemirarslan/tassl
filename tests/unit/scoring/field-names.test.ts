@@ -6,7 +6,7 @@
 // that would break it — it is the one that turns seven bands into a number — so the guard lands
 // with it.
 //
-// **This is a grep and not a token check.** It walks four real artifacts and asks each of them for
+// **This is a grep and not a token check.** It walks six real artifacts and asks each of them for
 // its own field names:
 //
 //   1. every column of every table in `src/server/db/schema`, read off the Drizzle definitions;
@@ -14,7 +14,14 @@
 //   3. every key of both trace export forms, read off the Zod schemas the endpoints serve;
 //   4. every key of what this module actually produces at run time — the four graph payloads, the
 //      categorical facts, the seven draft bands and a recompute result — because a field that only
-//      exists in a payload never reaches a table or a schema and would otherwise be invisible here.
+//      exists in a payload never reaches a table or a schema and would otherwise be invisible here;
+//   5. every key of the `scoring` module's own wire schemas (`runScoreViewSchema`, `bandViewSchema`,
+//      `scoreRunResultSchema`), which is what `getScore` answers and what Phase 11's replay and
+//      debrief will serve — the module schema says this file walks it, and until now it did not;
+//   6. every key of the payloads the notifications this module sends actually carry, which reach a
+//      student's own notification list and are the one shape here that no schema above covers
+//      (walkers 5 and 6 are D-430; the notification payloads are built by
+//      `SCORING_NOTIFICATION_PAYLOADS` in the service so that there is an artifact to walk).
 //
 // So a column, a payload key or an export key added tomorrow is checked without anyone editing this
 // file. The last describe block proves the walkers can fail: each is run again over the same
@@ -31,7 +38,7 @@
 //
 // Table names are not walked and are not meant to be: `run_scores` is where the run's scoring
 // output lives, and a table called that holding no field called that is exactly the shape FR-131
-// describes. The four walkers below take columns, keys and payload properties only.
+// describes. The six walkers below take columns, keys and payload properties only.
 import { getTableColumns, is } from 'drizzle-orm'
 import { PgTable } from 'drizzle-orm/pg-core'
 import { z } from 'zod'
@@ -44,10 +51,15 @@ import {
 import { EVENT_PAYLOAD_SCHEMAS } from '@/server/modules/trace/schema'
 import {
   DEFAULT_MAPPING,
+  HOLD_REASONS,
+  SCORING_NOTIFICATION_PAYLOADS,
+  bandViewSchema,
   buildGraphs,
   categoricalFacts,
   draftBands,
   recomputeAfterNeutralization,
+  runScoreViewSchema,
+  scoreRunResultSchema,
 } from '@/server/modules/scoring'
 import { loadFixture } from './graphs/fixtures'
 
@@ -84,7 +96,7 @@ function forbiddenNames(names: Iterable<string>): string[] {
 }
 
 // ---------------------------------------------------------------------------------------------
-// The four walkers
+// The three walkers the six artifacts are read with
 // ---------------------------------------------------------------------------------------------
 
 /** Every column name of every table Drizzle defines, in both the TS and the SQL spelling. */
@@ -157,6 +169,29 @@ const bands = draftBands({
     ownership: { band: 'proficient', quotes: [], rationale: 'r' },
   },
 })
+/**
+ * The `scoring` module's own wire schemas: what `getScore` answers a reviewer, and what Phase 11's
+ * replay and debrief will serve from it. `scoring/schema.ts` says this file walks it; walker 5 is
+ * what makes that true.
+ */
+const WIRE_SCHEMAS: readonly z.ZodType[] = [
+  runScoreViewSchema,
+  bandViewSchema,
+  scoreRunResultSchema,
+]
+
+/** Every notification payload this module sends, from the builders the service actually calls. */
+const NOTIFICATION_PAYLOADS: readonly unknown[] = [
+  SCORING_NOTIFICATION_PAYLOADS.runScoredStudent('00000000-0000-4000-8000-00000000000a'),
+  SCORING_NOTIFICATION_PAYLOADS.runScoredReviewer(
+    '00000000-0000-4000-8000-00000000000a',
+    '00000000-0000-4000-8000-00000000000b',
+  ),
+  ...HOLD_REASONS.map((reason) =>
+    SCORING_NOTIFICATION_PAYLOADS.runHeld('00000000-0000-4000-8000-00000000000a', reason),
+  ),
+]
+
 const recompute = recomputeAfterNeutralization({
   input,
   neutralization: {
@@ -210,6 +245,23 @@ describe('FR-131 — no field is named score, rank or percentile', () => {
       ...everyPayloadKey(recompute),
     ]
     expect(keys.length).toBeGreaterThan(100)
+    expect(forbiddenNames(keys)).toStrictEqual([])
+  })
+
+  it('not in the wire schemas this module answers a reviewer with', () => {
+    const keys = WIRE_SCHEMAS.flatMap((schema) => everyZodKey(schema))
+    expect(keys.length).toBeGreaterThan(20)
+    expect(forbiddenNames(keys)).toStrictEqual([])
+    // The three names that would fail a substring check and must not fail a segment one: they name
+    // the act of scoring and the course's arithmetic, which FR-131 names as its exceptions.
+    expect(keys).toContain('scoringStatus')
+    expect(keys).toContain('pointsEffective')
+    expect(keys).toContain('scoredAt')
+  })
+
+  it('not in any notification payload this module sends', () => {
+    const keys = NOTIFICATION_PAYLOADS.flatMap((payload) => everyPayloadKey(payload))
+    expect(keys.length).toBeGreaterThan(5)
     expect(forbiddenNames(keys)).toStrictEqual([])
   })
 
@@ -285,5 +337,29 @@ describe('FR-131 — the guard finds a forbidden field when there is one', () =>
   it('reaches into arrays and nested objects, which is where a leak would actually be', () => {
     const planted = { rows: [{ claim_id: 'x', deep: [{ percentileRank: 3 }] }] }
     expect(forbiddenNames(everyPayloadKey(planted))).toStrictEqual(['percentileRank'])
+  })
+
+  it('would fail the wire-schema walk if a view grew a composite', () => {
+    // The real schema with one field added: the walker has to find it through the array of bands
+    // as well as at the top level, because that is where a per-dimension figure would land.
+    const planted = runScoreViewSchema.extend({
+      compositeScore: z.number(),
+      bands: z.array(bandViewSchema.extend({ cohort_percentile: z.number() })),
+    })
+    expect(forbiddenNames(everyZodKey(planted))).toStrictEqual([
+      'cohort_percentile',
+      'compositeScore',
+    ])
+  })
+
+  it('would fail the notification walk if a notice grew one', () => {
+    const planted = [
+      ...NOTIFICATION_PAYLOADS,
+      { runId: 'r', classRank: 4, nested: { bandScores: [1, 2] } },
+    ]
+    expect(forbiddenNames(planted.flatMap((payload) => everyPayloadKey(payload)))).toStrictEqual([
+      'bandScores',
+      'classRank',
+    ])
   })
 })

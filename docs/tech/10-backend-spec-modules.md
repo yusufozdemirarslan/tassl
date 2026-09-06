@@ -297,7 +297,7 @@ Event payloads (all fields snake_case; ids are UUID strings):
 | `defense_answer` | `{ run_question_id, text, duration_ms }` |
 | `draft_band` | `{ dimension, band, status, reason, basis, provisional, graph_keys, evidence_event_seqs, quotes: [{ event_seq, text }], rationale }` |
 | `band_decision` | `{ dimension, decision, band, note }` |
-| `claim_neutralized` | `{ neutralization_id, claim_id, reason, credit_challenge, note, recompute: { dimensions, bands_before, bands_after, points_before, points_after } }` |
+| `claim_neutralized` | `{ neutralization_id, claim_id, reason, credit_challenge, note, recompute: { dimensions, bands_before, bands_after }, points_before, points_after }` (D-420: the two point totals sit at the top level, not inside `recompute`, because `trace/owner-view.ts` classifies the top level of a payload and the record export form carries no `points` at any depth) |
 | `run_voided` | `{ reason, note, re_offered_run_id }` |
 | `run_reoffered` | `{ from_run_id, variant_id }` |
 | `debrief_opened` | `{ version: 'draft'|'confirmed' }` |
@@ -364,11 +364,15 @@ export function computePoints(bands: Record<Dimension, Band | 'unassessed' | nul
 
 `points_draft` from draft bands (labeled draft in the debrief, never exported); `points_confirmed` from `effective_band`s once every dimension has a decision; `points_effective = max(points_before_correction, points_after_correction)` after any correction (FR-005).
 
+The effective band of one dimension (`effectiveBandOf`, D-422) is **the instructor's decision with the correction as a floor under it**: `unassessed` answers `null` and is terminal (FR-182 - nothing bands a dimension a faculty seat said cannot be assessed), and otherwise the answer is `higherBand(decided, band_after_correction)` where `decided` is the decided band, or the draft where nobody decided. `band_before_correction` is the record of what the recompute saw and is not read: when the decision came first it *is* `decided`, and when it came later `decided` is the fresher of the two.
+
 ### 11.5 Neutralization recompute (FR-005, FR-232)
 
-`recomputeAfterNeutralization(runId, neutralization)`: mark the run claim neutralized (and `inconsistency_credited` when `credit_challenge`), rebuild the stance matrix and facts without that row, recompute Verification and Calibration categorical bands and FCR; for each affected dimension set `band_before_correction = effective`, `band_after_correction = new`, and the effective band becomes the higher; recompute points before/after/effective; write the `claim_neutralized` event with the recompute block; set `adjusted_at`; if the run was confirmed or recorded, write a new course export with reason `neutralization` (FR-184). Free-text dimensions are not recomputed (their reads did not depend on the claim).
+`recomputeAfterNeutralization(runId, neutralization)`: mark the run claim neutralized (and `inconsistency_credited` when `credit_challenge`), rebuild the stance matrix and facts without that row, recompute Verification and Calibration categorical bands and FCR; for each affected dimension set `band_before_correction = effective`, `band_after_correction = new`, and the effective band becomes the higher; recompute points before/after/effective; write the `claim_neutralized` event with the recompute block and its two top-level point totals (D-420); set `adjusted_at`; if the run was confirmed or recorded, write a new course export with reason `neutralization` (FR-184). Free-text dimensions are not recomputed (their reads did not depend on the claim).
 
-Repository: `upsertBands`, `upsertScore`, `findScore`, `updateScoringStatus`.
+Repository: `upsertBands`, `upsertScore`, `findScore`, `updateScoringStatus`. Both upserts build their `onConflictDoUpdate` SET clause from the columns the caller actually named, so a writer that touches the draft half cannot null the decision or correction half and vice versa (D-423).
+
+`scoreRun` reports `scored`, `held`, `already_scored` or `already_held`. The hold path is idempotent through `runs.scoring_status` read back under the run's lock rather than through the run's state, because a hold moves nothing (D-405, D-424); a held run is still re-scored in full by a later attempt, which is how it recovers when the provider comes back.
 
 Errors: `RUN_NOT_SCORABLE` (409), `RUBRIC_VERSION_UNKNOWN` (500).
 

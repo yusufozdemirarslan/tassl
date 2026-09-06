@@ -64,6 +64,19 @@ export type RecomputedDimension = (typeof RECOMPUTED_DIMENSIONS)[number]
 /** The `recompute` block of the `claim_neutralized` event (10 §10), as the service writes it. */
 export type RecomputeBlock = StoredEventPayload<'claim_neutralized'>['recompute']
 
+/**
+ * The two point totals the same event carries beside that block (D-420).
+ *
+ * They are a separate piece because they are classified separately: `points` may not appear in the
+ * record export form at any depth (12 §8.1, FR-170), and `trace/owner-view.ts` classifies the top
+ * level of a payload — so inside `recompute` they were the student's copy's problem, and outside it
+ * they are `reviewer_only`.
+ */
+export type RecomputePoints = Pick<
+  StoredEventPayload<'claim_neutralized'>,
+  'points_before' | 'points_after'
+>
+
 export type RecomputeResult = {
   /** The dimensions the recompute touched, in rubric order. */
   dimensions: Dimension[]
@@ -81,6 +94,8 @@ export type RecomputeResult = {
   graphs: RunGraphs
   /** Ready for the `claim_neutralized` payload the service appends in the same transaction. */
   block: RecomputeBlock
+  /** The same event's two point fields, which the record export withholds (D-420). */
+  points: RecomputePoints
 }
 
 export type RecomputeArgs = {
@@ -159,9 +174,8 @@ export function recomputeAfterNeutralization(args: RecomputeArgs): RecomputeResu
       dimensions: [...RECOMPUTED_DIMENSIONS],
       bands_before: bandsBefore,
       bands_after: bandsAfter,
-      points_before: pointsBefore,
-      points_after: pointsAfter,
     },
+    points: { points_before: pointsBefore, points_after: pointsAfter },
   }
 }
 
@@ -190,13 +204,9 @@ export function withNeutralization(
       reason: neutralization.reason,
       credit_challenge: neutralization.creditChallenge,
       note: neutralization.note ?? '',
-      recompute: {
-        dimensions: [],
-        bands_before: {},
-        bands_after: {},
-        points_before: null,
-        points_after: null,
-      },
+      recompute: { dimensions: [], bands_before: {}, bands_after: {} },
+      points_before: null,
+      points_after: null,
     },
   }
   return { ...input, events: [...input.events, event] }

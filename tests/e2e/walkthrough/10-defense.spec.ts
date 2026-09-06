@@ -277,18 +277,29 @@ test('walkthrough step 10: the defense asks from the run record, presses an unso
 
   await page.waitForURL(new RegExp(`/runs/${runId}$`))
   await expect(page.getByRole('heading', { level: 1, name: 'Run status' })).toBeVisible()
-  await expect(page.locator('#run-status')).toContainText('Your run is being scored')
+  // Step 10.4 registered the `score_run` handler, so the drain scores the run inside
+  // `completeDefense` (D-046, D-400) and this page can already be past "being scored" by the time
+  // it renders. Both are correct answers to the same press, so the spec accepts either rather than
+  // racing the job. The un-raceable assertion on the being-scored state — taken from the response
+  // to `POST /defense/complete`, built inside the transaction that moved the run — lives in
+  // `11-scoring-debrief.spec.ts`, which owns UI-027.
+  await expect(page.locator('#run-status')).toContainText(
+    /Your run is being scored|Your defense is in|Your debrief is ready/,
+  )
 
   const scored = await readJson<{ state: string; scoringStatus: string }>(
     page.request,
     `/api/v1/runs/${runId}`,
   )
-  expect(scored.state).toBe('defense_complete')
+  expect(['defense_complete', 'scored']).toContain(scored.state)
   expect(['queued', 'running', 'done', 'held']).toContain(scored.scoringStatus)
 
   // No number of any kind: no composite, no rank, no percentile, no queue position, no estimate.
+  // `band` is not on this list any more: once the run is scored the panel says the bands in the
+  // debrief are drafts, which is FR-140's own wording. What FR-131 forbids is a composite, a rank
+  // or a percentile, and those stay forbidden in both states.
   const status = ((await page.locator('main').textContent()) ?? '').toLowerCase()
-  for (const word of ['rank', 'percentile', 'points', 'band', 'position in', 'minutes']) {
+  for (const word of ['rank', 'percentile', 'points', 'position in', 'minutes']) {
     expect(status, `the status page must not say "${word}"`).not.toContain(word)
   }
 

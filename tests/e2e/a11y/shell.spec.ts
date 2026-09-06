@@ -28,7 +28,15 @@ test('the signed-in shell and its screens have no axe violations', async ({ page
 
   await page.goto('/notifications')
   await expect(page.getByRole('heading', { level: 1, name: 'Notifications' })).toBeVisible()
-  await expect(page.getByRole('heading', { level: 3, name: 'Nothing yet' })).toBeVisible()
+  // Either face of the page is correct, and which one this seat gets is not this spec's business:
+  // Step 10.4 sends a `run_scored` notification, and the walkthrough scores a run, so whether the
+  // list is empty depends on what else has run. What an accessibility spec is here to prove is
+  // that the page renders something axe can read — so it asserts one of the two, and scans it.
+  const empty = page.getByRole('heading', { level: 3, name: 'Nothing yet' })
+  const rows = page.getByRole('listitem')
+  await expect(async () => {
+    expect((await empty.count()) + (await rows.count())).toBeGreaterThan(0)
+  }).toPass()
   await axe(page)
 
   await signOut(page)
