@@ -2,7 +2,7 @@
 
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
-import { Loader2Icon } from 'lucide-react'
+import { Loader2Icon, PencilLineIcon } from 'lucide-react'
 import { FormAlert } from '@/components/features/account/form-feedback'
 import {
   AlertDialog,
@@ -19,6 +19,7 @@ import { Field, FieldDescription, FieldError, FieldLabel } from '@/components/ui
 import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/cn'
 import { formatDateTime } from '@/lib/format/date-time'
+import { useDraft } from '@/lib/hooks/use-draft'
 import { t } from '@/lib/i18n/messages/defense'
 import {
   answerDefenseQuestionAction,
@@ -55,6 +56,27 @@ import type { DefenseQuestion as Question } from '@/server/modules/defense/schem
 // tell thinking from a closed laptop. It is recorded and never scored on its own, and it is not
 // shown back to the student — a visible stopwatch on a stage with no clock would invent a clock.
 //
+// **A reload does not take the answer being written** (D-360). This is the highest-stakes writing
+// in the run and it is written unaided, so there is nothing to reconstruct a lost answer from; five
+// thousand characters surrendered to a stray refresh would be Tassl penalising a student for
+// Tassl's own gap. The open box is therefore mirrored into the tab's `sessionStorage` as it is
+// typed, under the run and the question, and put back on the next mount. It is a convenience
+// belonging to one browser tab and never a record: nothing about it reaches the server, the trace,
+// or another viewer, and what is filed is what the student pressed submit on. The hook is held
+// `active` only while this question is the open one *and* has no answer, so it forgets the draft
+// the instant an answer is filed — an answer is immutable (`QUESTION_ALREADY_ANSWERED`) and must
+// never reappear as something editable.
+//
+// **A restored draft does not touch `durationMs`, which keeps measuring this sitting alone.** The
+// field is defined as focus-to-submit and stays exactly that: the clock starts at the first focus
+// after the reload, so an answer resumed from a draft reports the time spent on it since. The two
+// alternatives are both worse. Carrying the elapsed time across the reload would mean storing a
+// measurement in a place the student can edit, and would add every minute the tab spent closed to
+// a number that claims to be time spent writing. Reporting zero would make a considered answer
+// indistinguishable from the empty ones "Finish the defense" files unfocused. So the draft carries
+// text and nothing else, and the honest reading of `duration_ms` is unchanged: an interval this
+// browser observed, never a total of the thinking behind the answer.
+//
 // **One polite region for the screen, not one per question** (D-314's rule, one screen along). A
 // six-question interview with a live region under every question could speak three sentences at
 // once with nobody owning the order; there is one here, and every act — an answer recorded, a
@@ -68,6 +90,8 @@ const ANSWER_MAX_CHARS = 5_000
 // ---------------------------------------------------------------------------------------------
 
 export type DefenseQuestionProps = {
+  /** The run this question belongs to; it keys the tab's draft of the open box (D-360). */
+  runId: string
   question: Question
   /**
    * The number a student sees, or null for a follow-up: a follow-up is not question seven of an
@@ -94,6 +118,7 @@ export type DefenseQuestionProps = {
 }
 
 export function DefenseQuestion({
+  runId,
   question,
   number,
   current,
@@ -108,6 +133,17 @@ export function DefenseQuestion({
   const [text, setText] = useState('')
   const [tooLong, setTooLong] = useState(false)
   const box = useRef<HTMLTextAreaElement | null>(null)
+
+  // The tab's copy of this box while it is open (D-360). `active` is false the moment the answer is
+  // filed or this stops being the question being written, which forgets the draft and makes it
+  // impossible for a filed answer — immutable, and never offered a second box — to come back as
+  // something editable. An empty draft revives as nothing, so the line below never appears for it.
+  const draft = useDraft<string>({
+    key: `defense.${runId}.${question.runQuestionId}`,
+    active: question.answer === null && current,
+    revive: (held) => (typeof held === 'string' && held !== '' ? held : null),
+    restore: setText,
+  })
 
   // The instant this question first took focus. Null until it does, and reset by the parent
   // unmounting the box when the answer lands.
@@ -200,6 +236,21 @@ export function DefenseQuestion({
           }}
           className="flex flex-col gap-3"
         >
+          {/* Only when something was actually put back (D-360). It is a visible line the box points
+              at rather than an announcement: the screen's one polite region belongs to the acts of
+              the interview — an answer recorded, a follow-up added — and a sentence spoken on mount
+              would be spoken over by the first of them. Amber is DESIGN.md's draft mark and appears
+              here as the icon alone; the text is ink. */}
+          {draft.restored && (
+            <p
+              id={`${fieldId}-draft`}
+              className="text-ink text-meta max-w-measure flex items-start gap-2"
+            >
+              <PencilLineIcon aria-hidden="true" className="text-amber mt-0.5 size-4 shrink-0" />
+              <span className="min-w-0 flex-1">{t('defense.draftRestored')}</span>
+            </p>
+          )}
+
           <Field data-invalid={message ? 'true' : undefined}>
             <FieldLabel htmlFor={fieldId}>{t('defense.answerLabel')}</FieldLabel>
             <Textarea
@@ -212,10 +263,11 @@ export function DefenseQuestion({
               }}
               onChange={(event) => {
                 setText(event.target.value)
+                draft.save(event.target.value)
                 if (tooLong) setTooLong(false)
               }}
               aria-invalid={message ? true : undefined}
-              aria-describedby={`${message ? `${fieldId}-error` : `${fieldId}-hint`} ${fieldId}-count`}
+              aria-describedby={`${message ? `${fieldId}-error` : `${fieldId}-hint`} ${fieldId}-count${draft.restored ? ` ${fieldId}-draft` : ''}`}
               className={cn('text-reading max-w-measure', over && 'border-red')}
             />
             <div className="max-w-measure flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
@@ -421,6 +473,7 @@ export function DefenseInterview({ runId, questions: initial }: DefenseInterview
           return (
             <DefenseQuestion
               key={question.runQuestionId}
+              runId={runId}
               question={question}
               number={index + 1}
               current={current?.runQuestionId === question.runQuestionId}
@@ -439,6 +492,7 @@ export function DefenseInterview({ runId, questions: initial }: DefenseInterview
                 : {
                     followUp: (
                       <DefenseQuestion
+                        runId={runId}
                         question={followUp}
                         number={null}
                         current={current?.runQuestionId === followUp.runQuestionId}

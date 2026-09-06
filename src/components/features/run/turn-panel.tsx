@@ -2,7 +2,7 @@
 
 import { useEffect, useId, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Loader2Icon } from 'lucide-react'
+import { Loader2Icon, PencilLineIcon } from 'lucide-react'
 import { FormAlert } from '@/components/features/account/form-feedback'
 import { Panel } from '@/components/layout/panel'
 import { Button } from '@/components/ui/button'
@@ -20,6 +20,7 @@ import { Input } from '@/components/ui/input'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/cn'
+import { useDraft } from '@/lib/hooks/use-draft'
 import { t } from '@/lib/i18n/messages/turn'
 import { countWords } from '@/lib/words'
 import { respondToTurnAction } from '@/server/modules/runs/actions'
@@ -54,6 +55,16 @@ import { useRunWork } from './run-work-context'
 // how many when it is several, and offers the way back to the card that can answer it. Nothing is
 // lost by the refusal: `respondToTurn` reads the claims and writes nothing, so the transaction
 // rolls back with the run exactly where it was and the justification is still in the box.
+//
+// **A reload does not take the response** (D-360). The window is running and the justification is
+// a hundred and fifty words; losing them to a stray refresh would be Tassl penalising a student for
+// Tassl's own gap. So the three fields are mirrored into the tab's `sessionStorage` as they are
+// typed and put back on the next mount — a convenience belonging to one browser tab, never a record.
+// Nothing about it reaches the server, the trace, or another viewer, and it changes nothing about
+// what is filed: the response is what the student pressed submit on, and a restored draft is only a
+// starting value in a form that has not been submitted. The restored *response* is the student's own
+// earlier choice and not a default, which is the thing D-336 forbids. It is discarded the moment the
+// response is filed, because a filed response is immutable and this screen never opens again.
 //
 // **No react-hook-form here.** Three fields, one of them a radio group with no default, and one
 // refusal shape to bind: `addendum-form.tsx` already sets the precedent, and the Turn screen is
@@ -92,6 +103,39 @@ const RESPONSES: readonly {
 
 /** The claim a refusal can name, as the screen already holds it. */
 export type TurnClaim = { id: string; text: string }
+
+/**
+ * The form as the tab holds it between mounts (D-360): every field exactly as it is typed.
+ *
+ * Strings, not the parsed values, because a draft is a copy of the boxes and not of the payload —
+ * a half-typed "4" must come back as "4" rather than as a number the form would then have to
+ * un-parse.
+ */
+type TurnDraft = { response: TurnResponseKindValue | ''; justification: string; confidence: string }
+
+/**
+ * What was on the shelf, narrowed to this form's shape, or null for anything not worth restoring.
+ *
+ * A response that is not one of the three is dropped rather than trusted: a stale key from an
+ * older build must not be able to put a value into a radio group whose whole discipline is that
+ * nothing is preselected (D-336). A draft with all three fields empty returns null, so the screen
+ * never announces a restore of nothing.
+ */
+function reviveTurnDraft(held: unknown): TurnDraft | null {
+  if (typeof held !== 'object' || held === null) return null
+  const { response, justification, confidence } = held as Record<string, unknown>
+  const draft: TurnDraft = {
+    response: RESPONSES.some((option) => option.value === response)
+      ? (response as TurnResponseKindValue)
+      : '',
+    justification: typeof justification === 'string' ? justification : '',
+    confidence:
+      typeof confidence === 'string' && CONFIDENCE_PATTERN.test(confidence) ? confidence : '',
+  }
+  return draft.response === '' && draft.justification === '' && draft.confidence === ''
+    ? null
+    : draft
+}
 
 /** One message per field, or none. `| undefined` because `exactOptionalPropertyTypes` is on. */
 type FieldErrors = {
@@ -159,6 +203,23 @@ export function TurnPanel({ runId, claims }: TurnPanelProps) {
     claimId?: string
   } | null>(null)
 
+  // The tab's copy of the three fields (D-360). `restore` runs once, after mount, so the first
+  // paint is still the server's empty form and hydration has nothing to disagree about.
+  const draft = useDraft<TurnDraft>({
+    key: `turn.${runId}`,
+    revive: reviveTurnDraft,
+    restore: (value) => {
+      setResponse(value.response)
+      setJustification(value.justification)
+      setConfidence(value.confidence)
+    },
+  })
+
+  /** The whole form as it stands after this keystroke; a draft is all three fields or none. */
+  function keep(next: Partial<TurnDraft>): void {
+    draft.save({ response, justification, confidence, ...next })
+  }
+
   const words = countWords(justification)
   const over = words > JUSTIFICATION_WORDS
 
@@ -189,6 +250,9 @@ export function TurnPanel({ runId, claims }: TurnPanelProps) {
     }).then(
       (result) => {
         if (result.ok) {
+          // The response is filed and is immutable from here, so the tab's copy of it goes with it:
+          // a draft of something already on the record is a draft of nothing (D-360).
+          draft.discard()
           // The run is in `defense_pending` from here; the guard on this page sends the student on.
           // The sentence is said first, through the screen's one region, because the navigation
           // replaces this tree and a student working by screen reader would otherwise learn that
@@ -249,6 +313,22 @@ export function TurnPanel({ runId, claims }: TurnPanelProps) {
         }}
         className="flex flex-col gap-6"
       >
+        {/* Only when something was actually put back, and only ever this once (D-360). It is a
+            visible line rather than an announcement because the screen's one polite region is
+            already saying the Turn arrived, and a second sentence on the same mount would silence
+            the first; the justification box points at this one instead, so it is read on the way
+            in. Amber is DESIGN.md's draft mark and appears here as the icon alone — the text is
+            ink, never amber. */}
+        {draft.restored && (
+          <p
+            id={`${fieldId}-draft`}
+            className="text-ink text-meta max-w-measure flex items-start gap-2"
+          >
+            <PencilLineIcon aria-hidden="true" className="text-amber mt-0.5 size-4 shrink-0" />
+            <span className="min-w-0 flex-1">{t('turn.draftRestored')}</span>
+          </p>
+        )}
+
         <FieldSet>
           <FieldLegend id={legendId} variant="label">
             {t('turn.responseLegend')}
@@ -261,6 +341,7 @@ export function TurnPanel({ runId, claims }: TurnPanelProps) {
             aria-describedby={errors.response ? `${fieldId}-response-error` : undefined}
             onValueChange={(next) => {
               setResponse(next as TurnResponseKindValue)
+              keep({ response: next as TurnResponseKindValue })
               setErrors((held) => ({ ...held, response: undefined }))
             }}
             className="max-w-measure"
@@ -302,6 +383,7 @@ export function TurnPanel({ runId, claims }: TurnPanelProps) {
             value={justification}
             onChange={(event) => {
               setJustification(event.target.value)
+              keep({ justification: event.target.value })
               setErrors((held) => ({ ...held, justification: undefined }))
             }}
             aria-invalid={errors.justification ? true : undefined}
@@ -309,7 +391,7 @@ export function TurnPanel({ runId, claims }: TurnPanelProps) {
               errors.justification
                 ? `${fieldId}-justification-error`
                 : `${fieldId}-justification-hint`
-            } ${fieldId}-justification-count`}
+            } ${fieldId}-justification-count${draft.restored ? ` ${fieldId}-draft` : ''}`}
             className={cn('text-reading max-w-measure', over && 'border-red')}
           />
           <div className="max-w-measure flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
@@ -353,7 +435,9 @@ export function TurnPanel({ runId, claims }: TurnPanelProps) {
               onChange={(event) => {
                 // Digits only, as they are typed: a half-typed number is a string, and coercing on
                 // every keystroke would fight the person typing "100".
-                setConfidence(event.target.value.replace(/[^\d]/g, '').slice(0, 3))
+                const typed = event.target.value.replace(/[^\d]/g, '').slice(0, 3)
+                setConfidence(typed)
+                keep({ confidence: typed })
                 setErrors((held) => ({ ...held, confidence: undefined }))
               }}
               aria-invalid={errors.confidence ? true : undefined}

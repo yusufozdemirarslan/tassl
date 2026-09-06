@@ -91,6 +91,18 @@ export const turn = {
   'turn.responseTitle': 'Your response',
   'turn.responseDescription':
     'One of the three, why, and where your confidence now stands. It is filed once and is not edited again, and the defense follows it.',
+  /**
+   * Shown only when a draft was actually put back, and it claims nothing more than what is true
+   * (D-360).
+   *
+   * A hundred and fifty words written under a running window are not something a reload should be
+   * allowed to take. What closes that is a copy kept in the browser tab — not a save, not a record,
+   * and nothing the server ever sees — so the sentence says where the copy is, that it is not the
+   * response, and when it goes. A line reading "Draft saved" would promise a durability this does
+   * not have, on the one screen in the run where a false promise costs the most.
+   */
+  'turn.draftRestored':
+    'What you had entered here was put back from this browser tab. It is kept there only, it is not filed, and it goes when the tab closes.',
   'turn.responseLegend': 'What you are doing about the decision',
   'turn.responseHold': 'Hold',
   'turn.responseHoldDescription': 'The decision you filed stands as it is.',

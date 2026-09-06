@@ -55,6 +55,18 @@ export const defense = {
   'defense.questionHeading': 'Question {number}',
   'defense.followUpHeading': 'Follow-up',
   'defense.answerLabel': 'Your answer',
+  /**
+   * Shown only when a draft was actually put back, and it claims nothing more than what is true
+   * (D-360).
+   *
+   * The defense is the highest-stakes writing in the run and it is written unaided, so an answer
+   * lost to a stray reload is a tool failure rather than a judgement one. What closes that is a
+   * copy kept in the browser tab — not a save, not a record, and nothing the server ever sees — so
+   * the sentence says where the copy is, that it is not the answer, and when it goes. A line
+   * reading "Draft saved" would promise a durability this does not have.
+   */
+  'defense.draftRestored':
+    'What you had typed here was put back from this browser tab. It is kept there only, it is not recorded, and it goes when the tab closes.',
   /** Said before the press, not discovered after it: `QUESTION_ALREADY_ANSWERED` refuses a second. */
   'defense.answerHint':
     'At most {limit} characters. An answer is filed once and is not edited again.',

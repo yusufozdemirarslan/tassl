@@ -1,6 +1,6 @@
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { DefenseInterview, DefenseQuestion } from '@/components/features/run/defense-question'
 import { enUS } from '@/lib/i18n/en-US'
 import type { DefenseQuestion as Question } from '@/server/modules/defense/schema'
@@ -61,10 +61,18 @@ const FOLLOW_UP_QUESTION: Question = question({
   text: 'Did you check whether the document it came from had been replaced?',
 })
 
+/** The tab shelf a draft lives on (D-360), so a test can seed one and read one back. */
+const draftKey = (runQuestionId: string) => `tassl.draft.defense.${RUN_ID}.${runQuestionId}`
+
 beforeEach(() => {
   actions.answerDefenseQuestionAction.mockReset()
   actions.completeDefenseAction.mockReset()
   router.refresh.mockReset()
+  sessionStorage.clear()
+})
+
+afterEach(() => {
+  vi.restoreAllMocks()
 })
 
 describe('DefenseQuestion', () => {
@@ -74,6 +82,7 @@ describe('DefenseQuestion', () => {
     render(
       <ol>
         <DefenseQuestion
+          runId={RUN_ID}
           question={QUESTIONS[0] as Question}
           number={1}
           current
@@ -98,6 +107,7 @@ describe('DefenseQuestion', () => {
     render(
       <ol>
         <DefenseQuestion
+          runId={RUN_ID}
           question={{
             ...(QUESTIONS[0] as Question),
             answered: true,
@@ -118,6 +128,7 @@ describe('DefenseQuestion', () => {
     render(
       <ol>
         <DefenseQuestion
+          runId={RUN_ID}
           question={{
             ...(QUESTIONS[0] as Question),
             answered: true,
@@ -131,6 +142,123 @@ describe('DefenseQuestion', () => {
     )
 
     expect(screen.getByText(enUS['defense.answerEmpty'])).toBeInTheDocument()
+  })
+})
+
+// D-360: the answer being written survives a reload, and nothing else about it changes. The four
+// cases below are the whole contract — it comes back, it goes when the answer is filed, a filed
+// answer is never offered back as editable, and a browser that refuses storage costs the student
+// nothing but the safety net.
+describe('DefenseQuestion drafts', () => {
+  const HALF_WRITTEN = 'The positioning review of February 2025, though I want to check the date'
+
+  function renderOpen() {
+    return render(
+      <ol>
+        <DefenseQuestion
+          runId={RUN_ID}
+          question={QUESTIONS[0] as Question}
+          number={1}
+          current
+          onAnswer={vi.fn()}
+        />
+      </ol>,
+    )
+  }
+
+  it('puts back what was being written when the question is mounted again', async () => {
+    const user = userEvent.setup()
+    const first = renderOpen()
+    await user.type(screen.getByLabelText(enUS['defense.answerLabel']), HALF_WRITTEN)
+    first.unmount()
+
+    renderOpen()
+
+    const box = await screen.findByLabelText(enUS['defense.answerLabel'])
+    expect(box).toHaveValue(HALF_WRITTEN)
+    // The student is told, in words that promise no more than a per-tab copy is worth.
+    expect(screen.getByText(enUS['defense.draftRestored'])).toBeInTheDocument()
+    expect(box.getAttribute('aria-describedby')).toContain('-draft')
+  })
+
+  it('forgets the draft once the answer is filed', async () => {
+    const user = userEvent.setup()
+    actions.answerDefenseQuestionAction.mockResolvedValue({
+      ok: true,
+      data: { next: QUESTIONS[1], followUpQuestion: null },
+    })
+    render(<DefenseInterview runId={RUN_ID} questions={QUESTIONS} />)
+
+    await user.type(screen.getByLabelText(enUS['defense.answerLabel']), HALF_WRITTEN)
+    expect(sessionStorage.getItem(draftKey(Q1))).not.toBeNull()
+
+    await user.click(screen.getByRole('button', { name: enUS['defense.answerSubmit'] }))
+
+    await waitFor(() => {
+      expect(screen.getByText(HALF_WRITTEN)).toBeInTheDocument()
+    })
+    expect(sessionStorage.getItem(draftKey(Q1))).toBeNull()
+  })
+
+  it('never offers a filed answer back as an editable draft', async () => {
+    sessionStorage.setItem(draftKey(Q1), JSON.stringify(HALF_WRITTEN))
+
+    render(
+      <ol>
+        <DefenseQuestion
+          runId={RUN_ID}
+          question={{
+            ...(QUESTIONS[0] as Question),
+            answered: true,
+            answer: { text: 'The board deck.', answeredAt: '2026-09-05T10:00:00.000Z' },
+          }}
+          number={1}
+          current={false}
+          onAnswer={vi.fn()}
+        />
+      </ol>,
+    )
+
+    // The filed answer stands, there is no box, and the words that never became the answer are gone.
+    expect(screen.getByText('The board deck.')).toBeInTheDocument()
+    expect(screen.queryByLabelText(enUS['defense.answerLabel'])).not.toBeInTheDocument()
+    expect(screen.queryByText(HALF_WRITTEN)).not.toBeInTheDocument()
+    expect(screen.queryByText(enUS['defense.draftRestored'])).not.toBeInTheDocument()
+    await waitFor(() => {
+      expect(sessionStorage.getItem(draftKey(Q1))).toBeNull()
+    })
+  })
+
+  it('leaves the form working when the browser refuses storage', async () => {
+    // Private mode, "block site data", or a full quota: every one of them throws here.
+    const denied = () => {
+      throw new DOMException('The operation is insecure.', 'SecurityError')
+    }
+    vi.spyOn(Storage.prototype, 'getItem').mockImplementation(denied)
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(denied)
+    vi.spyOn(Storage.prototype, 'removeItem').mockImplementation(denied)
+
+    const user = userEvent.setup()
+    const onAnswer = vi.fn()
+    render(
+      <ol>
+        <DefenseQuestion
+          runId={RUN_ID}
+          question={QUESTIONS[0] as Question}
+          number={1}
+          current
+          onAnswer={onAnswer}
+        />
+      </ol>,
+    )
+
+    await user.type(screen.getByLabelText(enUS['defense.answerLabel']), HALF_WRITTEN)
+    await user.click(screen.getByRole('button', { name: enUS['defense.answerSubmit'] }))
+
+    expect(onAnswer).toHaveBeenCalledTimes(1)
+    expect((onAnswer.mock.calls[0]?.[0] as { text: string }).text).toBe(HALF_WRITTEN)
+    // No claim is made about a copy that was never kept.
+    expect(screen.queryByText(enUS['defense.draftRestored'])).not.toBeInTheDocument()
   })
 })
 
