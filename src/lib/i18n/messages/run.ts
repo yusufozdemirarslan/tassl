@@ -194,6 +194,14 @@ export const run = {
   'run.clockFiveMinutes': 'Five minutes left on the working clock.',
   'run.clockOneMinute': 'One minute left on the working clock.',
   'run.clockExpired': 'The working clock has run out.',
+  // The Turn window is the other clock a student is under, and the band draws it in the same place
+  // for the same reason (D-346): a clock whose last minute is a visual signal cannot be a clock the
+  // student has to scroll to find. The wording is the window's own, because "the working clock has
+  // run out" is not what happened when the window closes — the decision already filed stands.
+  'run.windowLabel': 'Turn window',
+  'run.windowFiveMinutes': 'Five minutes left in the Turn window.',
+  'run.windowOneMinute': 'One minute left in the Turn window.',
+  'run.windowExpired': 'The Turn window has closed.',
 
   // ---------------------------------------------------------------------------------------------
   // UI-027 the run status screen (/runs/[runId], FR-140)

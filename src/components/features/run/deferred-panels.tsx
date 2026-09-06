@@ -69,3 +69,38 @@ export const DeclarationControl = dynamic(() =>
  * wait for nothing.
  */
 export const BriefEditor = dynamic(() => import('./brief-editor').then((m) => m.BriefEditor))
+
+// The two screens the Turn opens onto (Step 9.3). Both live under `/runs/[runId]`, which is one
+// budget line in `scripts/bundle-budget.ts`, but they are separate *routes* — so each is charged
+// for its own `entryJSFiles` and neither is charged for the other. What they are here for is the
+// same reason the five above are: the Turn screen reaches the assistant, the Evidence Room and the
+// claim controls through this module already, and the form and the interview are the parts of each
+// screen that are pure hydration weight. `ssr` stays on, so the markup, the reading order and the
+// a11y tree are exactly what a static import would give (16 §2.2).
+
+/** UI-025's response form (FR-112). Carries the radio group, the counter and the refusal binding. */
+export const TurnPanel = dynamic(() => import('./turn-panel').then((m) => m.TurnPanel))
+
+// The claim object and its instrument (FR-051, FR-070 to FR-073, FR-080, FR-090 to FR-092).
+//
+// On `/runs/[runId]/work` these arrive inside `AssistantPanel` and `DelegationLog`, which are
+// already async chunks — so the workspace has never paid for the Base UI sheet, dropdown menu and
+// dialog behind a claim card in its entry chunk. The Turn screen draws claim cards *directly*, and
+// importing them statically charged the route 147,792 bytes against B4's 130,000 ceiling: the
+// excess was the claim card's tree, arriving twice over — once here and once through the assistant
+// beside it. Reaching them through this module puts both call sites on the same async chunk, which
+// is what the workspace already gets, and the route falls back under the ceiling. `ssr` stays on,
+// so the cards are still in the first HTML with their headings, their radio groups and their
+// `data-claim-id` anchors (16 §2.2); only their hydration waits.
+export const ClaimCard = dynamic(() => import('./claim-card').then((m) => m.ClaimCard))
+export const ClaimControls = dynamic(() => import('./claim-card').then((m) => m.ClaimControls))
+
+/**
+ * UI-026's interview (FR-120 to FR-126). Carries the answer boxes, the follow-up tree and the
+ * confirm dialog — and the alert dialog is the only popup on the defense screen, exactly the shape
+ * `frame-lock-dialog.tsx` argued about. It stays inside this chunk rather than behind a second
+ * press-time import because the defense is under no clock: nothing is spent while a chunk arrives.
+ */
+export const DefenseInterview = dynamic(() =>
+  import('./defense-question').then((m) => m.DefenseInterview),
+)

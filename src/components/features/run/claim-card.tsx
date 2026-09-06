@@ -67,7 +67,7 @@ export type ClaimCardProps = {
   actions?: ReactNode
   /** Where the claim is worked, when it is not worked here (`workspace.claimWorkedInReply`). */
   deferredNote?: string
-  /** The reply's cards sit under the panel's h2; the Turn's window claims sit a level deeper. */
+  /** A card under a panel's h2 is an h3; a card nested inside another section is an h4. */
   headingLevel?: 3 | 4
 }
 
