@@ -86,7 +86,7 @@
 
 ## Phase 9 — The Turn and the defense (`build-plan/phase-09-turn-and-defense.md`)
 - [x] 9.1 Turn delivery, window, response, implicit hold
-- [ ] 9.2 Defense service: selection, follow-ups, answers, completion
+- [x] 9.2 Defense service: selection, follow-ups, answers, completion
 - [ ] 9.3 Screens: Turn window, defense, run status
 - [ ] Phase 9 exit criteria
 
