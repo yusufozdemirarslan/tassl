@@ -58,11 +58,10 @@ describe('pg-boss queues', () => {
     expect(handler.mock.calls[0]?.[1]).toMatchObject({ jobId })
     expect(result.processed).toBe(1)
     expect(result.failed).toBe(0)
-    expect(result.skippedQueues).toEqual([
-      'score_run',
-      'generate_package_step',
-      'recompute_exports',
-    ])
+    // The queues still waiting for the module that owns them (10 §7). `score_run` left this list in
+    // Step 10.4, when `scoring.scoreRun` and its handler landed; `generate_package_step` leaves it
+    // in Phase 12 and `recompute_exports` in Phase 11.
+    expect(result.skippedQueues).toEqual(['generate_package_step', 'recompute_exports'])
   })
 
   it('fails a job whose handler throws and reports it', async () => {

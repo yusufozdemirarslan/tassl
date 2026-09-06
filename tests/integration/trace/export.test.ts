@@ -239,7 +239,7 @@ describe('the export header', () => {
     expect(readiness.length).toBeGreaterThan(0)
   })
 
-  it('lists every lifecycle transition, in order, and ends at defense_complete', async () => {
+  it('lists every lifecycle transition, in order, and ends where the run does', async () => {
     const runId = await runThroughDefense()
     const document = await trace.buildExport(fx.orgId, runId, 'course')
 
@@ -250,7 +250,11 @@ describe('the export header', () => {
       written.map((row) => ({ state: row.to, at: row.occurred_at.toISOString() })),
     )
     const states = (header(document).transitions as Json[]).map((entry) => entry.state)
-    expect(states.at(-1)).toBe('defense_complete')
+    expect(states).toContain('defense_complete')
+    // `completeDefense` enqueues `score_run` and the drain runs it in the same call (D-046), so a
+    // run built by this helper is `scored` by the time it is exported. The list is the `lifecycle`
+    // events and nothing else, so it ends wherever the run has actually got to.
+    expect(states.at(-1)).toBe('scored')
   })
 
   it('declares the build’s additions to the PRD’s event list (FR-241)', async () => {
@@ -398,20 +402,36 @@ describe('the claim table', () => {
 // ---------------------------------------------------------------------------------------------
 
 describe('the computed block', () => {
-  it('carries the three confidences and waits for the scoring job for the rest', async () => {
+  it('carries the three confidences and the figures the scoring job wrote', async () => {
     const runId = await runThroughDefense()
     const document = await trace.buildExport(fx.orgId, runId, 'course')
 
+    const [score] = await testSql<{ false_challenge_rate: string; rubric_version: string }[]>`
+      select false_challenge_rate, rubric_version from run_scores where run_id = ${runId}`
+
     expect(computed(document)).toMatchObject({
       confidence: { frame: FRAME.confidence, lock: BRIEF.confidence, turn: RESPONSE.confidence },
-      // Step 10.2's stance matrix computes it and Step 10.4's job writes it to `run_scores`; a run
-      // that has not been scored carries null rather than a number nobody computed.
-      false_challenge_rate: null,
-      rubric_version: null,
+      // Step 10.2's stance matrix computes the rate and Step 10.4's job writes it to `run_scores`;
+      // this reads it back from that column and recomputes nothing.
+      false_challenge_rate: Number(score?.false_challenge_rate),
+      rubric_version: score?.rubric_version,
+      // 10 §11.4 keeps `points_draft` out of every export: only confirmed points are exported, and
+      // this run's bands have not been confirmed.
       points: null,
       export_version: 1,
     })
     expect(computed(document).exported_at).toEqual(expect.any(String))
+  })
+
+  it('carries null for the scored figures on a run the job has not written a score for', async () => {
+    const runId = await runThroughDefense()
+    await testSql`delete from run_scores where run_id = ${runId}`
+
+    expect(computed(await trace.buildExport(fx.orgId, runId, 'course'))).toMatchObject({
+      false_challenge_rate: null,
+      rubric_version: null,
+      points: null,
+    })
   })
 })
 

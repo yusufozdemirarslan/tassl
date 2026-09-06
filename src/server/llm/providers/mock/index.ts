@@ -16,6 +16,8 @@
 // `structuredViaPrompt` every network adapter runs, over `complete`. That means the mock exercises
 // the JSON extraction and Zod validation path for real rather than short-circuiting it, which is
 // what makes a schema mistake fail in CI instead of on the first day with a key.
+import { AppError } from '@/lib/errors'
+import { env } from '@/server/config'
 import type {
   CompleteRequest,
   CompleteResult,
@@ -109,7 +111,33 @@ const usageFor = (req: CompleteRequest, text: string) => ({
   outputTokens: estimateTokens(text),
 })
 
+/**
+ * The one failure this provider can be asked for: `MOCK_FAIL_READS=true` makes every `band-read-*`
+ * call throw `LLM_PROVIDER_ERROR`.
+ *
+ * 11 §3's degradation ladder and FR-140's held run are the hardest paths in the scoring pipeline to
+ * reach honestly — a provider that cannot be down leaves them untested until the day one is — so
+ * the double is asked to be down. It is read from `process.env` on every call rather than from the
+ * parsed `env`, because the parsed environment is frozen at import and a test that flips a switch
+ * between two cases would be reading the value the file was loaded with (D-401). It is refused
+ * outside development and test, so the variable can never be a production kill switch: `FEATURE_AI`
+ * is the only one of those (§6).
+ */
+const readsForcedToFail = (): boolean =>
+  process.env.MOCK_FAIL_READS === 'true' &&
+  env.APP_ENV !== 'production' &&
+  env.APP_ENV !== 'preview'
+
 async function complete(req: CompleteRequest): Promise<CompleteResult> {
+  if (isBandReadPrompt(req.promptName) && readsForcedToFail()) {
+    throw new AppError(
+      'LLM_PROVIDER_ERROR',
+      'The mock provider is failing band reads on purpose.',
+      {
+        details: { prompt: req.promptName },
+      },
+    )
+  }
   const text = renderMock(req)
   return { text, usage: usageFor(req, text), model: MOCK_MODEL, provider: 'mock' }
 }

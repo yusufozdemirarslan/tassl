@@ -7,12 +7,26 @@
 //
 // `notify()` is the writer 10 §15 specifies: it fans an event out to its recipients inside the
 // caller's transaction, so a notification exists exactly when the thing it announces happened.
-// Email copies are specified for five run and generation types (`generation_complete`,
-// `generation_failed`, `run_scored`, `run_held`, `bands_confirmed`); none of them is raised yet,
-// and the phase that raises the first one brings the template it needs with it.
+//
+// Email copies go out for the five types 10 §15 names, and only when `NOTIFY_EMAIL_COPIES` is on
+// (D-015 makes that the switch for removing them). Three rules hold the copy to the same standard as
+// the row:
+//
+//   * **After the commit, never inside it.** `enqueueAfterCommit` defers the `send_email` job to the
+//     transaction that produced the notification actually landing. An email about a run that rolled
+//     back cannot be recalled.
+//   * **Title and body only.** The template carries what the notification carries and nothing else
+//     (`email/templates/notification.tsx`): no band, no rate, no student free text, and no payload.
+//     An inbox is the least controlled surface Tassl writes to.
+//   * **A link only where it is one of ours.** `appLink` refuses an address off this deployment's
+//     origin (12 §OWASP A10), so an in-app path is made absolute here and anything else is dropped
+//     rather than sent.
 import { AppError } from '@/lib/errors'
 import { t } from '@/lib/i18n/t'
 import type { SessionUser } from '@/server/auth/types'
+import { env } from '@/server/config'
+import { parseEmailProps } from '@/server/email/send'
+import { enqueueAfterCommit } from '@/server/jobs/enqueue'
 import * as repo from './repository'
 import {
   notificationTypeSchema,
@@ -20,6 +34,7 @@ import {
   type NotifyInput,
   type MarkAllReadResult,
   type NotificationPage,
+  type NotificationType,
   type NotificationView,
 } from './schema'
 
@@ -68,6 +83,51 @@ export async function notify(
     })),
     tx,
   )
+  await enqueueEmailCopies(tx, recipients, input)
+}
+
+/** 10 §15: the five types that also arrive by e-mail. Everything else is in-app only. */
+const EMAIL_COPY_TYPES: ReadonlySet<NotificationType> = new Set<NotificationType>([
+  'generation_complete',
+  'generation_failed',
+  'run_scored',
+  'run_held',
+  'bands_confirmed',
+])
+
+/** An in-app path made absolute on this deployment's origin; anything else is not linked. */
+function emailUrl(link: string | null | undefined): string | undefined {
+  if (link === null || link === undefined || !link.startsWith('/')) return undefined
+  return new URL(link, env.NEXT_PUBLIC_APP_URL).toString()
+}
+
+/**
+ * The stand-in when `notify` was called with no transaction (it takes an optional handle, like every
+ * repository function). `enqueueAfterCommit` defers only for a handle `withTransaction` is tracking;
+ * an untracked object means "nothing to wait for", and the job is sent immediately — which is
+ * correct, because there is no transaction that could roll the notification back.
+ */
+const NO_TRANSACTION: object = {}
+
+async function enqueueEmailCopies(
+  tx: Parameters<typeof repo.insertNotifications>[1],
+  recipients: readonly string[],
+  input: NotifyInput,
+): Promise<void> {
+  if (!env.NOTIFY_EMAIL_COPIES || !EMAIL_COPY_TYPES.has(input.type)) return
+  const url = emailUrl(input.link)
+  const props = parseEmailProps('notification', {
+    title: input.title,
+    body: input.body,
+    ...(url === undefined ? {} : { url }),
+  })
+  for (const person of await repo.listEmailRecipients(recipients, tx)) {
+    await enqueueAfterCommit(tx ?? NO_TRANSACTION, 'send_email', {
+      to: person.email,
+      template: 'notification',
+      props: { ...props },
+    })
+  }
 }
 
 /** The actor's notifications, newest first, cursor-paginated (D-020). */

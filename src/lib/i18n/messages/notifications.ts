@@ -27,6 +27,27 @@ export const notifications = {
   'notifications.packageConfirmedTitle': 'A scenario package is ready to assign',
   'notifications.packageConfirmedBody':
     '{title} version {version} is confirmed and frozen, so it can be set on an assignment.',
+
+  // -------------------------------------------------------------------------------------------
+  // Scoring (FR-130, FR-140, SYS-010)
+  //
+  // Three notices, and no two of them say the same thing. The student's copy says what happened to
+  // their run and where to look; the instructor's says a run in their section is waiting for a
+  // decision. Neither carries a band, a placement, a count or a rate: a notification is delivered
+  // by e-mail as well as in the app (D-015), and nothing about how a run was read travels that far.
+  // A held run has no student copy at all — the run's own status already reads "under review"
+  // (FR-140), and a student told their run could not be scored is a student told about an internal
+  // failure they cannot act on.
+  // -------------------------------------------------------------------------------------------
+  'notifications.runScored.title': 'Your run has been scored',
+  'notifications.runScored.body':
+    'Tassl has drafted the bands for your run. Your instructor reviews and confirms them, and your debrief opens once they do.',
+  'notifications.runScoredReviewer.title': 'A run is ready to review',
+  'notifications.runScoredReviewer.body':
+    'A run in one of your sections has draft bands waiting for your decision. Open the replay to confirm, change, or set a dimension unassessed.',
+  'notifications.runHeld.title': 'A run is held for review',
+  'notifications.runHeld.body':
+    'Tassl could not draft the bands for a run in one of your sections, so nothing has been placed. Band it by hand from the replay, or void the run.',
 } as const
 
 /** `t` over this namespace alone; the key is still the full dotted key. */

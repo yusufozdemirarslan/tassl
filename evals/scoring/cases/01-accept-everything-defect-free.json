@@ -1,0 +1,29 @@
+{
+  "id": "accept-everything-defect-free",
+  "title": "Accepting everything on a variant with nothing to catch",
+  "fixes": "PRD §7.8, Appendix A.4",
+  "fixture": "accept-everything-sound",
+  "answerSpace": [
+    {
+      "key": "launch_at_price",
+      "kind": "defensible",
+      "summary": "Go ahead at the higher price point in the coming quarter.",
+      "isMinimumCommitment": false
+    },
+    {
+      "key": "hold_price_until_rebased",
+      "kind": "defensible",
+      "summary": "Proceed, but hold the higher price point until the demand series has been re-based.",
+      "isMinimumCommitment": true
+    },
+    {
+      "key": "sign_on_january_estimate",
+      "kind": "evidence_inconsistent",
+      "summary": "Sign the multi-year tooling contract on the strength of the January estimate alone.",
+      "ignoredEvidence": "The March review re-bases the January estimate downward.",
+      "isMinimumCommitment": false
+    }
+  ],
+  "expectedAnswerNotes": "A sound answer names the document the figure came from and says whether it was traced.",
+  "expect": { "bands": { "calibration": "professional" } }
+}

@@ -2367,6 +2367,45 @@ export async function markDefenseComplete(
 }
 
 /**
+ * `defense_complete → scored`, which is the scoring job finishing (10 §9, §11; FR-130, D-046).
+ *
+ * Two writes in the caller's transaction and no third: the transition with its `scored_at` stamp and
+ * the `lifecycle` event that explains it, and `scoring_status = 'done'` beside it. The seven
+ * `draft_band` events, the `run_bands` rows and the `run_scores` row are written by the `scoring`
+ * module in the same transaction, before this is called — this is the moment the run *becomes*
+ * scored, so nothing may be missing from it once it has.
+ *
+ * It lives here for the reason `markDefenseComplete` above it does: `runs.state`, the transition
+ * table and `runs.scoring_status` are this module's columns, and a second module moving a run
+ * between states would be a second state machine. The rules that decide *whether* the run can be
+ * scored, and what the bands are, stay in `scoring`.
+ *
+ * `actorId` is deliberately optional and normally absent: the job has no seat behind it, and a
+ * `lifecycle` event attributed to the student would say they scored their own run.
+ */
+export async function markScored(
+  tx: repo.Tx,
+  run: repo.Run,
+  options: { at?: Date; actorId?: string | null } = {},
+): Promise<repo.Run> {
+  const at = options.at ?? new Date()
+  const moved = transition(run, 'scored', { cause: 'scored', at })
+  await append(tx, run, 'lifecycle', moved.payload, {
+    actorId: options.actorId ?? null,
+    occurredAt: at,
+  })
+
+  const next = await repo.updateRun(
+    run.organizationId,
+    run.id,
+    { ...moved.patch, scoringStatus: 'done' },
+    tx,
+  )
+  if (!next) runNotFound()
+  return next
+}
+
+/**
  * Stops the clock on a component failure (FR-001, 10 §10) and records why.
  *
  * Three writes in the caller's transaction: the `run_pauses` row that says what failed, the `pause`

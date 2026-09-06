@@ -9,7 +9,7 @@
 // percent; with a key and `FEATURE_AI=true` it is the real provider and the threshold is 90.
 // Below the threshold the process exits 1 and the report names every failing check.
 //
-// `evals/authoring` (Phase 12) and `evals/scoring` (Phase 10) register here as they are built.
+// `evals/authoring` (Phase 12) registers here when it is built; `evals/scoring` is registered below.
 import type { EvalCaseResult, EvalSuite } from './config'
 
 /** Two spaces per level; the report is read in a terminal, not parsed. */
@@ -36,8 +36,9 @@ async function main(): Promise<void> {
   const { env } = await import('@/server/config')
   const { getProvider } = await import('@/server/llm/registry')
   const { assistantSuite } = await import('./assistant/check')
+  const { scoringSuite } = await import('./scoring/check')
 
-  const all: EvalSuite[] = [assistantSuite]
+  const all: EvalSuite[] = [assistantSuite, scoringSuite]
   const wanted = process.argv.slice(2)
   const suites = wanted.length === 0 ? all : all.filter((suite) => wanted.includes(suite.name))
   if (suites.length === 0) {

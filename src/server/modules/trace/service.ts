@@ -285,6 +285,8 @@ export type TraceRecordEvent = {
   seq: number
   type: RunEventTypeValue
   occurredAt: Date
+  /** The clock as it read when the event was written; null outside the working period and window. */
+  clockRemainingMs: number | null
   payload: Record<string, unknown>
 }
 
@@ -308,6 +310,7 @@ export async function readEvents(runId: string, dbx?: DbOrTx): Promise<TraceReco
     seq: event.seq,
     type: event.type,
     occurredAt: event.occurredAt,
+    clockRemainingMs: event.clockRemainingMs,
     payload: event.payload,
   }))
 }
