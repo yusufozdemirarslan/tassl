@@ -118,7 +118,6 @@ export function EvidenceRoom({ runId, documents, openDocuments, canOpen }: Evide
                     <Button
                       type="button"
                       variant="secondary"
-                      size="sm"
                       aria-expanded={open}
                       aria-controls={panelId}
                       aria-disabled={!canOpen && !open ? true : undefined}

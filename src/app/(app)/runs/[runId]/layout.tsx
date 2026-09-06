@@ -2,8 +2,13 @@ import { RunFrame } from '@/components/features/run/run-frame'
 import { getRunView } from './run-view'
 
 // The RunFrame layout (09 §1, UI-027). Every `/runs/[runId]` screen sits under this band, so the
-// assignment, the state, the clock, the frame and the declaration keep one place and one size for
-// the whole run — a student under a clock should never have to look for the clock.
+// assignment, the state and the clock keep one place and one size for the whole run — and the band
+// is sticky, because a student under a clock should never have to look for the clock (D-311).
+//
+// The frame and the declaration are not in it. Both are panels on the screens that carry them —
+// `FramePanel` in the workspace's reference column and on `/locked`, `DeclarationControl` in the
+// workspace's own panel, where FR-062's sentence can stand in front of the control — and the two
+// slots that once described them here were never passed by any caller (D-312).
 //
 // It reads the run and draws it, and it decides nothing else. Two things it deliberately does not
 // do:

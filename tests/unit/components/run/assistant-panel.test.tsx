@@ -34,6 +34,11 @@ const CLAIM: ClaimView = {
   stance: null,
   previousStance: null,
   stanceSetAt: null,
+  actions: [],
+  availableActions: ['source_trace'],
+  escalation: null,
+  canEscalate: true,
+  remainingEscalations: 2,
   usedMarked: false,
   reliedOn: false,
 }
@@ -42,6 +47,17 @@ const LEAD_IN = 'Here is what the room already says on that.'
 const CLOSING = 'The Evidence Room has the documents behind this.'
 
 const router = vi.hoisted(() => ({ refresh: vi.fn(), push: vi.fn() }))
+
+// The claim cards carry `ClaimControls` from Phase 8, whose real actions module drags the reliance
+// service and the database into jsdom. The panel is not what those controls are tested through
+// (`stance-control.test.tsx` is), so here they are wired to nothing.
+const relianceActions = vi.hoisted(() => ({
+  setStanceAction: vi.fn(),
+  runActionAction: vi.fn(),
+  escalateAction: vi.fn(),
+}))
+
+vi.mock('@/server/modules/reliance/actions', () => relianceActions)
 
 vi.mock('next/navigation', () => ({
   useRouter: () => ({
@@ -164,13 +180,19 @@ describe('AssistantPanel (UI-023, FR-051)', () => {
     await ask(user, 'What is the premium payback?')
 
     await waitFor(() => {
-      expect(screen.getByRole('status')).toHaveTextContent(
-        enUS['workspace.assistantReplyCompleteOne'],
+      expect(screen.getByText(enUS['workspace.assistantReplyCompleteOne'])).toHaveAttribute(
+        'role',
+        'status',
       )
     })
-    // One region, one sentence: nothing announces per segment, and the count is in the sentence
-    // rather than in a second live region beside it.
-    expect(screen.getAllByRole('status')).toHaveLength(1)
+    // One sentence, and one region speaking it: nothing announces per segment, and the count is in
+    // the sentence rather than in a second live region beside it. The claim card's own regions —
+    // the stance control's and the controls' (Phase 8) — are mounted and empty, which is what
+    // `empty:hidden` is for: they speak when something happens to *that* claim, and nothing has.
+    const speaking = screen
+      .getAllByRole('status')
+      .filter((region) => (region.textContent ?? '').trim() !== '')
+    expect(speaking).toHaveLength(1)
     // The claims are read back through the server render, which is why the panel asks for one.
     expect(router.refresh).toHaveBeenCalledTimes(1)
   })
@@ -200,10 +222,13 @@ describe('AssistantPanel (UI-023, FR-051)', () => {
     await ask(user, 'What is the premium payback?')
 
     const card = await screen.findByRole('article')
-    // The card carries the claim, its key, and the seat the stance control takes in Phase 8. No
-    // evidence status, no failure family, no warranted stance, no reliability mark of any kind.
+    // The card carries the claim, its key, and the five stances the student may take on it. No
+    // evidence status, no failure family, no warranted stance, no reliability mark of any kind —
+    // and no stance pre-selected, which is where a recommendation would have to live.
     expect(card).toHaveTextContent(CLAIM.text)
-    expect(card).toHaveTextContent(enUS['workspace.claimStancePending'])
+    const options = within(card).getAllByRole('radio')
+    expect(options).toHaveLength(5)
+    for (const option of options) expect(option).toHaveAttribute('aria-checked', 'false')
     for (const word of ['defect', 'defective', 'sound', 'planted', 'unreliable', 'verified']) {
       expect(card.textContent?.toLowerCase()).not.toContain(word)
     }

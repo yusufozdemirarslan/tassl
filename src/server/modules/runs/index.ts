@@ -25,22 +25,28 @@
 // other mutation here.
 export {
   acknowledgePolicy,
+  addAddendum,
   answerReadinessItem,
+  briefSignal,
   closeDocument,
   consumeForcedAssistantFailure,
   findMyRunOnAssignment,
+  forceAssistantFailure,
+  getDecision,
   getReadiness,
   getReadinessResult,
   getRun,
   getRunStatus,
   getRunWorkspace,
   listMyRuns,
+  lockDecision,
   lockFrame,
   lockRunForMutation,
   noteFirstDelegation,
   openDocument,
   pauseRun,
   resumeRun,
+  saveBriefDraft,
   skipReadiness,
   startRun,
   submitReadiness,
@@ -49,11 +55,28 @@ export {
 
 export type { PauseOptions, PausingRun } from './service'
 
+// The Turn window's length, so a screen that names it in prose and a screen that counts it down
+// read one number (`decision.turnBody`, D-327). It is a pilot parameter rather than a constant of
+// the product, which is exactly why no page may restate it; it travels through the service because
+// that is the one internal file this index may reach (the `boundaries` policy).
+export { TURN_WINDOW_MS } from './service'
+
 export type {
+  AddendumInput,
+  AddendumView,
   AnswerReadinessItemInput,
+  Brief,
+  BriefDraftInput,
+  BriefFieldUnitValue,
+  BriefInput,
+  BriefNamedField,
+  BriefSignalInput,
+  BriefView,
   Clock,
+  DecisionRecord,
   DocumentOpened,
   DocumentSummary,
+  ForcedFailure,
   Frame,
   LockFrame,
   LockFrameInput,

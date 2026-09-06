@@ -158,7 +158,7 @@ export function NotificationList({ initial, initialCursor }: NotificationListPro
                   {item.title}
                   {!read && <span className="sr-only">{t('notifications.unread')}</span>}
                 </p>
-                <p className="text-ink-muted text-body mt-1 max-w-[72ch] [overflow-wrap:anywhere]">
+                <p className="text-ink-muted text-body max-w-measure mt-1 [overflow-wrap:anywhere]">
                   {item.body}
                 </p>
                 <p className="text-ink-muted text-mono-sm mt-1 font-mono tabular-nums">

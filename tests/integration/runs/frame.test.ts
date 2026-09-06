@@ -321,6 +321,8 @@ describe('lockFrame', () => {
       canOpenDocuments: true,
       canLockFrame: false,
       assistantUnlocked: true,
+      // The brief opens with the working clock and closes with it (Step 8.2, FR-100).
+      canWriteBrief: true,
     })
   })
 

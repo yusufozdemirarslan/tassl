@@ -394,7 +394,7 @@ function WordCountedTextarea({
         rows={spec.rows ?? 4}
         readOnly={locked}
         className={cn(
-          spec.reading === true && 'text-reading max-w-[72ch]',
+          spec.reading === true && 'text-reading max-w-measure',
           lockedInput(locked),
           over && 'border-red',
         )}

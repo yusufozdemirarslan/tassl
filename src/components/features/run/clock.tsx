@@ -40,29 +40,42 @@ export type ClockProps = {
   clock: { remainingMs: number; paused: boolean } | null
   /** What this clock measures; the timer's accessible name. */
   label?: string
+  /**
+   * Whether the last five minutes and the last minute are marked (09 §6, DESIGN.md §The clock).
+   *
+   * True for the working clock, which is time the student is spending and cannot get back. False
+   * for a countdown to something *arriving* — the wait for the Turn on UI-024 — where nothing is
+   * being lost as it runs and there is nothing for the student to do about it: amber is DESIGN.md's
+   * colour for draft and provisional and red is for a refusal, and neither is what "four minutes
+   * until a message reaches you" means. A clock that turned red for it would be an alarm about
+   * waiting.
+   */
+  thresholds?: boolean
   className?: string
 }
 
-export function Clock({ clock, label, className }: ClockProps) {
+export function Clock({ clock, label, thresholds = true, className }: ClockProps) {
   const remaining = useClock(
     clock === null ? null : { remainingMs: clock.remainingMs, frozen: clock.paused },
   )
 
   const seconds = remaining === null ? null : clockSeconds(remaining)
-  const announcement = useThresholdAnnouncement(seconds, clock !== null && clock.paused)
+  const announcement = useThresholdAnnouncement(
+    thresholds ? seconds : null,
+    clock !== null && clock.paused,
+  )
 
   if (clock === null || remaining === null || seconds === null) return null
 
   const paused = clock.paused
+  const warning = thresholds && !paused && seconds <= FIVE_MINUTES
   const tone = paused
     ? 'border-line bg-paper-sunken [&_svg]:text-ink-muted'
-    : seconds <= ONE_MINUTE
-      ? 'border-red bg-red-soft [&_svg]:text-red'
-      : seconds <= FIVE_MINUTES
-        ? 'border-amber bg-amber-soft [&_svg]:text-amber'
-        : 'border-line bg-paper-raised'
-
-  const warning = !paused && seconds <= FIVE_MINUTES
+    : !warning
+      ? 'border-line bg-paper-raised'
+      : seconds <= ONE_MINUTE
+        ? 'border-red bg-red-soft [&_svg]:text-red'
+        : 'border-amber bg-amber-soft [&_svg]:text-amber'
 
   return (
     <div className={cn('flex items-center gap-2', className)}>

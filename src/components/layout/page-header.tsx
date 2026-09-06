@@ -28,7 +28,7 @@ export function PageHeader({ title, description, eyebrow, actions, className }: 
         {/* break-words: a description can carry an unbreakable token (an email address on
             /verify-email), which would otherwise push the page sideways at 360 px. */}
         {description && (
-          <p className="text-ink-muted text-body mt-2 max-w-[72ch] break-words">{description}</p>
+          <p className="text-ink-muted text-body max-w-measure mt-2 break-words">{description}</p>
         )}
       </div>
       {actions && <div className="flex shrink-0 items-center gap-2">{actions}</div>}

@@ -29,7 +29,7 @@ export type FramePanelProps = {
 
 export function FramePanel({ frame }: FramePanelProps) {
   return (
-    <div className="flex max-w-[72ch] flex-col gap-4">
+    <div className="max-w-measure flex flex-col gap-4">
       <dl className="flex flex-col gap-4">
         <div className="flex flex-col gap-1">
           <Term>{t('workspace.framePanelDecision')}</Term>

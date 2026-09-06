@@ -287,12 +287,21 @@ describe('GET /runs/{runId}/claims', () => {
     expect(called.status).toBe(200)
     const body = called.body as Record<string, unknown>[]
     expect(body).toHaveLength(1)
+    // Step 8.1 added the five fields the claim card's controls need — the actions run, the actions
+    // offered, the reply to an escalation the student raised, and the run's escalation budget — and
+    // nothing authored *about* the claim: no warranted stance, evidence status, failure family or
+    // `escalatable` (D-244).
     expect(Object.keys(body[0] ?? {}).sort()).toEqual([
+      'actions',
+      'availableActions',
+      'canEscalate',
+      'escalation',
       'id',
       'inTurnWindow',
       'key',
       'previousStance',
       'reliedOn',
+      'remainingEscalations',
       'stance',
       'stanceSetAt',
       'surfacedAt',

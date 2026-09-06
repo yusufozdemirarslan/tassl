@@ -73,8 +73,9 @@ function AlertDialogFooter({ className, ...props }: React.ComponentProps<'div'>)
   return (
     <div
       data-slot="alert-dialog-footer"
+      // Whitespace and one full-bleed hairline, never a filled well (see `dialog.tsx`, D-316).
       className={cn(
-        'bg-paper-sunken/50 border-line -mx-6 -mb-6 flex flex-col-reverse gap-2 rounded-b-lg border-t px-6 py-4 group-data-[size=sm]/alert-dialog-content:grid group-data-[size=sm]/alert-dialog-content:grid-cols-2 sm:flex-row sm:justify-end',
+        'border-line -mx-6 flex flex-col-reverse gap-2 border-t px-6 pt-4 group-data-[size=sm]/alert-dialog-content:grid group-data-[size=sm]/alert-dialog-content:grid-cols-2 sm:flex-row sm:justify-end',
         className,
       )}
       {...props}

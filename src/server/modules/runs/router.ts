@@ -13,26 +13,34 @@ import { attachRouteSpec, getRouteSpec, type RegisteredRoute } from '@/server/ht
 import { getOrCreateRequestId } from '@/server/logging/request-id'
 import {
   acknowledgePolicy,
+  addAddendum,
   advanceRunClock,
   answerReadinessItem,
   assertTestEnvironment,
+  briefSignal,
   closeDocument,
   findMyRunOnAssignment,
   getReadiness,
   getRun,
   getRunWorkspace,
   listMyRuns,
+  lockDecision,
   lockFrame,
   openDocument,
   resumeRun,
+  saveBriefDraft,
   skipReadiness,
   startRun,
   submitReadiness,
 } from './service'
 import {
+  AddendumSchema,
   AdvanceClockSchema,
   AnswerReadinessItemSchema,
   AssignmentIdParamsSchema,
+  BriefDraftInputSchema,
+  BriefInputSchema,
+  BriefSignalSchema,
   DocumentOpenParamsSchema,
   DocumentOpenedSchema,
   DocumentParamsSchema,
@@ -339,6 +347,90 @@ export const lockFrameRoute = defineRoute(
   },
   async (ctx) => lockFrame(actorOf(ctx), ctx.input.params.runId, ctx.input.body),
 )
+
+// ---------------------------------------------------------------------------------------------
+// The Decision Brief, the Decision Lock and the addendum (07 §7, FR-084, FR-100 to FR-108)
+//
+// The save and the two timing signals are `run-events`: a brief is written over the whole working
+// period and autosaved as it is typed, which is the traffic 10 §4 sizes that bucket for. The lock
+// and the addendum are `write`: each happens once, and the first of them is irreversible.
+// ---------------------------------------------------------------------------------------------
+
+const saveBriefDraftJson = defineRoute(
+  {
+    auth: 'session',
+    input: { params: RunIdParamsSchema, body: BriefDraftInputSchema },
+    output: z.object({}),
+    rateLimit: { bucket: 'run-events' },
+    openapi: { operationId: 'saveBriefDraft', summary: 'Save the brief draft', tags: TAGS },
+  },
+  async (ctx) => {
+    await saveBriefDraft(actorOf(ctx), ctx.input.params.runId, ctx.input.body)
+    return {}
+  },
+)
+
+export const saveBriefDraftRoute = noContent(saveBriefDraftJson, 'Saved')
+
+const briefSignalJson = defineRoute(
+  {
+    auth: 'session',
+    input: { params: RunIdParamsSchema, body: BriefSignalSchema },
+    output: z.object({}),
+    rateLimit: { bucket: 'run-events' },
+    openapi: {
+      operationId: 'briefSignal',
+      summary: 'Brief opened or closed timing signal',
+      tags: TAGS,
+    },
+  },
+  async (ctx) => {
+    await briefSignal(actorOf(ctx), ctx.input.params.runId, ctx.input.body)
+    return {}
+  },
+)
+
+export const briefSignalRoute = noContent(briefSignalJson, 'Recorded')
+
+/**
+ * `POST /runs/{runId}/lock` (07 §7, FR-084, FR-102): the Decision Lock, and the gate in front of it.
+ *
+ * `BriefInputSchema` is the wire shape and `BriefSchema` the rule, applied by the service so that a
+ * brief over a word limit answers `BRIEF_INVALID` naming the field (10 §6) — the shape the frame
+ * already uses, and the one the editor binds its errors to. The other refusal is FR-084's, and it
+ * carries the claim's id and its own words in `details` so UI-024's dialog can name it and link to
+ * it.
+ */
+export const lockDecisionRoute = defineRoute(
+  {
+    auth: 'session',
+    input: { params: RunIdParamsSchema, body: BriefInputSchema },
+    output: RunSummarySchema,
+    rateLimit: { bucket: 'write' },
+    openapi: {
+      operationId: 'lockDecision',
+      summary: 'Decision Lock (irreversible)',
+      tags: TAGS,
+    },
+  },
+  async (ctx) => lockDecision(actorOf(ctx), ctx.input.params.runId, ctx.input.body),
+)
+
+const addAddendumJson = defineRoute(
+  {
+    auth: 'session',
+    input: { params: RunIdParamsSchema, body: AddendumSchema },
+    output: z.object({}),
+    rateLimit: { bucket: 'write' },
+    openapi: { operationId: 'addAddendum', summary: 'Add the 50-word addendum', tags: TAGS },
+  },
+  async (ctx) => {
+    await addAddendum(actorOf(ctx), ctx.input.params.runId, ctx.input.body)
+    return {}
+  },
+)
+
+export const addAddendumRoute = noContent(addAddendumJson, 'Recorded')
 
 /**
  * `POST /runs/{runId}/resume` (07 §7, FR-001): the student takes the run off Paused.

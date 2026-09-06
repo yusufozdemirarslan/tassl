@@ -75,7 +75,7 @@ Authenticated-page lab values: `tests/e2e/perf/web-vitals.spec.ts` signs in as `
 
 | Route group | Budget (gzip JavaScript the route adds to the floor) | Includes |
 |---|---|---|
-| Run routes: `/runs/[runId]/{start,readiness,readiness/result,work,locked,turn,defense,debrief}`, `/runs/[runId]`, `/review/runs/[runId]`, `/records/[runId]` | ≤ 130,000 bytes (measured max 98,501, `/runs/[runId]/work`) | root main files + `(app)` layout + run layout + page chunks |
+| Run routes: `/runs/[runId]/{start,readiness,readiness/result,work,locked,turn,defense,debrief}`, `/runs/[runId]`, `/review/runs/[runId]`, `/records/[runId]` | ≤ 130,000 bytes (measured max 101,128, `/runs/[runId]/work`) | root main files + `(app)` layout + run layout + page chunks |
 | Public pages: `/sign-in`, `/sign-up`, `/verify-email`, `/forgot-password`, `/reset-password`, `/privacy`, `/terms` | ≤ 110,000 bytes (measured max 103,058) | root main files + `(public)` layout + page chunks |
 | Every other route | ≤ 175,000 bytes (measured max 170,303, `/settings/security`) | root main files + ancestor layouts + page chunks |
 
@@ -341,7 +341,7 @@ Every list endpoint reads through an index named in `06-data-model.md`:
 | Lock gate | `run_claims` | `(run_id) where stance is null` |
 | Document opens (clock timeline) | `run_document_opens` | `(run_id, opened_at)` |
 | Actions on a claim | `run_actions` | `(run_id, claim_id)` |
-| Escalation limit | `run_escalations` | `(run_id) where counts_against_limit` |
+| Escalation limit | `run_escalations` | `(run_id)` — every escalation counts since D-328, so the predicate the partial index carried is gone |
 | Notifications (`GET /api/v1/notifications`) | `notifications` | `(user_id, read_at)` |
 | Audit log (`/admin/audit`) | `audit_logs` | `(organization_id, created_at desc)`, `(actor_id, created_at desc)` |
 | Sessions (`/settings/security`) | `session` | `session_user_id_idx` |

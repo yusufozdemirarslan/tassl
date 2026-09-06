@@ -294,7 +294,18 @@ async function setup() {
       failureFamily: null,
       warrantedStance: 'accept',
       planted: false,
-      verificationPaths: {},
+      // A Source Trace on the claim a document surfaces, so the suite can run an interrogation
+      // action as a student and read what comes back (Step 8.1). Its result is authored content a
+      // student *may* see once they have paid for it (FR-070) — which is why `verificationPaths`
+      // is forbidden as a map and its individual paths are not (`student-view.ts`).
+      verificationPaths: {
+        source_trace: {
+          document_id: retention.id,
+          passage: 'Core-metro value-tier share has been flat for four quarters.',
+          dated_on: '2026-04-02',
+          author: 'Priya Shah',
+        },
+      },
     })
   }
 
@@ -716,9 +727,22 @@ describe('the workspace a student works in carries no forbidden key', () => {
   }
 
   it('the room the workspace lists carries no body and nothing authored about a document', async () => {
+    // The brief is saved first, deliberately (D-329). This sweep used to run over a workspace whose
+    // `briefDraft` was null, so the branch that carries the student's own 250 words was never
+    // walked — and a `BriefView` field named `rationale` would have passed a sweep that could not
+    // see it. The draft is written before the read so the payload the assertion walks is the one a
+    // student actually holds.
+    await runs.saveBriefDraft(fx.learner, fx.run.id, {
+      rationale: 'The payback figure is load-bearing and has not been traced to the cohort table.',
+      recommendation: 'Hold the acquisition spend in the value tier this quarter.',
+    })
+
     const workspace = await runs.getRunWorkspace(fx.learner, fx.run.id)
 
+    expect(workspace.briefDraft, 'the sweep must have a brief to walk').not.toBeNull()
+    expect(workspace.briefDraft?.briefRationale.length).toBeGreaterThan(0)
     expect(findForbiddenKeys(workspace, { scored: false })).toEqual([])
+    expect(keysOf(workspace.briefDraft).has('rationale')).toBe(false)
     expect(workspace.documents.length).toBeGreaterThan(0)
     for (const document of workspace.documents) {
       // `role` and `supersededByDocumentId` are the missed-defect section of the debrief (12 §8.2):
@@ -756,11 +780,16 @@ describe('the workspace a student works in carries no forbidden key', () => {
     expect(claims.length).toBeGreaterThan(0)
     expect(findForbiddenKeys(claims, { scored: false })).toEqual([])
     expect(Object.keys(claims[0]!).sort()).toEqual([
+      'actions',
+      'availableActions',
+      'canEscalate',
+      'escalation',
       'id',
       'inTurnWindow',
       'key',
       'previousStance',
       'reliedOn',
+      'remainingEscalations',
       'stance',
       'stanceSetAt',
       'surfacedAt',
@@ -768,6 +797,11 @@ describe('the workspace a student works in carries no forbidden key', () => {
       'text',
       'usedMarked',
     ])
+    // `escalatable` is the flag 12 §8.1 keeps out of every student view in every state (D-244), and
+    // `canEscalate` is the fact about the run that replaces it. The set forbids the first by name;
+    // this is the assertion that the second did not quietly become the first.
+    expect(keysOf(claims).has('escalatable')).toBe(false)
+    expect(claims.every((claim) => claim.canEscalate)).toBe(true)
   })
 
   it('the skim flag is not in the workspace, the open, or the owner’s trace (12 §8.2)', async () => {
@@ -782,6 +816,188 @@ describe('the workspace a student works in carries no forbidden key', () => {
     // mid-run is in-run feedback on the assessment (D-223).
     expect(keysOf(close?.payload).has('skim')).toBe(false)
     expect(keysOf(await runs.getRunWorkspace(fx.learner, fx.run.id)).has('skim')).toBe(false)
+  })
+
+  // ---------------------------------------------------------------------------------------------
+  // What a student gets back for spending their clock (Step 8.1)
+  //
+  // The three acts of 10 §8 are the only routes by which authored content about a claim legitimately
+  // reaches a student before their run is scored, and each one is a place the pick could slip:
+  //
+  //   * an interrogation action returns one `verification_paths` entry — the *path*, which FR-070
+  //     says a student may read once they have paid a minute for it, and never the map, which would
+  //     say which checks the author wrote for this claim and so which ones they thought it needed;
+  //   * an escalation returns the colleague's reply and neither `responseId` nor `countsAgainstLimit`
+  //     (D-116), which together would say whether the author wrote a reply for this claim;
+  //   * the claim view after both carries all of it and still no warranted stance, evidence status,
+  //     failure family, planted flag or rationale.
+  // ---------------------------------------------------------------------------------------------
+
+  describe('the three acts a student spends their clock on carry no forbidden key', () => {
+    /** The fixture run is inserted straight into `working`; an action needs a clock to charge. */
+    async function startTheClock(): Promise<void> {
+      await testSql`update runs set working_started_at = now() where id = ${fx.run.id}`
+    }
+
+    it('an interrogation action hands over one authored path and nothing around it', async () => {
+      const { retention } = await documentIds()
+      await startTheClock()
+      await runs.openDocument(fx.learner, fx.run.id, retention)
+      const [claim] = await reliance.listRunClaims(fx.learner, fx.run.id)
+      expect(claim).toBeDefined()
+
+      const result = await reliance.runAction(fx.learner, fx.run.id, claim!.id, 'source_trace')
+
+      expect(findForbiddenKeys(result, { scored: false })).toEqual([])
+      expect(Object.keys(result).sort()).toEqual([
+        'actionId',
+        'clockCostMs',
+        'inTurnWindow',
+        'result',
+        'type',
+      ])
+      // The path, not the map: `verificationPaths` in either spelling would say which checks exist
+      // on this claim, which is the author's reading of what it needed.
+      expect(keysOf(result).has('verification_paths')).toBe(false)
+      expect(keysOf(result).has('verificationPaths')).toBe(false)
+      expect(keysOf(result).has('warranted_stance')).toBe(false)
+      expect(keysOf(result).has('evidence_status')).toBe(false)
+      expect(keysOf(result).has('planted')).toBe(false)
+    })
+
+    it('an escalation hands over the reply, the cost and the budget, and not the bookkeeping', async () => {
+      const { retention } = await documentIds()
+      await startTheClock()
+      await runs.openDocument(fx.learner, fx.run.id, retention)
+      const [claim] = await reliance.listRunClaims(fx.learner, fx.run.id)
+
+      const result = await reliance.escalate(fx.learner, fx.run.id, claim!.id, {
+        statement: 'I cannot tell how settled this saturation reading is.',
+      })
+
+      expect(findForbiddenKeys(result, { scored: false })).toEqual([])
+      // A closed set, widened once and deliberately: `statement` is D-318's addition and is the
+      // student's own typed sentence read back off `run_escalations.statement`. Nothing authored
+      // reaches it — they wrote it, the server only stripped its markup — so it is not a leak, and
+      // `student-view.ts` forbids no key by that name in either set. Everything else on that row
+      // stays behind, which is what this assertion exists to keep true.
+      expect(Object.keys(result).sort()).toEqual([
+        'clockCostMs',
+        'remainingEscalations',
+        'responseText',
+        'statement',
+      ])
+      expect(result.statement).toBe('I cannot tell how settled this saturation reading is.')
+      // D-116: both keys are on `run_escalations` and on the reviewer's trace, and on neither of the
+      // two payloads a student can reach before their run is scored.
+      expect(keysOf(result).has('responseId')).toBe(false)
+      expect(keysOf(result).has('countsAgainstLimit')).toBe(false)
+    })
+
+    it('the claim view after a stance, an action and an escalation is still only the claim', async () => {
+      const { retention } = await documentIds()
+      await startTheClock()
+      await runs.openDocument(fx.learner, fx.run.id, retention)
+      const [surfaced] = await reliance.listRunClaims(fx.learner, fx.run.id)
+      const claimId = surfaced!.id
+
+      await reliance.runAction(fx.learner, fx.run.id, claimId, 'source_trace')
+      await reliance.escalate(fx.learner, fx.run.id, claimId, {
+        statement: 'I cannot tell how settled this saturation reading is.',
+      })
+      const view = await reliance.setStance(fx.learner, fx.run.id, claimId, 'verify')
+
+      expect(findForbiddenKeys(view, { scored: false })).toEqual([])
+      expect(view.actions).toHaveLength(1)
+      expect(view.escalation).not.toBeNull()
+      expect(view.availableActions).toEqual(['source_trace'])
+      // The whole point of the exercise, in one assertion: the student has traced the claim, argued
+      // with it and taken a position on it, and nothing in front of them says what it deserved.
+      for (const key of [
+        'warrantedStance',
+        'warranted_stance',
+        'evidenceStatus',
+        'evidence_status',
+        'failureFamily',
+        'failure_family',
+        'planted',
+        'rationale',
+        'escalatable',
+        'escalationReply',
+        'escalation_reply',
+      ]) {
+        expect([key, keysOf(view).has(key)]).toEqual([key, false])
+      }
+    })
+  })
+
+  // -------------------------------------------------------------------------------------------
+  // The locked screen (Step 8.2, D-302, D-329)
+  //
+  // `getDecision` had no sweep here at all, and could not have had one: the record carries the
+  // brief the student filed, and `BriefView` called the student's own 250 words `rationale` — the
+  // name `student-view.ts` reserves for a claim's authored "what it deserved and why". The field
+  // is `briefRationale` now, so the record can be swept like everything else a student receives.
+  // -------------------------------------------------------------------------------------------
+
+  describe('the record of a filed decision (D-302)', () => {
+    async function lockOne(): Promise<void> {
+      await testSql`update runs set working_started_at = now() where id = ${fx.run.id}`
+      await runs.lockDecision(fx.learner, fx.run.id, {
+        recommendation: 'Hold the acquisition spend in the value tier for this quarter.',
+        rationale:
+          'The premium payback figure is load-bearing and has not been traced to the cohort table, so moving spend on it would be a bet on a number nobody has checked.',
+        assumptions: [
+          'Premium retention holds near the piloted level',
+          'Value tier payback stays close to four months',
+          'Green coffee cost per bag is stable through the crop year',
+        ],
+        changeMyMind: 'A cohort table showing premium payback under six months would change this.',
+        confidence: 45,
+        namedValues: {},
+      })
+    }
+
+    it('carries no forbidden key, and names the student’s own prose unambiguously', async () => {
+      await lockOne()
+      const record = await runs.getDecision(fx.learner, fx.run.id)
+
+      expect(findForbiddenKeys(record, { scored: false })).toEqual([])
+      expect(record.brief).not.toBeNull()
+      expect(record.brief?.briefRationale.length).toBeGreaterThan(0)
+      // The name the sweep reserves for a claim's authored rationale is not on this payload under
+      // either meaning, which is the whole of D-329.
+      expect(keysOf(record).has('rationale')).toBe(false)
+    })
+
+    it('is a closed set of fields, and the brief inside it is another', async () => {
+      await lockOne()
+      const record = await runs.getDecision(fx.learner, fx.run.id)
+
+      expect(Object.keys(record).sort()).toEqual([
+        'addendum',
+        'brief',
+        'canAddAddendum',
+        'frame',
+        'namedFields',
+        'run',
+        'turnRemainingMs',
+      ])
+      expect(Object.keys(record.brief!).sort()).toEqual([
+        'assumptions',
+        'briefRationale',
+        'changeMyMind',
+        'confidence',
+        'lockedAt',
+        'namedValues',
+        'recommendation',
+        'updatedAt',
+      ])
+      // FR-106: the speed outlier is an instructor observation, and a student told their lock was
+      // flagged is a student being penalised by being told.
+      expect(keysOf(record).has('speedOutlier')).toBe(false)
+      expect(keysOf(record).has('autoLocked')).toBe(false)
+    })
   })
 })
 

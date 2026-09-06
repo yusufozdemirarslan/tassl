@@ -668,6 +668,26 @@
               "passage": "The October and November 2024 pilot cohort, priced before the freight change and before the jar, did return its acquisition cost in about eleven months. That is a pre-fulfillment number, for one cohort of 214, under economics we no longer run.",
               "dated_on": "2026-08-04",
               "author": "Priya Raman, Finance Director"
+            },
+            "decomposition_check": {
+              "steps": [
+                {
+                  "label": "Acquisition cost used",
+                  "result": "310 dollars, for the October and November 2024 pilot cohort of 214."
+                },
+                {
+                  "label": "Monthly contribution used",
+                  "result": "28.20 dollars, the pre-fulfillment contribution that cohort was priced on."
+                },
+                {
+                  "label": "310 divided by 28.20",
+                  "result": "11.0 months, which is the figure as stated and for the cohort it was stated about."
+                },
+                {
+                  "label": "What the figure covers",
+                  "result": "One cohort under economics the roastery no longer runs; the memo of 4 August 2026 puts the tier-wide payback at 15.98 months and says the eleven-month number must not be used as one."
+                }
+              ]
             }
           }
         },

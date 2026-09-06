@@ -130,7 +130,24 @@ const OPERATION_IDS = [
   'updateDelegation',
   'declareOutsideTool',
   'listRunClaims',
+  // Step 8.1 (07 §7): the three acts a student performs on a surfaced claim. Each is addressed by a
+  // run id and a claim id, and the run's owner guard answers every denied row before the claim id
+  // is looked up at all — so the ids below name nothing on this run and no row depends on another.
+  'setStance',
+  'runAction',
+  'escalate',
+  // Step 8.2 (07 §7): the brief, the Decision Lock and the addendum — 08 §4's "every in-run
+  // capability … brief, lock, addendum" on the student's own run and nowhere else. `ownRun` is in
+  // `assigned`, so the allowed row meets the transition table (409) long after the guard has
+  // answered, and every denied row is refused by the owner guard before the state is read at all.
+  'saveBriefDraft',
+  'briefSignal',
+  'lockDecision',
+  'addAddendum',
   'resumeRun',
+  // The mirror image, and the row this file exists for: 08 §4's "Force assistant failure (test
+  // control)" is "—" for the student and "✓* section, flag on" for the instructor.
+  'forceAssistantFailure',
   'deleteWalkthroughRun',
   'listPackages',
   'createPackageFromSeed',
@@ -517,6 +534,17 @@ describe('authorization matrix (08 §4)', () => {
     const declarationRoute =
       await import('@/app/api/v1/runs/[runId]/outside-tool-declaration/route')
     const runClaimsRoute = await import('@/app/api/v1/runs/[runId]/claims/route')
+    const stanceRoute = await import('@/app/api/v1/runs/[runId]/claims/[claimId]/stance/route')
+    const claimActionsRoute =
+      await import('@/app/api/v1/runs/[runId]/claims/[claimId]/actions/route')
+    const escalationRoute =
+      await import('@/app/api/v1/runs/[runId]/claims/[claimId]/escalation/route')
+    const briefRoute = await import('@/app/api/v1/runs/[runId]/brief/route')
+    const briefSignalsRoute = await import('@/app/api/v1/runs/[runId]/brief/signals/route')
+    const lockRoute = await import('@/app/api/v1/runs/[runId]/lock/route')
+    const addendumRoute = await import('@/app/api/v1/runs/[runId]/addendum/route')
+    const forceFailureRoute =
+      await import('@/app/api/v1/review/runs/[runId]/test-controls/force-assistant-failure/route')
     const resumeRoute = await import('@/app/api/v1/runs/[runId]/resume/route')
     const orgPackages = await import('@/app/api/v1/institutions/[orgId]/packages/route')
     const packagesImport = await import('@/app/api/v1/institutions/[orgId]/packages/import/route')
@@ -891,6 +919,111 @@ describe('authorization matrix (08 §4)', () => {
         run: async (seat) =>
           call(runClaimsRoute.GET, {
             path: `/runs/${ownRun}/claims`,
+            session: await sessionFor(seat),
+            params: { runId: ownRun },
+          }),
+      },
+      setStance: {
+        route: 'PUT /runs/{runId}/claims/{claimId}/stance',
+        // The claim id names no claim on this run, so the allowed row meets `CLAIM_NOT_SURFACED`
+        // (409) — which is an allow: 08 §4 gives the run's own student every in-run capability, and
+        // what the claim is is the module's rule, not a permission. Every denied row is refused by
+        // the owner guard before either is read.
+        run: async (seat) =>
+          call(stanceRoute.PUT, {
+            method: 'PUT',
+            path: `/runs/${ownRun}/claims/${MISSING_UUID}/stance`,
+            session: await sessionFor(seat),
+            params: { runId: ownRun, claimId: MISSING_UUID },
+            body: { stance: 'accept' },
+          }),
+      },
+      runAction: {
+        route: 'POST /runs/{runId}/claims/{claimId}/actions',
+        run: async (seat) =>
+          call(claimActionsRoute.POST, {
+            method: 'POST',
+            path: `/runs/${ownRun}/claims/${MISSING_UUID}/actions`,
+            session: await sessionFor(seat),
+            params: { runId: ownRun, claimId: MISSING_UUID },
+            body: { type: 'source_trace' },
+          }),
+      },
+      escalate: {
+        route: 'POST /runs/{runId}/claims/{claimId}/escalation',
+        run: async (seat) =>
+          call(escalationRoute.POST, {
+            method: 'POST',
+            path: `/runs/${ownRun}/claims/${MISSING_UUID}/escalation`,
+            session: await sessionFor(seat),
+            params: { runId: ownRun, claimId: MISSING_UUID },
+            body: { statement: 'I cannot evaluate this claim from here.' },
+          }),
+      },
+      saveBriefDraft: {
+        route: 'PUT /runs/{runId}/brief',
+        run: async (seat) =>
+          call(briefRoute.PUT, {
+            method: 'PUT',
+            path: `/runs/${ownRun}/brief`,
+            session: await sessionFor(seat),
+            params: { runId: ownRun },
+            body: { recommendation: 'Hold the spend in the value tier.' },
+          }),
+      },
+      briefSignal: {
+        route: 'POST /runs/{runId}/brief/signals',
+        run: async (seat) =>
+          call(briefSignalsRoute.POST, {
+            method: 'POST',
+            path: `/runs/${ownRun}/brief/signals`,
+            session: await sessionFor(seat),
+            params: { runId: ownRun },
+            body: { opened: true },
+          }),
+      },
+      lockDecision: {
+        route: 'POST /runs/{runId}/lock',
+        // The brief is well-formed, so the allowed row gets past the wire schema and meets the
+        // transition table on a run in `assigned` — an allow, and one that leaves `ownRun` exactly
+        // where every other row expects to find it.
+        run: async (seat) =>
+          call(lockRoute.POST, {
+            method: 'POST',
+            path: `/runs/${ownRun}/lock`,
+            session: await sessionFor(seat),
+            params: { runId: ownRun },
+            body: {
+              recommendation: 'Hold the spend in the value tier.',
+              rationale: 'The payback figure has not been traced to the cohort table.',
+              assumptions: ['Retention holds', 'Payback stays near four months', 'Cost is stable'],
+              changeMyMind: 'A cohort table showing a shorter payback.',
+              confidence: 45,
+              namedValues: {},
+            },
+          }),
+      },
+      addAddendum: {
+        route: 'POST /runs/{runId}/addendum',
+        run: async (seat) =>
+          call(addendumRoute.POST, {
+            method: 'POST',
+            path: `/runs/${ownRun}/addendum`,
+            session: await sessionFor(seat),
+            params: { runId: ownRun },
+            body: { text: 'A note added after the decision was filed.' },
+          }),
+      },
+      forceAssistantFailure: {
+        route: 'POST /review/runs/{runId}/test-controls/force-assistant-failure',
+        // The one row here whose allowed seat is the instructor and whose denied seats include the
+        // run's own student (08 §4). It arms a flag on `ownRun`; the assistant rows above have
+        // already run, and a run in `assigned` answers `ASSISTANT_LOCKED` before the flag is ever
+        // consumed, so nothing downstream depends on it.
+        run: async (seat) =>
+          call(forceFailureRoute.POST, {
+            method: 'POST',
+            path: `/review/runs/${ownRun}/test-controls/force-assistant-failure`,
             session: await sessionFor(seat),
             params: { runId: ownRun },
           }),

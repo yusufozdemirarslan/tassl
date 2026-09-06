@@ -9,8 +9,12 @@
 // and the list that links to them are what has to be re-rendered.
 import { defineAction } from '@/server/http/define-action'
 import {
+  AddendumSchema,
   AnswerReadinessItemSchema,
   AssignmentIdParamsSchema,
+  BriefDraftInputSchema,
+  BriefInputSchema,
+  BriefSignalSchema,
   DocumentOpenParamsSchema,
   DocumentParamsSchema,
   LockFrameInputSchema,
@@ -19,11 +23,15 @@ import {
 } from './schema'
 import {
   acknowledgePolicy,
+  addAddendum,
   answerReadinessItem,
+  briefSignal,
   closeDocument,
+  lockDecision,
   lockFrame,
   openDocument,
   resumeRun,
+  saveBriefDraft,
   skipReadiness,
   startRun,
   submitReadiness,
@@ -168,6 +176,77 @@ export const lockFrameAction = defineAction(
     revalidate: [RUNS, runRoot(runId), workRoot(runId)],
   }),
   { name: 'lockFrameAction' },
+)
+
+// ---------------------------------------------------------------------------------------------
+// The Decision Brief, the Decision Lock and the addendum (07 §7, FR-084, FR-100 to FR-108)
+//
+// The save and the two signals revalidate nothing, for the reason the readiness answer does not: a
+// draft is a scratchpad row, it moves no state and it writes no event, and re-rendering the
+// workspace on every autosave would throw away the paragraph the student is in the middle of. The
+// lock does revalidate — it is the moment the workspace stops existing for this run.
+// ---------------------------------------------------------------------------------------------
+
+/** One run, and the brief fields the editor has changed. */
+const SaveBriefDraftActionSchema = RunIdParamsSchema.extend(BriefDraftInputSchema.shape)
+
+export const saveBriefDraftAction = defineAction(
+  SaveBriefDraftActionSchema,
+  async ({ runId, ...draft }, ctx) => {
+    await saveBriefDraft(ctx.actor, runId, draft)
+    return { data: null }
+  },
+  { name: 'saveBriefDraftAction' },
+)
+
+/**
+ * The editor was opened, or closed after a spell (FR-100).
+ *
+ * `z.union` cannot be `.extend`ed, so the run id travels beside the signal rather than spread into
+ * it — the one input in this file whose action schema is not the route's two composed, because the
+ * route's body is a union of two shapes rather than an object.
+ */
+const BriefSignalActionSchema = RunIdParamsSchema.extend({ signal: BriefSignalSchema })
+
+export const briefSignalAction = defineAction(
+  BriefSignalActionSchema,
+  async ({ runId, signal }, ctx) => {
+    await briefSignal(ctx.actor, runId, signal)
+    return { data: null }
+  },
+  { name: 'briefSignalAction' },
+)
+
+/** One run, and the six fields of its brief; the route's two schemas composed. */
+const LockDecisionActionSchema = RunIdParamsSchema.extend(BriefInputSchema.shape)
+
+/**
+ * Files the decision, irreversibly (FR-102).
+ *
+ * Two refusals reach the dialog rather than the form: `BRIEF_INVALID` with `details.field`, which
+ * the editor marks up, and `LOCK_REFUSED_UNSTANCED_CLAIM` with `details.claimId` and
+ * `details.claimText`, which UI-024 names and links to. Neither writes anything to the draft, so the
+ * student comes back to the brief exactly as they left it (FR-108).
+ */
+export const lockDecisionAction = defineAction(
+  LockDecisionActionSchema,
+  async ({ runId, ...brief }, ctx) => ({
+    data: await lockDecision(ctx.actor, runId, brief),
+    revalidate: [RUNS, runRoot(runId), workRoot(runId)],
+  }),
+  { name: 'lockDecisionAction' },
+)
+
+/** One run, and the fifty words (FR-107). It renders on the locked page, so that is what changes. */
+const AddAddendumActionSchema = RunIdParamsSchema.extend(AddendumSchema.shape)
+
+export const addAddendumAction = defineAction(
+  AddAddendumActionSchema,
+  async ({ runId, ...input }, ctx) => {
+    await addAddendum(ctx.actor, runId, input)
+    return { data: null, revalidate: [runRoot(runId), `${runRoot(runId)}/locked`] }
+  },
+  { name: 'addAddendumAction' },
 )
 
 // ---------------------------------------------------------------------------------------------

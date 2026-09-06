@@ -494,6 +494,7 @@ describe('the rule table', () => {
       'CLAIM_STATE_MISSING',
       'DEFECTIVE_VARIANT_PLANT',
       'VARIANTS_DIFFER_BEYOND_PLANT',
+      'VARIANT_ACTIONS_DIFFER',
       'PLANTED_PATH_MISSING',
       'DEFECT_OUTSIDE_CONCEPTS',
       'DEFECT_NOT_CONSEQUENTIAL',
@@ -1022,13 +1023,91 @@ describe('VARIANTS_DIFFER_BEYOND_PLANT', () => {
   })
 })
 
+describe('VARIANT_ACTIONS_DIFFER', () => {
+  // The rule VARIANTS_DIFFER_BEYOND_PLANT deliberately leaves out (D-330). That rule compares the
+  // four scalar fields scoring reads and skips `verification_paths`, because a path's *content*
+  // differs by design on the planted claim. What nothing compared was the set of path keys — and
+  // that set is `ClaimView.availableActions`, projected verbatim onto the student's claim card. A
+  // claim offering a Decomposition Check on one variant and not the other tells whoever drew it
+  // which variant they are on; on the planted claim it points straight at the plant. The shipped
+  // Meridian Roast fixture did exactly that on C3 until this rule was written.
+  it('fails a claim offering a check on one variant and not the other', () => {
+    const version = validVersion()
+    state(version, 'defective', 'C5').verificationPaths.replication_check = {
+      result: 'Re-run from the operations note, 8.80 dollars a month reproduces.',
+    }
+
+    expect(codes(version)).toEqual(['VARIANT_ACTIONS_DIFFER'])
+    expect(failure(version, 'VARIANT_ACTIONS_DIFFER')).toMatchObject({
+      elementIds: ['claim-5'],
+      message:
+        'C5 offers Replication Check on the defective variant only. The actions a claim offers ' +
+        "are on the student's claim card, so a claim that offers a different menu in each " +
+        'variant tells whoever drew one which variant they are on. Author the same paths on ' +
+        'both; what each returns may differ.',
+    })
+  })
+
+  it('fails the planted claim itself, which is the case that matters most', () => {
+    // `VARIANTS_DIFFER_BEYOND_PLANT` skips the planted claim entirely, so this rule is the only
+    // one that speaks about it — and the planted claim is exactly where an asymmetric menu points.
+    const version = validVersion()
+    state(version, 'defective', 'C1').verificationPaths.decomposition_check = {
+      steps: [{ label: '310 divided by 28.20', result: '11.0 months, the figure as stated.' }],
+    }
+
+    expect(codes(version)).toEqual(['VARIANT_ACTIONS_DIFFER'])
+    expect(failure(version, 'VARIANT_ACTIONS_DIFFER')).toMatchObject({ elementIds: ['claim-1'] })
+    expect(failure(version, 'VARIANT_ACTIONS_DIFFER').message).toContain(
+      'C1 offers Decomposition Check on the defective variant only',
+    )
+  })
+
+  it('names both directions when the two variants each offer something the other does not', () => {
+    const version = validVersion()
+    state(version, 'defective', 'C5').verificationPaths.replication_check = {
+      result: 'Re-run: 8.80 dollars a month reproduces.',
+    }
+    state(version, 'sound', 'C5').verificationPaths.decomposition_check = {
+      steps: [{ label: 'Base', result: 'The schedule of 12 June 2026.' }],
+    }
+
+    expect(failure(version, 'VARIANT_ACTIONS_DIFFER').message).toContain(
+      'C5 offers Replication Check on the defective variant only and Decomposition Check on the sound variant only.',
+    )
+  })
+
+  it('passes two variants whose paths hold different answers under the same keys', () => {
+    // The case the rule must not refuse: the plant lives in what a path *returns*. The valid
+    // package already sends C1's Source Trace to two different documents with two different
+    // passages, one per variant, and that is the plant working as designed.
+    const version = validVersion()
+    const defective = state(version, 'defective', 'C1').verificationPaths.source_trace
+    const sound = state(version, 'sound', 'C1').verificationPaths.source_trace
+    if (!defective || !sound) throw new Error('both C1 states should start with a Source Trace')
+    expect([defective.document_id, defective.passage]).not.toEqual([
+      sound.document_id,
+      sound.passage,
+    ])
+
+    expect(codes(version)).toEqual([])
+  })
+})
+
 describe('PLANTED_PATH_MISSING', () => {
+  // Each of these moves the *same* path types on both variants. The menu a claim offers has to
+  // match across the two (D-330, `VARIANT_ACTIONS_DIFFER`), so a fixture that rewrote only the
+  // defective side would report two failures and the rule under test would not be the one being
+  // read. Only the payloads differ, which is what the two variants are for.
   it('passes a Replication Check when the failure family is an uncomputed number', () => {
     const version = validVersion()
     const planted = state(version, 'defective', 'C1')
     planted.failureFamily = 'uncomputed_number'
     planted.verificationPaths = {
       replication_check: { result: 'Redone, the payback is 14 months.' },
+    }
+    state(version, 'sound', 'C1').verificationPaths = {
+      replication_check: { result: 'Redone, the payback is 11 months, as stated.' },
     }
 
     expect(codes(version)).toEqual([])
@@ -1037,6 +1116,7 @@ describe('PLANTED_PATH_MISSING', () => {
   it('fails a planted claim with no verification path', () => {
     const version = validVersion()
     state(version, 'defective', 'C1').verificationPaths = {}
+    state(version, 'sound', 'C1').verificationPaths = {}
 
     expect(codes(version)).toEqual(['PLANTED_PATH_MISSING'])
     expect(failure(version, 'PLANTED_PATH_MISSING')).toMatchObject({
@@ -1053,6 +1133,9 @@ describe('PLANTED_PATH_MISSING', () => {
     planted.verificationPaths = {
       replication_check: { result: 'Redone on the right base, retention is 61%.' },
     }
+    state(version, 'sound', 'C1').verificationPaths = {
+      replication_check: { result: 'Redone on the right base, retention is 78%, as stated.' },
+    }
 
     expect(codes(version)).toEqual([])
   })
@@ -1062,6 +1145,7 @@ describe('PLANTED_PATH_MISSING', () => {
     const planted = state(version, 'defective', 'C1')
     planted.failureFamily = 'uncomputed_number'
     planted.verificationPaths = {}
+    state(version, 'sound', 'C1').verificationPaths = {}
 
     expect(codes(version)).toEqual(['PLANTED_PATH_MISSING'])
     expect(failure(version, 'PLANTED_PATH_MISSING')).toMatchObject({

@@ -1,6 +1,6 @@
-// NFR-012: the five student screens of Phase 6 — the runs list, the policy display, the Readiness
-// Check, its concept-map result, and the run workspace in `framing` — carry no WCAG 2.1 A/AA
-// violation.
+// NFR-012: every screen a student meets in a run — the runs list, the policy display, the Readiness
+// Check, its concept-map result, the workspace in `framing` and again in `working`, and the locked
+// decision — carries no WCAG 2.1 A/AA violation.
 //
 // Every screen is scanned with something in it rather than empty, because an empty one proves very
 // little: a runs table with no rows has no cells to associate, a check with no items has no radio
@@ -9,6 +9,11 @@
 // screen is scanned in the state a student meets it in — including the frame form with its
 // refusals on screen and a document open in the Evidence Room, which are the two surfaces on
 // `/work` that exist only after somebody has acted.
+//
+// The two popups are scanned open, and separately, for the same reason. A menu and a dialog are
+// portalled out of the page's own tree and carry roles, names and focus behaviour of their own, so
+// a scan of the page behind them says nothing about either: the claim card's actions menu and the
+// addendum dialog each get a scan with the popup on screen.
 //
 // It runs as `student2`, one seat away from `tests/e2e/walkthrough/02-05-start-to-frame.spec.ts`,
 // on an assignment it makes for itself: an instructor creates a course, a section, the enrolment
@@ -36,6 +41,65 @@ import { createStudentAssignment, signInAsInstructor } from '../instructor/api'
 /** Enough answers that the navigator is scanned with both of its states in it. */
 const ANSWERED_ITEMS = 3
 
+/** Cookie-authenticated mutations under /api/v1 carry X-Requested-With (08 §2.7). */
+const WRITE_HEADERS = { 'content-type': 'application/json', 'X-Requested-With': 'tassl' } as const
+
+/** Raises C3; the claim whose card is scanned with its controls on it. */
+const REQUEST = 'What is the premium payback?'
+const CLAIM_KEY = 'C3'
+
+/**
+ * The frame and the brief this scan files.
+ *
+ * Both are written through the documented endpoints rather than through the form. The frame form
+ * with its refusals on screen is scanned above, which is what this spec is for; typing the frame
+ * and then the brief a second time through the browser would add minutes to every project for a
+ * starting position two other specs already prove (`02-05-start-to-frame`, `08-lock`).
+ */
+const FRAME = {
+  decision: 'Hold the premium share where it is until the payback figure has been checked.',
+  assumptions: [
+    'The premium payback figure has not been revised since the board deck.',
+    'Value tier acquisition keeps performing at its current rate.',
+    'Roastery capacity absorbs the current premium volume this quarter.',
+  ],
+  position:
+    'I lean towards holding the split until the payback number is checked against something later than the board deck.',
+  confidence: 55,
+} as const
+
+const BRIEF = {
+  recommendation: 'Hold the premium share at its current level for one more quarter.',
+  rationale:
+    'The payback figure the upmarket case rests on was computed before premium fulfillment was quoted, and nothing dated later confirms it.',
+  assumptions: [
+    'Value acquisition holds at its current blended cost.',
+    'Roastery capacity absorbs current premium volume.',
+    'No competitor repositions inside the quarter.',
+  ],
+  changeMyMind: 'A payback figure recomputed with fulfillment in it and dated later than the deck.',
+  confidence: 62,
+  namedValues: {},
+} as const
+
+/** Locks the frame, which is what opens the assistant and starts the working clock (FR-041). */
+async function frameRun(page: Page, runId: string): Promise<void> {
+  const response = await page.request.post(`/api/v1/runs/${runId}/frame`, {
+    data: FRAME,
+    headers: WRITE_HEADERS,
+  })
+  expect(response.status(), await response.text()).toBe(200)
+}
+
+/** Files the decision, so `/locked` can be scanned with a real record on it (FR-102). */
+async function lockDecision(page: Page, runId: string): Promise<void> {
+  const response = await page.request.post(`/api/v1/runs/${runId}/lock`, {
+    data: BRIEF,
+    headers: WRITE_HEADERS,
+  })
+  expect(response.status(), await response.text()).toBe(200)
+}
+
 async function readJson<T>(request: APIRequestContext, path: string): Promise<T> {
   const response = await request.get(path)
   expect(response.status(), `GET ${path}: ${await response.text()}`).toBe(200)
@@ -58,10 +122,10 @@ async function assignmentWithNoAttempt(page: Page, label: string): Promise<void>
   expect(assignment?.latestRun, `"${label}" already carries an attempt`).toBeNull()
 }
 
-test('the Phase 6 student run screens have no axe violations', async ({ page, request }) => {
+test('the student run screens have no axe violations', async ({ page, request }) => {
   // Five full-page scans on top of a run driven from the list to the frame is more than the suite's
   // default patience allows on a loaded machine (D-188). The assertions are unchanged.
-  test.setTimeout(240_000)
+  test.setTimeout(480_000)
 
   // The course this scan is taken in, built through the instructor's own endpoints on a request
   // context with its own cookie jar, so the student session below is never disturbed.
@@ -136,6 +200,71 @@ test('the Phase 6 student run screens have no axe violations', async ({ page, re
 
   await page.getByRole('button', { name: 'Lock the frame' }).click()
   await expect(page.getByText('This is part of the frame. Write something in it.')).toHaveCount(5)
+  await axe(page)
+
+  // -------------------------------------------------------------------------------------------
+  // UI-023 in `working`, with everything on it that a student can reach (Phase 8)
+  //
+  // The framing scan above is half the screen. The working state is the other half and it is the
+  // larger one: three columns, a claim card with its stance radio group and its actions menu, the
+  // brief editor with six fields and a numeric one, and the Delegation Log. Each of those is a
+  // shape a scan can fail on — a radio group without a name, a menu item without a label, a numeric
+  // field whose unit only exists as a visual adornment — so the run is driven into that state and
+  // scanned there rather than empty.
+  // -------------------------------------------------------------------------------------------
+
+  await frameRun(page, runId)
+  await page.goto(`/runs/${runId}/work`)
+  await expect(page.locator('[data-state="working"]')).toBeVisible()
+
+  const assistant = page.locator('#assistant-panel')
+  await assistant.getByLabel('Your request').fill(REQUEST)
+  // The live character count is the panel's own state, so waiting for it is the proof that React
+  // owns the field this browser is about to submit: a click that lands ahead of hydration is a
+  // native form post carrying a value the form never saw (the trap D-182 found in WebKit).
+  await expect(assistant.getByText(`${String(REQUEST.length)} of 2000 characters`)).toBeVisible()
+  await assistant.getByRole('button', { name: 'Ask the assistant' }).click()
+  await expect(assistant.locator('#assistant-reply-status')).toContainText('Reply complete')
+
+  // A claim card with its controls, and the brief editor with something in it: a form nobody has
+  // typed into has no counter to associate and no numeric field to name.
+  //
+  // The card with the controls is the assistant's: a claim is worked where it was most recently
+  // surfaced, and the Delegation Log's copy of a claim the reply is holding draws the record
+  // instead of a second identical instrument (D-313).
+  const claimCard = assistant.getByRole('article', { name: `Claim ${CLAIM_KEY}` })
+  await expect(claimCard.getByRole('radiogroup')).toBeVisible()
+  await expect(
+    page.locator('#delegation-log').getByRole('article', { name: `Claim ${CLAIM_KEY}` }),
+  ).toContainText('You are taking a position on this claim in the reply above.')
+  const editor = page.locator('#brief-editor-panel')
+  await editor
+    .getByLabel('Your recommendation')
+    .fill('Hold the premium share for one more quarter.')
+  await editor.getByLabel('Premium payback you are betting on, in months').fill('11')
+  await axe(page)
+
+  // The actions menu open, because a popup is a surface of its own: it is portalled out of the
+  // page's own tree and carries its own roles and labels.
+  await claimCard.getByRole('button', { name: `Check claim ${CLAIM_KEY}` }).click()
+  await expect(page.getByRole('menuitem').first()).toBeVisible()
+  await axe(page)
+  await page.keyboard.press('Escape')
+
+  // -------------------------------------------------------------------------------------------
+  // UI-024 `/runs/[runId]/locked`: the filed brief, the frozen frame, the Turn countdown and the
+  // addendum control
+  // -------------------------------------------------------------------------------------------
+
+  await lockDecision(page, runId)
+  await page.goto(`/runs/${runId}/locked`)
+  await expect(page.getByRole('heading', { level: 1, name: 'Decision locked' })).toBeVisible()
+  await expect(page.getByRole('timer', { name: 'Time until the Turn' })).toBeVisible()
+  await axe(page)
+
+  // And the addendum dialog, for the same reason the menu was scanned open.
+  await page.locator('#addendum').getByRole('button', { name: 'Add an addendum' }).click()
+  await expect(page.getByRole('dialog')).toBeVisible()
   await axe(page)
 
   await signOut(page)

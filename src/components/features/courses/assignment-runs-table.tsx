@@ -137,7 +137,7 @@ export function AssignmentRunsTable({ runs, canDelete }: AssignmentRunsTableProp
         </TableBody>
       </Table>
 
-      <p className="text-ink-muted text-body max-w-[72ch]">{t('run.reviewReplayNote')}</p>
+      <p className="text-ink-muted text-body max-w-measure">{t('run.reviewReplayNote')}</p>
 
       {pendingDelete !== null && Confirm !== undefined && (
         <Confirm

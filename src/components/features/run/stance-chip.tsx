@@ -13,6 +13,10 @@ import { cn } from '@/lib/cn'
 import { t } from '@/lib/i18n/messages/stance'
 import type { StanceValue } from '@/server/modules/scenarios/schema'
 
+// The vocabulary travels with the mark: a component that draws a stance needs the type as well as
+// the labels, and one import of this file is what keeps the two from being fetched from two places.
+export type { StanceValue }
+
 // The one mark for a stance, wherever a stance is shown (09 §3 reserves `features/run` for the
 // stance vocabulary: `StanceControl`, the five-chip radio group a student answers with, is built
 // on this module's labels, icons and colours in the run workspace phase, so the stance a package
@@ -24,6 +28,21 @@ import type { StanceValue } from '@/server/modules/scenarios/schema'
 // chip is legible without colour vision and the five colours stay a mark rather than a highlight.
 // Pill geometry (radius 999 px) is reserved product-wide for stance chips, which is what separates
 // this mark at a glance from a label chip (2 px radius with a side tab) and a Badge (2 px radius).
+
+/**
+ * The order the five are declared in (06 §3.3) and the order every surface draws them in.
+ *
+ * It is a fixed order and not a helpful one: a control that put the "safe" stance first, or sorted
+ * by anything the product knows about the claim, would be telling the student where to land. The
+ * stance control's arrow keys walk this array, so it is also the keyboard order.
+ */
+export const STANCE_ORDER: readonly StanceValue[] = [
+  'accept',
+  'verify',
+  'challenge',
+  'reject',
+  'escalate',
+]
 
 export const STANCE_LABELS: Record<StanceValue, () => string> = {
   accept: () => t('stance.accept'),

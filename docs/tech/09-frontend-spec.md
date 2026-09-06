@@ -179,7 +179,11 @@ Keep `.impeccable/config.json`, `.impeccable/design.json`, `.impeccable/surfaces
 
 ## 5. Responsive behavior
 
-Breakpoints: `sm` 640, `md` 768, `lg` 1024, `xl` 1280. The run workspace is a three-column layout at `lg`+ (Evidence Room | assistant and claims | brief and log), two columns at `md` (tabs for brief/log), and a single column with a bottom tab bar under `md`. The stance matrix scrolls horizontally inside its container under `lg` with sticky first column; the clock timeline stacks its window below the working clock under `md`. Nothing requires hover; every action is reachable by tap and keyboard. Minimum touch target 40 px.
+Breakpoints: `sm` 640, `md` 768, `lg` 1024, `xl` 1280, `2xl` 1536.
+
+**The run's writing screens split at `2xl` and at no width below it (D-310).** `/runs/[runId]/work` is one column under 1536 — the reference `aside` (scenario brief, frozen frame, Evidence Room), the assistant and its claims, the Decision Brief, the Delegation Log, the declaration, in that reading order — and two columns from 1536, reference and assistant on the left, brief and log on the right. `/runs/[runId]/locked` puts the Turn in a full-width band under the header at every width and splits the filed record from the addendum at `2xl`. The three-column layout this section previously specified from `lg` is corrected with D-310: it gave the Decision Brief 216 px of column and about twenty characters a line at 1024, and made the editor *narrower* as the window crossed the breakpoint. The rule that replaces it is stated as arithmetic — two columns only where the writing column still holds the full reading measure — and DESIGN.md §Layout carries it.
+
+The `RunFrame` band is sticky at the top of every run screen (D-311). The stance matrix scrolls horizontally inside its container under `lg` with sticky first column; the clock timeline stacks its window below the working clock under `md`. Nothing requires hover; every action is reachable by tap and keyboard. Minimum touch target 40 px — including the claim card's checks, its escalation, the log's used mark and its save, which were `sm` (32 px) until the critique pass.
 
 ## 6. Accessibility target (WCAG 2.2 AA, NFR-006)
 

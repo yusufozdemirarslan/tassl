@@ -266,7 +266,7 @@ export function ConfirmationRecord({ rows }: ConfirmationRecordProps) {
       <section className="border-line flex flex-col gap-3 border-t pt-5">
         <h3 className="text-h4">{t('packageVersion.recordExceptionsTitle')}</h3>
         {exceptions.length === 0 ? (
-          <p className="text-ink-muted text-body max-w-[72ch]">
+          <p className="text-ink-muted text-body max-w-measure">
             {t('packageVersion.recordExceptionsNone')}
           </p>
         ) : (

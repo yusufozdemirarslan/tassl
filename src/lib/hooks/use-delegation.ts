@@ -36,6 +36,14 @@ export type DelegationFailure = {
   message: string
   /** `RATE_LIMITED` only (`details.retryAfterSeconds`); null everywhere else. */
   retryAfterSeconds: number | null
+  /**
+   * The envelope's own `requestId`, so the refusal on screen can be quoted (D-322).
+   *
+   * Undefined where there is no envelope to read it from: a socket that closed mid-stream and a
+   * `fetch` that never reached the server have no request id, and inventing one would be worse for
+   * the person trying to look it up than leaving it out.
+   */
+  requestId?: string
 }
 
 export type DelegationStatus = 'idle' | 'streaming' | 'complete' | 'failed'
@@ -79,17 +87,23 @@ const idle = <TClaim>(): DelegationState<TClaim> => ({
 
 /** The envelope every refusal on `/api/v1` carries (10 §1). */
 type ErrorEnvelope = {
-  error?: { code?: unknown; message?: unknown; details?: { retryAfterSeconds?: unknown } }
+  error?: {
+    code?: unknown
+    message?: unknown
+    requestId?: unknown
+    details?: { retryAfterSeconds?: unknown }
+  }
 }
 
 function failureOf(body: unknown, fallback: string): DelegationFailure {
   const envelope = (body ?? {}) as ErrorEnvelope
-  const { code, message, details } = envelope.error ?? {}
+  const { code, message, requestId, details } = envelope.error ?? {}
   const seconds = details?.retryAfterSeconds
   return {
     code: typeof code === 'string' ? code : 'INTERNAL_ERROR',
     message: typeof message === 'string' && message !== '' ? message : fallback,
     retryAfterSeconds: typeof seconds === 'number' && Number.isFinite(seconds) ? seconds : null,
+    ...(typeof requestId === 'string' && requestId !== '' ? { requestId } : {}),
   }
 }
 

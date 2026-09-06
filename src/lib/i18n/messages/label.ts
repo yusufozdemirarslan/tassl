@@ -11,6 +11,8 @@ export const label = {
   /** The kind's own word, when the caller does not pass the warning's own wording. */
   'label.warning': 'Warning',
   'label.planted': 'Planted',
+  /** The student's own record that they leaned on a claim (FR-060, FR-084); never a judgment. */
+  'label.used': 'Used',
   'sample.label': 'Illustrative sample data',
 } as const
 

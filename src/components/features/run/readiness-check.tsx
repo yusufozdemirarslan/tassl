@@ -332,7 +332,7 @@ export function ReadinessCheck({ runId, items, remainingMs }: ReadinessCheckProp
 
       {expired ? (
         <Panel id="readiness-expired" title={t('readiness.expiredTitle')} headingLevel={2}>
-          <p className="text-ink-muted text-reading max-w-[72ch]">{t('readiness.expiredBody')}</p>
+          <p className="text-ink-muted text-reading max-w-measure">{t('readiness.expiredBody')}</p>
         </Panel>
       ) : (
         <>
@@ -356,7 +356,7 @@ export function ReadinessCheck({ runId, items, remainingMs }: ReadinessCheckProp
           {skipOffered && (
             <Panel id="readiness-skip" title={t('readiness.skipTitle')} headingLevel={2}>
               <div className="flex flex-col items-start gap-4">
-                <p className="text-ink-muted text-reading max-w-[72ch]">
+                <p className="text-ink-muted text-reading max-w-measure">
                   {t('readiness.skipBody')}
                 </p>
                 <Button

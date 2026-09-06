@@ -297,7 +297,7 @@ export function SeedForm({ orgId }: { orgId: string }) {
       onSubmit={(event) => void handleSubmit(onSubmit, () => setRefusals((n) => n + 1))(event)}
     >
       {/* One measure for the whole form: the panels wrap where their prose and their inputs do. */}
-      <div className="flex max-w-[72ch] flex-col gap-6">
+      <div className="max-w-measure flex flex-col gap-6">
         <Panel
           id="seed-package-panel"
           title={t('packageNew.packageTitle')}
@@ -778,7 +778,7 @@ function CreatedPanel({ created }: { created: CreatedPackage }) {
   // The heading is written out rather than passed to Panel's `title`: focus has to land on it, and
   // a ref reaches it only from here.
   return (
-    <Panel id="seed-created" className="max-w-[72ch]">
+    <Panel id="seed-created" className="max-w-measure">
       <div className="flex flex-col items-start gap-3">
         <h2
           ref={heading}

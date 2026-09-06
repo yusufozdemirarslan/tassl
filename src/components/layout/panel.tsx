@@ -15,6 +15,12 @@ type PanelProps = {
    * directly under the page h1 is an h2 so the outline never skips a level.
    */
   headingLevel?: 2 | 3 | 4
+  /**
+   * `-1` for a panel that receives focus programmatically and never by tabbing — the Turn's own
+   * panel when the countdown reaches zero (UI-024 A11y). It takes the focus recipe with it, so a
+   * pointer user never sees a ring the keyboard did not ask for.
+   */
+  tabIndex?: -1
 }
 
 // The one container (DESIGN.md §Components → Panels): raised paper, hairline border, no shadow,
@@ -28,14 +34,18 @@ export function Panel({
   padding = 'default',
   id,
   headingLevel = 2,
+  tabIndex,
 }: PanelProps) {
   const Heading = `h${headingLevel}` as const
   return (
     <section
       id={id}
+      tabIndex={tabIndex}
       className={cn(
         'border-line bg-paper-raised text-ink rounded-md border',
         padding === 'reading' ? 'p-6' : 'p-4',
+        tabIndex !== undefined &&
+          'focus-visible:outline-focus focus-visible:outline-2 focus-visible:outline-offset-2',
         className,
       )}
       aria-labelledby={title && id ? `${id}-title` : undefined}

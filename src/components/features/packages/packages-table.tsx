@@ -190,7 +190,7 @@ export function PackagesTable({ packages, nextCursor }: PackagesTableProps) {
       </Table>
 
       {anyWarning && (
-        <p className="text-ink-muted text-body max-w-[72ch]">
+        <p className="text-ink-muted text-body max-w-measure">
           {t('packages.warningEthicalShortcutHelp')}
         </p>
       )}

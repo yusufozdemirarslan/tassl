@@ -60,7 +60,7 @@ import type { DbOrTx } from '@/server/db/tx'
 export type { DbOrTx, Tx } from '@/server/db/tx'
 export { withTransaction } from '@/server/db/tx'
 export type { Page, PageInput } from '@/server/db/pagination'
-export type { Run, RunDocumentOpen, RunFrame, RunPause }
+export type { Run, RunAddendum, RunBrief, RunDocumentOpen, RunFrame, RunPause }
 
 // ---------------------------------------------------------------------------------------------
 // Input and result shapes (rows come straight from the schema; nothing is spread into new shapes)
@@ -576,6 +576,21 @@ export async function insertFrame(
     .values({ ...values, runId })
     .returning()
   return returned(rows)
+}
+
+/** The run's brief, draft or locked; `undefined` before the student has saved anything (FR-100). */
+export async function findBrief(runId: string, dbx: DbOrTx = db): Promise<RunBrief | undefined> {
+  const [row] = await dbx.select().from(runBriefs).where(eq(runBriefs.runId, runId))
+  return row
+}
+
+/** The run's one addendum, or `undefined` (FR-107). */
+export async function findAddendum(
+  runId: string,
+  dbx: DbOrTx = db,
+): Promise<RunAddendum | undefined> {
+  const [row] = await dbx.select().from(runAddenda).where(eq(runAddenda.runId, runId))
+  return row
 }
 
 /**

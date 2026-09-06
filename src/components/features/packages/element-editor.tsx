@@ -106,7 +106,7 @@ function Refusal({
     <div
       ref={ref}
       {...container}
-      className="border-red bg-red-soft text-ink text-body flex w-full max-w-[72ch] items-start gap-2 rounded-md border p-3 outline-none"
+      className="border-red bg-red-soft text-ink text-body max-w-measure flex w-full items-start gap-2 rounded-md border p-3 outline-none"
     >
       <CircleAlertIcon aria-hidden="true" className="text-red mt-0.5 size-4 shrink-0" />
       <div className="flex min-w-0 flex-1 flex-col gap-2">
@@ -280,10 +280,10 @@ export function ElementEditor(props: ElementEditorProps) {
         )}
 
         {frozen ? (
-          <p className="text-ink-muted text-body max-w-[72ch]">{t('confirm.frozenBody')}</p>
+          <p className="text-ink-muted text-body max-w-measure">{t('confirm.frozenBody')}</p>
         ) : settled && !reopened ? (
           <div className="flex flex-col items-start gap-3">
-            <p className="text-ink-muted text-body max-w-[72ch]">{t('confirm.lockedBody')}</p>
+            <p className="text-ink-muted text-body max-w-measure">{t('confirm.lockedBody')}</p>
             {canEdit && (
               <Button type="button" variant="secondary" onClick={onReopen}>
                 <PencilLineIcon aria-hidden="true" />
@@ -302,7 +302,7 @@ export function ElementEditor(props: ElementEditorProps) {
 
         {claimText !== null && (
           <Section title={t('confirm.contextTitle')}>
-            <p className="text-ink text-reading max-w-[72ch]">{claimText}</p>
+            <p className="text-ink text-reading max-w-measure">{claimText}</p>
             {variantKey !== null && (
               <p className="text-ink-muted text-meta">
                 {t('confirm.claimVariant', {
@@ -336,7 +336,7 @@ export function ElementEditor(props: ElementEditorProps) {
 
         {variantStates.length > 0 && (
           <Section title={t('confirm.variantsTitle')}>
-            <p className="text-ink-muted text-body max-w-[72ch]">{t('confirm.variantsBody')}</p>
+            <p className="text-ink-muted text-body max-w-measure">{t('confirm.variantsBody')}</p>
             <div className="flex w-full flex-wrap gap-4">
               {variantStates.map((state) => {
                 const key =

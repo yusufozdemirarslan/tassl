@@ -75,7 +75,7 @@ export function ConceptMap({ concepts }: ConceptMapProps) {
             className="border-line flex items-start gap-3 border-t py-3 first:border-t-0 first:pt-0 last:pb-0"
           >
             <Icon aria-hidden="true" className={cn('mt-1 size-4 shrink-0', tone)} />
-            <p className="text-ink text-reading max-w-[72ch]">
+            <p className="text-ink text-reading max-w-measure">
               {t(key, {
                 concept: concept.status === 'not_held' ? atSentenceStart(name) : name,
               })}

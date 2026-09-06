@@ -18,10 +18,21 @@
 //   * the trace holds exactly the events those acts wrote, in the order they happened, and withholds
 //     from the run's own owner the two fields of a `delegation` that are the reviewer's (D-269).
 //
-// **Stances, the interrogation actions, escalation and the Sycophancy Probe are Phase 8's**, and
-// nothing here asserts their absence: a claim card's stance seat says plainly that Tassl cannot take
-// a stance yet, and an assertion about that sentence is one Phase 8 would have to delete. Phase 8
-// appends its half of step 6 to this file instead.
+// **Part 2 is Phase 8's half of the same step** (FR-070 to FR-073, FR-080, FR-085, FR-090 to
+// FR-092), appended to the same test because the same run has to carry it: D-041 allows one run per
+// student per assignment, so a second test would need a second assignment and a second five-minute
+// setup for a working period that is one continuous thing. What it adds is what a student actually
+// does with a claim once they have one:
+//
+//   * a Source Trace on a claim the first request did not raise, returning the document, the
+//     passage, the date and the author the package's author wrote, and charging one minute;
+//   * a stance taken before that check and changed after it, with both kept and the second naming
+//     the first (FR-085);
+//   * Challenge on one low-stakes claim and Reject on another;
+//   * one escalation, with a one-sentence statement, the colleague's reply, and five minutes off
+//     the clock — and nothing on screen saying which reply answered or whether it counted (D-116).
+//
+// The Sycophancy Probe is Phase 9's, and nothing here asserts its absence.
 //
 // **The run is set up through the documented endpoints and driven through the screen.** Steps 2 to 5
 // are the sibling spec's subject and are proven there; repeating them through the browser here would
@@ -71,6 +82,51 @@ const REQUEST = 'What is the premium payback?'
 
 /** The claim the request raises, by the key the author gave it. */
 const CLAIM_KEY = 'C3'
+
+/**
+ * Part 2's one further request, and the three claims it raises (FR-051, D-030, D-260).
+ *
+ * One request rather than three, and it is a better test as well as a lighter one. A reply that
+ * carries three claim objects is what a real question produces — a student asks about the thing
+ * they are deciding, not about one claim at a time — and it is the only place in the suite where
+ * the surfacing rule is exercised with more than one match and the panel's announcement has a count
+ * in it. It is also three delegations fewer against D-026's ten a minute, which is the budget a seat
+ * shared by three browser projects is actually spending.
+ *
+ * The sentence carries exactly three claims' authored trigger phrases — "price sensitivity" (C5),
+ * "saturated" (C8), "survey" (C7) — and no other claim's whole token set, which is what makes
+ * "three claims surfaced" an assertion about surfacing rather than about wording. C1's "what does
+ * the value tier cost" wants `does` and `cost`, C3's "premium payback" wants both of its words, and
+ * C8's own "is the value tier out of room" wants three tokens this request does not have.
+ */
+const SECOND_REQUEST =
+  'What is the price sensitivity, is the value tier saturated, and what did the survey find?'
+
+/** The claim a Source Trace is run on, and whose stance is set and then changed (FR-070, FR-085). */
+const TRACED_CLAIM_KEY = 'C5'
+/** C5's authored `source_trace` on the defective variant, verbatim (FR-070, FR-073). */
+const TRACED_PASSAGE =
+  'Premium subscribers are 40 percent less price sensitive than value subscribers.'
+const TRACED_AUTHOR = 'Marisol Quintero, Founder and Chief Executive'
+
+/** A low-stakes claim, and the one this run rejects. */
+const REJECTED_CLAIM_KEY = 'C8'
+
+/** The claim the author wrote a colleague's reply for (FR-090). */
+const ESCALATED_CLAIM_KEY = 'C7'
+
+/** The one sentence FR-090 asks for; inside D-089's three words and 280 characters. */
+const STATEMENT =
+  'I cannot tell from the room whether the survey margin covers the tier subgroups this recommendation would rest on.'
+
+/**
+ * The opening of the colleague's reply the author wrote for C7, asserted as a substring.
+ *
+ * It is the *authored* reply rather than the version's general one, which is what makes this the
+ * escalation FR-090 describes — and nothing on screen says which of the two it was (D-116). The
+ * assertion is on the words the student reads, because those are the whole of what they are given.
+ */
+const ESCALATION_REPLY = 'Rowan Adeyemi, research operations. Two things about that number.'
 
 /** The student's own line about why they asked (FR-060); inside 10 §7's 200-character bound. */
 const WHY =
@@ -194,13 +250,13 @@ async function reachWorking(page: Page, assignmentId: string): Promise<string> {
   return runId
 }
 
-test('walkthrough step 6: delegate, surface a claim, fill the log, mark used, declare', async ({
+test('walkthrough step 6: delegate, take stances, check a claim, escalate, and record it all', async ({
   page,
   request,
 }) => {
   // Sixteen answered items and a full page build put this past Playwright's default; the assertions
   // are unchanged, only the patience (D-188).
-  test.setTimeout(180_000)
+  test.setTimeout(300_000)
 
   // The course this run is taken in, built before the student arrives. The instructor is put on the
   // section as well as the student, because the reviewer's read of the same delegation is what says
@@ -231,6 +287,10 @@ test('walkthrough step 6: delegate, surface a claim, fill the log, mark used, de
   const assistant = page.locator('#assistant-panel')
   const log = page.locator('#delegation-log')
   const declaration = page.locator('#declaration-control')
+  // The panel's own live region, addressed by id: from Phase 8 every claim card carries a region of
+  // its own — one per claim, empty until something happens to that claim — and the reply's
+  // announcement is the one that speaks about the reply.
+  const replyStatus = assistant.locator('#assistant-reply-status')
 
   await expect(assistant.getByRole('heading', { level: 2, name: 'AI assistant' })).toBeVisible()
   await expect(log.getByText('Nothing delegated yet')).toBeVisible()
@@ -256,7 +316,7 @@ test('walkthrough step 6: delegate, surface a claim, fill the log, mark used, de
 
   // UI-023's one announcement, made when the stream is over and never per segment. "One claim" is
   // the surfacing assertion said in the words a screen-reader user hears.
-  await expect(assistant.getByRole('status')).toHaveText('Reply complete. One claim surfaced.')
+  await expect(replyStatus).toHaveText('Reply complete. One claim surfaced.')
 
   // The claim arrives as its own object — an `article` with a heading — and not as a sentence in the
   // prose. Exactly one, for exactly the claim the author's phrase raises.
@@ -349,12 +409,21 @@ test('walkthrough step 6: delegate, surface a claim, fill the log, mark used, de
 
   await entry.getByLabel('Why you asked, delegation 1').fill(WHY)
   await entry.getByRole('button', { name: 'Save' }).click()
-  await expect(entry.getByRole('status')).toHaveText('Saved.')
+  // The line stands beside the control it belongs to, and the sentence is said once into the one
+  // polite region the working screen owns rather than into a region of this entry's own (D-314).
+  await expect(entry.locator('p[id$="-status"]')).toHaveText('Saved.')
+  await expect(page.locator('#run-announcer')).toHaveText('Saved.')
 
-  // D-270 is said before the control is pressed, because the mark is permanent.
-  await expect(entry).toContainText(
+  // D-270 is said before the control is pressed, because the mark is permanent — once, at the head
+  // of the log, rather than once per delegation's claims (D-314).
+  await expect(log).toContainText(
     'Marking a claim used records that you leaned on it. A mark stays on the record.',
   )
+  await expect(
+    log.getByText(
+      'Marking a claim used records that you leaned on it. A mark stays on the record.',
+    ),
+  ).toHaveCount(1)
 
   const markUsed = entry.getByRole('button', { name: `Mark claim ${CLAIM_KEY} as used` })
   await expect(markUsed).toBeVisible()
@@ -430,6 +499,222 @@ test('walkthrough step 6: delegate, surface a claim, fill the log, mark used, de
   // declaration that was made after both.
   expect(delegation.seq).toBeLessThan(used.seq)
   expect(used.seq).toBeLessThan(declared.seq)
+
+  // -------------------------------------------------------------------------------------------
+  // Step 6, part 2: stances, a Source Trace, and one escalation (FR-070 to FR-073, FR-080, FR-085,
+  // FR-090 to FR-092)
+  //
+  // Everything below is done on the *log's* copy of a claim rather than on the reply's, and that is
+  // the point rather than a convenience: the assistant panel holds one reply at a time, so the
+  // cards in it are gone the moment the next request is sent, while the Delegation Log is rendered
+  // from the server on every load and carries every claim the run has surfaced. It is the copy a
+  // student comes back to, the copy that survives a reload, and the copy the Decision Lock's "Go to
+  // the claim" reaches.
+  //
+  // The clock is asserted through `clock.chargedMs`, which is the sum of what the run has been
+  // charged and nothing else. `remainingMs` also moves with the wall clock, so a test that asserted
+  // on it would be asserting on how long the browser took.
+  // -------------------------------------------------------------------------------------------
+
+  /**
+   * One request, asked the way a student asks it — and not sent until React owns the box.
+   *
+   * The live character count is the panel's own state, so waiting for it is the proof that the
+   * field this browser is about to submit is the field the component is holding. It is the trap
+   * D-182 found in WebKit, in a longer form: a click that lands while a `router.refresh()` from the
+   * previous act is still settling can be a press against a control whose state has just been
+   * re-rendered under it, and the reply then never starts.
+   */
+  async function ask(request: string, announced: string): Promise<void> {
+    await requestBox.fill(request)
+    await expect(assistant.getByText(`${String(request.length)} of 2000 characters`)).toBeVisible()
+    await assistant.getByRole('button', { name: 'Ask the assistant' }).click()
+    await expect(replyStatus).toHaveText(announced)
+  }
+
+  /**
+   * The claim card that carries the controls, which is the reply's while the reply is holding it.
+   *
+   * A claim is worked where it was most recently surfaced (D-313): the assistant's reply draws the
+   * instrument for the claims it is showing, and the Delegation Log's copy of those draws the
+   * record and says where they are being worked. Everything below acts on claims the reply above
+   * has just raised, so this is the assistant's card.
+   */
+  const workCard = (key: string) => assistant.getByRole('article', { name: `Claim ${key}` })
+
+  /** The same claim in the log, which is the copy that survives the next request and a reload. */
+  const logCard = (key: string) => log.getByRole('article', { name: `Claim ${key}` })
+
+  /** The run's charged clock, in milliseconds: exactly what the checks and escalations took. */
+  async function chargedMs(): Promise<number> {
+    const run = await readJson<{ clock: { chargedMs: number } | null }>(
+      page.request,
+      `/api/v1/runs/${runId}`,
+    )
+    expect(run.clock, 'the working clock should still be running').not.toBeNull()
+    return run.clock?.chargedMs ?? -1
+  }
+
+  // One further request, raising three claims that are not C3. The announcement carries the count,
+  // which is the same live region that said "One claim surfaced" a moment ago — the panel says how
+  // many a reply produced, and never anything about which of them is worth looking at.
+  await ask(SECOND_REQUEST, 'Reply complete. 3 claims surfaced.')
+  for (const key of [TRACED_CLAIM_KEY, REJECTED_CLAIM_KEY, ESCALATED_CLAIM_KEY]) {
+    await expect(workCard(key)).toBeVisible()
+    // The log lists the same claim and draws it as the record: one claim, one instrument (D-313).
+    await expect(logCard(key)).toBeVisible()
+    await expect(logCard(key)).toContainText(
+      'You are taking a position on this claim in the reply above.',
+    )
+    await expect(logCard(key).getByRole('radiogroup')).toHaveCount(0)
+  }
+
+  const beforeTrace = await chargedMs()
+
+  // A stance, taken *before* the check, so that changing it afterwards is a change and not a first
+  // answer. The control is a radio group with the five stances and no default (FR-080).
+  const traced = workCard(TRACED_CLAIM_KEY)
+  const stances = traced.getByRole('radiogroup', {
+    name: `Your stance on claim ${TRACED_CLAIM_KEY}`,
+  })
+  await expect(stances.getByRole('radio')).toHaveCount(5)
+  await stances.getByRole('radio', { name: 'Accept' }).click()
+  await expect(stances.getByRole('radio', { name: 'Accept' })).toHaveAttribute(
+    'aria-checked',
+    'true',
+  )
+
+  // The Source Trace: one minute of the clock, and the document, passage, date and author the
+  // author wrote for it (FR-070, FR-071). The menu offers what the claim's verification paths
+  // answer and nothing else, with the cost in front of the press.
+  await traced.getByRole('button', { name: `Check claim ${TRACED_CLAIM_KEY}` }).click()
+  const menuItem = page.getByRole('menuitem', { name: /Source Trace/ })
+  await expect(menuItem).toContainText('1 min')
+  await menuItem.click()
+
+  const result = page.getByRole('dialog')
+  await expect(result).toBeVisible()
+  await expect(result).toContainText(`Source Trace on claim ${TRACED_CLAIM_KEY}`)
+  for (const label of ['Document', 'Passage', 'Date', 'Author']) {
+    await expect(result).toContainText(label)
+  }
+  // The passage is the author's, character for character, and nothing is added to it (FR-073).
+  await expect(result).toContainText(TRACED_PASSAGE)
+  await expect(result).toContainText(TRACED_AUTHOR)
+  await expect(result).toContainText('This check cost one minute of your working clock.')
+  await page.keyboard.press('Escape')
+  await expect(result).toBeHidden()
+
+  await expect
+    .poll(chargedMs, { message: 'a Source Trace charges one minute (FR-070)' })
+    .toBe(beforeTrace + 60_000)
+
+  // The stance changes after the check, which is the move FR-085 exists to record. Both are kept.
+  await stances.getByRole('radio', { name: 'Challenge' }).click()
+  await expect(stances.getByRole('radio', { name: 'Challenge' })).toHaveAttribute(
+    'aria-checked',
+    'true',
+  )
+  await expect(traced).toContainText('Changed from Accept.')
+
+  // Reject, on the low-stakes claim the same reply raised.
+  const rejected = workCard(REJECTED_CLAIM_KEY)
+  const rejectedStances = rejected.getByRole('radiogroup', {
+    name: `Your stance on claim ${REJECTED_CLAIM_KEY}`,
+  })
+  await rejectedStances.getByRole('radio', { name: 'Reject' }).click()
+  await expect(rejectedStances.getByRole('radio', { name: 'Reject' })).toHaveAttribute(
+    'aria-checked',
+    'true',
+  )
+
+  // The escalation: one sentence, five minutes, and the colleague's reply verbatim (FR-090).
+  const escalated = workCard(ESCALATED_CLAIM_KEY)
+  const beforeEscalation = await chargedMs()
+
+  await escalated.getByRole('button', { name: `Escalate claim ${ESCALATED_CLAIM_KEY}` }).click()
+  const escalation = page.getByRole('dialog')
+  await expect(escalation).toContainText('Escalate to a colleague')
+  // The count is a fact about the run and is the same on every claim, which is what keeps it from
+  // saying anything about this one (D-244).
+  await expect(escalation).toContainText('You have 2 escalations left in this run.')
+  await escalation.getByLabel('What you cannot settle').fill(STATEMENT)
+  await escalation.getByRole('button', { name: 'Send it' }).click()
+  await expect(escalation).toBeHidden()
+
+  // Their own sentence is read back beside the answer it bought: five minutes of clock, and the
+  // card used to show only half of the exchange (D-318).
+  await expect(escalated).toContainText('You wrote')
+  await expect(escalated).toContainText(STATEMENT)
+  await expect(escalated).toContainText('They answered')
+  await expect(escalated).toContainText(ESCALATION_REPLY)
+  await expect(escalated).toContainText('This escalation cost 5 minutes of your working clock.')
+
+  await expect
+    .poll(chargedMs, { message: 'an escalation charges five minutes (FR-090)' })
+    .toBe(beforeEscalation + 300_000)
+
+  // Nothing on screen says whether the reply was the one the author wrote for this claim or the
+  // version's general one, and nothing says whether it counted (D-116). The student's own read of
+  // the claim carries neither field.
+  const escalatedClaims = await readJson<Record<string, unknown>[]>(
+    page.request,
+    `/api/v1/runs/${runId}/claims`,
+  )
+  const escalatedClaim = escalatedClaims.find((entry) => entry.key === ESCALATED_CLAIM_KEY)
+  expect(escalatedClaim?.escalation).toMatchObject({ clockCostMs: 300_000 })
+  const reply = escalatedClaim?.escalation as Record<string, unknown>
+  expect(reply).not.toHaveProperty('responseId')
+  expect(reply).not.toHaveProperty('countsAgainstLimit')
+  // What it *does* carry is the student's own sentence, which is theirs and no invariant's (D-318).
+  expect(reply.statement).toBe(STATEMENT)
+
+  // -------------------------------------------------------------------------------------------
+  // What part 2 recorded (FR-007, 10 §10)
+  // -------------------------------------------------------------------------------------------
+
+  const afterWork = await traceOf(page, runId)
+
+  // Both stances on the traced claim are on the record, in order, and the second names the first:
+  // "traced it, then changed my mind" is a thing this trace can show (FR-085).
+  const tracedClaimId = (
+    escalatedClaims.find((entry) => entry.key === TRACED_CLAIM_KEY) as { id: string }
+  ).id
+  const stanceEvents = afterWork.filter(
+    (event) => event.type === 'stance_set' && event.payload.claim_id === tracedClaimId,
+  )
+  expect(stanceEvents).toHaveLength(2)
+  expect(stanceEvents[0]?.payload).toMatchObject({ stance: 'accept', previous_stance: null })
+  expect(stanceEvents[1]?.payload).toMatchObject({
+    stance: 'challenge',
+    previous_stance: 'accept',
+  })
+  // The check ran before the change, and the change knows it did: `action_ids` is every action run
+  // on the claim before the stance, which is what makes the two rows different in the debrief.
+  const action = onlyEvent(afterWork, 'action')
+  expect(action.payload).toMatchObject({
+    claim_id: tracedClaimId,
+    type: 'source_trace',
+    clock_cost_ms: 60_000,
+  })
+  expect(stanceEvents[1]?.payload.action_ids).toEqual([action.payload.action_id])
+  expect(action.seq).toBeGreaterThan(stanceEvents[0]?.seq ?? 0)
+  expect(action.seq).toBeLessThan(stanceEvents[1]?.seq ?? 0)
+
+  // The escalation, its statement, and its five minutes.
+  const escalationEvent = onlyEvent(afterWork, 'escalation')
+  expect(escalationEvent.payload).toMatchObject({
+    statement: STATEMENT,
+    clock_cost_ms: 300_000,
+    in_turn_window: false,
+  })
+
+  // And the two stances step 6 asks for by name, on two different claims.
+  const stanceValues = afterWork
+    .filter((event) => event.type === 'stance_set')
+    .map((event) => event.payload.stance)
+  expect(stanceValues).toContain('challenge')
+  expect(stanceValues).toContain('reject')
 
   await signOut(page)
 })

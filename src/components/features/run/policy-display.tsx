@@ -125,7 +125,7 @@ export function PolicyDisplay({ runId, policy }: PolicyDisplayProps) {
       </Panel>
 
       <Panel id="run-policy" title={t('run.policyTitle')} headingLevel={2}>
-        <div className="flex max-w-[72ch] flex-col gap-3">
+        <div className="max-w-measure flex flex-col gap-3">
           <p className="text-ink text-reading font-medium">
             {POLICY_TITLES[policy.outsideAiPolicy]()}
           </p>
@@ -157,7 +157,7 @@ export function PolicyDisplay({ runId, policy }: PolicyDisplayProps) {
               ))}
             </TableBody>
           </Table>
-          <p className="text-ink-muted text-body max-w-[72ch]">{t('run.mappingNote')}</p>
+          <p className="text-ink-muted text-body max-w-measure">{t('run.mappingNote')}</p>
         </div>
       </Panel>
 
@@ -167,7 +167,7 @@ export function PolicyDisplay({ runId, policy }: PolicyDisplayProps) {
         headingLevel={2}
         actions={policy.uncalibrated ? <LabelChip kind="uncalibrated" /> : null}
       >
-        <div className="flex max-w-[72ch] flex-col gap-3">
+        <div className="max-w-measure flex flex-col gap-3">
           <p className="text-ink text-h4 font-serif">{clockLength(policy.workingClockSeconds)}</p>
           <p className="text-ink-muted text-reading">{t('run.clockStartNote')}</p>
           {policy.uncalibrated && (
@@ -187,7 +187,7 @@ export function PolicyDisplay({ runId, policy }: PolicyDisplayProps) {
             begin()
           }}
         >
-          <p className="text-ink-muted text-reading max-w-[72ch]">{t('run.readinessBody')}</p>
+          <p className="text-ink-muted text-reading max-w-measure">{t('run.readinessBody')}</p>
           <FormAlert message={failure} />
           <SubmitButton pending={pending}>
             {pending ? t('run.beginPending') : t('run.beginReadiness')}

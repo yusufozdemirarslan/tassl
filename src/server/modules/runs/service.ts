@@ -25,13 +25,26 @@
 // permission check for them — the policy values written into `policy_displayed` are the same ones
 // UI-021 showed, because they come from the same function.
 import { isAppError } from '@/lib/errors'
+import { flagsFromEnv } from '@/lib/flags'
 import { track } from '@/server/analytics/track'
-import { requireRunOwner, requireRunReviewer, requireSectionRole } from '@/server/auth/permissions'
+import {
+  requireRunInstructor,
+  requireRunOwner,
+  requireRunReviewer,
+  requireSectionRole,
+} from '@/server/auth/permissions'
+import { assertNoForbiddenKeys } from '@/server/auth/student-view'
 import type { SessionUser } from '@/server/auth/types'
 import { env } from '@/server/config'
+import { audit } from '@/server/modules/admin'
 import { getAssignment, getPolicyDisplay } from '@/server/modules/courses'
 import { getLogger } from '@/server/http/request-context'
-import { surfaceDocumentClaims } from '@/server/modules/reliance'
+import {
+  findReliedOn,
+  findUnstancedReliedOn,
+  markReliedOnFromNamedFields,
+  surfaceDocumentClaims,
+} from '@/server/modules/reliance'
 import { getStudentScenario } from '@/server/modules/scenarios'
 import { getInstitutionSettings, listMyInstitutions } from '@/server/modules/tenancy'
 import { append, type TraceRun } from '@/server/modules/trace'
@@ -43,11 +56,20 @@ import {
   type ClockRun,
 } from './clock'
 import {
+  addendumExists,
+  addendumInvalid,
+  addendumNotAvailable,
+  assertBriefWritable,
+  assertForcedFailureArmable,
   assignmentNotOpen,
+  briefAlreadyLocked,
+  briefInvalid,
+  decisionNotLocked,
   documentNotInRoom,
   documentOpenNotFound,
   frameInvalid,
   illegalTransition,
+  lockRefusedUnstancedClaim,
   notSectionStudent,
   pauseRecordMissing,
   readinessClosed,
@@ -60,11 +82,27 @@ import {
   runActiveExists,
   runLocked,
   runNotFound,
+  testControlsDisabled,
   testRouteUnavailable,
   workspaceNotOpen,
   type FrameInvalidReason,
 } from './errors'
 import { READINESS_MS } from './limits'
+
+// The Turn window's length, re-exported so the module's public index can hand it to the screen
+// that names it in prose (`decision.turnBody`, D-327). An index may reach this file and `schema`
+// and nothing else (the `boundaries` policy), and a pilot parameter no page may restate has to
+// arrive through the same door every other public value does.
+export { TURN_WINDOW_MS } from './limits'
+import {
+  elapsedWorkingMs,
+  isSpeedOutlier,
+  planDecisionLock,
+  EMPTY_BRIEF,
+  type BriefFields,
+  type LockMode,
+  type LockPlan,
+} from './lock'
 import {
   correctnessOf,
   isOfferedOption,
@@ -78,11 +116,19 @@ import {
   type ReadinessItemRow,
 } from './readiness'
 import * as repo from './repository'
-import { LockFrameSchema } from './schema'
+import { AddendumSchema, BriefDraftSchema, LockFrameSchema } from './schema'
 import type {
+  AddendumInput,
+  AddendumView,
   AdvanceClockInput,
   AnswerReadinessItemInput,
+  BriefDraftInput,
+  BriefInput,
+  BriefSignalInput,
+  BriefView,
+  DecisionRecord,
   DocumentOpened,
+  ForcedFailure,
   LockFrame,
   LockFrameInput,
   PauseCauseValue,
@@ -166,15 +212,16 @@ type TimerApplier = (tx: repo.Tx, run: repo.Run, at: Date) => Promise<repo.Run>
  * step that lands the branch — which is what would have happened anyway.
  *
  *   * `readiness_expired` — auto-submit the check with the unanswered items as `unknown` and move
- *     to `framing` (10 §8 branch 1). The one branch this step lands.
- *   * `decision_auto_lock` — auto-lock the decision at the instant the clock reached zero. Step 6.4
- *     opens `working`; Phase 8 writes the lock, which needs the brief draft and the relied-on claims.
+ *     to `framing` (10 §8 branch 1).
+ *   * `decision_auto_lock` — lock the decision at the instant the working clock reached zero, on
+ *     whatever the student had written (10 §8 branch 2, FR-105, D-044).
  *   * `turn_delivery`, `turn_window_expired` — Phase 9.
  *   * `paused` is in none of them, by definition: the clock is frozen (FR-001), so `nextTimer`
  *     answers nothing for it.
  */
 const TIMER_APPLIERS: Partial<Record<TimerBranch, TimerApplier>> = {
   readiness_expired: (tx, run, at) => closeReadiness(tx, run, 'expired', at, null),
+  decision_auto_lock: (tx, run, at) => autoLockDecision(tx, run, at),
 }
 
 /** Four branches, each of which fires at most once; the bound is what makes the cascade total. */
@@ -843,6 +890,37 @@ export async function getReadinessResult(
 const WORKSPACE_STATES: readonly RunStateValue[] = ['framing', 'working', 'paused', 'turn_open']
 
 /**
+ * D-117's stage, as a run state: the point past which the debrief and the record may show what was
+ * withheld while the run was live.
+ *
+ * `scored` is the moment; `confirmed` and `recorded` are after it. Everything earlier is
+ * `{ scored: false }`, which is the wider of the two key sets and the one every screen the student
+ * works on is swept against.
+ */
+const SCORED_STATES: readonly RunStateValue[] = ['scored', 'confirmed', 'recorded']
+
+/**
+ * Step 2 of `student-view.ts`'s discipline, applied where that file says it belongs: the guard on a
+ * picked payload at the seam between a service and the route, action or RSC page that hands it over
+ * (D-329).
+ *
+ * The pick is the braces and this is the belt. `getRunWorkspace` and `getDecision` compose seven
+ * projections between them — the scenario view, the frame, the opens, the brief, the named fields,
+ * the addendum and the pause — and a nested element spread whole rather than picked is the failure
+ * this catches and a reviewer does not. It throws `INTERNAL_ERROR`, so a leak never leaves the
+ * server; see the note at the top of `student-view.ts` for why it does not redact.
+ *
+ * The workspace is polled every five seconds (D-274), so the cost is worth naming: the walk visits
+ * a few hundred keys of an object already in memory and takes no query and no allocation beyond the
+ * findings array, against four database reads on the same request (16 §3). It is not measurable
+ * beside them.
+ */
+function guardStudentPayload<T>(payload: T, run: repo.Run): T {
+  assertNoForbiddenKeys(payload, { scored: SCORED_STATES.includes(run.state) })
+  return payload
+}
+
+/**
  * The states in which a document may be opened (10 §6).
  *
  * `framing` and `working` are the room's own life; `turn_open` is the Turn window, where the room
@@ -903,50 +981,65 @@ export async function getRunWorkspace(actor: SessionUser, runId: string): Promis
   }
   if (!WORKSPACE_STATES.includes(run.state)) workspaceNotOpen(run.state)
 
-  const [scenario, frame, opens, pause] = await Promise.all([
+  const [scenario, frame, opens, brief, addendum, pause] = await Promise.all([
     getStudentScenario(actor, runId),
     repo.findFrame(runId),
     repo.listOpenDocumentOpens(runId),
+    repo.findBrief(runId),
+    repo.findAddendum(runId),
     // Only when the run is actually paused: an open pause row and a state of `paused` are the same
     // fact, and reading the row for every poll of a running run is a query that always answers
     // nothing.
     run.state === 'paused' ? repo.findOpenPause(runId) : Promise.resolve(undefined),
   ])
 
-  return {
-    run: toRunSummary(run),
-    brief: { text: scenario.brief },
-    // Picked again rather than passed through: `scenarios` picks these five fields too, and a field
-    // added to that view tomorrow must not appear here because two projections were one object
-    // (12 §8). The cost of the rule is this map.
-    documents: scenario.documents.map((document) => ({
-      id: document.id,
-      key: document.key,
-      title: document.title,
-      author: document.author,
-      datedOn: document.datedOn,
-    })),
-    openDocuments: opens.map((open) => ({
-      openId: open.id,
-      documentId: open.documentId,
-      openedAt: open.openedAt.toISOString(),
-    })),
-    frame: frame
-      ? {
-          decision: frame.decision,
-          assumptions: frame.assumptions,
-          position: frame.position,
-          confidence: frame.confidence,
-          lockedAt: frame.lockedAt.toISOString(),
-        }
-      : null,
-    pause: pause ? { cause: pause.cause, pausedAt: pause.pausedAt.toISOString() } : null,
-    capabilities: {
-      canOpenDocuments: ROOM_STATES.includes(run.state),
-      canLockFrame: run.state === 'framing',
-      assistantUnlocked: ASSISTANT_STATES.includes(run.state),
+  return guardStudentPayload(
+    {
+      run: toRunSummary(run),
+      brief: { text: scenario.brief },
+      // Picked again rather than passed through: `scenarios` picks these five fields too, and a field
+      // added to that view tomorrow must not appear here because two projections were one object
+      // (12 §8). The cost of the rule is this map.
+      documents: scenario.documents.map((document) => ({
+        id: document.id,
+        key: document.key,
+        title: document.title,
+        author: document.author,
+        datedOn: document.datedOn,
+      })),
+      openDocuments: opens.map((open) => ({
+        openId: open.id,
+        documentId: open.documentId,
+        openedAt: open.openedAt.toISOString(),
+      })),
+      frame: frame
+        ? {
+            decision: frame.decision,
+            assumptions: frame.assumptions,
+            position: frame.position,
+            confidence: frame.confidence,
+            lockedAt: frame.lockedAt.toISOString(),
+          }
+        : null,
+      briefDraft: brief ? toBriefView(brief) : null,
+      // Picked field by field for the reason the documents above are (12 §8): the scenarios view and
+      // this one are two projections, never one object shared between them.
+      namedFields: scenario.namedFields.map((field) => ({
+        key: field.key,
+        label: field.label,
+        unit: field.unit,
+      })),
+      addendum: addendum ? toAddendumView(addendum) : null,
+      pause: pause ? { cause: pause.cause, pausedAt: pause.pausedAt.toISOString() } : null,
+      capabilities: {
+        canOpenDocuments: ROOM_STATES.includes(run.state),
+        canLockFrame: run.state === 'framing',
+        assistantUnlocked: ASSISTANT_STATES.includes(run.state),
+        canWriteBrief: run.state === 'working',
+      },
     },
-  }
+    run,
+  )
 }
 
 /**
@@ -1254,6 +1347,519 @@ export async function lockFrame(
 }
 
 // ---------------------------------------------------------------------------------------------
+// The Decision Brief, the Decision Lock, the addendum and the auto-lock (FR-084, FR-100 to FR-108,
+// PRD §7.10, 10 §6, 10 §8)
+//
+// This is the end of the working period, and three rules run through all of it.
+//
+//   1. **The gate is an order, not a set of checks.** `./lock.ts` holds it: validate, then mark
+//      reliance from the named fields, then read the relied-on claims with no stance. Every function
+//      below goes through `planDecisionLock`, so the student's lock and the clock's own auto-lock
+//      cannot drift apart (FR-084, FR-101, D-044).
+//   2. **A refusal is part of the record.** A lock the student asked for and did not get writes
+//      `lock_refused` and commits it, then throws. The alternative — rolling the refusal back — would
+//      lose both the event and the reliance FR-101 has just recorded from their own figures, and a
+//      reader of the trace would see a student who locked first time.
+//   3. **What is locked is immutable.** `run_briefs` has no update path past `locked_at` in this
+//      service *and* none in the database: the `run_briefs_locked` trigger (migration 0006) refuses
+//      any UPDATE of a locked row, and `run_addenda` and `run_frames` have no UPDATE grant at all
+//      (migration 0009). FR-102's "the lock is irreversible" is a grant rather than a habit.
+// ---------------------------------------------------------------------------------------------
+
+/**
+ * The brief as the student reads it back (07 §10); `autoLocked` and `speedOutlier` never travel.
+ *
+ * The column is `rationale` and the field is `briefRationale` (D-329): the short name belongs to a
+ * claim's authored rationale in every student payload, and this is the student's own prose. The
+ * translation happens here, in the one constructor of the view, so no caller has to know.
+ */
+function toBriefView(row: repo.RunBrief): BriefView {
+  return {
+    recommendation: row.recommendation,
+    briefRationale: row.rationale,
+    assumptions: row.assumptions,
+    changeMyMind: row.changeMyMind,
+    confidence: row.confidence,
+    namedValues: row.namedValues,
+    updatedAt: row.draftUpdatedAt.toISOString(),
+    lockedAt: row.lockedAt ? row.lockedAt.toISOString() : null,
+  }
+}
+
+/** The addendum, rendered separately from the brief on every screen (FR-107). */
+function toAddendumView(row: repo.RunAddendum): AddendumView {
+  return { text: row.text, createdAt: row.createdAt.toISOString() }
+}
+
+/** The stored brief as the lock's candidate, or the empty one when nothing was ever saved. */
+function briefFieldsOf(row: repo.RunBrief | undefined): BriefFields {
+  if (!row) return EMPTY_BRIEF
+  return {
+    recommendation: row.recommendation,
+    rationale: row.rationale,
+    assumptions: row.assumptions,
+    changeMyMind: row.changeMyMind,
+    confidence: row.confidence,
+    namedValues: row.namedValues,
+  }
+}
+
+/**
+ * The draft's rules (FR-100, FR-103), applied where every other input rule is: in the service.
+ *
+ * The limits are the lock's own limits, and that is the decision rather than an oversight (D-291):
+ * a field the student is over the limit on is a field they cannot file, the editor counts the same
+ * words from the same schema as it types, and a save that arrived over the limit came from a client
+ * that ignored its own counter. What the draft does *not* require is that a field be filled — a
+ * brief is written a paragraph at a time.
+ */
+function validateBriefDraft(input: BriefDraftInput): repo.BriefDraft {
+  const parsed = BriefDraftSchema.safeParse(input)
+  if (!parsed.success) {
+    const issue = parsed.error.issues[0]
+    if (!issue) briefInvalid('brief', 'invalid')
+    const field = issue.path.length > 0 ? issue.path.join('.') : 'brief'
+    briefInvalid(field, briefReasonOf(issue.code, issue.message, field))
+  }
+
+  // Only the keys the editor sent: an autosave carries the field that changed, and spreading an
+  // `undefined` into the update would blank a column the student never touched.
+  const draft: repo.BriefDraft = {}
+  const value = parsed.data
+  if (value.recommendation !== undefined) draft.recommendation = value.recommendation
+  if (value.rationale !== undefined) draft.rationale = value.rationale
+  if (value.assumptions !== undefined) draft.assumptions = value.assumptions
+  if (value.changeMyMind !== undefined) draft.changeMyMind = value.changeMyMind
+  if (value.confidence !== undefined) draft.confidence = value.confidence
+  if (value.namedValues !== undefined) draft.namedValues = value.namedValues
+  return draft
+}
+
+/** Which of FR-100's rules a draft field broke; the same three words `frameReasonOf` answers. */
+function briefReasonOf(code: string, message: string, field: string): FrameInvalidReason {
+  if (message === 'WORD_LIMIT') return 'word_limit'
+  if (code === 'too_small' && !field.startsWith('confidence')) return 'required'
+  return 'invalid'
+}
+
+/**
+ * `PUT /runs/{runId}/brief` (07 §7, FR-100): saves the draft, and answers 204.
+ *
+ * It writes no trace event. A draft is a scratchpad row until the Decision Lock — the same reading
+ * `answerReadinessItem` makes of an answer — and an event per keystroke would make the trace a
+ * record of typing rather than of the decision. What the trace does hold about the editor is
+ * `brief_opened` and `brief_closed`, which is how long it was open rather than what was in it.
+ */
+export async function saveBriefDraft(
+  actor: SessionUser,
+  runId: string,
+  input: BriefDraftInput,
+): Promise<void> {
+  const scope = await requireRunOwner(actor, runId)
+  const tenantId = scope.organizationId
+  const draft = validateBriefDraft(input)
+
+  await repo.withTransaction(async (tx) => {
+    const run = await lockRunForMutation(tx, tenantId, runId)
+    assertBriefWritable(run.state)
+
+    // `undefined` when the row is already locked. The state gate above has just answered the same
+    // question from the run, and the two cannot disagree under the row lock — but the row is what
+    // the database trigger protects, so this is the answer that cannot be wrong.
+    const row = await repo.upsertBriefDraft(runId, draft, tx)
+    if (!row) briefAlreadyLocked()
+  })
+}
+
+/**
+ * `POST /runs/{runId}/brief/signals` (07 §7, FR-100): the editor was opened, or closed.
+ *
+ * Two events with no row behind them: how long the student spent on the brief is a reading the
+ * replay's clock timeline draws, and it comes from the instants these two are stamped at.
+ *
+ * Both are refused outside `working`, and a `brief_closed` that arrives after the clock ran out is
+ * lost with the state it belonged to. That is the honest record rather than a gap: the auto-lock
+ * happened while the editor was open, and an event written after it saying the editor closed would
+ * put a moment of the working period after the moment the working period ended.
+ */
+export async function briefSignal(
+  actor: SessionUser,
+  runId: string,
+  input: BriefSignalInput,
+): Promise<void> {
+  const scope = await requireRunOwner(actor, runId)
+  const tenantId = scope.organizationId
+
+  await repo.withTransaction(async (tx) => {
+    const run = await lockRunForMutation(tx, tenantId, runId)
+    assertBriefWritable(run.state)
+
+    const now = new Date()
+    const opts = { actorId: actor.id, occurredAt: now }
+    if ('opened' in input) await append(tx, run, 'brief_opened', {}, opts)
+    else await append(tx, run, 'brief_closed', { duration_ms: input.durationMs }, opts)
+  })
+}
+
+/** What one attempt at the lock came to: the run as it now stands, or the refusal to raise. */
+type LockOutcome =
+  | { kind: 'locked'; run: repo.Run }
+  | { kind: 'refused'; plan: Exclude<LockPlan, { outcome: 'lock' }> }
+
+/**
+ * `POST /runs/{runId}/lock` (07 §7, FR-084, FR-102): the Decision Lock.
+ *
+ * The order is `./lock.ts`'s and the two refusals are FR-084's and FR-100's. Both are committed
+ * before they are thrown (rule 2 of this section's header), which is why the transaction answers a
+ * `LockOutcome` instead of throwing from inside it: a `lock_refused` event rolled back is a refusal
+ * that never happened, and the `claim_used` marks FR-101 wrote from the student's own figures would
+ * roll back with it — so the same brief sent again would meet a different gate.
+ *
+ * FR-108 is what is *not* here: nothing writes the draft. A refused lock leaves the row exactly as
+ * the student's last autosave left it, and the screen they are returned to is the one they were on.
+ */
+export async function lockDecision(
+  actor: SessionUser,
+  runId: string,
+  input: BriefInput,
+): Promise<RunSummary> {
+  const scope = await requireRunOwner(actor, runId)
+  const tenantId = scope.organizationId
+
+  const outcome = await repo.withTransaction<LockOutcome>(async (tx) => {
+    const run = await lockRunForMutation(tx, tenantId, runId)
+    assertBriefWritable(run.state)
+
+    const now = new Date()
+    const plan = await planDecisionLock({ ...input }, 'student', lockSteps(tx, run, actor.id, now))
+    if (plan.outcome !== 'lock') {
+      await append(tx, run, 'lock_refused', refusalPayload(plan), {
+        actorId: actor.id,
+        occurredAt: now,
+      })
+      return { kind: 'refused', plan }
+    }
+    return {
+      kind: 'locked',
+      run: await commitDecisionLock(tx, run, plan, 'student', now, actor.id),
+    }
+  })
+
+  if (outcome.kind === 'refused') raiseLockRefusal(outcome.plan)
+  return toRunSummary(outcome.run)
+}
+
+/** The two effects the gate performs, bound to this transaction's run (see `./lock.ts`). */
+function lockSteps(tx: repo.Tx, run: repo.Run, actorId: string | null, at: Date) {
+  return {
+    markNamedFields: (namedValues: Record<string, number>) =>
+      markReliedOnFromNamedFields(tx, run, namedValues, { actorId, at }),
+    findUnstanced: () => findUnstancedReliedOn(tx, run),
+  }
+}
+
+/** `lock_refused` (10 §10): why the lock did not happen, in the payload the replay reads. */
+function refusalPayload(plan: Exclude<LockPlan, { outcome: 'lock' }>) {
+  if (plan.outcome === 'unstanced') {
+    return {
+      reason: 'unstanced_relied_on' as const,
+      claim_id: plan.claim.claimId,
+      claim_text: plan.claim.claimText,
+    }
+  }
+  return { reason: 'brief_invalid' as const, field: plan.field }
+}
+
+/** The refusal itself, raised after the event that recorded it has committed. */
+function raiseLockRefusal(plan: Exclude<LockPlan, { outcome: 'lock' }>): never {
+  if (plan.outcome === 'unstanced') {
+    lockRefusedUnstancedClaim(plan.claim.claimId, plan.claim.claimText)
+  }
+  briefInvalid(plan.field, plan.reason)
+}
+
+/**
+ * Writes the lock: the frozen brief, the `decision_locked` event, the transition, and the Turn's
+ * clock (FR-102, FR-106, FR-110).
+ *
+ * One function for both ways in, because the record must not be able to tell them apart except by
+ * the two fields that say so — `auto` on the event and `auto_locked` on the row. Everything else is
+ * the same: the same brief fields, the same relied-on lists, the same elapsed reading, the same
+ * Turn delay measured from the same instant.
+ *
+ * `at` is that instant, and for the auto-lock it is the moment the clock reached zero rather than
+ * the moment somebody looked (NFR-002, 10 §8). `turn_due_at` is measured from it too, so a run
+ * whose browser was shut for an hour comes back with the Turn already due and the cascade in
+ * `materializeTimersTx` delivers it — which is what would have happened had anyone been watching.
+ */
+async function commitDecisionLock(
+  tx: repo.Tx,
+  run: repo.Run,
+  plan: Extract<LockPlan, { outcome: 'lock' }>,
+  mode: LockMode,
+  at: Date,
+  actorId: string | null,
+): Promise<repo.Run> {
+  const tenantId = run.organizationId
+  const auto = mode === 'auto'
+  const brief = plan.brief
+
+  // 10 §6: "a document open without a close is closed by the next open or by lock" — and only by a
+  // lock the student pressed. An explicit lock is an act by someone who is present: whatever they
+  // had open, they stopped reading it to file the decision, so `at` is the instant the reading
+  // ended and `readingOf` answers about a reading that is over.
+  //
+  // The auto-lock's instant is not that. The clock ran out on a student who may be absent (FR-117)
+  // or may still be reading, and closing at the expiry would read D-082's skim flag off the part of
+  // the open the clock happened to see — a document opened two seconds before zero and read for an
+  // hour would be filed as a two-second skim, which is exactly the mistake D-250 exists to prevent.
+  // So an auto-lock leaves an open open, and the close that eventually arrives records the reading
+  // it was, capped at the clock by `cappedDurationMs`'s fall back to `decision_locked_at`. That is
+  // what `closeDocument`'s missing state gate is for, and losing it would lose the longest read of
+  // the run (D-299).
+  if (!auto) await closeOpenDocuments(tx, run, tenantId, at, actorId)
+
+  const elapsedMs = elapsedWorkingMs(run, at)
+  const speedOutlier = isSpeedOutlier(elapsedMs)
+
+  const locked = await repo.lockBrief(
+    run.id,
+    { ...brief, lockedAt: at, autoLocked: auto, speedOutlier },
+    tx,
+  )
+  if (!locked) briefAlreadyLocked()
+
+  const relied = await findReliedOn(tx, run)
+  await append(
+    tx,
+    run,
+    'decision_locked',
+    {
+      recommendation: brief.recommendation,
+      rationale: brief.rationale,
+      assumptions: brief.assumptions,
+      change_my_mind: brief.changeMyMind,
+      named_values: brief.namedValues,
+      confidence: brief.confidence,
+      auto,
+      speed_outlier: speedOutlier,
+      relied_on_claim_ids: relied.map((claim) => claim.claimId),
+      unstanced_relied_on_claim_ids: plan.unstanced.map((claim) => claim.claimId),
+      elapsed_ms: elapsedMs,
+    },
+    { actorId, occurredAt: at },
+  )
+
+  const moved = transition(run, 'decision_locked', {
+    cause: auto ? 'clock_expired' : 'decision_locked',
+    at,
+  })
+  await append(tx, run, 'lifecycle', moved.payload, { actorId, occurredAt: at })
+
+  const next = await repo.updateRun(
+    tenantId,
+    run.id,
+    {
+      ...moved.patch,
+      confidenceAtLock: brief.confidence,
+      turnDueAt: new Date(at.getTime() + run.turnDelaySeconds * 1000),
+    },
+    tx,
+  )
+  if (!next) runNotFound()
+  return next
+}
+
+/**
+ * 10 §8 branch 2: the working clock reached zero, so the decision locks itself (FR-105, D-044).
+ *
+ * It locks *whatever exists*. An empty brief is recorded empty — this is the only way a brief with
+ * no recommendation is ever stored, because `BriefSchema` refuses one from a student — and the
+ * relied-on claims with no stance are recorded unstanced rather than accepted, which is FR-105's
+ * own sentence and the thing that keeps a run out of time from being read as a run that agreed.
+ *
+ * Nobody did it, so `actorId` is null on every event it writes.
+ */
+async function autoLockDecision(tx: repo.Tx, run: repo.Run, at: Date): Promise<repo.Run> {
+  const draft = await repo.findBrief(run.id, tx)
+  const plan = await planDecisionLock(briefFieldsOf(draft), 'auto', lockSteps(tx, run, null, at))
+  return commitDecisionLock(tx, run, plan, 'auto', at, null)
+}
+
+// ---------------------------------------------------------------------------------------------
+// The addendum (FR-107)
+// ---------------------------------------------------------------------------------------------
+
+/**
+ * The states an addendum may be written in: after the lock, before the record (10 §6).
+ *
+ * Read from `decision_locked_at` rather than from a list of state names, because that column *is*
+ * the fact the rule is about — the decision was filed — and a list would have to be revisited every
+ * time the machine gains a state. `recorded` is the end of it, and a voided run is excluded because
+ * it counts for nothing (FR-002): an addendum to a discarded attempt is a note nobody will read.
+ */
+function addendumOpen(run: repo.Run): boolean {
+  if (run.decisionLockedAt === null) return false
+  return run.state !== 'recorded' && run.state !== 'voided'
+}
+
+/**
+ * The frozen record of a filed decision, for UI-024 (`/runs/[runId]/locked`; D-302).
+ *
+ * The owner alone, like the workspace: a reviewer replays a run from its trace after it is scored
+ * (FR-180), and this is the screen the student stands on while they wait for the Turn.
+ *
+ * Timers first, and that is the point of doing it here rather than trusting the caller: a student
+ * who left the page open through the Turn delay is moved on by this read, so the page they get back
+ * is the one their run is actually on (D-042). A run that has not locked a decision has no record to
+ * show, and is refused with the state it is in so a stale screen can follow `links.next`.
+ *
+ * It writes nothing and it is not an endpoint. Nothing polls it — the RunFrame's poll of
+ * `GET /runs/{runId}` is what notices the Turn falling due and refreshes this tree — so adding a
+ * route would publish a shape no client asks for.
+ */
+export async function getDecision(actor: SessionUser, runId: string): Promise<DecisionRecord> {
+  const scope = await requireRunOwner(actor, runId)
+  const tenantId = scope.organizationId
+
+  const first = await repo.findRunWithLabels(tenantId, runId)
+  if (!first) runNotFound()
+  let run = first.run
+  if (await materializeTimers(scope, run)) {
+    const again = await repo.findRunWithLabels(tenantId, runId)
+    if (!again) runNotFound()
+    run = again.run
+  }
+  if (run.decisionLockedAt === null) decisionNotLocked(run.state)
+
+  const [scenario, frame, brief, addendum] = await Promise.all([
+    getStudentScenario(actor, runId),
+    repo.findFrame(runId),
+    repo.findBrief(runId),
+    repo.findAddendum(runId),
+  ])
+
+  return guardStudentPayload(
+    {
+      run: toRunSummary(run),
+      frame: frame
+        ? {
+            decision: frame.decision,
+            assumptions: frame.assumptions,
+            position: frame.position,
+            confidence: frame.confidence,
+            lockedAt: frame.lockedAt.toISOString(),
+          }
+        : null,
+      brief: brief ? toBriefView(brief) : null,
+      namedFields: scenario.namedFields.map((field) => ({
+        key: field.key,
+        label: field.label,
+        unit: field.unit,
+      })),
+      addendum: addendum ? toAddendumView(addendum) : null,
+      canAddAddendum: addendumOpen(run) && addendum === undefined,
+      turnRemainingMs:
+        run.turnDueAt === null ? null : Math.max(0, run.turnDueAt.getTime() - Date.now()),
+    },
+    run,
+  )
+}
+
+/**
+ * `POST /runs/{runId}/addendum` (07 §7, FR-107): the one fifty-word note after the lock.
+ *
+ * It is not an edit and is never shown as one. The brief stays exactly as it was filed, the
+ * addendum is its own row with its own timestamp, and every screen renders the two apart — which is
+ * the whole of FR-107's "never part of the original decision".
+ *
+ * One per run. The second attempt is refused by the primary key rather than by a read-then-write,
+ * so two presses of the same button cannot both land.
+ */
+export async function addAddendum(
+  actor: SessionUser,
+  runId: string,
+  input: AddendumInput,
+): Promise<void> {
+  const scope = await requireRunOwner(actor, runId)
+  const tenantId = scope.organizationId
+
+  const parsed = AddendumSchema.safeParse(input)
+  if (!parsed.success) {
+    addendumInvalid(parsed.error.issues[0]?.message === 'WORD_LIMIT' ? 'word_limit' : 'required')
+  }
+  const text = parsed.data.text
+
+  await repo.withTransaction(async (tx) => {
+    const run = await lockRunForMutation(tx, tenantId, runId)
+    if (!addendumOpen(run)) addendumNotAvailable(run.state)
+
+    const row = await repo.insertAddendum(runId, text, tx)
+    if (!row) addendumExists()
+
+    await append(tx, run, 'addendum', { text }, { actorId: actor.id, occurredAt: new Date() })
+  })
+}
+
+// ---------------------------------------------------------------------------------------------
+// The forced-failure test control (FR-118, 12 §4 A04)
+// ---------------------------------------------------------------------------------------------
+
+/**
+ * `POST /review/runs/{runId}/test-controls/force-assistant-failure` (07 §7, FR-118): arms one
+ * assistant failure on a live run.
+ *
+ * Three gates, in this order and no other. `requireRunInstructor` first, so a student — who holds a
+ * membership on the section and therefore reaches FORBIDDEN rather than NOT_FOUND — is refused
+ * before the environment is consulted; `flags.testControls` second, because whether the
+ * installation offers test controls is a fact about the deployment and telling somebody who may not
+ * use them is telling them something about the run (08 §4, 12 §4). The run's own state third, under
+ * the row lock, because it is the only one of the three that can change while the request is in
+ * flight (D-332): a run whose decision is filed, or one that has not unlocked the assistant, has no
+ * delegation for the outage to land on, and arming there wrote a flag mutation and an audit row
+ * against a run nothing would ever read them on.
+ *
+ * It writes no trace event. Nothing has happened *in the run*: the flag is armed, and what the run
+ * records is the outage it causes — the `pause` event the next delegation writes, with its cause and
+ * the delegation it belongs to (FR-001). The audit row is where the instructor's act is recorded,
+ * which is 08 §4's "test-control use" and 12 §4's A04.
+ *
+ * **The student is never told a control did this.** The paused overlay says the assistant did not
+ * answer, that their clock stopped and that nothing is lost, in those words and no others.
+ */
+export async function forceAssistantFailure(
+  actor: SessionUser,
+  runId: string,
+): Promise<ForcedFailure> {
+  const scope = await requireRunInstructor(actor, runId)
+  if (!flagsFromEnv(env).testControls) testControlsDisabled()
+  const tenantId = scope.organizationId
+
+  await repo.withTransaction(async (tx) => {
+    const run = await lockRunForMutation(tx, tenantId, runId)
+    assertForcedFailureArmable(run.state)
+    const updated = await repo.updateRun(
+      tenantId,
+      runId,
+      { flags: { ...run.flags, forced_failure_armed: true } },
+      tx,
+    )
+    if (!updated) runNotFound()
+
+    await audit(tx, {
+      actorId: actor.id,
+      orgId: tenantId,
+      action: 'test_control.force_failure',
+      targetType: 'run',
+      targetId: runId,
+      metadata: { armed: true },
+    })
+  })
+
+  return { armed: true }
+}
+
+// ---------------------------------------------------------------------------------------------
 // Pause and resume (FR-001, 10 §6, 10 §10, D-133)
 //
 // "When the assistant, a document, or an interrogation action fails to return, the run enters
@@ -1505,9 +2111,13 @@ export function assertTestEnvironment(): void {
  * shift makes true is written by `materializeTimersTx` in the same transaction, stamped at the
  * instant the timer fired rather than now (NFR-002).
  *
- * `readiness_started_at` moves with `readiness_expires_at` so the eight-minute window keeps its
- * length, and `working_started_at` moves for the working clock Step 6.4 starts. `turn_due_at` and
- * `turn_window_ends_at` join them in Phase 8, with the timers that read them.
+ * Every deadline the run stores moves together, which is what makes one call able to reach a timer
+ * two branches away: `readiness_started_at` moves with `readiness_expires_at` so the eight minutes
+ * keep their length, `working_started_at` moves the working clock, and `turn_due_at` and
+ * `turn_window_ends_at` move the Turn's two (D-109). A shift long enough to expire the working clock
+ * therefore also brings the Turn delay forward by the same span, and the cascade in
+ * `materializeTimersTx` applies each branch in turn — the same run a closed browser would come back
+ * to (FR-117).
  */
 export async function advanceRunClock(
   actor: SessionUser,
@@ -1528,6 +2138,8 @@ export async function advanceRunClock(
       readinessStartedAt: shiftBack(locked.readinessStartedAt),
       readinessExpiresAt: shiftBack(locked.readinessExpiresAt),
       workingStartedAt: shiftBack(locked.workingStartedAt),
+      turnDueAt: shiftBack(locked.turnDueAt),
+      turnWindowEndsAt: shiftBack(locked.turnWindowEndsAt),
     }
 
     // A run whose clocks have not started has nothing to shift — `assigned`, before the policy

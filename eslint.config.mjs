@@ -77,11 +77,16 @@ export default defineConfig([
               from: { element: { type: 'module' }, file: { categories: ['schema'] } },
               allow: [{ to: { element: { type: 'lib' } } }],
             },
+            // A router or an action reaches its own module's service and schema, and another
+            // module's *public index* — the same door a job handler uses (D-290). Cross-module
+            // `service` is still matched by the rule below it, because `courses/router.ts` imports
+            // `runs/schema.ts` and the categories are named together; what the index adds is the
+            // door CLAUDE.md asks for, which `review/router.ts` takes to reach `runs`.
             {
               from: { element: { type: 'module' }, file: { categories: ['actions', 'router'] } },
               allow: [
                 { to: { element: { type: ['server-lib', 'lib'] } } },
-                { to: moduleFile(['service', 'schema']) },
+                { to: moduleFile(['service', 'schema', 'public']) },
               ],
             },
             {

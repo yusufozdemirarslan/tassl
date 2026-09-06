@@ -268,6 +268,8 @@ describe('getRunWorkspace', () => {
       canLockFrame: true,
       // FR-020: the room opens with the assistant still locked; the frame is what unlocks it.
       assistantUnlocked: false,
+      // And so is the brief: it belongs to the working period, which starts at the frame lock.
+      canWriteBrief: false,
     })
   })
 
@@ -641,6 +643,13 @@ describe('closeDocument', () => {
     await service.advanceRunClock(fx.student, runId, { ms: WORKING_CLOCK_MS + 3_600_000 })
     await ageOpen(openId, WORKING_CLOCK_MS + 3_600_000)
 
+    // The clock ran out and the decision auto-locked while the document was still open. The lock
+    // does not close it: the expiry instant is not an instant any reading ended at, and closing
+    // there would read the skim flag off the two seconds the clock saw rather than off the hour the
+    // student had it open (D-250, D-299). The close that finally arrives is what records it.
+    expect((await runs.getRun(fx.student, runId)).state).toBe('decision_locked')
+    expect((await openRows(runId))[0]?.closed_at).toBeNull()
+
     await runs.closeDocument(fx.student, runId, openId)
 
     const [row] = await openRows(runId)
@@ -650,26 +659,22 @@ describe('closeDocument', () => {
     expect(event?.payload).toMatchObject({ open_id: openId, duration_ms: 2_000, skim: false })
   })
 
-  it('does not mark a read that began after the clock ran out as a skim (D-250)', async () => {
-    // No auto-lock applier lands in this phase (10 §8 branch 2), so a run whose working clock has
-    // reached zero sits in `working` with the Evidence Room still open. Every document read from
-    // there begins after the clock ended: there is no clock left to cap the read at, and capping it
-    // at an instant before it began would file every one of them as a nought-millisecond skim.
+  it('closes the room when the clock runs out, rather than letting a read begin after it (D-250)', async () => {
+    // Step 8.2 landed 10 §8 branch 2, so a working clock at zero no longer leaves the run sitting
+    // in `working` with the Evidence Room open: the next read auto-locks the decision, and the room
+    // is closed from that instant on. The case D-250 guards — an open that *began* after the clock
+    // died, which capping to the clock's end would file as a nought-millisecond skim — is therefore
+    // no longer reachable from `working` at all; the arithmetic that refuses to do it is asserted
+    // over the whole space in `tests/unit/runs/skim.test.ts`, and Phase 9's Turn window is where the
+    // case comes back (an action inside a window whose end has passed).
+    //
+    // What this asserts is the door: after the auto-lock there is no new reading to mis-record.
     const runId = await runInWorking()
     await service.advanceRunClock(fx.student, runId, { ms: WORKING_CLOCK_MS + 3_600_000 })
-    expect((await runs.getRun(fx.student, runId)).state).toBe('working')
+    expect((await runs.getRun(fx.student, runId)).state).toBe('decision_locked')
 
     const agreement = documentByKey('D4')
-    const { openId } = await runs.openDocument(fx.student, runId, agreement.id)
-    await ageOpen(openId, 10 * 60_000)
-    await runs.closeDocument(fx.student, runId, openId)
-
-    const [row] = await openRows(runId)
-    expect(row?.duration_ms).toBeGreaterThanOrEqual(10 * 60_000)
-    expect(row?.duration_ms).toBeLessThan(11 * 60_000)
-    expect(row?.skim).toBe(false)
-    const [event] = await eventsOfType(runId, 'document_close')
-    expect(event?.payload).toMatchObject({ open_id: openId, skim: false })
+    expect(await codeOf(runs.openDocument(fx.student, runId, agreement.id))).toBe('RUN_LOCKED')
   })
 
   it('answers 204 on the route', async () => {

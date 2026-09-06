@@ -1,4 +1,5 @@
 import {
+  Anchor,
   BadgeCheck,
   EyeOff,
   Flag,
@@ -29,6 +30,15 @@ export type LabelKind =
   | 'warning'
   /** The one consequential defect an author planted in a variant (`DEFECTIVE_VARIANT_PLANT`). */
   | 'planted'
+  /**
+   * The student's own record that they leaned on a claim (FR-060, FR-084, D-315).
+   *
+   * It is a product label rather than a count or an ad-hoc tag, which is what DESIGN.md's Badge
+   * rule reserves `Badge` for, so it belongs here. Teal, because reliance is the student's own act
+   * and the wash has to read on the sunken well a claim card sits in; it says nothing about the
+   * claim, and the run's own view is the only thing that can set it.
+   */
+  | 'used'
 
 // Ink text on a soft wash with the strong color as border and icon only (DESIGN.md: the
 // Amber-Is-Not-Text rule). Amber marks draft, provisional, uncalibrated, sample, and warning
@@ -50,6 +60,7 @@ const STYLES: Record<LabelKind, { icon: LucideIcon; className: string }> = {
   },
   warning: { icon: TriangleAlert, className: 'bg-amber-soft border-amber [&_svg]:text-amber' },
   planted: { icon: Flag, className: 'bg-red-soft border-red [&_svg]:text-red' },
+  used: { icon: Anchor, className: 'bg-primary-soft border-primary [&_svg]:text-primary' },
 }
 
 const TEXT: Record<LabelKind, () => string> = {
@@ -62,6 +73,7 @@ const TEXT: Record<LabelKind, () => string> = {
   sample: () => t('sample.label'),
   warning: () => t('label.warning'),
   planted: () => t('label.planted'),
+  used: () => t('label.used'),
 }
 
 export function LabelChip({

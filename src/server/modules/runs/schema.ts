@@ -245,6 +245,205 @@ export const ReadinessResultSchema = z.object({
 export type ReadinessResult = z.infer<typeof ReadinessResultSchema>
 
 // ---------------------------------------------------------------------------------------------
+// The Decision Brief, the Decision Lock and the addendum (07 §7, §10; FR-100 to FR-108)
+//
+// Three schemas and one rule, in the shape the frame already uses.
+//
+//   * `BriefDraftSchema` is what a save accepts: every field optional, because the editor sends the
+//     fields that changed, and the limits applied — a field the student is over the limit on is a
+//     field they cannot lock with, and one rule read in one place is what keeps the counter under
+//     the textarea and the server in agreement (D-075, D-291).
+//   * `BriefInputSchema` is the wire shape of a lock — six fields of the right kinds and no rule
+//     about what is in them — and `BriefSchema` is the rule: 120 / 250 / 25 × 3 / 60 words, every
+//     field filled, a confidence between 0 and 100. Applying the rule in the service is what lets a
+//     broken brief answer `BRIEF_INVALID` naming the field (10 §6) rather than the generic
+//     validation failure a route-level refinement would produce.
+//   * `AddendumSchema` is FR-107's fifty words.
+//
+// The auto-lock at expiry does not come through any of them: it locks the draft as it stands, empty
+// fields and all (FR-105, 10 §8), which is exactly what `BriefSchema` refuses.
+// ---------------------------------------------------------------------------------------------
+
+/** FR-100's word limits, one place, so the form and the server count the same words (D-075). */
+export const BRIEF_LIMITS = {
+  recommendation: 120,
+  rationale: 250,
+  assumption: 25,
+  changeMyMind: 60,
+} as const
+
+/** FR-107: the post-lock addendum is fifty words. */
+export const ADDENDUM_WORD_LIMIT = 50
+
+/**
+ * The named numeric fields of the scenario, keyed by `named_fields.key` (FR-100, FR-101).
+ *
+ * Numbers only — "numeric fields accept numbers only" is FR-100's own acceptance criterion — and
+ * finite, because `Infinity` and `NaN` are not values a student typed. The bounds on the record are
+ * about storage rather than meaning: a package has a handful of named fields, and a body carrying
+ * two thousand keys is not a brief.
+ *
+ * This is the *shape*, so it bounds the keys and not how many of them there are: the count is a
+ * rule, and D-291 keeps the rules on `BriefDraftSchema` and `BriefSchema` below so a brief that
+ * breaks one answers `BRIEF_INVALID` naming the field rather than the route's generic refusal.
+ */
+export const BriefNamedValuesSchema = z.record(z.string().min(1).max(64), z.number().finite())
+
+/**
+ * How many named values one brief may carry (D-333).
+ *
+ * The docstring above has always said the bound existed; until D-333 nothing enforced it, and a
+ * body of two thousand keys was accepted, stored on `run_briefs.named_values`, and copied whole
+ * into the `decision_locked` trace payload — a row the trace makes immutable. Sixty-four is far
+ * above any authored package (`NAMED_FIELDS_MIN` is 1 and the fixture has three) and far below a
+ * body that is a payload rather than a brief. Unmatched figures are not lost by it: FR-025 makes a
+ * number that matches no claim an assumption, and the defense asks where it came from.
+ */
+export const BRIEF_NAMED_VALUES_MAX = 64
+
+/** The record with D-333's count bound, for the two schemas that carry the rules. */
+const BoundedNamedValuesSchema = BriefNamedValuesSchema.refine(
+  (values) => Object.keys(values).length <= BRIEF_NAMED_VALUES_MAX,
+  { error: 'NAMED_VALUES_LIMIT' },
+)
+
+/**
+ * The draft as it arrives on the wire (07 §10 `BriefDraft`): the fields that changed, of the right
+ * kinds, and no rule about what is in them.
+ *
+ * The rule is `BriefDraftSchema` below and the service applies it, for the reason `LockFrameInput`
+ * and `LockFrameSchema` are two schemas: a limit enforced by the route's own body schema answers
+ * `VALIDATION_ERROR`, and `BRIEF_INVALID` — which 10 §6 defines with `details.field`, and which the
+ * editor binds its error to — would then be a code nothing raises (the reading D-287 makes of the
+ * same choice one module along).
+ */
+export const BriefDraftInputSchema = z.strictObject({
+  recommendation: z.string().optional(),
+  rationale: z.string().optional(),
+  assumptions: z.array(z.string()).optional(),
+  changeMyMind: z.string().optional(),
+  confidence: z.number().nullable().optional(),
+  namedValues: BriefNamedValuesSchema.optional(),
+})
+export type BriefDraftInput = z.infer<typeof BriefDraftInputSchema>
+
+/** The draft's rules: every field optional, and each one within the lock's own limit (D-291). */
+export const BriefDraftSchema = z.strictObject({
+  recommendation: wordLimit(BRIEF_LIMITS.recommendation).optional(),
+  rationale: wordLimit(BRIEF_LIMITS.rationale).optional(),
+  assumptions: z.array(wordLimit(BRIEF_LIMITS.assumption)).length(3).optional(),
+  changeMyMind: wordLimit(BRIEF_LIMITS.changeMyMind).optional(),
+  confidence: z.int().min(0).max(100).nullable().optional(),
+  namedValues: BoundedNamedValuesSchema.optional(),
+})
+export type BriefDraft = z.infer<typeof BriefDraftSchema>
+
+/** The brief as it arrives on the wire for a lock: shape only; the rule is `BriefSchema`. */
+export const BriefInputSchema = z.strictObject({
+  recommendation: z.string(),
+  rationale: z.string(),
+  assumptions: z.array(z.string()),
+  changeMyMind: z.string(),
+  confidence: z.number(),
+  namedValues: BriefNamedValuesSchema,
+})
+export type BriefInput = z.infer<typeof BriefInputSchema>
+
+/** FR-100 and FR-103: every field filled once markup is stripped, and within its word limit. */
+export const BriefSchema = z.strictObject({
+  recommendation: wordLimit(BRIEF_LIMITS.recommendation).min(1),
+  rationale: wordLimit(BRIEF_LIMITS.rationale).min(1),
+  assumptions: z.array(wordLimit(BRIEF_LIMITS.assumption).min(1)).length(3),
+  changeMyMind: wordLimit(BRIEF_LIMITS.changeMyMind).min(1),
+  confidence: z.int().min(0).max(100),
+  namedValues: BoundedNamedValuesSchema,
+})
+export type Brief = z.infer<typeof BriefSchema>
+
+/**
+ * `POST /runs/{runId}/brief/signals` (07 §7, FR-100): the editor opened, or closed after a spell.
+ *
+ * Two events and no state of its own: `brief_opened` carries nothing — the instant and the clock
+ * reading `trace.append` stamps are the record — and `brief_closed` carries how long it was open.
+ */
+export const BriefSignalSchema = z.union([
+  z.strictObject({ opened: z.literal(true) }),
+  z.strictObject({ closed: z.literal(true), durationMs: z.int().min(0).max(86_400_000) }),
+])
+export type BriefSignalInput = z.infer<typeof BriefSignalSchema>
+
+/** `POST /runs/{runId}/addendum` (07 §7, FR-107): one per run, fifty words, after the lock. */
+export const AddendumSchema = z.strictObject({
+  text: wordLimit(ADDENDUM_WORD_LIMIT).min(1),
+})
+export type AddendumInput = z.infer<typeof AddendumSchema>
+
+/**
+ * The brief as the student reads it back (07 §10 `RunWorkspace.briefDraft`).
+ *
+ * The same six fields plus `lockedAt`, which is null while it is a draft and set from the moment it
+ * is filed. `autoLocked` and `speedOutlier` are **not** here and are not coming: the speed outlier
+ * is an instructor observation (FR-106, "a signal not a penalty"), and showing a student that their
+ * lock was flagged would make it a penalty by telling them so mid-run.
+ *
+ * **`briefRationale`, not `rationale` (D-329).** `student-view.ts` reserves the short name for a
+ * claim's authored "what it deserved and why" and forbids it in every student payload before
+ * scoring, exactly as it reserves `role` for a document's authored role and `evidence` for the
+ * Turn's. The student's own 250 words are a different thing wearing the same word, so they travel
+ * under the qualified name the copy layer already uses for them (`workspace.briefRationaleLabel`,
+ * `decision.briefRationale`) — and the payload can then be swept rather than exempted. The column,
+ * the draft input and the `decision_locked` trace payload keep `rationale`: none of them is a
+ * student payload, and the trace has its own reading of the name in `trace/owner-view.ts`.
+ */
+export const BriefViewSchema = z.object({
+  recommendation: z.string(),
+  briefRationale: z.string(),
+  assumptions: z.array(z.string()).length(3),
+  changeMyMind: z.string(),
+  confidence: z.int().min(0).max(100).nullable(),
+  namedValues: BriefNamedValuesSchema,
+  updatedAt: z.iso.datetime(),
+  lockedAt: z.iso.datetime().nullable(),
+})
+export type BriefView = z.infer<typeof BriefViewSchema>
+
+/** The addendum as every screen renders it, separately from the brief (FR-107). */
+export const AddendumViewSchema = z.object({
+  text: z.string().min(1),
+  createdAt: z.iso.datetime(),
+})
+export type AddendumView = z.infer<typeof AddendumViewSchema>
+
+/** `named_fields.unit` (06 §3.1, DATA-018): the unit a figure is entered in. */
+export const BriefFieldUnitSchema = z.enum(['percent', 'ratio', 'months', 'usd', 'count', 'other'])
+export type BriefFieldUnitValue = z.infer<typeof BriefFieldUnitSchema>
+
+/**
+ * One named numeric field of the brief, as the editor draws it (DATA-018, FR-100, FR-101; D-301).
+ *
+ * The key, the author's label and the unit the figure is entered in — which is the whole of what a
+ * student needs to fill the field, and the whole of what `named_fields` holds beyond its position.
+ * There is nothing withheld here: a named field is the same for both variants of a package, it is
+ * authored per version rather than per claim, and `namedValues` already travels on `BriefView`, so
+ * a brief read back without the labels would be a row of bare keys.
+ *
+ * **It says nothing about which claims carry a matching figure.** D-076's tolerance is applied at
+ * the lock, on the server, and the match is what makes a claim relied on (FR-101) — a field that
+ * announced "this figure matches a claim" would be the product pointing at the claims worth
+ * leaning on, which is the map the run asks the student to draw.
+ */
+export const BriefNamedFieldSchema = z.object({
+  key: z.string().min(1),
+  label: z.string().min(1),
+  unit: BriefFieldUnitSchema,
+})
+export type BriefNamedField = z.infer<typeof BriefNamedFieldSchema>
+
+/** `POST /review/runs/{runId}/test-controls/force-assistant-failure` (07 §7, FR-118). */
+export const ForcedFailureSchema = z.object({ armed: z.literal(true) })
+export type ForcedFailure = z.infer<typeof ForcedFailureSchema>
+
+// ---------------------------------------------------------------------------------------------
 // The workspace: the Scenario Brief, the Evidence Room, and the frame (07 §7, §10; FR-020 to
 // FR-024, FR-040 to FR-044)
 //
@@ -318,6 +517,12 @@ export const WorkspaceCapabilitiesSchema = z.object({
   canOpenDocuments: z.boolean(),
   canLockFrame: z.boolean(),
   assistantUnlocked: z.boolean(),
+  /**
+   * Whether the brief can be written and filed *now* (FR-100, FR-102). True in `working` alone: the
+   * brief belongs to the working period, and a paused run is waiting out a component failure with
+   * its clock stopped, which is not a moment to take an irreversible decision in.
+   */
+  canWriteBrief: z.boolean(),
 })
 export type WorkspaceCapabilities = z.infer<typeof WorkspaceCapabilitiesSchema>
 
@@ -347,10 +552,12 @@ export type PauseView = z.infer<typeof PauseSchema>
 /**
  * `GET /runs/{runId}/workspace` (07 §7, §10): the room as its student sees it.
  *
- * 07 §10's `RunWorkspace` also lists `delegations`, `claims`, `briefDraft`, `addendum` and `turn`.
- * Each arrives with the phase that makes it true — the brief draft and the addendum in Phase 8, the
- * Turn in Phase 9 — and none is declared here as an empty array in the meantime: a field that is
- * always empty is a shape a reader has to learn to disbelieve.
+ * 07 §10's `RunWorkspace` also lists `delegations`, `claims` and `turn`. Each arrives with the phase
+ * that makes it true — the Turn in Phase 9 — and none is declared here as an empty array in the
+ * meantime: a field that is always empty is a shape a reader has to learn to disbelieve. The brief
+ * draft and the addendum arrive here, with Step 8.2's brief editor: `briefDraft` is null until the
+ * student saves one, which is what FR-108's "content preserved" is read back from, and `addendum` is
+ * null until it is written, which is at most once per run (FR-107).
  *
  * The Delegation Log and the claims are the exception, and they are absent for a different reason:
  * they exist from Step 7.3, and they are read by `GET /runs/{runId}/delegations` and
@@ -368,11 +575,59 @@ export const RunWorkspaceSchema = z.object({
   openDocuments: z.array(OpenDocumentSchema),
   /** Null while the run is framing; the locked frame from the moment it is locked (FR-041). */
   frame: FrameSchema.nullable(),
+  /** The brief the student has saved so far, or null before the first save (FR-100, FR-108). */
+  briefDraft: BriefViewSchema.nullable(),
+  /** The scenario's named numeric fields, in authored order, with their units (D-301). */
+  namedFields: z.array(BriefNamedFieldSchema),
+  /** The one post-lock addendum, or null (FR-107). */
+  addendum: AddendumViewSchema.nullable(),
   /** The open pause, when the run is in `paused`; null otherwise (FR-001, UI-023). */
   pause: PauseSchema.nullable(),
   capabilities: WorkspaceCapabilitiesSchema,
 })
 export type RunWorkspace = z.infer<typeof RunWorkspaceSchema>
+
+/**
+ * The frozen record UI-024 reads (`/runs/[runId]/locked`, FR-102, FR-107; D-302).
+ *
+ * Everything on it is immutable by the time it is read: the frame was locked at the end of the
+ * framing period, the brief at the Decision Lock, and neither has an update path in this service or
+ * a grant in the database. So the shape is the record itself plus the two facts the screen acts on
+ * — whether an addendum may still be written, and the addendum if one already was.
+ *
+ * It is deliberately **not** `RunWorkspace` with `decision_locked` added to its states. The
+ * workspace is the room, and the room closes at the lock (`RUN_LOCKED`, 10 §6): a shape that served
+ * both would have to carry documents nobody may open and capabilities that are all false. The
+ * clock is absent for the same reason — the working clock ended at the lock, and what the locked
+ * page counts down is the Turn, which the run's own `turn.dueAt` already carries.
+ *
+ * `namedFields` travels with it because `brief.namedValues` is a record keyed by `named_fields.key`
+ * and a decision read back as `premium_payback_months: 11` is a decision written in the database's
+ * words rather than the author's.
+ */
+export const DecisionRecordSchema = z.object({
+  run: RunSummarySchema,
+  /** The frame locked before the assistant was in the room (FR-041); null only for a run without one. */
+  frame: FrameSchema.nullable(),
+  /** The filed brief. Never null after a lock: the auto-lock files an empty one (FR-105). */
+  brief: BriefViewSchema.nullable(),
+  namedFields: z.array(BriefNamedFieldSchema),
+  /** The one post-lock addendum, or null (FR-107). */
+  addendum: AddendumViewSchema.nullable(),
+  /** FR-107: after the lock, before the record, and not yet used. */
+  canAddAddendum: z.boolean(),
+  /**
+   * Milliseconds until the Turn falls due, floored at zero; null when there is no Turn clock yet.
+   *
+   * A *reading*, like `Clock.remainingMs`, and taken on the server for the same reason (D-042): the
+   * countdown on UI-024 anchors a deadline from it at the instant it reaches the browser, so a
+   * browser whose own clock is set wrong still counts down at the right rate. `turn.dueAt` is
+   * beside it on `RunSummary` and is the instant itself; this is what the screen renders, and
+   * computing it in the page would put `Date.now()` in a render.
+   */
+  turnRemainingMs: z.int().min(0).nullable(),
+})
+export type DecisionRecord = z.infer<typeof DecisionRecordSchema>
 
 /** `POST /runs/{runId}/documents/{documentId}/open` addresses one document of one run. */
 export const DocumentParamsSchema = z.object({ runId: z.uuid(), documentId: z.uuid() })

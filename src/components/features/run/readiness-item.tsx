@@ -82,7 +82,7 @@ export function ReadinessItem({
           <span className="text-ink-muted text-meta mb-1 block font-normal">
             {t('readiness.itemPosition', { position: index, total })}
           </span>
-          <span className="text-ink text-lead block max-w-[72ch] font-medium">{item.stem}</span>
+          <span className="text-ink text-lead max-w-measure block font-medium">{item.stem}</span>
         </FieldLegend>
 
         <RadioGroup
@@ -93,7 +93,7 @@ export function ReadinessItem({
           onValueChange={(next) => {
             if (typeof next === 'string') onAnswer(next)
           }}
-          className="max-w-[72ch]"
+          className="max-w-measure"
         >
           {item.options.map((option) => {
             const optionId = `${fieldId}-${option.key}`

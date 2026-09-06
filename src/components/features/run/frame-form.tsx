@@ -290,7 +290,7 @@ export function FrameForm({ runId }: FrameFormProps) {
           <legend className="text-ink text-body mb-1 font-medium">
             {t('workspace.assumptionsLegend')}
           </legend>
-          <p id="frame-assumptions-hint" className="text-ink-muted text-meta -mt-3 max-w-[72ch]">
+          <p id="frame-assumptions-hint" className="text-ink-muted text-meta max-w-measure -mt-3">
             {t('workspace.assumptionsHint')}
           </p>
           {assumptions.map((assumption, index) => (
@@ -322,7 +322,7 @@ export function FrameForm({ runId }: FrameFormProps) {
           <legend className="text-ink text-body mb-1 font-medium">
             {t('workspace.confidenceLegend')}
           </legend>
-          <p id="frame-confidence-hint" className="text-ink-muted text-meta -mt-1 max-w-[72ch]">
+          <p id="frame-confidence-hint" className="text-ink-muted text-meta max-w-measure -mt-1">
             {t('workspace.confidenceHint')}
           </p>
           <div className="flex flex-wrap items-center gap-4">
@@ -434,12 +434,12 @@ function WritingField({
       <Textarea
         id={id}
         rows={rows}
-        className={cn('text-reading max-w-[72ch]', over && 'border-red')}
+        className={cn('text-reading max-w-measure', over && 'border-red')}
         aria-invalid={message ? true : undefined}
         aria-describedby={`${message ? `${id}-error` : hint ? `${id}-hint` : ''} ${countId}`.trim()}
         {...registration}
       />
-      <div className="flex max-w-[72ch] flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+      <div className="max-w-measure flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
         <div className="min-w-0 flex-1">
           {message ? (
             <FieldError id={`${id}-error`}>{message}</FieldError>

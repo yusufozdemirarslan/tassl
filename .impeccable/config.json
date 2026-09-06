@@ -14,6 +14,22 @@
         ],
         "createdAt": "2026-09-03T07:52:48.928Z",
         "reason": "Specified, not generated: docs/tech/16-performance-a11y-budgets.md §8.7 and DESIGN.md §Shapes require the draft/provisional/uncalibrated/warning/planted chip to be ink text with a 2 px coloured left border and a matching icon (D-122); it is a 20 px chip, not a card. `LabelChip` is the one implementation; the packages table entry covers the local `WarningChip` there until that call site moves to `LabelChip kind=\"warning\"`, and can be dropped when it does. The run-status entry covers `RunStateChip`, which wears the same 20 px chip shape because it is the same vocabulary on the same screens — it is a separate component only because it must be total over `runs.state` (a state added to the enum has to be a type error, not a blank chip), which `LabelChip`'s nine fixed product kinds cannot be The run state chip wears the same 20 px shape and is a separate file only because a chip and a whole screen should not share a module (D-256)."
+      },
+      {
+        "rule": "gpt-thin-border-wide-shadow",
+        "value": "*",
+        "files": [
+          "src/components/ui/dialog.tsx",
+          "src/components/ui/alert-dialog.tsx",
+          "src/components/ui/sheet.tsx",
+          "src/components/ui/popover.tsx",
+          "src/components/ui/dropdown-menu.tsx",
+          "src/components/ui/select.tsx",
+          "src/components/ui/tooltip.tsx",
+          "src/components/ui/sonner.tsx"
+        ],
+        "createdAt": "2026-09-06T00:00:00.000Z",
+        "reason": "Specified, not generated: DESIGN.md lines 299, 338 and 339 define the floating layer as a 1 px `--line` hairline with `--shadow-float` (`0 8px 24px rgb(20 26 38 / 0.12)`) and name the members exactly — \"Popups: 6 px radius, 1 px --line border, --shadow-float\"; \"Menus and popovers: raised paper, 1 px --line border, 6 px radius, --shadow-float\"; \"Dialogs and sheets: … raised paper, --shadow-float\". DESIGN.md §Elevation adds \"Nothing else casts a shadow\", so the hairline-plus-wide-shadow pair is the whole of this product's depth vocabulary rather than a default the detector caught — the panels the shadow is being contrasted with are flat on purpose (D-316). The waiver is scoped to the eight floating primitives; a shadow on anything else is still a finding."
       }
     ]
   }
