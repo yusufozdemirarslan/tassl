@@ -102,6 +102,8 @@ const COURSE_READERS: readonly OrganizationRole[] = ['instructor', 'program_lead
 
 /** Section roles that may read the assignment and its policy display (07 §5 "S (section member)"). */
 const SECTION_MEMBER_ROLES: readonly SectionRole[] = ['student', 'instructor', 'ta']
+/** 08 §4's "Reviewer" seats as `requireRunReviewer` asks for them: a row on the run's section. */
+const REVIEWER_SECTION_ROLES: readonly SectionRole[] = ['instructor', 'ta']
 
 /** The fields of an assignment a started run freezes (10 §3 `ASSIGNMENT_IN_USE`). */
 const STRUCTURAL_ASSIGNMENT_FIELDS = [
@@ -627,6 +629,15 @@ export async function changeMapping(
  * locks for all of them while it did; per run, a failure halfway leaves the runs it reached repriced
  * and re-exported and the rest untouched, which the job's own retry then finishes — the ledger is
  * append-only and a run repriced twice under the same mapping writes the same numbers (D-447).
+ *
+ * **The mapping is read inside each run's transaction, not once before the loop** (D-518). Two
+ * mapping changes minutes apart make two jobs — every queue here is `standard`, so a singleton key
+ * is a label and never a dedupe (D-400) — and the drain is kicked per request, so the second can
+ * start while the first is still walking a hundred runs. Both write to an append-only ledger, and
+ * nothing orders them: the first job, holding a snapshot taken before the second change committed,
+ * would file the *newest* version of every run it had not yet reached under the *old* mapping. One
+ * read per run costs one indexed row and makes every version this job files carry the mapping that
+ * was in force when it was filed.
  */
 export async function recomputeExports(payload: {
   courseId: string
@@ -640,7 +651,9 @@ export async function recomputeExports(payload: {
   let exported = 0
   for (const entry of runs) {
     await repo.withTransaction(async (tx) => {
-      await repriceRun(tx, entry.run.id, course.mapping, course.mapping)
+      const current = await repo.findCourse(payload.organizationId, payload.courseId, tx)
+      if (!current) courseNotFound()
+      await repriceRun(tx, entry.run.id, current.mapping, current.mapping)
       repriced += 1
       await writeCourseExport(
         tx,
@@ -989,6 +1002,11 @@ export async function getAssignment(
     // cannot disagree. A reader who is only a student of the section is not a reviewer and sees no
     // link — and would be refused if they addressed the history directly.
     canViewExports: reviewer,
+    // D-517: `requireRunReviewer`'s own question, asked once for the assignment. Every run of an
+    // assignment is in its one section, so a section row with a reviewer's role is the whole of
+    // what the replay behind an "Open run" link will ask for — and the course's instructor holding
+    // no such row is exactly the seat `canViewExports` newly admits.
+    canOpenRuns: await heldSectionRole(actor, context.section.id, REVIEWER_SECTION_ROLES),
   }
 }
 

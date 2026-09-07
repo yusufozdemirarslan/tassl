@@ -325,6 +325,20 @@ export const AssignmentViewSchema = AssignmentSchema.extend({
    * reader the endpoint behind it refused.
    */
   canViewExports: z.boolean(),
+  /**
+   * Whether this reader may open the *replay* of a run of this assignment (D-517).
+   *
+   * It is **not** `canViewExports`, and that is the whole reason it exists. D-483 widened the
+   * export history to the course's own instructor, who may hold no row in the section, and left
+   * `requireRunReviewer` — a section row alone — guarding the replay, the debrief and the record
+   * file, because those are one student's run rather than the course's gradebook. So the export
+   * history draws a row per filed version with an "Open run" link beside each, and for that seat
+   * every one of them answered 404: D-483's own defect, one level over.
+   *
+   * The two bits are separate because the two guards are separate. A screen that drew the link off
+   * `canViewExports` would be back to a link and an endpoint that disagree.
+   */
+  canOpenRuns: z.boolean(),
 })
 export type AssignmentView = z.infer<typeof AssignmentViewSchema>
 

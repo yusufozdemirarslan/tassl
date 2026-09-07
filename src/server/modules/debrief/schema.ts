@@ -111,7 +111,13 @@ export const DebriefBandSchema = z.object({
   dimension: DimensionSchema,
   band: BandSchema.nullable(),
   status: z.enum(['drafted', 'unassessed']),
-  /** FR-004's sentence when the dimension holds no band; empty when it holds one. */
+  /**
+   * `run_bands.draft_reason`: the stored `UnassessedReason` when the dimension holds no band, and
+   * empty when it holds one. It is the **identifier** — `no_evidence`, `graph_unavailable` — and
+   * not FR-004's sentence, which this comment claimed and the card believed (D-515). The sentence
+   * is `src/lib/band-prose.ts`'s, drawn by `BandCard` from this value; the wire carries the name so
+   * a reader of the API gets something stable to switch on.
+   */
   reason: z.string(),
   decision: BandDecisionSchema.nullable(),
   note: z.string().nullable(),

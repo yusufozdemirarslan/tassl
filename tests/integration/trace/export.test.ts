@@ -712,6 +712,19 @@ describe('the assignment’s export history', () => {
   // one click up admitted the course's own instructor, so a course creator holding no row in the
   // section saw the "Course exports" link and got a 404 behind it. The two now ask one predicate,
   // and this test is that arrangement: the same seat, with the section row taken away.
+  it('draws the replay link for a reviewer who does hold a row in the section (D-517)', async () => {
+    const courses = await import('@/server/modules/courses')
+    for (const actor of [fx.instructor, fx.ta]) {
+      const assignment = await courses.getAssignment(actor, fx.assignment.id)
+      expect(assignment.canViewExports).toBe(true)
+      expect(assignment.canOpenRuns).toBe(true)
+    }
+    // And a student of the section gets neither, which is the same answer both endpoints give.
+    const forStudent = await courses.getAssignment(fx.student, fx.assignment.id)
+    expect(forStudent.canViewExports).toBe(false)
+    expect(forStudent.canOpenRuns).toBe(false)
+  })
+
   it('is served to the instructor of the course, who may hold no row in its section (D-483)', async () => {
     const courses = await import('@/server/modules/courses')
 
@@ -729,6 +742,13 @@ describe('the assignment’s export history', () => {
     const assignment = await courses.getAssignment(fx.instructor, fx.assignment.id)
     expect(assignment.canViewExports).toBe(true)
     expect((await courses.listAssignmentRuns(fx.instructor, fx.assignment.id)).items).toEqual([])
+
+    // D-517: and the *replay* link that history draws per row is a different bit, because it is a
+    // different guard. `requireRunReviewer` is untouched by D-483 and is still a section row alone,
+    // so this seat — which may read the whole export history — may not open a run from it, and the
+    // screen has to say so rather than draw a hundred links that all answer 404. That was D-483's
+    // own defect, one level over.
+    expect(assignment.canOpenRuns).toBe(false)
 
     // Every row of that history carries a download, and 08 §4 puts the two acts on one row: the
     // same seat reaches `getCourseExport`. This run has filed nothing, so the honest answer is

@@ -160,16 +160,9 @@ export const review = {
     'This run is already exported. A decision changed here writes a new export version.',
   // A hand-banded run carries `MANUAL_BAND_RATIONALE` (the literal 'manual') where a drafted one
   // carries a paragraph, and `no_evidence` where a drafted one carries a sentence. Neither is a
-  // thing to print at a reviewer.
-  'review.bandRationaleManual':
-    'This band was set by hand: nothing in the run placed it, and a reviewer chose it.',
-  'review.unassessedReason.graph_unavailable':
-    'The graphs this dimension is read from could not be drawn from this run’s trace.',
-  'review.unassessedReason.no_evidence': 'This run holds nothing that places this dimension.',
-  'review.unassessedReason.stance_records_lost':
-    'The record of what this run did with its claims was lost, so it cannot be read either way.',
-  'review.unassessedReason.read_failed':
-    'The reading of this run’s free text did not come back, and the recorded events alone do not place this dimension.',
+  // thing to print at a reviewer — nor at the student, which is why the sentences moved to the
+  // `band.` namespace and `src/lib/band-prose.ts` (D-515): the replay, the debrief and the Judgment
+  // Record draw the same rows and had two answers between them.
 
   'review.bandsReadOnly':
     'This run is not open for decisions. The seven bands below are on the record as they stand.',
@@ -547,6 +540,9 @@ export const review = {
   'review.assignmentExportsColumnRun': 'Run',
   'review.assignmentExportsColumnStudent': 'Student seat',
   'review.assignmentExportsRunLink': 'Open the replay',
+  // D-517: the course's instructor may read this history without holding a row in the section, and
+  // the replay asks for that row. Saying so is better than a link that answers 404.
+  'review.assignmentExportsRunUnavailable': 'Replay needs a place in the section',
   'review.assignmentExportsBack': 'Back to the assignment',
   /** The panel's own title: the page's h1 already says what the screen is. */
   'review.assignmentExportsPanelTitle': 'Every version written',

@@ -108,6 +108,18 @@ export async function requireSectionRole(
 /**
  * The course's creator, or an `instructor` in one of its sections (08 §5). A course the actor's
  * organization does not contain answers NOT_FOUND rather than FORBIDDEN.
+ *
+ * **Creating a course is not a permission that outlives the seat that had it** (D-516). The
+ * creator branch used to ask only whether an organization membership *existed*, not what it was —
+ * so a course's creator who was later demoted to `student` or `teaching_assistant` still held every
+ * operation this guard admits: the mapping, the assignments, the runs, and now the export history
+ * and the replay link on it. `courses.created_by` is a record of who made the row, not a grant. The
+ * grant is 08 §3's `instructor` organization role, which is the only one the access-control
+ * statement gives `course: update` to.
+ *
+ * The second branch is untouched and needs no role check of its own: a live `instructor` row on a
+ * section of this course *is* the grant 08 §4 names, and it is the one a demoted creator who still
+ * teaches a section keeps.
  */
 export async function requireCourseInstructor(
   actor: SessionUser,
@@ -117,7 +129,9 @@ export async function requireCourseInstructor(
   if (!course) notFound()
   const orgRole = await findOrganizationRole(actor.id, course.organizationId)
   if (orgRole === null) notFound()
-  const isInstructor = course.createdBy === actor.id || (await teachesCourse(actor.id, courseId))
+  const isInstructor =
+    (course.createdBy === actor.id && orgRole === 'instructor') ||
+    (await teachesCourse(actor.id, courseId))
   if (!isInstructor) forbidden()
   return { courseId, organizationId: course.organizationId }
 }

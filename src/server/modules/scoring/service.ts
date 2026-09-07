@@ -28,6 +28,7 @@
 // (D-400).
 import { performance } from 'node:perf_hooks'
 import { randomUUID } from 'node:crypto'
+import { MANUAL_BAND_RATIONALE } from '@/lib/band-prose'
 import { AppError, isAppError } from '@/lib/errors'
 import { requireRunReviewer } from '@/server/auth/permissions'
 import { findRunContext } from '@/server/auth/queries'
@@ -862,7 +863,7 @@ export async function readBands(runId: string, dbx?: repo.DbOrTx): Promise<BandV
 }
 
 /**
- * Writes the decision half of one or more bands, and answers every band of the run afterwards.
+ * Writes the decision half of one or more bands, re-prices the run, and answers both (D-510).
  *
  * **The draft half is not named, so it is not written** (D-423). `upsertBands` builds its SET clause
  * from the columns the caller's rows actually carry, and the rows below carry the five decision
@@ -871,13 +872,25 @@ export async function readBands(runId: string, dbx?: repo.DbOrTx): Promise<BandV
  * two correction columns. `draft_status` and `basis` travel because they are NOT NULL with no
  * default and the statement is an insert until it conflicts; they are read from the rows this
  * function just loaded, so they are rewritten with the values they already hold.
+ *
+ * **It takes the mapping and writes the points, because a band write that did not was the defect**
+ * (D-510). The confirmation used to write `points_confirmed` alone and leave the three correction
+ * columns holding whatever the last correction put there — and the export files
+ * `points_effective ?? points_confirmed`, so on a corrected run every later decision was invisible
+ * to the gradebook while every screen, priced from the bands (D-445, D-451), showed the new one.
+ * The two are now one statement pair: nothing can write a decision without re-deriving all five
+ * figures from the bands that decision produced.
  */
 export async function writeBandDecisions(
   tx: repo.Tx,
   runId: string,
+  mapping: BandMapping,
   decisions: readonly BandDecisionWrite[],
-): Promise<BandView[]> {
-  if (decisions.length === 0) return readBands(runId, tx)
+): Promise<{ bands: BandView[]; points: RunPoints }> {
+  if (decisions.length === 0) {
+    const bands = await readBands(runId, tx)
+    return { bands, points: priceBands(bands, mapping) }
+  }
   const existing = new Map((await repo.listBands(runId, tx)).map((row) => [row.dimension, row]))
   const rows = decisions.map((decision) => {
     const row = existing.get(decision.dimension)
@@ -894,22 +907,42 @@ export async function writeBandDecisions(
     }
   })
   await repo.upsertBands(runId, rows, tx)
-  return readBands(runId, tx)
+  const bands = await readBands(runId, tx)
+  return { bands, points: await writeRunPoints(tx, runId, bands, mapping) }
 }
 
 /**
- * Writes `points_confirmed` — the course's arithmetic over the effective bands (FR-202, 10 §11.4).
+ * **The one writer of `run_scores.points_*` after the pipeline's draft** (FR-202, FR-005, D-510).
+ *
+ * Every point column of the run, re-derived from the bands it now stands on and written together.
+ * A writer that touched one column and left the others is what put a filed export and the screen
+ * above it on two different arithmetics: `trace.buildExport` reads
+ * `points_effective ?? points_confirmed`, so a stale `points_effective` from an earlier correction
+ * outranked every confirmation made after it.
  *
  * A column patch rather than an upsert (D-435): the run has a score row by definition, because a
- * band cannot be confirmed before it is drafted, and an upsert would mean sending the four graphs
- * back with every one of the seven decisions.
+ * band cannot be decided or corrected before it was drafted, and an upsert would mean sending the
+ * four graphs back with every one of the seven decisions.
  */
-export async function writeConfirmedPoints(
+export async function writeRunPoints(
   tx: repo.Tx,
   runId: string,
-  points: number | null,
-): Promise<void> {
-  await repo.patchScore(runId, { pointsConfirmed: numeric(points, 3) }, tx)
+  bands: readonly BandView[],
+  mapping: BandMapping,
+): Promise<RunPoints> {
+  const priced = priceBands(bands, mapping)
+  await repo.patchScore(
+    runId,
+    {
+      pointsDraft: numeric(priced.draft, 3),
+      pointsConfirmed: numeric(priced.confirmed, 3),
+      pointsBeforeCorrection: numeric(priced.beforeCorrection, 3),
+      pointsAfterCorrection: numeric(priced.afterCorrection, 3),
+      pointsEffective: numeric(priced.effective, 3),
+    },
+    tx,
+  )
+  return priced
 }
 
 /** The effective band of every dimension the run has a row for (D-422), keyed for `computePoints`. */
@@ -956,7 +989,13 @@ export function priceBands(bands: readonly BandView[], mapping: BandMapping): Ru
   const draftInput: Partial<Record<Dimension, Band | 'unassessed'>> = {}
   for (const band of bands) draftInput[band.dimension] = band.band ?? 'unassessed'
 
-  const corrected = bands.filter((band) => band.bandBeforeCorrection !== null)
+  // A dimension a correction touched, read off either column rather than the first alone (D-511).
+  // `bandBeforeCorrection` is null on a dimension the run held no band on before the correction, and
+  // a correction that raised one from there is exactly the case FR-005 is about — so a detector that
+  // asked only about the "before" column would file the raise as no correction at all.
+  const corrected = bands.filter(
+    (band) => band.bandBeforeCorrection !== null || band.bandAfterCorrection !== null,
+  )
   if (corrected.length === 0) {
     return {
       draft: computePoints(draftInput, mapping),
@@ -1009,19 +1048,10 @@ export async function repriceRun(
   after: BandMapping,
 ): Promise<{ before: RunPoints; after: RunPoints }> {
   const bands = await readBands(runId, tx)
-  const priced = { before: priceBands(bands, before), after: priceBands(bands, after) }
-  await repo.patchScore(
-    runId,
-    {
-      pointsDraft: numeric(priced.after.draft, 3),
-      pointsConfirmed: numeric(priced.after.confirmed, 3),
-      pointsBeforeCorrection: numeric(priced.after.beforeCorrection, 3),
-      pointsAfterCorrection: numeric(priced.after.afterCorrection, 3),
-      pointsEffective: numeric(priced.after.effective, 3),
-    },
-    tx,
-  )
-  return priced
+  return {
+    before: priceBands(bands, before),
+    after: await writeRunPoints(tx, runId, bands, after),
+  }
 }
 
 /** Whether every dimension of the rubric now carries a decision (10 §12's confirmation rule). */
@@ -1055,7 +1085,14 @@ export type ApplyNeutralizationArgs = {
  *
  * `effectiveBands` is what the run currently stands on — the decision where a reviewer made one and
  * the draft where they have not — so a correction after a confirmation floors the *confirmed* band
- * and a correction before one floors the draft.
+ * and a correction before one floors the draft. `unassessedDimensions` travels beside it because
+ * `null` in that record means two different things and only one of them is terminal (D-512): a
+ * dimension the *pipeline* could not place may still be raised by a correction, and a dimension a
+ * faculty seat decided `unassessed` may not be banded by anything (FR-182).
+ *
+ * The three point columns are written by `writeRunPoints` from the bands as they stand *after* the
+ * two correction columns are committed, not from the recompute's own totals (D-510). One function
+ * prices a run, and the figures the event and the dialog carry are the figures that were filed.
  */
 export async function applyNeutralization(
   tx: repo.Tx,
@@ -1072,6 +1109,9 @@ export async function applyNeutralization(
     neutralization: args.neutralization,
     occurredAt: args.occurredAt.toISOString(),
     effectiveBands: effectiveBandsOf(bands),
+    unassessedDimensions: bands
+      .filter((band) => band.decision === 'unassessed')
+      .map((band) => band.dimension),
     mapping: run.mapping,
   })
 
@@ -1091,18 +1131,22 @@ export async function applyNeutralization(
     }),
     tx,
   )
+  const priced = await writeRunPoints(tx, args.runId, await readBands(args.runId, tx), run.mapping)
   await repo.patchScore(
     args.runId,
     {
-      pointsBeforeCorrection: numeric(result.pointsBefore, 3),
-      pointsAfterCorrection: numeric(result.pointsAfter, 3),
-      pointsEffective: numeric(result.pointsEffective, 3),
       falseChallengeRate: numeric(result.facts.fcr, 4),
       matchedStanceShare: numeric(result.facts.matchedShare, 4),
     },
     tx,
   )
-  return result
+  return {
+    ...result,
+    pointsBefore: priced.beforeCorrection,
+    pointsAfter: priced.afterCorrection,
+    pointsEffective: priced.effective,
+    points: { points_before: priced.beforeCorrection, points_after: priced.afterCorrection },
+  }
 }
 
 /**
@@ -1165,8 +1209,15 @@ export async function readGraphsForOwner(
   }
 }
 
-/** `run_bands.rationale` for a band a faculty seat placed rather than the pipeline (10 §12). */
-export const MANUAL_BAND_RATIONALE = 'manual'
+/**
+ * `run_bands.rationale` for a band a faculty seat placed rather than the pipeline (10 §12).
+ *
+ * Defined in `src/lib/band-prose.ts` and re-exported here (D-515). The string the pipeline writes
+ * and the string the three screens compare against have to be one literal, or the branch that turns
+ * it into a sentence goes dead the day one of them changes — which is how `manual` came to be
+ * printed at a student in the first place.
+ */
+export { MANUAL_BAND_RATIONALE } from '@/lib/band-prose'
 
 /**
  * FR-140's manual banding: a held run gets the bands a faculty seat placed by hand.

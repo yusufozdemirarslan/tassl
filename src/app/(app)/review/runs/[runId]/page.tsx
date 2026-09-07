@@ -41,11 +41,11 @@ import {
 import { cn } from '@/lib/cn'
 import { isAppError } from '@/lib/errors'
 import { formatDateTime } from '@/lib/format/date-time'
+import { bandRationaleText, unassessedReasonText } from '@/lib/band-prose'
 import { t } from '@/lib/i18n/t'
 import { getReplay, type ReplayBundle } from '@/server/modules/review'
 import { RunIdParamsSchema } from '@/server/modules/review/schema'
 import type { ReplayObservationValue } from '@/server/modules/review'
-import { MANUAL_BAND_RATIONALE } from '@/server/modules/scoring'
 import { RUN_EVENT_TYPES, type RunEventTypeValue } from '@/server/modules/trace/schema'
 import type { BandView } from '@/server/modules/scoring'
 import type { VariantKeyValue } from '@/server/modules/scenarios/schema'
@@ -125,21 +125,6 @@ const DECISION_LABELS: Record<'confirmed' | 'overridden' | 'unassessed', string>
   confirmed: t('review.bandDecisionConfirmed'),
   overridden: t('review.bandDecisionOverridden'),
   unassessed: t('review.bandDecisionUnassessed'),
-}
-
-/**
- * Why a dimension holds no band, in sentences (FR-004).
- *
- * `run_bands.reason` carries the pipeline's own paragraph for a drafted band and a bare
- * `UnassessedReason` token for one a reviewer set by hand — `no_evidence`, not a sentence. A token
- * printed as prose is the one thing a status line must never be, so a value that is one of the four
- * is translated and anything else is the paragraph it already is.
- */
-const UNASSESSED_REASONS: Record<string, string> = {
-  graph_unavailable: t('review.unassessedReason.graph_unavailable'),
-  no_evidence: t('review.unassessedReason.no_evidence'),
-  stance_records_lost: t('review.unassessedReason.stance_records_lost'),
-  read_failed: t('review.unassessedReason.read_failed'),
 }
 
 /** The guard marks a delegation can carry (10 §8), as sentences rather than analytics keys. */
@@ -872,14 +857,16 @@ function Bands({
                     </p>
                   )}
 
+                  {/* The same two sentences the student's debrief and Judgment Record show, from
+                      the same map (D-515): a token printed as prose is the one thing a status line
+                      must never be, and three screens reading three copies of that rule is how two
+                      of them came to be printing `manual` at the person the band is about. */}
                   <p className="text-ink text-reading max-w-measure break-words">
-                    {band.rationale === MANUAL_BAND_RATIONALE
-                      ? t('review.bandRationaleManual')
-                      : band.rationale}
+                    {bandRationaleText(band.rationale)}
                   </p>
                   {band.status === 'unassessed' && band.reason.length > 0 && (
                     <p className="text-ink-muted text-body max-w-measure break-words">
-                      {UNASSESSED_REASONS[band.reason] ?? band.reason}
+                      {unassessedReasonText(band.reason)}
                     </p>
                   )}
                   <p className="text-ink-muted text-body max-w-measure">

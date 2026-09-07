@@ -1,5 +1,6 @@
 import { BadgeCheckIcon } from 'lucide-react'
 import { LabelChip } from '@/components/layout/label-chip'
+import { bandRationaleText, unassessedReasonText } from '@/lib/band-prose'
 import { t } from '@/lib/i18n/t'
 
 // UI-028 → one of the seven dimensions, as the student reads it (FR-151, FR-004, FR-182).
@@ -118,10 +119,18 @@ export function BandCard({ band, graphAnchors = {} }: BandCardProps) {
         <p className="text-ink text-body max-w-measure">{DECISION_SENTENCES[band.decision]}</p>
       )}
 
-      <p className="text-ink text-reading max-w-measure break-words">{band.rationale}</p>
+      {/* Both of these are a sentence, never the identifier the row stores (D-515). A hand-banded
+          held run carries the literal `manual` on all seven dimensions and an unassessed one
+          carries `no_evidence`; the reviewer's replay had prose for each and these two surfaces —
+          the debrief and the Judgment Record, which is the copy the student keeps — did not. */}
+      <p className="text-ink text-reading max-w-measure break-words">
+        {bandRationaleText(band.rationale)}
+      </p>
 
       {band.status === 'unassessed' && band.reason !== undefined && band.reason.length > 0 && (
-        <p className="text-ink-muted text-body max-w-measure break-words">{band.reason}</p>
+        <p className="text-ink-muted text-body max-w-measure break-words">
+          {unassessedReasonText(band.reason)}
+        </p>
       )}
 
       {band.raisedByCorrection === true && (

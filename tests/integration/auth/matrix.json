@@ -2720,6 +2720,46 @@
     "expected": "deny"
   },
   {
+    "operationId": "exportRecord",
+    "role": "student",
+    "expected": "allow"
+  },
+  {
+    "operationId": "exportRecord",
+    "role": "instructor",
+    "expected": "allow"
+  },
+  {
+    "operationId": "exportRecord",
+    "role": "ta",
+    "expected": "allow"
+  },
+  {
+    "operationId": "exportRecord",
+    "role": "author",
+    "expected": "deny"
+  },
+  {
+    "operationId": "exportRecord",
+    "role": "program_lead",
+    "expected": "deny"
+  },
+  {
+    "operationId": "exportRecord",
+    "role": "editor",
+    "expected": "deny"
+  },
+  {
+    "operationId": "exportRecord",
+    "role": "admin",
+    "expected": "deny"
+  },
+  {
+    "operationId": "exportRecord",
+    "role": "outsider",
+    "expected": "deny"
+  },
+  {
     "operationId": "getDebrief",
     "role": "student",
     "expected": "allow"

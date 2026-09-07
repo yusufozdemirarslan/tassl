@@ -42,6 +42,12 @@ export const metadata: Metadata = { title: t('review.assignmentExportsTitle') }
 // summary: an export row names a run, and a table of uuids is a table nobody can read. The variant
 // is deliberately absent for UI-032's reason (12 §8, D-228).
 //
+// **The "Open run" link is drawn from `canOpenRuns` and not from the fact that this page loaded**
+// (D-517). D-483 widened the history to the course's own instructor, who may hold no row in the
+// section, and left `requireRunReviewer` — a section row alone — guarding the replay: so this
+// screen worked, every download worked, and every "Open run" beside them answered 404. The bit
+// comes from `getAssignment`, which asks the replay's own question.
+//
 // Every download is a plain link to `GET /runs/{id}/exports/{version}`, so the browser's own save,
 // open-in-new-tab and copy-link all work and the route ships no JavaScript.
 
@@ -141,12 +147,18 @@ export default async function AssignmentExportsPage({
                       {formatDateTime(row.createdAt)}
                     </TableCell>
                     <TableCell>
-                      <Link
-                        href={`/review/runs/${row.runId}` as Route}
-                        className="text-primary text-meta focus-visible:outline-focus inline-flex min-h-10 items-center rounded-sm underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2"
-                      >
-                        {t('review.assignmentExportsRunLink')}
-                      </Link>
+                      {assignment.canOpenRuns ? (
+                        <Link
+                          href={`/review/runs/${row.runId}` as Route}
+                          className="text-primary text-meta focus-visible:outline-focus inline-flex min-h-10 items-center rounded-sm underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2"
+                        >
+                          {t('review.assignmentExportsRunLink')}
+                        </Link>
+                      ) : (
+                        <span className="text-ink-muted text-meta">
+                          {t('review.assignmentExportsRunUnavailable')}
+                        </span>
+                      )}
                     </TableCell>
                     <TableCell>
                       <a

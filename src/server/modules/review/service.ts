@@ -64,13 +64,11 @@ import {
   allDimensionsDecided,
   applyNeutralization,
   bandRunManually,
-  computePoints,
   draftBandEventPayload,
   effectiveBandsOf,
   priceBands,
   readBands,
   writeBandDecisions,
-  writeConfirmedPoints,
   type Band,
   type BandDecisionWrite,
   type BandView,
@@ -536,7 +534,7 @@ export async function decideBand(
       band: write.band,
       note: write.note,
     })
-    const bands = await writeBandDecisions(tx, runId, [write])
+    const { bands } = await writeBandDecisions(tx, runId, context.mapping, [write])
     await audit(tx, {
       actorId: actor.id,
       orgId: seat.organizationId,
@@ -597,7 +595,7 @@ export async function confirmRemaining(actor: SessionUser, runId: string): Promi
     // nothing at all.
     if (writes.length === 0) return toRunSummary(locked)
 
-    const bands = await writeBandDecisions(tx, runId, writes)
+    const { bands } = await writeBandDecisions(tx, runId, context.mapping, writes)
     await audit(tx, {
       actorId: actor.id,
       orgId: seat.organizationId,
@@ -686,10 +684,16 @@ function planDecision(
 /**
  * Everything that happens once the seventh dimension has a decision (10 §12, FR-181, FR-152).
  *
- * The order is the order the facts happen in, and it matters: the points before the transition, the
- * transition before the export, and the export last of all — `records.writeCourseExport` builds the
- * file through this transaction, so it carries the decisions and the points that were written a few
- * statements ago and nothing that was not (D-087).
+ * The order is the order the facts happen in, and it matters: the transition before the export, and
+ * the export last of all — `records.writeCourseExport` builds the file through this transaction, so
+ * it carries the decisions and the points that were written a few statements ago and nothing that
+ * was not (D-087).
+ *
+ * **The points are not written here** (D-510). They were, once, and it wrote `points_confirmed`
+ * alone while the export files `points_effective ?? points_confirmed` — so on a run a correction had
+ * touched, every decision made afterwards reached the screens and never reached the gradebook.
+ * `scoring.writeBandDecisions` re-prices all five columns in the same statement pair that writes the
+ * decision, which is a statement earlier than this and cannot be reached without it.
  */
 async function settleConfirmation(
   tx: repo.Tx,
@@ -702,8 +706,6 @@ async function settleConfirmation(
 ): Promise<Awaited<ReturnType<typeof lockRunForMutation>>> {
   if (!allDimensionsDecided(bands)) return locked
   const wasConfirmed = CONFIRMED_STATES.has(locked.state)
-
-  await writeConfirmedPoints(tx, locked.id, computePoints(effectiveBandsOf(bands), context.mapping))
 
   let run = locked
   if (!wasConfirmed) {
@@ -944,7 +946,7 @@ export async function bandHeldRunManually(
         note: write.note,
       })
     }
-    const bands = await writeBandDecisions(tx, runId, writes)
+    const { bands } = await writeBandDecisions(tx, runId, context.mapping, writes)
     await audit(tx, {
       actorId: actor.id,
       orgId: seat.organizationId,

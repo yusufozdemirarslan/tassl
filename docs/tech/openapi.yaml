@@ -7534,6 +7534,8 @@ paths:
                     type: boolean
                   canViewExports:
                     type: boolean
+                  canOpenRuns:
+                    type: boolean
                 required:
                   - id
                   - sectionId
@@ -7556,6 +7558,7 @@ paths:
                   - effectiveWeight
                   - inUse
                   - canViewExports
+                  - canOpenRuns
                 additionalProperties: false
         "400":
           $ref: "#/components/responses/BadRequest"

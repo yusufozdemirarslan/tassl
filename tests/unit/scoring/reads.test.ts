@@ -551,15 +551,21 @@ describe('mapping a read’s output', () => {
         'The answer does not reach the expected answer notes for this question.',
         'expected answer',
       ],
-      [
-        'a peer-relative sentence',
-        'This run sits in the top percentile and ranks above the class median.',
-        'percentile',
-      ],
     ])('redacts %s', (_name, rationale, leaked) => {
       const filtered = filterRationale(rationale)
       expect(filtered.toLowerCase()).not.toContain(leaked)
       expect(filtered).toContain('[…]')
+    })
+
+    it('refuses a peer-relative sentence outright rather than redacting it (D-513)', () => {
+      // This case used to sit in the table above and assert a redaction. FR-131's half of the list
+      // has moved to the shared `RANKING` vocabulary, where a hit refuses the whole rationale and
+      // the band keeps its categorical sentence: a sentence that ranks the student is the wrong
+      // sentence, not a right one with a word missing. `tests/unit/scoring/rationale-voice.test.ts`
+      // holds the whole rule; this line is here so the two lists are read together.
+      expect(
+        filterRationale('This run sits in the top percentile and ranks above the class median.'),
+      ).toBe('')
     })
 
     it('keeps the sentence D-396 approves, which says the placement without the warrant', () => {
@@ -572,7 +578,13 @@ describe('mapping a read’s output', () => {
       const list = BAND_RATIONALE_TERMS.join(' ')
       expect(list).toContain('warrants change')
       expect(list).toContain('proportionate response')
-      expect(list).toContain('percentile')
+      expect(list).toContain('answer notes')
+      // And nothing else. FR-131's terms left this list for `src/lib/product-voice.ts` (D-513), so
+      // what is here is a *disclosure* rule — three fields a student may not be shown — and every
+      // entry can be answered with "which 12 §8.1 field does this name?". A ranking term readmitted
+      // here would be a second, weaker answer to a rule the shared vocabulary already owns.
+      expect(list).not.toContain('percentile')
+      expect(list).not.toContain('rank')
     })
 
     it('drops the whole rationale when it quotes the answer-key prose it was shown', () => {

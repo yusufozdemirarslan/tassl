@@ -66,7 +66,10 @@ const band = (dimension: DebriefBand['dimension'], value: DebriefBand['band']): 
   dimension,
   band: value,
   status: value === null ? 'unassessed' : 'drafted',
-  reason: value === null ? 'no evidence' : '',
+  // The stored `UnassessedReason`, exactly as `run_bands.draft_reason` holds it. It read
+  // `'no evidence'` with a space — a string production never writes — which is why nothing caught
+  // the card printing the identifier at the student (D-515).
+  reason: value === null ? 'no_evidence' : '',
   decision: null,
   note: null,
   rationale: 'The run recorded three interrogation actions.',

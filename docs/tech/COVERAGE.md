@@ -13,8 +13,8 @@ Conventions: steps are `N.M` in `build-plan/phase-NN-*.md`; test paths are relat
 | FR-001 | 7.3, 8.2 | integration/assistant/failure.test.ts, integration/runs/pause.test.ts, e2e wt-07 |
 | FR-002 | 11.1, 11.3 | integration/review/void.test.ts, e2e wt-15 |
 | FR-003 | 11.1, 11.3 | integration/review/neutralize.test.ts, e2e wt-15 |
-| FR-004 | 10.3, 11.5 | unit/scoring/bands.test.ts, e2e wt-17 |
-| FR-005 | 10.3, 11.1 | unit/scoring/recompute.test.ts, integration/review/neutralize.test.ts |
+| FR-004 | 10.3, 11.5 | unit/scoring/bands.test.ts, unit/components/debrief/band-card.test.tsx, e2e wt-17 |
+| FR-005 | 10.3, 11.1 | unit/scoring/recompute.test.ts, integration/review/neutralize.test.ts, integration/review/points-ledger.test.ts |
 | FR-006 | 13.5 | unit/copy/never-accuses.test.ts |
 | FR-007 | 6.1, 10.1 | integration/trace/append.test.ts, integration/trace/export.test.ts |
 | FR-008 | 11.1, 11.3 | integration/review/void.test.ts, integration/review/neutralize.test.ts, e2e wt-15 |
@@ -100,7 +100,7 @@ Conventions: steps are `N.M` in `build-plan/phase-NN-*.md`; test paths are relat
 | FR-125 | 9.2, 10.4 | unit/defense/follow-up.test.ts, unit/scoring/reads.test.ts, integration/scoring/score-run.test.ts |
 | FR-126 | 9.2 | integration/defense/flow.test.ts |
 | FR-130 | 10.4, 10.5 | integration/scoring/score-run.test.ts, e2e wt-11 |
-| FR-131 | 10.3 | unit/scoring/field-names.test.ts |
+| FR-131 | 10.3 | unit/scoring/field-names.test.ts, unit/scoring/rationale-voice.test.ts, unit/lib/product-voice.test.ts |
 | FR-132 | 10.2 | unit/scoring/graphs/confidence-line.test.ts |
 | FR-133 | 10.2 | unit/scoring/graphs/clock-timeline.test.ts |
 | FR-134 | 10.2 | unit/scoring/graphs/stance-matrix.test.ts |
@@ -109,22 +109,22 @@ Conventions: steps are `N.M` in `build-plan/phase-NN-*.md`; test paths are relat
 | FR-137 | 10.3, 10.4 | unit/scoring/reads.test.ts, integration/scoring/score-run.test.ts |
 | FR-138 | 10.3 | unit/scoring/bands.test.ts |
 | FR-139 | 10.3, 10.4 | unit/scoring/bands.test.ts, evals/scoring |
-| FR-140 | 10.4, 11.1, 11.3 | integration/scoring/score-run.test.ts, integration/review/held.test.ts |
+| FR-140 | 10.4, 11.1, 11.3 | integration/scoring/score-run.test.ts, integration/review/held.test.ts, unit/components/debrief/band-card.test.tsx |
 | FR-141 | 10.4 | integration/scoring/score-run.test.ts |
 | FR-142 | 10.3 | unit/scoring/bands.test.ts |
 | FR-143 | 10.2 | unit/scoring/graphs/*.test.ts |
 | FR-150 | 11.2, 11.4 | integration/debrief/flow.test.ts, e2e wt-11, e2e wt-13 |
 | FR-151 | 11.2, 11.4 | unit/debrief/assembly.test.ts, e2e wt-13 |
 | FR-152 | 11.2 | integration/debrief/flow.test.ts, e2e wt-13 |
-| FR-153 | 11.2 | unit/debrief/assembly.test.ts |
+| FR-153 | 11.2 | unit/debrief/assembly.test.ts, unit/lib/product-voice.test.ts, unit/scoring/rationale-voice.test.ts |
 | FR-154 | 11.2 | integration/debrief/flow.test.ts, integration/api/debrief.test.ts |
 | FR-155 | 11.2 | unit/debrief/assembly.test.ts |
-| FR-170 | 10.1, 11.1, 11.4 | integration/trace/export.test.ts, e2e wt-14 |
+| FR-170 | 10.1, 11.1, 11.4 | integration/trace/export.test.ts, integration/records/record.test.ts, e2e wt-14 |
 | FR-171 | 11.4 | unit/components/layout/illustrative-sample.test.tsx, e2e wt-14 |
-| FR-172 | 10.1, 10.3 | integration/trace/export.test.ts, unit/scoring/field-names.test.ts |
+| FR-172 | 10.1, 10.3 | integration/trace/export.test.ts, integration/records/record.test.ts, unit/scoring/field-names.test.ts |
 | FR-180 | 5.2, 11.1, 11.3 | integration/api/review.test.ts, e2e wt-01, e2e wt-12 |
 | FR-181 | 11.1, 11.3 | integration/review/decisions.test.ts, e2e wt-12 |
-| FR-182 | 11.1 | integration/review/decisions.test.ts |
+| FR-182 | 11.1 | integration/review/decisions.test.ts, integration/review/points-ledger.test.ts |
 | FR-183 | 11.1, 11.3 | integration/review/void.test.ts, integration/review/neutralize.test.ts, e2e wt-15 |
 | FR-184 | 11.1 | integration/review/decisions.test.ts, integration/review/neutralize.test.ts |
 | FR-185 | 11.3 | e2e wt-12, a11y/instructor.spec.ts |
@@ -141,7 +141,7 @@ Conventions: steps are `N.M` in `build-plan/phase-NN-*.md`; test paths are relat
 | FR-201 | 4.1, 6.2, 6.5 | integration/courses/service.test.ts, integration/runs/start.test.ts, e2e wt-02-05 |
 | FR-202 | 10.3, 11.1 | unit/scoring/points.test.ts, integration/review/decisions.test.ts |
 | FR-203 | 10.4, 11.1 | integration/scoring/score-run.test.ts, integration/review/decisions.test.ts |
-| FR-204 | 11.1, 11.4, 11.5 | integration/review/decisions.test.ts, integration/trace/export.test.ts, e2e wt-14 |
+| FR-204 | 11.1, 11.4, 11.5 | integration/review/decisions.test.ts, integration/trace/export.test.ts, integration/review/points-ledger.test.ts, e2e wt-14 |
 | FR-205 | 4.1 | integration/courses/service.test.ts |
 | FR-206 | 11.2, 11.4 | integration/courses/mapping.test.ts, e2e instructor/mapping.spec.ts |
 | FR-210 | 11.5 | a11y/keyboard-only-run.spec.ts |

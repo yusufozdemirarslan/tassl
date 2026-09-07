@@ -57,7 +57,7 @@ export const band = {
     'This run holds no evidence for this dimension: {detail} It is reported unassessed rather than estimated.',
   'band.unassessed.stanceRecordsLost':
     '{lost} of {total} consequential claims lost their stance record, so what this run did with its claims cannot be read either way. Verification and Calibration are reported unassessed and excluded from the run’s points.',
-  'band.unassessed.readFailed':
+  'band.unassessed.readIncomplete':
     'The reading of this run’s free text did not complete, and the recorded events on their own do not place this dimension.',
   'band.unassessed.noTurn': 'no Turn was delivered on this run, so there is no response to read.',
   'band.unassessed.noResponse':
@@ -123,12 +123,12 @@ export const band = {
     'Read from the response filed against the Turn, beside the frame locked before the assistant was in the room. {detail}',
   'band.adaptation.match': 'The response matched the warranted one.',
   'band.adaptation.over':
-    'The response went further than the new information warranted, which is scored exactly as failing to adapt is.',
+    'The response went further than the new information warranted, which is placed exactly as a response that went less far is.',
   'band.adaptation.under':
-    'The response went less far than the new information warranted, which is scored exactly as over-adapting is.',
+    'The response went less far than the new information warranted, which is placed exactly as a response that went further is.',
   'band.adaptation.implicitHoldOk':
     'The window closed unanswered, which files a hold. The Turn warranted no change, so the holding decision was the proportionate one and the missing justification holds the band where it is.',
-  'band.adaptation.implicitHoldFailed':
+  'band.adaptation.implicitHoldAgainstWarrant':
     'The window closed unanswered, which files a hold, and the Turn warranted a change.',
   'band.adaptation.noJustification': 'The response was filed with no justification.',
   'band.adaptation.holdEqualsRevision':
@@ -148,8 +148,27 @@ export const band = {
   'band.rationale.withRead': '{categorical} {read}',
   'band.provisional':
     'This band turns on free text a model read, so it is shown provisional until a reviewer confirms it.',
-  'band.uncalibrated':
-    'The band boundaries are drafts against the authored standard, not validated cut scores.',
+
+  // ---------------------------------------------------------------------------------------------
+  // The two identifiers a band row can carry where a drafted one carries prose (D-463, D-515)
+  //
+  // A hand-banded held run stores the literal `manual` in `run_bands.rationale` on all seven
+  // dimensions, and every unassessed dimension stores one of four `UnassessedReason` values in
+  // `run_bands.draft_reason`. D-463 gave the reviewer's replay a sentence for each and left the
+  // student's debrief and the Judgment Record printing `manual` and `no_evidence` at a person — on
+  // the two surfaces D-468 calls the ones somebody may still be reading a year later. They live in
+  // `band.` rather than in `review.` because all three screens draw them and one copy is the whole
+  // point; `src/lib/band-prose.ts` is the single map from identifier to sentence.
+  // ---------------------------------------------------------------------------------------------
+  'band.rationaleManual':
+    'This band was set by hand: nothing in the run placed it, and a reviewer chose it.',
+  'band.unassessedReason.graph_unavailable':
+    'The graphs this dimension is read from could not be drawn from this run’s trace.',
+  'band.unassessedReason.no_evidence': 'This run holds nothing that places this dimension.',
+  'band.unassessedReason.stance_records_lost':
+    'The record of what this run did with its claims was lost, so it cannot be read either way.',
+  'band.unassessedReason.read_failed':
+    'The reading of this run’s free text did not come back, and the recorded events alone do not place this dimension.',
 } as const
 
 /** `t` over this namespace alone; the key is still the full dotted key. */

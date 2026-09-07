@@ -38,8 +38,9 @@
 // which is what makes the job hold the run (11 §3, FR-140).
 import type { ZodType } from 'zod'
 import { isAppError } from '@/lib/errors'
+import { voiceHits } from '@/lib/product-voice'
 import { getLogger } from '@/server/http/request-context'
-import { defectWordFilter, redactTerms } from '@/server/llm/guardrails/defect-words'
+import { defectWordFilter, foldForMatch, redactTerms } from '@/server/llm/guardrails/defect-words'
 import { QUOTE_MAX_CHARS } from '@/server/llm/prompts/band-read'
 import { bandReadAdaptationPrompt } from '@/server/llm/prompts/band-read-adaptation'
 import { bandReadDecisionQualityPrompt } from '@/server/llm/prompts/band-read-decision-quality'
@@ -459,20 +460,24 @@ function keepsItsMeaning(source: string, needle: string): boolean {
 }
 
 /**
- * Terms a band rationale may never carry, on top of §3's list (D-426).
+ * Spans a band rationale may never **disclose**, on top of §3's list (D-426, D-513).
  *
  * §3's list is what the assistant may not say to a student *during* a run. This is the second list,
  * for the one sentence the scoring pipeline writes and the debrief shows (D-396), and it is built
  * from what the reads are actually given: the Adaptation input carries the Turn's `warrantsChange`
  * and `proportionateResponse` and the Ownership input carries the bank's `expectedAnswerNotes`, and
- * all three are 12 §8.1 fields that may not reach a student payload in any state. The rest is
- * FR-131 — no total, no rank, no percentile, and no sentence that places this student beside
- * another one.
+ * all three are 12 §8.1 fields that may not reach a student payload in any state.
  *
  * The same test each term has to pass is §3's: does the *band read* have a legitimate use for it?
  * "The response went further than the new information warranted" is the sentence D-396 approves, so
  * bare `warranted` is not on the list; `warrants change` and `was proportionate` state the authored
  * answer and are.
+ *
+ * **FR-131's half of this list has moved** to `RANKING` in `src/lib/product-voice.ts`, which is a
+ * superset of it and is shared with the catalogue scan (D-513). What is left here is a disclosure
+ * rule rather than a voice rule, and that is why these are redacted where a voice hit refuses the
+ * whole sentence: the rest of a sentence that named the answer key is still a true description of
+ * what happened, and the rest of a sentence that accused the student is still an accusation.
  */
 export const BAND_RATIONALE_TERMS: readonly string[] = [
   // 12 §8.1, Turn internals (FR-114): what the Turn warranted and what response was proportionate.
@@ -493,29 +498,6 @@ export const BAND_RATIONALE_TERMS: readonly string[] = [
   'answer notes',
   'model answer',
   'model answers',
-  // FR-131: no composite, no total, no rank, no percentile, and nothing peer-relative.
-  'score',
-  'scores',
-  'composite',
-  'percentile',
-  'percentiles',
-  'quartile',
-  'quartiles',
-  'decile',
-  'deciles',
-  'rank',
-  'ranks',
-  'ranked',
-  'ranking',
-  'rankings',
-  'class median',
-  'cohort median',
-  'class average',
-  'cohort average',
-  'other students',
-  'their peers',
-  'peer group',
-  'compared to other',
 ]
 
 /** A span of this many words, repeated verbatim, is an echo rather than a coincidence. */
@@ -549,18 +531,43 @@ function echoes(text: string, sources: readonly string[]): boolean {
 }
 
 /**
- * The model's own sentence, made safe to show a student (D-396, D-426).
+ * The model's own sentence, made safe to show a student (D-396, D-426, D-513).
  *
- * §3's defect-word filter, then this module's own list, then a whole-rationale refusal if what came
- * back quotes the answer-key prose the read was given. The refusal is the whole string rather than
- * the span, because `bands.ts` falls back to the categorical sentence when the read contributes
- * nothing — a rationale that was reciting the notes has nothing left worth splicing in.
+ * `run_bands.rationale` is the one student-facing string in the product that no person writes, and
+ * it is rendered verbatim by the debrief and by the Judgment Record — the artifact a person may
+ * still be reading a year later. Everything below is what stands between a model and that page, and
+ * it is four rules applied in order:
+ *
+ *   1. **§3's defect-word filter** — the run's own defect vocabulary, redacted.
+ *   2. **The 12 §8.1 disclosure spans** (`BAND_RATIONALE_TERMS`) — the Turn's warrant and the
+ *      question bank's notes, redacted. What is left of the sentence still describes the run.
+ *   3. **The product's voice** (`src/lib/product-voice.ts`) — misconduct, character and motive,
+ *      ranking and comparison. **Refused whole, not redacted.** "You were [redacted] here and
+ *      [redacted] to check the figure" is the same accusation with two holes in it, and a reader
+ *      fills them in; a sentence that ranks the student is the wrong sentence and not a right one
+ *      with a word missing. The fallback costs nothing that matters, because `bands.ts` composes
+ *      the categorical sentence first and splices the read in only when there is one (`join`) —
+ *      which is exactly what rule 4 has always done.
+ *   4. **The answer-key echo** — a rationale reciting the notes it was shown, refused whole.
+ *
+ * PRD §7's standing rule that nothing Tassl observes is treated as misconduct is the product's
+ * central promise, and an instruction in a prompt is not a guarantee. This is the guarantee.
  */
 export function filterRationale(rationale: string, neverEcho: readonly string[] = []): string {
   const result = defectWordFilter([{ type: 'text', text: collapse(rationale) }])
   const segment = result.segments[0]
   const filtered = segment && segment.type === 'text' ? segment.text : ''
   const narrowed = redactTerms(filtered, BAND_RATIONALE_TERMS).text
+  // The folded copy is what the voice lists are matched against, so `cаreless` with a Cyrillic а is
+  // the word it renders as — the same normalisation §3's own filter matches through (D-427).
+  const hits = voiceHits(foldForMatch(narrowed))
+  if (hits.length > 0) {
+    getLogger().warn(
+      { rules: [...new Set(hits.map((hit) => hit.rule))] },
+      'band rationale refused: it did not keep the product’s voice',
+    )
+    return ''
+  }
   return echoes(narrowed, neverEcho) ? '' : narrowed
 }
 

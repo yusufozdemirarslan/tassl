@@ -36,6 +36,8 @@
 // `asUser()` mints and the `X-Requested-With: tassl` header `defineRoute` requires of every
 // cookie-authenticated mutation (08 §2.7) — the same path a browser takes, so a permission check
 // that lives only in the UI cannot make a row pass.
+import { existsSync, readFileSync, readdirSync } from 'node:fs'
+import { join } from 'node:path'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { asUser, testSql, truncateAll } from '@tests/setup/integration'
 import type { OrganizationRole } from '@/server/auth/access-control-shared'
@@ -182,6 +184,10 @@ const OPERATION_IDS = [
   'listRunExports',
   'listAssignmentExports',
   'getRecord',
+  // The record-form file is the one act on this surface 08 §4 gives to the owner *and* to the
+  // section's reviewers, which is why it is a row of its own beside `getRecord`'s owner-only one
+  // (D-519). It had no cell at all until the Phase-11 audit (D-520).
+  'exportRecord',
   // Step 11.2 (07 §7, §5): the debrief and the mapping change. 08 §4 gives the debrief to the run's
   // own student *and* to the reviewers of its section — the one student-facing read on this surface
   // that a reviewer shares (FR-154) — while the two questions are the student's alone; and the
@@ -191,6 +197,79 @@ const OPERATION_IDS = [
   'previewMappingChange',
   'changeMapping',
 ] as const
+
+// ---------------------------------------------------------------------------------------------
+// The gap, named (D-520)
+// ---------------------------------------------------------------------------------------------
+//
+// `OPERATION_IDS` above is hand-written, and until now nothing compared it with the endpoints that
+// actually exist: an operation added to a router and never added here was uncovered, silently, and
+// twenty-one of them were. So the list below names every registered operation that has **no row**,
+// with the reason, and `REGISTERED_OPERATION_IDS` is read out of the routers themselves — which
+// makes the two lists together a closed statement about the whole API. A *new* endpoint cannot join
+// the gap without a line here saying so.
+//
+// It does not pretend the twenty-one are covered. Nineteen are the run's own lifecycle endpoints
+// from Phases 6 to 9, written before this registry existed and never given cells; they are recorded
+// as the debt they are. The two documented exclusions keep their original reason.
+const NOT_IN_THE_MATRIX: Readonly<Record<string, string>> = {
+  // Addressed by a second id — a version number, a delegation — and NOT_FOUND when it names
+  // nothing, which this file counts as a denial. Their seat rules are proven against real ids in
+  // `tests/integration/api/review.test.ts`.
+  getRunExport: 'a second id; proven in tests/integration/api/review.test.ts',
+  flagDelegation: 'a second id; proven in tests/integration/api/review.test.ts',
+  // No row yet. Each of these is a read or a mutation of the student's own live run, guarded by
+  // `requireRunOwner` and then by the run's state; they predate this registry. Naming them is not
+  // covering them — it is the difference between a gap and a gap nobody can see.
+  advanceRunClock: 'no row yet — the run’s own lifecycle (Phase 6)',
+  answerDefenseQuestion: 'no row yet — the run’s own lifecycle (Phase 9)',
+  answerReadinessItem: 'no row yet — the run’s own lifecycle (Phase 6)',
+  closeDocument: 'no row yet — the run’s own lifecycle (Phase 7)',
+  completeDefense: 'no row yet — the run’s own lifecycle (Phase 9)',
+  getDefense: 'no row yet — the run’s own lifecycle (Phase 9)',
+  getReadiness: 'no row yet — the run’s own lifecycle (Phase 6)',
+  getRunWorkspace: 'no row yet — the run’s own lifecycle (Phase 7)',
+  getTurn: 'no row yet — the run’s own lifecycle (Phase 8)',
+  listRunTrace: 'no row yet — the run’s own trace (Phase 6)',
+  lockFrame: 'no row yet — the run’s own lifecycle (Phase 8)',
+  openDocument: 'no row yet — the run’s own lifecycle (Phase 7)',
+  respondToTurn: 'no row yet — the run’s own lifecycle (Phase 8)',
+  skipReadiness: 'no row yet — the run’s own lifecycle (Phase 6)',
+  submitReadiness: 'no row yet — the run’s own lifecycle (Phase 6)',
+  // No row yet. The actor's own notifications, guarded by the session alone (SYS-010).
+  listNotifications: 'no row yet — the actor’s own notifications (Phase 3)',
+  markAllNotificationsRead: 'no row yet — the actor’s own notifications (Phase 3)',
+  markNotificationRead: 'no row yet — the actor’s own notifications (Phase 3)',
+  unreadNotificationCount: 'no row yet — the actor’s own notifications (Phase 3)',
+}
+
+/**
+ * `delegate` is registered by hand rather than by `defineRoute`: it answers `text/event-stream`, so
+ * `assistant/router.ts` exports a `RouteHandler` with no spec object and its openapi entry is
+ * maintained by hand (D-273). It is the one id `REGISTERED_OPERATION_IDS` cannot read out of a
+ * router, so it is named here rather than left to make the guard below permanently red.
+ */
+const HAND_WRITTEN_OPERATION_IDS = ['delegate'] as const
+
+/**
+ * Every `operationId` the module routers declare, read out of their source.
+ *
+ * The text rather than the modules: importing every route file to enumerate them would drag pg-boss
+ * and the whole job runtime into this suite for a list of strings, and the literal is what a person
+ * adding an endpoint types. `openapi:check` already proves these literals are the shipped API.
+ */
+function registeredOperationIds(): string[] {
+  const root = 'src/server/modules'
+  const ids = new Set<string>(HAND_WRITTEN_OPERATION_IDS)
+  for (const moduleName of readdirSync(root)) {
+    const file = join(root, moduleName, 'router.ts')
+    if (!existsSync(file)) continue
+    for (const match of readFileSync(file, 'utf8').matchAll(/operationId:\s*'([A-Za-z0-9_]+)'/g)) {
+      if (match[1]) ids.add(match[1])
+    }
+  }
+  return [...ids].sort()
+}
 
 // ---------------------------------------------------------------------------------------------
 // The fixture: two institutions, eight seats
@@ -614,6 +693,7 @@ describe('authorization matrix (08 §4)', () => {
     const assignmentExportsRoute =
       await import('@/app/api/v1/assignments/[assignmentId]/exports/route')
     const recordRoute = await import('@/app/api/v1/runs/[runId]/record/route')
+    const recordExportRoute = await import('@/app/api/v1/runs/[runId]/record/export/route')
     const debriefRoute = await import('@/app/api/v1/runs/[runId]/debrief/route')
     const debriefAnswersRoute = await import('@/app/api/v1/runs/[runId]/debrief/answers/route')
     const mappingPreviewRoute =
@@ -1367,6 +1447,20 @@ describe('authorization matrix (08 §4)', () => {
             params: { assignmentId: assignment },
           }),
       },
+      exportRecord: {
+        route: 'GET /runs/{runId}/record/export',
+        // The record-form file: the run's own student, or a reviewer of its section (08 §4,
+        // `records.requireRecordReader`). `ownRun` is not confirmed, so every admitted seat meets
+        // `RECORD_NOT_AVAILABLE` (409) and every refused one meets the guard first — which is what
+        // this table asks. It is the mirror of `getRecord` a row below, and the pair is the whole
+        // reason 08 §4's old single row had to be split.
+        run: async (seat) =>
+          call(recordExportRoute.GET, {
+            path: `/runs/${ownRun}/record/export`,
+            session: await sessionFor(seat),
+            params: { runId: ownRun },
+          }),
+      },
       getRecord: {
         route: 'GET /runs/{runId}/record',
         // The mirror image of the replay: 08 §4 gives the Judgment Record to the run's own student,
@@ -1492,6 +1586,34 @@ describe('authorization matrix (08 §4)', () => {
 
     it('registers a runnable operation for every id', () => {
       expect(Object.keys(operations).sort()).toEqual([...OPERATION_IDS].sort())
+    })
+
+    it('accounts for every operation the routers declare, covered or named (D-520)', () => {
+      // The guard the file did not have: `OPERATION_IDS` was hand-written and compared only with
+      // this file's own `operations` map, so an endpoint added to a router and never added here was
+      // uncovered and nothing said so — twenty-one of them were. Every registered id must now be
+      // either in the matrix or in `NOT_IN_THE_MATRIX` with a reason beside it.
+      const registered = registeredOperationIds()
+      const accounted = new Set<string>([...OPERATION_IDS, ...Object.keys(NOT_IN_THE_MATRIX)])
+      expect(
+        registered.filter((id) => !accounted.has(id)),
+        'a new endpoint needs a row in matrix.json or a named reason in NOT_IN_THE_MATRIX',
+      ).toEqual([])
+
+      // And in the other direction, so the two lists cannot rot: nothing may be excused or covered
+      // that no router declares any more.
+      const declared = new Set(registered)
+      expect(
+        [...accounted].filter((id) => !declared.has(id)).sort(),
+        'OPERATION_IDS and NOT_IN_THE_MATRIX may only name endpoints that exist',
+      ).toEqual([])
+
+      // The gap is debt, not a design: it may shrink and it may not grow.
+      expect(Object.keys(NOT_IN_THE_MATRIX).length).toBeLessThanOrEqual(21)
+      expect(
+        Object.values(NOT_IN_THE_MATRIX).every((reason) => reason.length > 0),
+        'every excused operation states why',
+      ).toBe(true)
     })
   })
 

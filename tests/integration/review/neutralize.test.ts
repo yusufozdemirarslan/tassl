@@ -274,9 +274,19 @@ describe('neutralizeClaim on a confirmed run (FR-232, FR-184)', () => {
     )
     expect(Number(score?.points_before_correction)).toBeCloseTo(confirmedPoints, 3)
 
-    // D-423 the other way round: the correction wrote the point columns and did not blank the
-    // confirmation's own arithmetic or the draft the pipeline computed.
-    expect(Number(score?.points_confirmed)).toBeCloseTo(confirmedPoints, 3)
+    // D-423 the other way round, restated by D-510: the correction wrote **every** point column,
+    // and each is what `scoring.priceBands` says of the bands the run now stands on — which is the
+    // arithmetic the replay and the debrief print. `points_confirmed` moves with the correction's
+    // floor because that is what `priceBands.confirmed` has always meant (the mean of the effective
+    // bands), and the figure the confirmation itself computed is kept where FR-005 puts it, in
+    // `points_before_correction` asserted three lines above. A frozen `points_confirmed` was a
+    // second answer to what a run is worth, and it was the answer the export read.
+    const priced = scoring.priceBands(await scoring.readBands(runId), scoring.DEFAULT_MAPPING)
+    expect(Number(score?.points_confirmed)).toBeCloseTo(Number(priced.confirmed), 3)
+    expect(Number(score?.points_before_correction)).toBeCloseTo(Number(priced.beforeCorrection), 3)
+    expect(Number(score?.points_after_correction)).toBeCloseTo(Number(priced.afterCorrection), 3)
+    expect(Number(score?.points_effective)).toBeCloseTo(Number(priced.effective), 3)
+    expect(Number(score?.points_draft)).toBeCloseTo(Number(priced.draft), 3)
     expect(score?.points_draft).not.toBeNull()
 
     // The newest file carries the effective points, which is what a gradebook reads (FR-005).
