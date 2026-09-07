@@ -27,6 +27,7 @@ import {
   assignments,
   claimNeutralizations,
   courseExports,
+  courseMappingChanges,
   courses,
   invitation,
   organization,
@@ -132,6 +133,10 @@ export async function purgeSuiteData(organizationId: string): Promise<void> {
       await db.delete(sectionMemberships).where(inArray(sectionMemberships.sectionId, sectionIds))
       await db.delete(sections).where(inArray(sections.id, sectionIds))
     }
+    // DATA-055's append-only log points at the course and does not cascade, so a suite that ever
+    // applied a mapping change (`instructor/mapping.spec.ts`) left a row that refused the course
+    // delete — and, because the teardown failed the same way, refused every later run's setup too.
+    await db.delete(courseMappingChanges).where(inArray(courseMappingChanges.courseId, courseIds))
     await db.delete(courses).where(inArray(courses.id, courseIds))
   }
 

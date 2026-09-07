@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { DelegationLog } from '@/components/features/run/delegation-log'
 import { enUS } from '@/lib/i18n/en-US'
 import type { DelegationView } from '@/server/modules/assistant/schema'
+import type { ClaimView } from '@/server/modules/reliance/schema'
 
 // UI-023's Delegation Log (FR-060, FR-084, D-270, D-272). The two controls it carries are the two
 // things a student does with a delegation after they have read it, and they are different kinds of
@@ -38,6 +39,26 @@ const ENTRY: DelegationView = {
   inTurnWindow: false,
   failed: false,
   createdAt: '2026-09-05T10:00:00.000Z',
+}
+
+/** The same claim as the log's own row carries, as the workspace reads it (`listRunClaims`). */
+const CLAIM_VIEW: ClaimView = {
+  id: CLAIM_ID,
+  key: 'C3',
+  text: CLAIM_TEXT,
+  surfacedBy: 'delegation',
+  surfacedAt: '2026-09-05T10:00:00.000Z',
+  inTurnWindow: false,
+  stance: null,
+  previousStance: null,
+  stanceSetAt: null,
+  actions: [],
+  availableActions: [],
+  escalation: null,
+  canEscalate: false,
+  remainingEscalations: 0,
+  usedMarked: false,
+  reliedOn: false,
 }
 
 const actions = vi.hoisted(() => ({ updateDelegationAction: vi.fn() }))
@@ -208,6 +229,22 @@ describe('DelegationLog (UI-023, FR-060)', () => {
     expect(screen.queryByRole('checkbox')).not.toBeInTheDocument()
     // The mark is a route into reliance, so the screen that reads reliance is asked for again.
     expect(router.refresh).toHaveBeenCalled()
+  })
+
+  // FR-210, WCAG 2.2 AA §2.4.3, D-500. The control removes itself — the mark is drawn by the claim
+  // from `usedMarked` and this seat carries only the press that has not happened yet — so without
+  // this the caret is dropped on `document.body`, from which WebKit's Tab moves nothing at all. It
+  // lands on the claim's own card, which is the `data-claim-id` anchor the Decision Lock's "Go to
+  // the claim" already uses and where the `used` chip has just appeared.
+  it('puts the caret on the claim it marked, rather than dropping it', async () => {
+    render(<DelegationLog runId={RUN_ID} delegations={[ENTRY]} claims={[CLAIM_VIEW]} canWrite />)
+    const user = userEvent.setup()
+
+    await user.click(markButton('C3'))
+
+    await waitFor(() => {
+      expect(document.querySelector(`[data-claim-id="${CLAIM_ID}"]`)).toHaveFocus()
+    })
   })
 
   it('keeps a mark the run already carries, with no control to undo it', () => {

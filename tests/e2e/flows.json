@@ -1,0 +1,208 @@
+{
+  "$comment": "The E2E flow register (14 §3). Every id here is derived from a document, never invented: `wt-NN` from the seventeen numbered steps of PRD §12 'The walkthrough', `flow-6-N` from the subsections of docs/tech/01-prd-analysis.md §6, and the three named in 14 §3's own sentence ('the flows of 01-prd-analysis.md §6 plus auth, authoring, admin'). ./coverage.test.ts re-parses both documents on every run and fails when this file and they disagree, so a step added to the PRD or a subsection added to §6 cannot pass unnoticed.",
+  "flows": [
+    {
+      "id": "wt-01",
+      "source": "prd-12-walkthrough",
+      "step": 1,
+      "title": "Package",
+      "specs": ["walkthrough/01-package.spec.ts"]
+    },
+    {
+      "id": "wt-02",
+      "source": "prd-12-walkthrough",
+      "step": 2,
+      "title": "Run start",
+      "specs": ["walkthrough/02-05-start-to-frame.spec.ts", "walkthrough/16-sound-variant.spec.ts"]
+    },
+    {
+      "id": "wt-03",
+      "source": "prd-12-walkthrough",
+      "step": 3,
+      "title": "Readiness Check",
+      "specs": ["walkthrough/02-05-start-to-frame.spec.ts", "walkthrough/16-sound-variant.spec.ts"]
+    },
+    {
+      "id": "wt-04",
+      "source": "prd-12-walkthrough",
+      "step": 4,
+      "title": "Brief and Evidence Room",
+      "specs": ["walkthrough/02-05-start-to-frame.spec.ts", "walkthrough/16-sound-variant.spec.ts"]
+    },
+    {
+      "id": "wt-05",
+      "source": "prd-12-walkthrough",
+      "step": 5,
+      "title": "Frame",
+      "specs": ["walkthrough/02-05-start-to-frame.spec.ts", "walkthrough/16-sound-variant.spec.ts"]
+    },
+    {
+      "id": "wt-06",
+      "source": "prd-12-walkthrough",
+      "step": 6,
+      "title": "Working period",
+      "specs": ["walkthrough/06-working-period.spec.ts", "walkthrough/16-sound-variant.spec.ts"]
+    },
+    {
+      "id": "wt-07",
+      "source": "prd-12-walkthrough",
+      "step": 7,
+      "title": "Forced failure",
+      "specs": ["walkthrough/07-forced-failure.spec.ts"]
+    },
+    {
+      "id": "wt-08",
+      "source": "prd-12-walkthrough",
+      "step": 8,
+      "title": "Lock",
+      "specs": ["walkthrough/08-lock.spec.ts", "walkthrough/16-sound-variant.spec.ts"]
+    },
+    {
+      "id": "wt-09",
+      "source": "prd-12-walkthrough",
+      "step": 9,
+      "title": "Turn",
+      "specs": ["walkthrough/09-turn.spec.ts", "walkthrough/16-sound-variant.spec.ts"]
+    },
+    {
+      "id": "wt-10",
+      "source": "prd-12-walkthrough",
+      "step": 10,
+      "title": "Defense",
+      "specs": ["walkthrough/10-defense.spec.ts", "walkthrough/16-sound-variant.spec.ts"]
+    },
+    {
+      "id": "wt-11",
+      "source": "prd-12-walkthrough",
+      "step": 11,
+      "title": "Scoring and draft debrief",
+      "specs": ["walkthrough/11-scoring-debrief.spec.ts", "walkthrough/16-sound-variant.spec.ts"]
+    },
+    {
+      "id": "wt-12",
+      "source": "prd-12-walkthrough",
+      "step": 12,
+      "title": "Faculty replay",
+      "specs": ["walkthrough/12-faculty-replay.spec.ts", "walkthrough/16-sound-variant.spec.ts"]
+    },
+    {
+      "id": "wt-13",
+      "source": "prd-12-walkthrough",
+      "step": 13,
+      "title": "Debrief",
+      "specs": ["walkthrough/13-debrief-confirmed.spec.ts", "walkthrough/16-sound-variant.spec.ts"]
+    },
+    {
+      "id": "wt-14",
+      "source": "prd-12-walkthrough",
+      "step": 14,
+      "title": "Export and record",
+      "specs": ["walkthrough/14-export-record.spec.ts", "walkthrough/16-sound-variant.spec.ts"]
+    },
+    {
+      "id": "wt-15",
+      "source": "prd-12-walkthrough",
+      "step": 15,
+      "title": "Neutralize and void",
+      "specs": ["walkthrough/15-neutralize-void.spec.ts"]
+    },
+    {
+      "id": "wt-16",
+      "source": "prd-12-walkthrough",
+      "step": 16,
+      "title": "Sound variant",
+      "specs": ["walkthrough/16-sound-variant.spec.ts"]
+    },
+    {
+      "id": "wt-17",
+      "source": "prd-12-walkthrough",
+      "step": 17,
+      "title": "Standing rules and accessibility",
+      "specs": ["walkthrough/17-standing-rules-a11y.spec.ts", "a11y/keyboard-only-run.spec.ts"]
+    },
+
+    {
+      "id": "flow-6-1",
+      "source": "prd-analysis-6",
+      "section": "6.1",
+      "title": "The build walkthrough (PRD §12), end to end",
+      "specs": ["walkthrough/16-sound-variant.spec.ts"]
+    },
+    {
+      "id": "flow-6-2",
+      "source": "prd-analysis-6",
+      "section": "6.2",
+      "title": "Run lifecycle (PRD §8), build path and future-state states",
+      "specs": [
+        "walkthrough/07-forced-failure.spec.ts",
+        "walkthrough/08-lock.spec.ts",
+        "walkthrough/15-neutralize-void.spec.ts"
+      ]
+    },
+    {
+      "id": "flow-6-3",
+      "source": "prd-analysis-6",
+      "section": "6.3",
+      "title": "Delegation with claim surfacing (PRD §7.5, §7.6)",
+      "specs": ["walkthrough/06-working-period.spec.ts"]
+    },
+    {
+      "id": "flow-6-4",
+      "source": "prd-analysis-6",
+      "section": "6.4",
+      "title": "Decision Lock gate (PRD §7.8, §7.10)",
+      "specs": ["walkthrough/08-lock.spec.ts"]
+    },
+    {
+      "id": "flow-6-5",
+      "source": "prd-analysis-6",
+      "section": "6.5",
+      "title": "Scoring and confirmation (PRD §7.13, §7.17, §7.19)",
+      "specs": [
+        "walkthrough/11-scoring-debrief.spec.ts",
+        "walkthrough/12-faculty-replay.spec.ts",
+        "walkthrough/17-standing-rules-a11y.spec.ts",
+        "instructor/mapping.spec.ts"
+      ]
+    },
+    {
+      "id": "flow-6-6",
+      "source": "prd-analysis-6",
+      "section": "6.6",
+      "title": "Authoring from a seed case (PRD §7.18)",
+      "specs": ["author/packages.spec.ts", "author/confirm-workspace.spec.ts"]
+    },
+    {
+      "id": "flow-6-7",
+      "source": "prd-analysis-6",
+      "section": "6.7",
+      "title": "Authentication and invitation (SYS)",
+      "specs": ["auth/sign-up-verify-sign-in.spec.ts", "auth/invitation.spec.ts"]
+    },
+
+    {
+      "id": "auth",
+      "source": "testing-strategy-3",
+      "title": "Authentication, account, and session flows",
+      "specs": [
+        "auth/sign-up-verify-sign-in.spec.ts",
+        "auth/reset-password.spec.ts",
+        "auth/settings.spec.ts",
+        "auth/invitation.spec.ts"
+      ]
+    },
+    {
+      "id": "authoring",
+      "source": "testing-strategy-3",
+      "title": "Scenario authoring",
+      "specs": ["author/packages.spec.ts", "author/confirm-workspace.spec.ts"]
+    },
+    {
+      "id": "admin",
+      "source": "testing-strategy-3",
+      "title": "Platform administration",
+      "specs": ["admin/admin.spec.ts"],
+      "pending": "13.5"
+    }
+  ]
+}

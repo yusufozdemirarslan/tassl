@@ -212,6 +212,33 @@ describe('FrameForm (UI-023, FR-040)', () => {
     expect(router.refresh).toHaveBeenCalled()
   })
 
+  // FR-210, WCAG 2.2 AA §2.4.3, D-500. `framing` and `working` are one route, so locking the frame
+  // is a screen change with no navigation behind it: the server render replaces this whole form,
+  // and a confirmation that handed focus back to "Lock the frame" would be handing it to a control
+  // one beat from being removed — leaving the caret on `document.body`, from which WebKit's Tab
+  // moves nothing. It goes to the page title instead, which is where a client-side navigation puts
+  // it (`use-focus-on-route-change.ts`, 09 §6).
+  it('sends the caret to the page title when the lock lands, not back to a vanishing trigger', async () => {
+    const heading = document.createElement('h1')
+    heading.id = 'page-title'
+    heading.tabIndex = -1
+    document.body.append(heading)
+
+    const user = renderForm()
+    fillValidFrame()
+    await user.click(lockButton())
+    await user.click(
+      within(await screen.findByRole('alertdialog')).getByRole('button', {
+        name: enUS['workspace.lockConfirm'],
+      }),
+    )
+
+    await waitFor(() => {
+      expect(heading).toHaveFocus()
+    })
+    heading.remove()
+  })
+
   // 10 §6: `FRAME_INVALID` carries `details.field`, so the refusal lands on the control that caused
   // it rather than under the button.
   it('puts a server refusal on the field the server named', async () => {

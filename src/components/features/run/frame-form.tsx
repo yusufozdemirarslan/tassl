@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useForm, useWatch, type UseFormRegisterReturn } from 'react-hook-form'
@@ -198,6 +198,9 @@ export function FrameForm({ runId }: FrameFormProps) {
   }
   const sliderValue = parsedConfidence ?? heldConfidence
 
+  /** True once the lock has landed, so the confirmation knows the trigger is not the answer. */
+  const locked = useRef(false)
+
   function lock(): void {
     if (locking) return
     setLocking(true)
@@ -214,6 +217,11 @@ export function FrameForm({ runId }: FrameFormProps) {
           // The run is in `working` now and the action has already invalidated this route; the
           // server render decides what stands here next. `locking` stays true so the button keeps
           // saying so until the new tree arrives.
+          //
+          // The caret goes with it (D-500): this whole form is about to be replaced by the working
+          // screen, so the confirmation must not hand focus back to a "Lock the frame" that is a
+          // beat away from being removed. `locked` is what the dialog's `finalFocus` reads.
+          locked.current = true
           setConfirmOpen(false)
           router.refresh()
           return
@@ -390,6 +398,9 @@ export function FrameForm({ runId }: FrameFormProps) {
           onOpenChange={setConfirmOpen}
           locking={locking}
           onConfirm={lock}
+          finalFocus={() =>
+            locked.current ? (document.getElementById('page-title') ?? undefined) : undefined
+          }
         />
       )}
     </Panel>

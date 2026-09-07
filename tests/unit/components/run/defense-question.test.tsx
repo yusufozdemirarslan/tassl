@@ -457,4 +457,25 @@ describe('DefenseInterview', () => {
     // … and the list is re-read, so the next press meets a list that is true.
     expect(router.refresh).toHaveBeenCalled()
   })
+
+  // FR-210, WCAG 2.2 AA §2.4.3, D-500. Every answer but the last hands the caret to the question
+  // that becomes current; the last one has nobody to hand it to, and the form it was submitted from
+  // unmounts into the quoted answer. Without this the caret is dropped on `document.body`, from
+  // which WebKit's Tab moves nothing at all — on the screen whose only remaining act is finishing.
+  it('puts the caret on the finish control when the last question is answered', async () => {
+    const user = userEvent.setup()
+    const only = [question({ runQuestionId: Q1, seq: 1 })]
+    actions.answerDefenseQuestionAction.mockResolvedValue({
+      ok: true,
+      data: { next: null, followUpQuestion: null },
+    })
+    render(<DefenseInterview runId={RUN_ID} questions={only} />)
+
+    await user.type(screen.getByLabelText(enUS['defense.answerLabel']), 'I read it in the room.')
+    await user.click(screen.getByRole('button', { name: enUS['defense.answerSubmit'] }))
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: enUS['defense.finish'] })).toHaveFocus()
+    })
+  })
 })

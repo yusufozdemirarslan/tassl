@@ -1,6 +1,6 @@
 'use client'
 
-import { useId, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Loader2Icon } from 'lucide-react'
 import { FormAlert } from '@/components/features/account/form-feedback'
@@ -59,10 +59,33 @@ export function DebriefQuestions({
   const [refused, setRefused] = useState<string | null>(null)
   const [invalid, setInvalid] = useState(false)
 
+  // Where the caret goes when the answers are filed (D-500). The press revalidates this route, the
+  // server render replaces the form with the two answers, and the button that was pressed goes with
+  // it — leaving a keyboard user on `document.body`, from which WebKit's Tab moves nothing at all.
+  // This is the last act of a run, so nothing downstream noticed. The caret lands on the first
+  // filed answer's own heading, which is the `useFocusOnRouteChange` idiom applied to a screen that
+  // changed without navigating: the student hears what they filed, in their own question's words.
+  //
+  // Only when the caret was actually dropped — an engine that put it somewhere real is not fought,
+  // and a reader who moved on while the write was in flight keeps the place they chose.
+  const filed = useRef<HTMLHeadingElement>(null)
+  const wasAnswered = useRef(answered)
+  useEffect(() => {
+    const before = wasAnswered.current
+    wasAnswered.current = answered
+    if (before || !answered) return
+    if (document.activeElement !== null && document.activeElement !== document.body) return
+    filed.current?.focus()
+  }, [answered])
+
   if (answered) {
     return (
       <div className="flex flex-col gap-6">
-        <FiledAnswer label={t('debrief.questions.stanceToChange.label')} answer={stanceToChange} />
+        <FiledAnswer
+          ref={filed}
+          label={t('debrief.questions.stanceToChange.label')}
+          answer={stanceToChange}
+        />
         <FiledAnswer label={t('debrief.questions.doDifferently.label')} answer={doDifferently} />
         {answeredAt !== null && (
           <p className="text-ink-muted text-meta font-mono tabular-nums">
@@ -175,10 +198,25 @@ export function DebriefQuestions({
   )
 }
 
-function FiledAnswer({ label, answer }: { label: string; answer: string | null }) {
+function FiledAnswer({
+  label,
+  answer,
+  ref,
+}: {
+  label: string
+  answer: string | null
+  /** Set on the first of the two: the heading the caret lands on when the pair is filed (D-500). */
+  ref?: React.Ref<HTMLHeadingElement>
+}) {
   return (
     <div className="flex flex-col gap-2">
-      <h3 className="text-h4">{label}</h3>
+      <h3
+        ref={ref}
+        tabIndex={ref === undefined ? undefined : -1}
+        className="text-h4 focus-visible:outline-focus max-w-full rounded-sm focus-visible:outline-2 focus-visible:outline-offset-2"
+      >
+        {label}
+      </h3>
       <p className="text-ink text-reading max-w-measure break-words whitespace-pre-line">
         {answer ?? ''}
       </p>
