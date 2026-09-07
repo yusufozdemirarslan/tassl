@@ -99,7 +99,7 @@
 - [ ] Phase 10 exit criteria
 
 ## Phase 11 — Faculty replay, debrief, record, exports, notifications (`build-plan/phase-11-review-debrief-record.md`)
-- [ ] 11.1 Review service: replay, band decisions, confirm, neutralize, void and re-offer, manual banding, flagging
+- [x] 11.1 Review service: replay, band decisions, confirm, neutralize, void and re-offer, manual banding, flagging
 - [ ] 11.2 Debrief service and mapping change with recompute
 - [ ] 11.3 Faculty replay screen
 - [ ] 11.4 Debrief, record, run status, exports, notifications, queue screens
