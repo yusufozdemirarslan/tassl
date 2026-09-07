@@ -228,6 +228,84 @@ export const ReplayLabelsSchema = z.object({
 })
 export type ReplayLabels = z.infer<typeof ReplayLabelsSchema>
 
+/**
+ * `courses.mapping` restated: what each band is worth in this course's gradebook (FR-202).
+ *
+ * It is on the replay because UI-033's points sentence shows the arithmetic rather than asserting a
+ * number, and the arithmetic is the mapping applied to the seven bands on the page. A module schema
+ * may import nothing but `src/lib` (04 §2), so the four keys are written out here as they are in
+ * `debrief/schema.ts`; `scoring`'s `BandMapping` is the type they satisfy.
+ */
+export const ReplayMappingSchema = z.object({
+  novice: z.number(),
+  developing: z.number(),
+  proficient: z.number(),
+  professional: z.number(),
+})
+export type ReplayMapping = z.infer<typeof ReplayMappingSchema>
+
+/**
+ * The course's arithmetic over this run's bands (FR-202, FR-203, D-091, D-445).
+ *
+ * The figures are priced from the bands the replay is carrying, through the same
+ * `scoring.priceBands` the confirmation and the mapping change write with, rather than read back
+ * from `run_scores`: a neutralization on a confirmed run raises a band and writes the two
+ * correction columns without rewriting `points_confirmed`, so the stored figure can name a number
+ * the bands beside it no longer support. One arithmetic over the seven bands on the page is the
+ * only way the screen and the exported file cannot disagree.
+ */
+/**
+ * Which set of bands the total was priced from, so a screen showing the arithmetic shows the terms
+ * the total was actually computed over.
+ *
+ * FR-005's floor is what makes this necessary: after a correction the run keeps the *higher* of the
+ * pre- and post-correction totals, so on a run where the correction lowered nothing the effective
+ * figure is priced over the bands as they stood *before* it. A page that printed the effective
+ * bands beside that total would print a sum that does not add up — on the one panel whose whole
+ * purpose is that the figure can be checked rather than taken on trust.
+ */
+export const ReplayPointsBasisSchema = z.enum([
+  'draft',
+  'confirmed',
+  'before_correction',
+  'after_correction',
+])
+export type ReplayPointsBasisValue = z.infer<typeof ReplayPointsBasisSchema>
+
+export const ReplayPointsSchema = z.object({
+  mapping: ReplayMappingSchema,
+  /** Which bands `effective ?? confirmed ?? draft` was priced from. */
+  basis: ReplayPointsBasisSchema,
+  /** How many of the seven dimensions the arithmetic divides by (FR-202). */
+  assessed: z.int().min(0),
+  draft: z.number().nullable(),
+  confirmed: z.number().nullable(),
+  effective: z.number().nullable(),
+})
+export type ReplayPoints = z.infer<typeof ReplayPointsSchema>
+
+/**
+ * What the pipeline and the run recorded about *how the run went*, as UI-033's flags panel lists it.
+ *
+ * One flat list rather than three raw records, because the three live in three tables — `runs.flags`
+ * (FR-018, FR-118, FR-125), `run_scores.flags` (FR-141) and the locked brief's `speed_outlier`
+ * (FR-106) — and a screen that read all three would be deciding which keys are observations. It is
+ * the service that knows; the screen labels what it is handed.
+ *
+ * **None of these is a finding about a person.** Nothing Tassl observes is treated as misconduct
+ * (PRD §7 standing rules): each names something that happened in the run, and the panel that draws
+ * them says so.
+ */
+export const ReplayObservationSchema = z.enum([
+  'nothing_answered',
+  'all_novice',
+  'all_professional',
+  'speed_outlier',
+  'readiness_submit_failed',
+  'forced_failure_armed',
+])
+export type ReplayObservationValue = z.infer<typeof ReplayObservationSchema>
+
 export const ReplayBundleSchema = z.object({
   run: foreignDocument,
   events: z.array(foreignDocument),
@@ -242,8 +320,17 @@ export const ReplayBundleSchema = z.object({
   unverifiedNumbers: z.array(ReplayUnverifiedNumberSchema),
   neutralizations: z.array(ReplayNeutralizationSchema),
   exports: z.array(ReplayExportSchema),
+  points: ReplayPointsSchema,
+  /**
+   * Who decided each band, by id: their display name, and whether they hold the instructor role on
+   * this section. `run_bands.decided_by` is a user id, which is neither of the two things a screen
+   * needs from it (08 §4's TA rule, and the colleague's name).
+   */
+  deciders: z.record(z.string(), z.object({ name: z.string(), isInstructor: z.boolean() })),
   /** `runs.flags` — instructor observations, forbidden in every student payload (12 §8.1). */
   flags: z.record(z.string(), z.unknown()),
+  /** The same observations, named and de-duplicated across the three tables that hold them. */
+  observations: z.array(ReplayObservationSchema),
   labels: ReplayLabelsSchema,
   capabilities: ReplayCapabilitiesSchema,
 })

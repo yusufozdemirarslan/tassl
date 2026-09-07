@@ -92,8 +92,16 @@ function fact(scope: Locator, label: string): Locator {
 }
 
 /** The block a per-variant heading owns inside the claim object view. */
-function variantBlock(scope: Locator, heading: string): Locator {
-  return scope.locator(`xpath=.//h4[normalize-space(.)=${JSON.stringify(heading)}]/..`)
+/**
+ * One variant's block inside the claim object, by the variant it is about.
+ *
+ * `data-variant` rather than the heading's parent: UI-033 draws the two variants side by side with
+ * the run's own marked by a chip beside the heading, so the heading is no longer its block's only
+ * child and `//h4/..` resolves to the row holding the chip. A hook that names the block survives
+ * the composition changing around it.
+ */
+function variantBlock(scope: Locator, variantKey: 'defective' | 'sound'): Locator {
+  return scope.locator(`[data-variant="${variantKey}"]`)
 }
 
 test('an instructor starts a package from a seed case, imports one whole, and reads a claim back', async ({
@@ -380,7 +388,7 @@ test('an instructor starts a package from a seed case, imports one whole, and re
 
   // The answer key for this claim, variant by variant: what it deserved, and the two interrogation
   // actions that would have returned enough to refuse it.
-  const defective = variantBlock(claim, 'Defective variant')
+  const defective = variantBlock(claim, 'defective')
   await expect(fact(defective, 'Evidence status')).toHaveText('Defective')
   await expect(fact(defective, 'Failure family')).toHaveText('Stale evidence')
   await expect(fact(defective, 'Warranted stance')).toHaveText('Challenge')
@@ -395,7 +403,7 @@ test('an instructor starts a package from a seed case, imports one whole, and re
     defective.getByText('310 divided by 19.40, contribution after fulfillment'),
   ).toBeVisible()
 
-  const sound = variantBlock(claim, 'Sound variant')
+  const sound = variantBlock(claim, 'sound')
   await expect(fact(sound, 'Evidence status')).toHaveText('Sound')
   await expect(fact(sound, 'Failure family')).toHaveText('None; sound in this variant')
   await expect(fact(sound, 'Planted defect')).toHaveText('No')

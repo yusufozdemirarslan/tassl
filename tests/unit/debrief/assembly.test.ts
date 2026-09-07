@@ -23,6 +23,7 @@
 // guard (D-430's property, one namespace along).
 import { describe, expect, it } from 'vitest'
 import { debrief } from '@/lib/i18n/messages/debrief'
+import { scan } from '../support/product-voice'
 import { t } from '@/lib/i18n/t'
 import {
   buildSections,
@@ -483,146 +484,9 @@ describe('done well selection', () => {
 // 3. The voice (PRD §7 standing rules, FR-153, FR-131)
 // ---------------------------------------------------------------------------------------------
 
-/**
- * One forbidden term, as a regex source matched on word boundaries.
- *
- * Boundaries rather than substrings, because the substrings collide with ordinary English this
- * catalogue is entitled to use: "means" and "meaning" are not the noun "mean", "default" is not
- * "fault", "appeared" is not "peer", and "frank" is not "rank". The variants each term admits are
- * written out, so "cheating" is caught by the entry for "cheat".
- */
-type Vocabulary = { name: string; terms: readonly string[] }
-
-/**
- * "Nothing Tassl observes is treated as misconduct" (PRD §7 standing rules) and "the debrief never
- * uses the word cheating" (FR-153). There is no sentence on this surface that accuses.
- */
-const MISCONDUCT: Vocabulary = {
-  name: 'misconduct',
-  terms: [
-    'cheat(?:s|ed|ing|er|ers)?',
-    'dishonest(?:y|ly)?',
-    'misconduct',
-    'plagiaris(?:m|e|ed|ing)',
-    'plagiariz(?:m|e|ed|ing)',
-    'fraud(?:ulent)?',
-    'deceit(?:ful)?',
-    'deceiv(?:e|ed|ing)',
-    'decept(?:ion|ive)',
-    'suspicio(?:n|us)',
-    'violat(?:e|ed|ion|ions)',
-    'guilt(?:y)?',
-    'blam(?:e|ed|ing)',
-    'fault(?:y)?',
-    'caught',
-    'breach(?:ed|es)?',
-    'excuse(?:s|d)?',
-    'accus(?:e|ed|ation|ations)',
-  ],
-}
-
-/**
- * "Never characterizes motives" and "attributes failures to specific actions and omissions"
- * (FR-153), and PRD §7.13's rule that Tassl describes what happened, never who the person is. The
- * verb "fail" is in the list on purpose: "you failed to check" is exactly the register the rule
- * exists to keep out, and "accepted without running a Source Trace" is what replaces it.
- */
-const CHARACTER: Vocabulary = {
-  name: 'character and motive',
-  terms: [
-    'lazy',
-    'laziness',
-    'careless(?:ly|ness)?',
-    'sloppy',
-    'negligen(?:t|ce)',
-    'incompeten(?:t|ce)',
-    'stupid',
-    'fool(?:s|ish)?',
-    'naive',
-    'gullible',
-    'credulous',
-    'arrogan(?:t|ce)',
-    'complacen(?:t|cy)',
-    'reckless(?:ly|ness)?',
-    'overconfiden(?:t|ce)',
-    'unmotivated',
-    'disengaged',
-    'rush(?:ed|ing)',
-    'attitude',
-    'motive(?:s)?',
-    'intent(?:ion|ional|ionally)?',
-    'deliberate(?:ly)?',
-    'wilful(?:ly)?',
-    'willful(?:ly)?',
-    'character',
-    'trait(?:s)?',
-    'personality',
-    'capable',
-    'incapable',
-    'fail(?:s|ed|ing|ure|ures)?',
-    'weak(?:ly|er|ness)?',
-    'poor(?:ly)?',
-    'bad(?:ly)?',
-    'good',
-    'strong(?:ly|er)?',
-    'excellent',
-    'impressive',
-    'disappointing',
-  ],
-}
-
-/**
- * FR-131: "no composite judgment score, rank, percentile, or validated trait claim". Nothing on this
- * surface compares one run with another or with a cohort, and the word "score" does not appear —
- * what the run holds is seven bands, and what the course does with them is arithmetic.
- */
-const RANKING: Vocabulary = {
-  name: 'ranking and comparison',
-  terms: [
-    'score(?:s|d|r|rs)?',
-    'scoring',
-    'rank(?:s|ed|ing|ings)?',
-    'percentile(?:s)?',
-    'average(?:s|d)?',
-    'mean',
-    'median',
-    'cohort(?:s)?',
-    'peer(?:s)?',
-    'classmate(?:s)?',
-    'composite',
-    'better than',
-    'worse than',
-    'compared (?:to|with)',
-    'comparison(?:s)?',
-    'top of',
-    'bottom of',
-  ],
-}
-
-const VOCABULARIES: readonly Vocabulary[] = [MISCONDUCT, CHARACTER, RANKING]
-
-const matcherFor = (vocabulary: Vocabulary): RegExp =>
-  new RegExp(`\\b(?:${vocabulary.terms.join('|')})\\b`, 'gi')
-
-/** Every `debrief.` key and value in the catalogue, as `path → text` pairs to scan. */
-function debriefStrings(catalogue: Record<string, string>): { path: string; text: string }[] {
-  return Object.entries(catalogue).flatMap(([key, value]) => [
-    { path: `${key} (key)`, text: key.replace(/[.]/g, ' ').replace(/([a-z])([A-Z])/g, '$1 $2') },
-    { path: key, text: value },
-  ])
-}
-
-function scan(catalogue: Record<string, string>): { path: string; word: string; rule: string }[] {
-  const findings: { path: string; word: string; rule: string }[] = []
-  for (const { path, text } of debriefStrings(catalogue)) {
-    for (const vocabulary of VOCABULARIES) {
-      for (const hit of text.match(matcherFor(vocabulary)) ?? []) {
-        findings.push({ path, word: hit, rule: vocabulary.name })
-      }
-    }
-  }
-  return findings
-}
+// The three vocabularies and the scan are `tests/unit/support/product-voice.ts`: the reviewer's
+// replay namespace is held to the same lists (D-457), and one copy of a forbidden-word list is
+// the only way both surfaces can be held to the same one.
 
 describe('the debrief catalogue keeps the product voice', () => {
   it('holds every key the assembly interpolates', () => {

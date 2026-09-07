@@ -134,6 +134,45 @@ export async function findReplayData(
   }
 }
 
+/** One person who has decided a band on this run: their name, and their role on the section. */
+export type Decider = { id: string; name: string; role: string | null }
+
+/**
+ * The deciders of a run's bands, resolved in one statement.
+ *
+ * Both halves are needed and neither is on `run_bands`. The **name** is what the replay promises
+ * ("the replay names the colleague whose decision a reviewer is looking at", `scoring/schema.ts`),
+ * and without it the screen prints a uuid at a colleague. The **role on this section** is 08 §4's
+ * TA rule: a teaching assistant may re-decide a dimension another TA decided and may not touch one
+ * an instructor decided, so "somebody decided this" is not the question — `assertNotInstructorLocked`
+ * asks the same thing one row at a time when the decision is written, and the screen has to ask it
+ * for all seven before offering a control that would refuse.
+ *
+ * `tenantId` first and joined through, like every other tenant-scoped read (D-006): the membership
+ * is only a membership of *this* institution's section, and a role read across a tenant boundary is
+ * the shape a permission bug takes.
+ */
+export async function findDeciders(
+  tenantId: string,
+  sectionId: string,
+  userIds: readonly string[],
+  dbx: DbOrTx = db,
+): Promise<Decider[]> {
+  if (userIds.length === 0) return []
+  return dbx
+    .select({ id: user.id, name: user.name, role: sectionMemberships.role })
+    .from(user)
+    .leftJoin(
+      sectionMemberships,
+      and(eq(sectionMemberships.userId, user.id), eq(sectionMemberships.sectionId, sectionId)),
+    )
+    .leftJoin(
+      sections,
+      and(eq(sections.id, sectionMemberships.sectionId), eq(sections.organizationId, tenantId)),
+    )
+    .where(inArray(user.id, [...userIds]))
+}
+
 /** Inserts one neutralization; the service checks for an existing one on the claim first. */
 export async function insertNeutralization(
   row: NewClaimNeutralization,

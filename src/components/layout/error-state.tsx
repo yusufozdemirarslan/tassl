@@ -40,7 +40,7 @@ export function ErrorState({
       ) : (
         <Heading className="text-h3">{heading}</Heading>
       )}
-      <p className="text-ink text-body max-w-[60ch]">{message}</p>
+      <p className="text-ink text-body max-w-measure">{message}</p>
       {requestId && (
         <p className="text-ink-muted text-meta max-w-full">
           {t('error.reference')}

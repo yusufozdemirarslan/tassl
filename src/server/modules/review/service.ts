@@ -67,6 +67,7 @@ import {
   computePoints,
   draftBandEventPayload,
   effectiveBandsOf,
+  priceBands,
   readBands,
   writeBandDecisions,
   writeConfirmedPoints,
@@ -75,6 +76,7 @@ import {
   type BandView,
   type Dimension,
   type RecomputeResult,
+  type RunGraphs,
 } from '@/server/modules/scoring'
 import { listMyInstitutions } from '@/server/modules/tenancy'
 import { append, listEvents, type TraceEventView } from '@/server/modules/trace'
@@ -96,6 +98,9 @@ import type {
   ReplayConcept,
   ReplayDeclaration,
   ReplayNeutralization,
+  ReplayObservationValue,
+  ReplayPoints,
+  ReplayPointsBasisValue,
   ReplayUnverifiedNumber,
 } from './schema'
 
@@ -110,7 +115,11 @@ export type {
   ReplayDeclaration,
   ReplayExport,
   ReplayLabels,
+  ReplayMapping,
   ReplayNeutralization,
+  ReplayObservationValue,
+  ReplayPoints,
+  ReplayPointsBasisValue,
   ReplayUnverifiedNumber,
 } from './schema'
 
@@ -194,18 +203,23 @@ export async function getReplay(actor: SessionUser, runId: string): Promise<Repl
     listRunExports(actor, runId).catch(emptyWhenNoExports),
     repo.listVersionClaimIds(context.packageVersionId),
   ])
-  // One claim object per authored claim, on the run's own variant: both variants' states are on
-  // each view and the current one is highlighted by the id (UI-033, FR-253).
+  // One claim object per authored claim, carrying **both** variants' states (UI-033, FR-253).
+  //
+  // `getClaimObject`'s variant argument filters the states down to one, and passing the run's own
+  // would leave the replay unable to draw the two side by side — which is the whole of what the
+  // Package tab is for: the difference between the two readings of a claim *is* the defect, and a
+  // reviewer deciding a band on a defective variant is asking what the sound one said. The run's
+  // variant is on the bundle already (`run.variantKey`), and the screen marks it there.
   const claims: ClaimObjectView[] = []
   for (const claimId of claimIds) {
-    claims.push(await getClaimObject(actor, context.packageVersionId, claimId, context.variantId))
+    claims.push(await getClaimObject(actor, context.packageVersionId, claimId))
   }
 
   const isInstructor = seat.role === 'instructor'
   return {
     run: toReviewSummary(data.run, context, data.bands, exports),
     events,
-    graphs: (data.score?.graphs ?? null) as Record<string, unknown> | null,
+    graphs: (data.score?.graphs as RunGraphs | undefined) ?? null,
     defense: data.questions.map((entry) => ({
       runQuestionId: entry.question.id,
       seq: entry.question.seq,
@@ -228,13 +242,21 @@ export async function getReplay(actor: SessionUser, runId: string): Promise<Repl
     unverifiedNumbers: unverifiedNumbersFrom(delegations),
     neutralizations: data.neutralizations.map(toReplayNeutralization),
     exports,
+    points: pointsOf(context.mapping, bands),
+    deciders: await decidersOf(tenantId, seat.sectionId, bands),
     // `runs.flags` — instructor observations, forbidden in every student payload (12 §8.1).
     flags: { ...data.run.flags },
+    observations: observationsOf(data),
     labels: { uncalibrated: true, isWalkthrough: data.run.isWalkthrough },
+    // Every one of these answers "may this seat press it *on this run*", not "may this seat press
+    // it at all". A voided run keeps its bands and its claims, so a capability that asked only
+    // about the role would have offered seven decision controls, a correction per claim and a
+    // second void on a run every one of those acts refuses (`assertDecidable`, `voidRun`'s
+    // transition). A control that can only refuse is worse than an absent one.
     capabilities: {
-      canDecide: true,
-      canVoid: isInstructor,
-      canNeutralize: isInstructor,
+      canDecide: DECIDABLE_STATES.has(data.run.state),
+      canVoid: isInstructor && data.run.state !== 'voided',
+      canNeutralize: isInstructor && DECIDABLE_STATES.has(data.run.state),
       canForceFailure: isInstructor && flagsFromEnv(env).testControls,
       canBandManually: data.run.scoringStatus === 'held',
       isInstructor,
@@ -252,7 +274,7 @@ export async function getReplay(actor: SessionUser, runId: string): Promise<Repl
 export type ReplayBundle = {
   run: RunReviewSummary
   events: TraceEventView[]
-  graphs: Record<string, unknown> | null
+  graphs: RunGraphs | null
   defense: ReplayDefenseEntry[]
   bands: BandView[]
   delegations: DelegationView[]
@@ -263,9 +285,107 @@ export type ReplayBundle = {
   unverifiedNumbers: ReplayUnverifiedNumber[]
   neutralizations: ReplayNeutralization[]
   exports: ExportSummary[]
+  points: ReplayPoints
+  deciders: Record<string, { name: string; isInstructor: boolean }>
   flags: Record<string, unknown>
+  observations: ReplayObservationValue[]
   labels: { uncalibrated: boolean; isWalkthrough: boolean }
   capabilities: ReplayCapabilities
+}
+
+/**
+ * The course's arithmetic over the seven bands the replay is carrying (FR-202, D-445).
+ *
+ * `scoring.priceBands` and nothing else: the confirmation writes `points_confirmed` with it, the
+ * mapping change rewrites every point column with it, and the debrief prices its own page with it.
+ * A second implementation of "add the mapping's value for each assessed band and divide by how many
+ * were assessed" would be a second answer to what a grade is — and the reviewer's screen and the
+ * student's debrief must never be able to give different ones.
+ *
+ * It is priced here rather than read back from `run_scores` for the reason D-445 gives: a
+ * neutralization raises a band and writes the correction columns without rewriting the confirmed
+ * figure, so the stored number can name a total the bands beside it no longer support.
+ */
+function pointsOf(mapping: repo.ReviewRunContext['mapping'], bands: readonly BandView[]) {
+  const priced = priceBands(bands, mapping)
+  // Which bands the figure a reader is shown was priced from. `effective` is FR-005's floor — the
+  // higher of the pre- and post-correction totals — so on a run whose correction raised nothing it
+  // is the *pre*-correction figure, and a screen that showed the effective bands beside it would be
+  // showing terms that do not sum to the total it prints (D-462).
+  const basis: ReplayPointsBasisValue =
+    priced.effective !== null
+      ? priced.effective === priced.beforeCorrection
+        ? 'before_correction'
+        : 'after_correction'
+      : priced.confirmed !== null
+        ? 'confirmed'
+        : 'draft'
+  return {
+    mapping,
+    basis,
+    assessed: Object.values(effectiveBandsOf(bands)).filter((band) => band !== null).length,
+    draft: priced.draft,
+    confirmed: priced.confirmed,
+    effective: priced.effective,
+  }
+}
+
+/**
+ * Who decided each band, resolved once for the whole bundle (08 §4, `scoring/schema.ts`).
+ *
+ * `run_bands.decided_by` is a user id and a screen needs two other things from it: the colleague's
+ * name, and whether they hold the instructor role on *this* section — which is the only thing that
+ * makes a dimension untouchable by a teaching assistant. `assertNotInstructorLocked` asks the same
+ * question one band at a time when a decision is written; the replay has to ask it for all seven
+ * before it draws a control that would refuse.
+ */
+async function decidersOf(
+  tenantId: string,
+  sectionId: string,
+  bands: readonly BandView[],
+): Promise<Record<string, { name: string; isInstructor: boolean }>> {
+  const ids = [...new Set(bands.map((band) => band.decidedBy).filter((id) => id !== null))]
+  const rows = await repo.findDeciders(tenantId, sectionId, ids)
+  return Object.fromEntries(
+    rows.map((row) => [row.id, { name: row.name, isInstructor: row.role === 'instructor' }]),
+  )
+}
+
+/**
+ * What the run and the pipeline recorded about how the run went (FR-018, FR-106, FR-118, FR-125,
+ * FR-141), gathered from the three tables that hold it into the one list UI-033 draws.
+ *
+ * `runs.flags` carries the run's own three, `run_scores.flags` carries FR-141's two placements and
+ * FR-125's, and the locked brief carries FR-106's speed outlier — so `nothing_answered` is written
+ * in two of them and appears once here. The screen labels what it is handed rather than deciding
+ * which keys of three raw records are observations.
+ *
+ * **None of these is a finding about a person** (PRD §7 standing rules). Each names something that
+ * happened in the run; `replay_first_opened_at` and `test` are not observations at all and are not
+ * in the enum, which is why the raw `flags` record travels beside this list rather than instead of
+ * it.
+ */
+function observationsOf(data: repo.ReplayData): ReplayObservationValue[] {
+  const found = new Set<ReplayObservationValue>()
+  for (const key of [
+    'nothing_answered',
+    'readiness_submit_failed',
+    'forced_failure_armed',
+  ] as const) {
+    if (data.run.flags[key] === true) found.add(key)
+  }
+  for (const flag of data.score?.flags ?? []) {
+    if (flag === 'all_novice' || flag === 'all_professional' || flag === 'nothing_answered') {
+      found.add(flag)
+    }
+  }
+  // FR-106's outlier is a field of the locked brief, and the layout graph is where it is published.
+  const layout = (data.score?.graphs as { frame_beside_decision?: { brief?: unknown } } | undefined)
+    ?.frame_beside_decision?.brief
+  if ((layout as { speed_outlier?: unknown } | null | undefined)?.speed_outlier === true) {
+    found.add('speed_outlier')
+  }
+  return [...found]
 }
 
 /** One question of the interview as the reviewer reads it, with the notes its author wrote. */

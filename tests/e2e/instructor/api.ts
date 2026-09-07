@@ -31,6 +31,42 @@ export type Requester = Page | APIRequestContext
 const api = (target: Requester): APIRequestContext =>
   'request' in target ? target.request : target
 
+/** At most this many refusals are waited out before a 429 is reported as the failure it is. */
+const RATE_LIMIT_WAITS = 4
+
+/**
+ * One fixture write, checked — and waited out when the limiter refuses it (D-026).
+ *
+ * Every course, section, membership and assignment in the suite is created by the *same* seat, and
+ * the suite runs four spec files at once across three browser projects: a dozen specs each spending
+ * four writes on setup is over D-026's sixty a minute for that user, and the overage is a fact
+ * about a lane that shares one instructor rather than a defect in the product — the limiter is
+ * proven on its own in `tests/integration/rate-limit`. So a refusal is waited out rather than
+ * failed on, exactly as `signIn` in ../fixtures.ts waits out Better Auth's and as
+ * `../walkthrough/scored-run.ts` waits out this one: the answer carries `retryAfterSeconds`, the
+ * wait is bounded, and a lane under contention degrades to slow instead of red. Every other status
+ * is the caller's own failure and is raised where it happened.
+ */
+async function createRow<T>(
+  target: Requester,
+  path: string,
+  data: unknown,
+  what: string,
+): Promise<T> {
+  for (let attempt = 0; ; attempt += 1) {
+    const response = await api(target).post(path, { data, headers: WRITE_HEADERS })
+    if (response.status() !== 429 || attempt >= RATE_LIMIT_WAITS) {
+      expect(response.status(), `${what}: ${await response.text()}`).toBe(201)
+      return (await response.json()) as T
+    }
+    const refusal = (await response.json().catch(() => null)) as {
+      error?: { details?: { retryAfterSeconds?: number } }
+    } | null
+    const seconds = Math.min(Math.max(refusal?.error?.details?.retryAfterSeconds ?? 5, 1), 60)
+    await new Promise((resolve) => setTimeout(resolve, seconds * 1000 + 500))
+  }
+}
+
 export type CreatedCourse = { id: string; name: string }
 export type CreatedSection = { id: string; name: string }
 export type CreatedAssignment = { id: string; label: string }
@@ -68,12 +104,12 @@ export async function createCourse(
   what: string,
 ): Promise<CreatedCourse> {
   const name = suiteName(what)
-  const response = await api(target).post(`/api/v1/institutions/${orgId}/courses`, {
-    data: { name, term: '2026-fall' },
-    headers: WRITE_HEADERS,
-  })
-  expect(response.status(), await response.text()).toBe(201)
-  const course = (await response.json()) as CreatedCourse
+  const course = await createRow<CreatedCourse>(
+    target,
+    `/api/v1/institutions/${orgId}/courses`,
+    { name, term: '2026-fall' },
+    'create course',
+  )
   return { id: course.id, name }
 }
 
@@ -82,12 +118,12 @@ export async function createSection(
   courseId: string,
   name: string,
 ): Promise<CreatedSection> {
-  const response = await api(target).post(`/api/v1/courses/${courseId}/sections`, {
-    data: { name },
-    headers: WRITE_HEADERS,
-  })
-  expect(response.status(), await response.text()).toBe(201)
-  const section = (await response.json()) as CreatedSection
+  const section = await createRow<CreatedSection>(
+    target,
+    `/api/v1/courses/${courseId}/sections`,
+    { name },
+    'create section',
+  )
   return { id: section.id, name }
 }
 
@@ -96,11 +132,7 @@ export async function addSectionMember(
   sectionId: string,
   input: { email: string; role: 'student' | 'instructor' | 'ta' },
 ): Promise<void> {
-  const response = await api(target).post(`/api/v1/sections/${sectionId}/members`, {
-    data: input,
-    headers: WRITE_HEADERS,
-  })
-  expect(response.status(), await response.text()).toBe(201)
+  await createRow(target, `/api/v1/sections/${sectionId}/members`, input, 'add section member')
 }
 
 export async function createAssignment(
@@ -108,12 +140,12 @@ export async function createAssignment(
   sectionId: string,
   input: { label: string; packageVersionId: string; variantId: string },
 ): Promise<CreatedAssignment> {
-  const response = await api(target).post(`/api/v1/sections/${sectionId}/assignments`, {
-    data: input,
-    headers: WRITE_HEADERS,
-  })
-  expect(response.status(), await response.text()).toBe(201)
-  const assignment = (await response.json()) as CreatedAssignment
+  const assignment = await createRow<CreatedAssignment>(
+    target,
+    `/api/v1/sections/${sectionId}/assignments`,
+    input,
+    'create assignment',
+  )
   return { id: assignment.id, label: input.label }
 }
 

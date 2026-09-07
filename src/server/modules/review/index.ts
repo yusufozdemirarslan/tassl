@@ -42,6 +42,7 @@ export {
   NeutralizeInputSchema,
   NeutralizeReasonSchema,
   ReplayBundleSchema,
+  ReplayObservationSchema,
   ReviewQueueSchema,
   RunIdParamsSchema,
   SectionIdParamsSchema,
@@ -59,6 +60,10 @@ export type {
   ReplayDeclaration,
   ReplayExport,
   ReplayLabels,
+  ReplayMapping,
   ReplayNeutralization,
+  ReplayObservationValue,
+  ReplayPoints,
+  ReplayPointsBasisValue,
   ReplayUnverifiedNumber,
 } from './schema'

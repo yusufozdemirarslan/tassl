@@ -11,7 +11,7 @@
 // is what makes that safe here and not on the workspace (D-268).
 import { revalidatePath } from 'next/cache'
 import { defineAction } from '@/server/http/define-action'
-import { VoidRunSchema, voidRun } from '@/server/modules/runs'
+import { VoidRunSchema, forceAssistantFailure, voidRun } from '@/server/modules/runs'
 import { flagDelegation } from '@/server/modules/assistant'
 import {
   BandDecisionInputSchema,
@@ -97,6 +97,27 @@ export const voidRunAction = defineAction(
     return { data }
   },
   { name: 'voidRunAction' },
+)
+
+/**
+ * Arms the next assistant call of this run to fail (FR-118), which is UI-033's test control.
+ *
+ * The run's own module owns the rule, exactly as the route does: what it writes is a `runs.flags`
+ * key and what it causes is a pause of the run's own clock. It is here because the seat that
+ * presses it is the faculty one and the screen that offers it is the replay — the same split the
+ * router makes for the void and the delegation flag.
+ *
+ * It revalidates the replay so the observations panel shows the arming, which is the only feedback
+ * the instructor gets: what the control does happens on the *student's* next request, not here.
+ */
+export const forceAssistantFailureAction = defineAction(
+  RunIdParamsSchema,
+  async ({ runId }, ctx) => {
+    const data = await forceAssistantFailure(ctx.actor, runId)
+    revalidateReplay(runId)
+    return { data }
+  },
+  { name: 'forceAssistantFailureAction' },
 )
 
 const FlagDelegationActionSchema = DelegationParamsSchema.extend(FlagDelegationInputSchema.shape)

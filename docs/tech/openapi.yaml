@@ -14362,11 +14362,88 @@ paths:
                         - reason
                         - createdAt
                       additionalProperties: false
+                  points:
+                    type: object
+                    properties:
+                      mapping:
+                        type: object
+                        properties:
+                          novice:
+                            type: number
+                          developing:
+                            type: number
+                          proficient:
+                            type: number
+                          professional:
+                            type: number
+                        required:
+                          - novice
+                          - developing
+                          - proficient
+                          - professional
+                        additionalProperties: false
+                      basis:
+                        type: string
+                        enum:
+                          - draft
+                          - confirmed
+                          - before_correction
+                          - after_correction
+                      assessed:
+                        type: integer
+                        minimum: 0
+                        maximum: 9007199254740991
+                      draft:
+                        type:
+                          - number
+                          - "null"
+                      confirmed:
+                        type:
+                          - number
+                          - "null"
+                      effective:
+                        type:
+                          - number
+                          - "null"
+                    required:
+                      - mapping
+                      - basis
+                      - assessed
+                      - draft
+                      - confirmed
+                      - effective
+                    additionalProperties: false
+                  deciders:
+                    type: object
+                    propertyNames:
+                      type: string
+                    additionalProperties:
+                      type: object
+                      properties:
+                        name:
+                          type: string
+                        isInstructor:
+                          type: boolean
+                      required:
+                        - name
+                        - isInstructor
+                      additionalProperties: false
                   flags:
                     type: object
                     propertyNames:
                       type: string
                     additionalProperties: {}
+                  observations:
+                    type: array
+                    items:
+                      type: string
+                      enum:
+                        - nothing_answered
+                        - all_novice
+                        - all_professional
+                        - speed_outlier
+                        - readiness_submit_failed
+                        - forced_failure_armed
                   labels:
                     type: object
                     properties:
@@ -14415,7 +14492,10 @@ paths:
                   - unverifiedNumbers
                   - neutralizations
                   - exports
+                  - points
+                  - deciders
                   - flags
+                  - observations
                   - labels
                   - capabilities
                 additionalProperties: false

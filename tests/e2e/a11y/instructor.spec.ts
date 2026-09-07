@@ -6,18 +6,26 @@
 // about the screen a class actually meets. The rows are this spec's own (14 §2) and
 // `tests/e2e/global-setup.ts` takes them out at the end of the run.
 import { seededPackage, suiteName } from '../fixture-package'
-import { axe, expect, signInAs, signOut, test } from '../fixtures'
+import { axe, expect, seatEmail, signInAs, signOut, test, type Seat } from '../fixtures'
 import {
   addSectionMember,
   createAssignment,
   createCourse,
   createSection,
+  createStudentAssignment,
+  signInAsInstructor,
   walkthroughOrgId,
 } from '../instructor/api'
+import { driveRunToScored, post, readJson } from '../walkthrough/scored-run'
 
 const SECTION_NAME = 'Section X'
 
 test('the Phase 4 instructor screens have no axe violations', async ({ page }) => {
+  // Eight full-page axe scans, and the four fixture writes in front of them share one seat's
+  // D-026 budget with every other instructor spec in the lane — `../instructor/api.ts` waits a
+  // refusal out rather than failing on it, and the wait has to fit inside the test (D-188).
+  test.setTimeout(300_000)
+
   await signInAs(page, 'instructor')
 
   const orgId = await walkthroughOrgId(page)
@@ -73,6 +81,80 @@ test('the Phase 4 instructor screens have no axe violations', async ({ page }) =
   await expect(page.getByRole('heading', { level: 2, name: 'Configuration' })).toBeVisible()
   await expect(page.getByRole('switch', { name: 'Walkthrough' })).toBeVisible()
   await axe(page)
+
+  await signOut(page)
+})
+
+// UI-033, in the two states a faculty seat meets it in: `scored`, where the seven decisions are
+// open, and `confirmed`, where they are on the record and the points sentence is written.
+//
+// Both states are scanned, and both matter. The `scored` scan covers the controls — seven radio
+// groups, seven note fields, two buttons per dimension, the trace's filter form and its scrolling
+// region — and the `confirmed` scan covers what replaces them: the decided bands, the arithmetic,
+// the export table, and the dialogs' triggers. A screen that is accessible while empty and
+// inaccessible once decided is the usual shape of this defect.
+//
+// Every tab is scanned rather than the default one. They are five addresses, so a scan of
+// `?tab=overview` says nothing about the trace table or the claim object; each is its own document.
+//
+// The run is driven to `scored` through the documented endpoints (`../walkthrough/scored-run.ts`)
+// because there is no other way to reach the state, and on `student2` for the reason that file's
+// header gives: the walkthrough seats are spread so that no one of them spends another's D-026
+// budget in a burst.
+const REPLAY_STUDENT: Seat = 'student2'
+
+const REPLAY_TABS = ['overview', 'bands', 'trace', 'package', 'actions'] as const
+
+test('the faculty replay has no axe violations in `scored` or in `confirmed`', async ({
+  page,
+  request,
+}) => {
+  // A full run driven to a scored one, then ten full-page axe scans, is far past Playwright's
+  // default patience (D-188). The assertions are unchanged, only the wait.
+  test.setTimeout(600_000)
+
+  await signInAsInstructor(request)
+  const assignment = await createStudentAssignment(request, {
+    what: 'Axe replay',
+    studentEmail: seatEmail(REPLAY_STUDENT),
+    variant: 'defective',
+  })
+  await addSectionMember(request, assignment.section.id, {
+    email: seatEmail('instructor'),
+    role: 'instructor',
+  })
+
+  await signInAs(page, REPLAY_STUDENT)
+  const runId = await driveRunToScored(page.request, assignment.assignment.id)
+  await signOut(page)
+
+  await signInAs(page, 'instructor')
+
+  // `scored`: every decision open, nothing on the record.
+  for (const tab of REPLAY_TABS) {
+    await page.goto(`/review/runs/${runId}?tab=${tab}`)
+    await expect(page.getByRole('navigation', { name: 'Replay views' })).toBeVisible()
+    await axe(page)
+  }
+
+  // The claim object is a sub-view of the package tab and a document of its own.
+  await page.goto(`/review/runs/${runId}?tab=package&claim=C3`)
+  await expect(page.getByRole('heading', { level: 2, name: 'Claim C3' })).toBeVisible()
+  await axe(page)
+
+  // `confirmed`: the seven on the record, the arithmetic written, the export filed.
+  await post(request, `/api/v1/review/runs/${runId}/confirm-remaining`)
+  const confirmed = await readJson<{ run: { state: string } }>(
+    request,
+    `/api/v1/review/runs/${runId}`,
+  )
+  expect(confirmed.run.state).toBe('confirmed')
+
+  for (const tab of REPLAY_TABS) {
+    await page.goto(`/review/runs/${runId}?tab=${tab}`)
+    await expect(page.getByRole('navigation', { name: 'Replay views' })).toBeVisible()
+    await axe(page)
+  }
 
   await signOut(page)
 })
