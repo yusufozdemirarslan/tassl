@@ -309,7 +309,9 @@ describe('the seed decides the titles and the numbers, and nothing else', () => 
       // step 1 draws them from the seed and writes them into the brief, and steps 2 to 5 read them
       // back out of the brief, so the two derivations have to agree or the package would not
       // reconcile with itself.
-      expect(figuresFor({ seedText: seed, brief: '', conceptSet: [] })).toEqual(figures)
+      expect(figuresFor({ seedText: seed, brief: '', conceptSet: [], restatedRules: [] })).toEqual(
+        figures,
+      )
 
       // The brief's own numbers are the draws, and the corrected payback is the quotient of two of
       // them: the claim states the number the memo computes, whatever the seed drew.

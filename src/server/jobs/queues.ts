@@ -46,7 +46,22 @@ export const QUEUE_OPTIONS: Readonly<Record<QueueName, QueueOptions>> = Object.f
 /** Typed payload per queue (10 §7). Handlers arrive with their modules in later phases. */
 export type JobPayloads = {
   score_run: { runId: string }
-  generate_package_step: { packageVersionId: string; step: string; passNumber: number }
+  /**
+   * One step of the authoring pipeline (10 §5). It carries its institution beside its version for
+   * the reason `recompute_exports` does — a job has no session to resolve a tenant from and every
+   * read it makes is tenant-scoped (D-006, D-447) — and it carries `restatedRules`, which is the
+   * retry channel itself: a second pass of a step is the same job told, in the validator's own
+   * words, which rule the first pass broke. `standalone` marks a regeneration, which re-runs one
+   * step and stops rather than carrying the pipeline on to the next.
+   */
+  generate_package_step: {
+    packageVersionId: string
+    organizationId: string
+    step: string
+    passNumber: number
+    restatedRules: string[]
+    standalone?: boolean
+  }
   send_email: { to: string; template: string; props: Record<string, unknown> }
   purge_deleted_accounts: Record<string, never>
   /**

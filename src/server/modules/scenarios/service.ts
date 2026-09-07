@@ -41,6 +41,11 @@ import {
 } from '@/server/auth/permissions'
 import type { SessionUser } from '@/server/auth/types'
 import { audit } from '@/server/modules/admin'
+// 10 §5 owns the generation record and the arithmetic of FR-198's measures; the package view is
+// where they are read (10 §4). The dependency runs one way — `authoring` never imports this
+// module's `index.ts` or `service.ts` — which is what keeps the pair acyclic (D-530).
+import { listGenerationRunsForVersion, type GenerationRunView } from '@/server/modules/authoring'
+import { computeMeasures, type AuthoringMeasureValues } from '@/server/modules/authoring/measures'
 import { notify } from '@/server/modules/notifications'
 import { listMemberIdsWithRoles, listMyInstitutions } from '@/server/modules/tenancy'
 import {
@@ -61,7 +66,6 @@ import {
   SINGLETON_ELEMENT_ID,
   type AnswerSpacePositionExport,
   type CarriedValue,
-  type AuthoringMeasures,
   type AuthoringRecordView,
   type ClaimExport,
   type ClaimObjectView,
@@ -98,6 +102,7 @@ import {
   type VerificationPathsExport,
   type VersionSummaryView,
 } from './schema'
+import { elementUnits, type ElementUnit } from './units'
 import { validateExport } from './validate-export'
 import { thinlyCarriedConcepts, validatePackage } from './validate'
 
@@ -187,14 +192,14 @@ export const SINGLETON_ELEMENT_TYPES: ReadonlySet<ElementTypeValue> = new Set([
   'seed_reskin',
 ])
 
-/** One thing an author confirms: what the workspace lists and what `confirmVersion` counts. */
-export type ElementUnit = {
-  elementType: ElementTypeValue
-  /** Null for a singleton (06 §3.3 `element_confirmations.element_id`). */
-  elementId: string | null
-  /** The element's own name — `D4`, `C3`, `defective:C3` — as the workspace shows it. */
-  key: string
-}
+/**
+ * One thing an author confirms: what the workspace lists and what `confirmVersion` counts.
+ *
+ * The walk that produces them lives in `./units.ts`, because `authoring.computeAuthoringMeasures`
+ * (10 §5) divides by the same list and a second copy of it would let the package view and the
+ * `package_confirmed` event report different edit rates for one package.
+ */
+export type { ElementUnit } from './units'
 
 /** An element as it is stored, in the shape its input schema takes. */
 type ElementValues = Record<string, unknown>
@@ -222,10 +227,6 @@ const sameValue = (a: unknown, b: unknown): boolean => JSON.stringify(a) === JSO
  * it — that is the whole of this conversion, and it is why it is written once rather than inline.
  */
 const tightened = <T>(value: unknown): T => value as T
-
-const nonNegativeInt = (value: number): number => Math.max(0, Math.round(value))
-const share = (numerator: number, denominator: number): number =>
-  denominator === 0 ? 0 : Math.min(1, Math.max(0, numerator / denominator))
 
 /**
  * A Postgres unique violation; `(organization_id, family_key)` is the only one this module can
@@ -470,56 +471,6 @@ function versionWarnings(version: repo.VersionFull): PackageWarningValue[] {
 // The confirmation record, and the measures read off it (FR-198)
 // ---------------------------------------------------------------------------------------------
 
-/** Every unit of the version, in the order the confirmation workspace lists them (10 §4). */
-function elementUnits(version: repo.VersionFull): ElementUnit[] {
-  const units: ElementUnit[] = []
-  const singleton = (elementType: ElementTypeValue): ElementUnit => ({
-    elementType,
-    elementId: null,
-    key: elementType,
-  })
-
-  units.push(singleton('brief'))
-  for (const row of version.documents) {
-    units.push({ elementType: 'document', elementId: row.id, key: row.key })
-  }
-  for (const row of version.stakeholders) {
-    units.push({ elementType: 'stakeholder', elementId: row.id, key: row.key })
-  }
-  for (const row of version.answerSpacePositions) {
-    units.push({ elementType: 'answer_space_position', elementId: row.id, key: row.key })
-  }
-  for (const row of version.namedFields) {
-    units.push({ elementType: 'named_field', elementId: row.id, key: row.key })
-  }
-  for (const row of version.claims) {
-    units.push({ elementType: 'claim', elementId: row.id, key: row.key })
-  }
-  const claimKeyById = new Map(version.claims.map((claim) => [claim.id, claim.key]))
-  for (const variant of version.variants) {
-    for (const state of variant.claimStates) {
-      units.push({
-        elementType: 'variant_claim_state',
-        elementId: state.id,
-        key: `${variant.key}:${claimKeyById.get(state.claimId) ?? state.claimId}`,
-      })
-    }
-  }
-  if (version.probe) units.push(singleton('probe'))
-  if (version.turn) units.push(singleton('turn'))
-  for (const row of version.defenseQuestions) {
-    units.push({ elementType: 'defense_question', elementId: row.id, key: row.key })
-  }
-  for (const row of version.readinessItems) {
-    units.push({ elementType: 'readiness_item', elementId: row.id, key: row.key })
-  }
-  units.push(singleton('counterfactual'))
-  units.push(singleton('general_escalation_reply'))
-  units.push(singleton('clock_and_difficulty'))
-  if (version.seedRecord) units.push(singleton('seed_reskin'))
-  return units
-}
-
 /** The address a confirmation row is filed under: type plus element id, singletons under null. */
 const confirmationKey = (elementType: ElementTypeValue, elementId: string | null): string =>
   `${elementType}:${elementId ?? ''}`
@@ -552,63 +503,34 @@ const isConfirming = (decision: repo.ElementConfirmation['decision']): boolean =
 const reviewMs = (row: repo.ElementConfirmation): number =>
   Math.max(0, row.decidedAt.getTime() - row.openedAt.getTime())
 
-type Measured = AuthoringMeasures & {
-  elementsCount: number
-  reviewMsTotal: number
-  editedCount: number
-  rejectedCount: number
-}
-
 /**
- * FR-198 as far as a package without generation can report it. 10 §5 gives these to
- * `authoring.computeAuthoringMeasures`, which owns `generation_runs` and arrives with the pipeline
- * in Phase 12; a hand-authored or imported package has run no generation, so `generationPasses` is
- * the count it actually has — zero — and everything else is read off the confirmation rows.
+ * FR-198's five measures for this version (10 §5's `computeAuthoringMeasures`, from here).
+ *
+ * The arithmetic is `authoring/measures.ts`, which is where 10 §5 puts it, and the generation runs
+ * are the `authoring` module's table: a package built by hand or by import has none, so its
+ * counters read zero without a special case. What this file still owns is the element list they are
+ * divided by (`./units.ts`), which is the same list `confirmVersion` counts.
  */
 function measureAuthoring(
   version: repo.VersionFull,
   units: readonly ElementUnit[],
-  decisions: DecisionIndex,
-): Measured {
-  let edited = 0
-  let rejected = 0
-  let reviewTotal = 0
-  let reviewed = 0
-
-  for (const unit of units) {
-    const key = confirmationKey(unit.elementType, unit.elementId)
-    const latest = decisions.latest.get(key)
-    if (latest?.decision === 'edited') edited += 1
-    if (decisions.all.get(key)?.some((row) => row.decision === 'rejected')) rejected += 1
-    if (latest) {
-      reviewTotal += reviewMs(latest)
-      reviewed += 1
-    }
-  }
-
-  const seedAt = version.seedRecord?.createdAt ?? null
-  const seedToConfirmedMs =
-    version.confirmedAt && seedAt
-      ? nonNegativeInt(version.confirmedAt.getTime() - seedAt.getTime())
-      : null
-
-  return {
-    seedToConfirmedMs,
-    editRate: share(edited, units.length),
-    rejectedShare: share(rejected, units.length),
-    generationPasses: 0,
-    reviewMsPerElement: reviewed === 0 ? null : nonNegativeInt(reviewTotal / reviewed),
-    elementsCount: units.length,
-    reviewMsTotal: nonNegativeInt(reviewTotal),
-    editedCount: edited,
-    rejectedCount: rejected,
-  }
+  confirmations: readonly repo.ElementConfirmation[],
+  runs: readonly GenerationRunView[],
+): AuthoringMeasureValues {
+  return computeMeasures({
+    units,
+    decisions: confirmations,
+    runs,
+    seedCreatedAt: version.seedRecord?.createdAt ?? null,
+    confirmedAt: version.confirmedAt,
+  })
 }
 
 function toAuthoringRecord(
   version: repo.VersionFull,
   rows: readonly repo.ElementConfirmation[],
   names: ReadonlyMap<string, string>,
+  runs: readonly GenerationRunView[],
 ): AuthoringRecordView {
   const decisionsPerEditor = new Map<string, number>()
   for (const row of rows) {
@@ -617,9 +539,14 @@ function toAuthoringRecord(
   return {
     generationModel: version.generationModel,
     generatedAt: isoOrNull(version.generatedAt),
-    // Generation runs are the `authoring` module's table (10 §5) and no generation has run against
-    // a package built by hand or by import; Phase 12 fills this list from `listGenerationRuns`.
-    runs: [],
+    runs: runs.map((run) => ({
+      step: run.step,
+      passNumber: run.passNumber,
+      status: run.status,
+      failedRules: run.failedRules,
+      startedAt: run.startedAt,
+      finishedAt: run.finishedAt,
+    })),
     editors: [...decisionsPerEditor].map(([userId, decisions]) => ({
       userId,
       name: names.get(userId) ?? '',
@@ -1450,8 +1377,8 @@ async function buildVersionView(
   const names = await deciderNames(confirmations, version.confirmedBy)
 
   const units = elementUnits(version)
-  const decisions = indexDecisions(confirmations)
-  const measured = measureAuthoring(version, units, decisions)
+  const runs = await listGenerationRunsForVersion(version.id)
+  const measured = measureAuthoring(version, units, confirmations, runs)
   const isDraft = version.status === 'draft'
   const mayAuthor = PACKAGE_AUTHOR_ROLES.includes(role)
 
@@ -1483,7 +1410,7 @@ async function buildVersionView(
     confirmedBy: version.confirmedBy,
     counts: content ? countElements(version) : EMPTY_COUNTS,
     confirmationRecord: content ? confirmations.map((row) => toConfirmationView(row, names)) : [],
-    authoringRecord: toAuthoringRecord(version, confirmations, names),
+    authoringRecord: toAuthoringRecord(version, confirmations, names, runs),
     measures: {
       seedToConfirmedMs: measured.seedToConfirmedMs,
       editRate: measured.editRate,
@@ -1501,8 +1428,9 @@ async function buildVersionView(
     capabilities: {
       canEdit: isDraft && mayAuthor,
       canConfirm: isDraft && mayAuthor && isConfirmingAuthority(actor),
-      // Generation arrives in Phase 12; until then the workspace hides its regenerate buttons.
-      canRegenerate: false,
+      // The pipeline refuses a frozen version on the write itself (10 §5); this is the same rule
+      // said early enough for the workspace to draw the buttons, never instead of it.
+      canRegenerate: isDraft && mayAuthor,
     },
   }
 }
@@ -2032,7 +1960,8 @@ export async function confirmVersion(
     })
   })
 
-  const measured = measureAuthoring({ ...scope.version, confirmedAt }, units, decisions)
+  const runs = await listGenerationRunsForVersion(versionId)
+  const measured = measureAuthoring({ ...scope.version, confirmedAt }, units, confirmations, runs)
   track(
     'package_confirmed',
     {
@@ -2043,7 +1972,7 @@ export async function confirmVersion(
       edit_rate: measured.editRate,
       rejected_share: measured.rejectedShare,
       generation_passes: measured.generationPasses,
-      generation_max_pass: 0,
+      generation_max_pass: measured.generationMaxPass,
       elements_count: measured.elementsCount,
       review_ms_total: measured.reviewMsTotal,
       review_ms_per_element: measured.reviewMsPerElement ?? 0,

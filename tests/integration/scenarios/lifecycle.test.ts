@@ -671,8 +671,9 @@ describe('createPackageFromSeed (FR-190)', () => {
       confirmedAt: null,
       confirmedBy: null,
       confirmationRecord: [],
-      // Generation arrives in Phase 12, so the workspace hides its regenerate buttons until then.
-      capabilities: { canEdit: true, canConfirm: true, canRegenerate: false },
+      // A draft an author holds may be regenerated element by element (10 §5); the pipeline
+      // refuses a confirmed version on the write itself, which the row below asserts.
+      capabilities: { canEdit: true, canConfirm: true, canRegenerate: true },
       // D-083: the family carries no ethical-shortcut defect, which is a warning, not a block.
       warnings: ['FAMILY_LACKS_ETHICAL_DEFECT'],
     })

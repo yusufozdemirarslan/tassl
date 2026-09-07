@@ -9,11 +9,11 @@ import { t } from '@/lib/i18n/messages/package-confirm'
 
 // The bar at the foot of the editor (UI-043): the three things an author does to one element.
 //
-// Regenerate is not here. `PackageVersionView.capabilities.canRegenerate` is false until generation
-// ships in Phase 12, and a fourth button that cannot act — greyed, or worse, live and refusing —
-// teaches an author a control that does not exist. The version view leaves the same absence out
-// rather than drawing it; the rejected state below says what actually happens instead, which is
-// that the element has to be re-authored by hand.
+// Regenerate is not here yet. `PackageVersionView.capabilities.canRegenerate` answers for the seat
+// and the draft from Step 12.2 onward, and Step 12.3 is where the fourth button is drawn against
+// it; until then a control that cannot act — greyed, or worse, live and refusing — would teach an
+// author something that is not there. The rejected state below says what happens instead, which is
+// that the element is re-authored by hand or sent back through the pipeline.
 //
 // Two guards, and they are the same guard: an edit is never lost.
 //

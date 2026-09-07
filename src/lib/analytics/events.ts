@@ -33,6 +33,17 @@ export const ElementType = z.enum([
   'seed_reskin',
 ])
 
+/** `generation_step` (06 §3.3 DATA-027): the seven steps of the authoring pipeline, in order. */
+export const GenerationStep = z.enum([
+  'reskin_brief_stakeholders',
+  'documents',
+  'answer_space_fields',
+  'claims_and_states',
+  'turn_and_probe',
+  'question_bank_and_counterfactual',
+  'readiness_items',
+])
+
 /** The package a measure is about (17 §5.1 `P`); every AN-001 event carries it. */
 const packageContext = { package_id: Uuid, package_version_id: Uuid, version: z.int().positive() }
 const pkg = <T extends z.ZodRawShape>(shape: T) => z.strictObject({ ...packageContext, ...shape })
@@ -96,9 +107,21 @@ export const EVENTS = {
     mapping_is_default: z.boolean(),
   }),
 
-  // AN-001 authoring operating measures (17 §3.2, FR-198). `generation_step_completed` arrives with
-  // the generation pipeline in Phase 12; these three are written by the scenarios service.
+  // AN-001 authoring operating measures (17 §3.2, FR-198). Three are written by the scenarios
+  // service, where the act they measure happens; `generation_step_completed` is written by the
+  // `generate_package_step` job handler, which is the only place that knows what a pass cost.
   package_created_from_seed: pkg({ seed_chars: Int, concept_count: Int }),
+  generation_step_completed: pkg({
+    generation_run_id: Uuid,
+    step: GenerationStep,
+    pass_number: z.int().positive(),
+    status: z.enum(['succeeded', 'failed']),
+    duration_ms: Int,
+    failed_rules: z.array(RuleCode),
+    input_tokens: Int,
+    output_tokens: Int,
+    provider: z.enum(['mock', 'openai-compatible', 'anthropic']),
+  }),
   element_decided: pkg({
     element_type: ElementType,
     revision: z.int().positive(),

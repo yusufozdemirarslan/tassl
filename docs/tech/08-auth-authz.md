@@ -241,6 +241,7 @@ Resources and actions. ✓ = allowed; ✓* = allowed with the stated scope; — 
 | Manage section roster; invite members | — | ✓ own sections | — | — | ✓ | — | — |
 | Delete walkthrough runs | — | ✓* section, `is_walkthrough` only | — | — | — | — | — |
 | Create package from seed; run generation | — | ✓ | — | ✓ | — | ✓* any org where the editor has a `scenario_author` membership | — |
+| Read the generation status (steps, passes, failed rules) | — | ✓ | — | ✓ | — | ✓* the same membership | — |
 | Confirm, edit, reject generated elements; confirm version | — | ✓ own | — | ✓ own | — | — (cannot confirm in place of the authority, PRD §8) | — |
 | Read package view, authoring record, measures | — | ✓ org | ✓ section's package | ✓ org | ✓ org (measures only) | ✓ | ✓ |
 | Read seed record (case title, license, re-skin log) | — | ✓ org | — | ✓ org | — | ✓ | ✓ |
@@ -251,6 +252,8 @@ Resources and actions. ✓ = allowed; ✓* = allowed with the stated scope; — 
 | Platform roles, user list, flags view, audit log | — | — | — | — | — | — | ✓ |
 | Create organization | — | — | — | — | — | — | ✓ |
 | Own account settings, export, delete | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+
+**The generation status is its own row, and it is not the package view's** (Step 12.2). 07 §6 gives `GET /package-versions/{versionId}/generation` to "Auth, Editor" while "Read package view, authoring record, measures" admits a TA and a program lead as well, and the two really are different reads: the status reports which rules the draft still breaks and which elements are at fault, which is where the defects are. `authoring.getGenerationStatus` therefore takes the same guard as the start — `requireAuthorOnPackage` — and the three operations `startGeneration`, `getGenerationStatus` and `regenerateElement` all carry the cells of "Create package from seed; run generation". A platform editor reaches every one of them only through a `scenario_author` membership of the institution (§5), which `tests/integration/api/authoring.test.ts` proves by trying the same platform role twice, once with the membership and once without.
 
 **The debrief and the Judgment Record are two rows, not one** (D-519). They were one — "Read own debrief, graphs, record; export record copy", with `✓* section` for both reviewers — and the code has never implemented it that way: `records.getRecord` is `requireRunOwner` and nothing else, deliberately, because a reviewer reads the run through the replay and what makes the record the *student's* is that it is theirs to keep (10 §14). `tests/integration/auth/matrix.json` records the code's rule, so the fixture and the document disagreed on a whole row, which is how the same edit that fixes a red row could ratify a widening nobody chose. The row is split so each half says what its endpoint does: the debrief to the owner and the section's reviewers (FR-154), the record to the owner alone. The record-form *file* keeps the reviewer grant on its own row below, which is what `records.exportRecord` implements.
 
