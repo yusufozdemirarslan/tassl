@@ -43,7 +43,7 @@ import { DIMENSION_GRAPHS, draftBands, type DraftBand } from './bands'
 import { runNotFound, runNotScorable } from './errors'
 import { categoricalFacts } from './facts'
 import { buildGraphs, type GraphEvent, type GraphInput } from './graphs'
-import { computePoints, higherPoints } from './points'
+import { computePoints, higherPoints, type BandMapping } from './points'
 import {
   recomputeAfterNeutralization,
   type Neutralization,
@@ -913,6 +913,109 @@ export function effectiveBandsOf(
   const effective: Partial<Record<Dimension, Band | null>> = {}
   for (const band of bands) effective[band.dimension] = band.effectiveBand
   return effective
+}
+
+// ---------------------------------------------------------------------------------------------
+// Pricing a run under a mapping (FR-202, FR-203, FR-206; D-091, D-095)
+// ---------------------------------------------------------------------------------------------
+
+/** Every point figure `run_scores` holds for one run, under one course mapping. */
+export type RunPoints = {
+  draft: number | null
+  confirmed: number | null
+  beforeCorrection: number | null
+  afterCorrection: number | null
+  effective: number | null
+}
+
+/**
+ * The five figures a run's bands produce under a mapping — the whole of the course's arithmetic in
+ * one place (FR-202).
+ *
+ * It exists because three callers need the same sum and none of them may own it: the confirmation
+ * writes `points_confirmed`, the mapping change rewrites every column of every confirmed run in a
+ * course (FR-206, D-095), and the preview that change is shown behind has to produce the *same*
+ * number without writing anything. A second implementation of "add the mapping's value for each
+ * assessed band and divide by how many were assessed" is a second answer to what a grade is.
+ *
+ * `afterCorrection` is the arithmetic over the bands the run currently stands on, which is what
+ * `effectiveBandOf` composes: the decision where a faculty seat made one, floored by a correction
+ * that raises and never lowers (D-422). `beforeCorrection` substitutes what the recompute saw on the
+ * dimensions it touched, and `effective` is the higher of the two — FR-005's floor, applied to the
+ * totals exactly as `higherPoints` applies it everywhere else. A run that has had no correction
+ * carries nulls in all three, because there is nothing for the floor to be under (D-447).
+ */
+export function priceBands(bands: readonly BandView[], mapping: BandMapping): RunPoints {
+  const effective = effectiveBandsOf(bands)
+  const draftInput: Partial<Record<Dimension, Band | 'unassessed'>> = {}
+  for (const band of bands) draftInput[band.dimension] = band.band ?? 'unassessed'
+
+  const corrected = bands.filter((band) => band.bandBeforeCorrection !== null)
+  if (corrected.length === 0) {
+    return {
+      draft: computePoints(draftInput, mapping),
+      confirmed: allDimensionsDecided(bands) ? computePoints(effective, mapping) : null,
+      beforeCorrection: null,
+      afterCorrection: null,
+      effective: null,
+    }
+  }
+
+  const before = { ...effective }
+  for (const band of corrected) before[band.dimension] = band.bandBeforeCorrection
+  const beforeCorrection = computePoints(before, mapping)
+  const afterCorrection = computePoints(effective, mapping)
+  return {
+    draft: computePoints(draftInput, mapping),
+    confirmed: allDimensionsDecided(bands) ? computePoints(effective, mapping) : null,
+    beforeCorrection,
+    afterCorrection,
+    effective: higherPoints(beforeCorrection, afterCorrection),
+  }
+}
+
+/**
+ * The one number a gradebook receives, from the five (FR-204, D-087).
+ *
+ * `points_effective ?? points_confirmed` is the rule `trace.buildExport` already applies to the
+ * stored columns, and it is stated once here so the mapping-change preview, the export and the
+ * debrief cannot each pick a different one.
+ */
+export const gradebookPointsOf = (points: RunPoints): number | null =>
+  points.effective ?? points.confirmed
+
+/**
+ * Rewrites a run's point columns under a new mapping and answers what moved (FR-206, 10 §3).
+ *
+ * The bands do not move: a mapping change is the course changing what a band is worth, not Tassl
+ * changing what the run recorded. So this reads the seven bands, prices them twice — once as they
+ * stand and once under the new mapping — and writes the second. It lives here because `run_scores`
+ * is this module's table and a second module writing it would be a second definition of what a
+ * band is worth (the note above `writeBandDecisions`, applied to the other half of the row).
+ *
+ * Answering both prices is what lets the caller write the audit row and the mapping-change record
+ * without asking again.
+ */
+export async function repriceRun(
+  tx: repo.Tx,
+  runId: string,
+  before: BandMapping,
+  after: BandMapping,
+): Promise<{ before: RunPoints; after: RunPoints }> {
+  const bands = await readBands(runId, tx)
+  const priced = { before: priceBands(bands, before), after: priceBands(bands, after) }
+  await repo.patchScore(
+    runId,
+    {
+      pointsDraft: numeric(priced.after.draft, 3),
+      pointsConfirmed: numeric(priced.after.confirmed, 3),
+      pointsBeforeCorrection: numeric(priced.after.beforeCorrection, 3),
+      pointsAfterCorrection: numeric(priced.after.afterCorrection, 3),
+      pointsEffective: numeric(priced.after.effective, 3),
+    },
+    tx,
+  )
+  return priced
 }
 
 /** Whether every dimension of the rubric now carries a decision (10 §12's confirmation rule). */

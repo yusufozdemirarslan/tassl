@@ -14,6 +14,7 @@ import { defineRoute, type RouteContext, type RouteHandler } from '@/server/http
 import { attachRouteSpec, getRouteSpec, type RegisteredRoute } from '@/server/http/openapi-registry'
 import {
   addSectionMember,
+  changeMapping,
   createAssignment,
   createCourse,
   createSection,
@@ -24,6 +25,7 @@ import {
   listAssignmentRuns,
   listCourses,
   listSectionMembers,
+  previewMappingChange,
   removeSectionMember,
   updateAssignment,
   updateCoursePolicy,
@@ -37,12 +39,15 @@ import {
   CoursePageSchema,
   CourseSchema,
   CourseViewSchema,
+  ChangeMappingSchema,
   CreateAssignmentSchema,
   CreateCourseSchema,
   CreateSectionSchema,
+  MappingChangePreviewSchema,
   OrgIdParamsSchema,
   PageQuerySchema,
   PolicyDisplaySchema,
+  PreviewMappingChangeSchema,
   RunIdParamsSchema,
   SectionIdParamsSchema,
   SectionMemberPageSchema,
@@ -137,6 +142,43 @@ export const updateCoursePolicyRoute = defineRoute(
     },
   },
   async (ctx) => updateCoursePolicy(actorOf(ctx), ctx.input.params.courseId, ctx.input.body),
+)
+
+/**
+ * `POST /courses/{courseId}/mapping/preview` (07 §5, FR-206): the diff, before anything moves.
+ *
+ * A `read` bucket and a POST, which is 07 §5's own row: the mapping is the question and a body is
+ * how it is asked, but nothing is written and the answer is the same every time it is asked.
+ */
+export const previewMappingChangeRoute = defineRoute(
+  {
+    auth: 'session',
+    input: { params: CourseIdParamsSchema, body: PreviewMappingChangeSchema },
+    output: MappingChangePreviewSchema,
+    rateLimit: { bucket: 'read' },
+    openapi: {
+      operationId: 'previewMappingChange',
+      summary: 'Preview points changes for a new mapping',
+      tags: TAGS,
+    },
+  },
+  async (ctx) => previewMappingChange(actorOf(ctx), ctx.input.params.courseId, ctx.input.body),
+)
+
+/** `POST /courses/{courseId}/mapping` (07 §5, FR-206, D-095): apply it and re-export. */
+export const changeMappingRoute = defineRoute(
+  {
+    auth: 'session',
+    input: { params: CourseIdParamsSchema, body: ChangeMappingSchema },
+    output: CourseSchema,
+    rateLimit: { bucket: 'write' },
+    openapi: {
+      operationId: 'changeMapping',
+      summary: 'Apply a mapping change and recompute exports',
+      tags: TAGS,
+    },
+  },
+  async (ctx) => changeMapping(actorOf(ctx), ctx.input.params.courseId, ctx.input.body),
 )
 
 export const createSectionRoute = defineRoute(

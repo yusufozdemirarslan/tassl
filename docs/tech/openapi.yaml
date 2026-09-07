@@ -8711,32 +8711,115 @@ paths:
       operationId: changeMapping
       summary: Apply a mapping change and recompute exports
       parameters:
-        - $ref: "#/components/parameters/courseId"
-        - $ref: "#/components/parameters/requestedWith"
+        - in: path
+          name: courseId
+          schema:
+            type: string
+            format: uuid
+            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+          required: true
       requestBody:
         required: true
         content:
           application/json:
             schema:
               type: object
+              properties:
+                mapping:
+                  type: object
+                  properties:
+                    novice:
+                      type: number
+                    developing:
+                      type: number
+                    proficient:
+                      type: number
+                    professional:
+                      type: number
+                  required:
+                    - novice
+                    - developing
+                    - proficient
+                    - professional
+                confirm:
+                  type: boolean
               required:
                 - mapping
                 - confirm
-              properties:
-                mapping:
-                  $ref: "#/components/schemas/Mapping"
-                confirm:
-                  type: boolean
-                  const: true
       responses:
         "200":
           description: OK
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Course"
-        "409":
-          $ref: "#/components/responses/Conflict"
+                type: object
+                properties:
+                  id:
+                    type: string
+                    format: uuid
+                    pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                  organizationId:
+                    type: string
+                  name:
+                    type: string
+                  term:
+                    type: string
+                  outsideAiPolicy:
+                    type: string
+                    enum:
+                      - open
+                      - declared
+                      - in_environment_only
+                  mapping:
+                    type: object
+                    properties:
+                      novice:
+                        type: number
+                        exclusiveMinimum: 0
+                      developing:
+                        type: number
+                        exclusiveMinimum: 0
+                      proficient:
+                        type: number
+                        exclusiveMinimum: 0
+                      professional:
+                        type: number
+                        exclusiveMinimum: 0
+                    required:
+                      - novice
+                      - developing
+                      - proficient
+                      - professional
+                    additionalProperties: false
+                  defaultRunWeight:
+                    type: number
+                  critiqueWeightFactor:
+                    type: number
+                  taughtConcepts:
+                    type: array
+                    items:
+                      type: string
+                required:
+                  - id
+                  - organizationId
+                  - name
+                  - term
+                  - outsideAiPolicy
+                  - mapping
+                  - defaultRunWeight
+                  - critiqueWeightFactor
+                  - taughtConcepts
+                additionalProperties: false
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "429":
+          $ref: "#/components/responses/RateLimited"
   /courses/{courseId}/mapping/preview:
     post:
       tags:
@@ -8744,26 +8827,144 @@ paths:
       operationId: previewMappingChange
       summary: Preview points changes for a new mapping
       parameters:
-        - $ref: "#/components/parameters/courseId"
-        - $ref: "#/components/parameters/requestedWith"
+        - in: path
+          name: courseId
+          schema:
+            type: string
+            format: uuid
+            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+          required: true
       requestBody:
         required: true
         content:
           application/json:
             schema:
               type: object
-              required:
-                - mapping
               properties:
                 mapping:
-                  $ref: "#/components/schemas/Mapping"
+                  type: object
+                  properties:
+                    novice:
+                      type: number
+                    developing:
+                      type: number
+                    proficient:
+                      type: number
+                    professional:
+                      type: number
+                  required:
+                    - novice
+                    - developing
+                    - proficient
+                    - professional
+              required:
+                - mapping
       responses:
         "200":
           description: OK
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/MappingChangePreview"
+                type: object
+                properties:
+                  current:
+                    type: object
+                    properties:
+                      novice:
+                        type: number
+                        exclusiveMinimum: 0
+                      developing:
+                        type: number
+                        exclusiveMinimum: 0
+                      proficient:
+                        type: number
+                        exclusiveMinimum: 0
+                      professional:
+                        type: number
+                        exclusiveMinimum: 0
+                    required:
+                      - novice
+                      - developing
+                      - proficient
+                      - professional
+                    additionalProperties: false
+                  proposed:
+                    type: object
+                    properties:
+                      novice:
+                        type: number
+                        exclusiveMinimum: 0
+                      developing:
+                        type: number
+                        exclusiveMinimum: 0
+                      proficient:
+                        type: number
+                        exclusiveMinimum: 0
+                      professional:
+                        type: number
+                        exclusiveMinimum: 0
+                    required:
+                      - novice
+                      - developing
+                      - proficient
+                      - professional
+                    additionalProperties: false
+                  affected:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        runId:
+                          type: string
+                          format: uuid
+                          pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                        assignmentId:
+                          type: string
+                          format: uuid
+                          pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                        assignmentLabel:
+                          type: string
+                        studentId:
+                          type: string
+                        pointsNow:
+                          type:
+                            - number
+                            - "null"
+                        pointsAfter:
+                          type:
+                            - number
+                            - "null"
+                        changed:
+                          type: boolean
+                      required:
+                        - runId
+                        - assignmentId
+                        - assignmentLabel
+                        - studentId
+                        - pointsNow
+                        - pointsAfter
+                        - changed
+                      additionalProperties: false
+                  changedCount:
+                    type: integer
+                    minimum: 0
+                    maximum: 9007199254740991
+                required:
+                  - current
+                  - proposed
+                  - affected
+                  - changedCount
+                additionalProperties: false
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "429":
+          $ref: "#/components/responses/RateLimited"
   /courses/{courseId}/sections:
     post:
       tags:
@@ -16609,16 +16810,261 @@ paths:
       operationId: getDebrief
       summary: Run Debrief
       parameters:
-        - $ref: "#/components/parameters/runId"
+        - in: path
+          name: runId
+          schema:
+            type: string
+            format: uuid
+            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+          required: true
       responses:
         "200":
           description: OK
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/DebriefView"
-        "409":
-          $ref: "#/components/responses/Conflict"
+                type: object
+                properties:
+                  run:
+                    type: object
+                    propertyNames:
+                      type: string
+                    additionalProperties: {}
+                  sections:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        key:
+                          type: string
+                          enum:
+                            - frame_beside_decision
+                            - stance_matrix
+                            - missed_defects
+                            - probe
+                            - confidence_line
+                            - turn_beside_frame
+                            - clock_timeline
+                            - counterfactual
+                            - bands
+                            - points
+                            - done_well
+                            - questions
+                        available:
+                          type: boolean
+                        reason:
+                          type:
+                            - string
+                            - "null"
+                        title:
+                          type: string
+                        body:
+                          type: string
+                        data:
+                          anyOf:
+                            - {}
+                            - type: "null"
+                      required:
+                        - key
+                        - available
+                        - reason
+                        - title
+                        - body
+                        - data
+                      additionalProperties: false
+                  bands:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        dimension:
+                          type: string
+                          enum:
+                            - framing
+                            - delegation
+                            - verification
+                            - calibration
+                            - decision_quality
+                            - adaptation
+                            - ownership
+                        band:
+                          anyOf:
+                            - type: string
+                              enum:
+                                - novice
+                                - developing
+                                - proficient
+                                - professional
+                            - type: "null"
+                        status:
+                          type: string
+                          enum:
+                            - drafted
+                            - unassessed
+                        reason:
+                          type: string
+                        decision:
+                          anyOf:
+                            - type: string
+                              enum:
+                                - confirmed
+                                - overridden
+                                - unassessed
+                            - type: "null"
+                        note:
+                          type:
+                            - string
+                            - "null"
+                        rationale:
+                          type: string
+                        graphKeys:
+                          type: array
+                          items:
+                            type: string
+                        raisedByCorrection:
+                          type: boolean
+                      required:
+                        - dimension
+                        - band
+                        - status
+                        - reason
+                        - decision
+                        - note
+                        - rationale
+                        - graphKeys
+                        - raisedByCorrection
+                      additionalProperties: false
+                  points:
+                    type: object
+                    properties:
+                      mapping:
+                        type: object
+                        properties:
+                          novice:
+                            type: number
+                          developing:
+                            type: number
+                          proficient:
+                            type: number
+                          professional:
+                            type: number
+                        required:
+                          - novice
+                          - developing
+                          - proficient
+                          - professional
+                        additionalProperties: false
+                      weight:
+                        type: number
+                      assessed:
+                        type: integer
+                        minimum: 0
+                        maximum: 9007199254740991
+                      draft:
+                        type:
+                          - number
+                          - "null"
+                      confirmed:
+                        type:
+                          - number
+                          - "null"
+                      effective:
+                        type:
+                          - number
+                          - "null"
+                    required:
+                      - mapping
+                      - weight
+                      - assessed
+                      - draft
+                      - confirmed
+                      - effective
+                    additionalProperties: false
+                  questions:
+                    type: object
+                    properties:
+                      answered:
+                        type: boolean
+                      canAnswer:
+                        type: boolean
+                      stanceToChange:
+                        type:
+                          - string
+                          - "null"
+                      doDifferently:
+                        type:
+                          - string
+                          - "null"
+                      answeredAt:
+                        anyOf:
+                          - type: string
+                            format: date-time
+                            pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z))$
+                          - type: "null"
+                    required:
+                      - answered
+                      - canAnswer
+                      - stanceToChange
+                      - doDifferently
+                      - answeredAt
+                    additionalProperties: false
+                  doneWell:
+                    type: string
+                  labels:
+                    type: object
+                    properties:
+                      version:
+                        type: string
+                        enum:
+                          - draft
+                          - confirmed
+                      uncalibrated:
+                        type: boolean
+                      isWalkthrough:
+                        type: boolean
+                      viewer:
+                        type: string
+                        enum:
+                          - owner
+                          - reviewer
+                      mode:
+                        type: string
+                        enum:
+                          - guided
+                          - standard
+                          - open
+                      variant:
+                        type: string
+                        enum:
+                          - defective
+                          - sound
+                    required:
+                      - version
+                      - uncalibrated
+                      - isWalkthrough
+                      - viewer
+                      - mode
+                      - variant
+                    additionalProperties: false
+                required:
+                  - run
+                  - sections
+                  - bands
+                  - points
+                  - questions
+                  - doneWell
+                  - labels
+                additionalProperties: false
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "429":
+          $ref: "#/components/responses/RateLimited"
   /runs/{runId}/debrief/answers:
     post:
       tags:
@@ -16626,23 +17072,241 @@ paths:
       operationId: answerDebrief
       summary: Answer the two debrief questions
       parameters:
-        - $ref: "#/components/parameters/runId"
-        - $ref: "#/components/parameters/requestedWith"
+        - in: path
+          name: runId
+          schema:
+            type: string
+            format: uuid
+            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+          required: true
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/DebriefAnswers"
+              type: object
+              properties:
+                stanceToChange:
+                  type: string
+                  minLength: 1
+                doDifferently:
+                  type: string
+                  minLength: 1
+              required:
+                - stanceToChange
+                - doDifferently
       responses:
         "200":
           description: OK
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/RunSummary"
-        "409":
-          $ref: "#/components/responses/Conflict"
+                type: object
+                properties:
+                  id:
+                    type: string
+                    format: uuid
+                    pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                  assignmentId:
+                    type: string
+                    format: uuid
+                    pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                  attemptNo:
+                    type: integer
+                    exclusiveMinimum: 0
+                    maximum: 9007199254740991
+                  state:
+                    type: string
+                    enum:
+                      - assigned
+                      - readiness
+                      - framing
+                      - working
+                      - paused
+                      - decision_locked
+                      - turn_open
+                      - turn_locked
+                      - defense_pending
+                      - defense_complete
+                      - scored
+                      - confirmed
+                      - recorded
+                      - voided
+                      - abandoned
+                      - defense_missed
+                      - under_appeal
+                      - expired
+                  mode:
+                    type: string
+                    enum:
+                      - guided
+                      - standard
+                      - open
+                  isWalkthrough:
+                    type: boolean
+                  clock:
+                    anyOf:
+                      - type: object
+                        properties:
+                          remainingMs:
+                            type: integer
+                            minimum: 0
+                            maximum: 9007199254740991
+                          paused:
+                            type: boolean
+                          creditedMs:
+                            type: integer
+                            minimum: 0
+                            maximum: 9007199254740991
+                          chargedMs:
+                            type: integer
+                            minimum: 0
+                            maximum: 9007199254740991
+                        required:
+                          - remainingMs
+                          - paused
+                          - creditedMs
+                          - chargedMs
+                        additionalProperties: false
+                      - type: "null"
+                  turn:
+                    anyOf:
+                      - type: object
+                        properties:
+                          dueAt:
+                            type: string
+                            format: date-time
+                            pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z))$
+                          windowEndsAt:
+                            anyOf:
+                              - type: string
+                                format: date-time
+                                pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z))$
+                              - type: "null"
+                        required:
+                          - dueAt
+                          - windowEndsAt
+                        additionalProperties: false
+                      - type: "null"
+                  scoringStatus:
+                    type: string
+                    enum:
+                      - idle
+                      - queued
+                      - running
+                      - held
+                      - done
+                  timestamps:
+                    type: object
+                    properties:
+                      policyDisplayedAt:
+                        anyOf:
+                          - type: string
+                            format: date-time
+                            pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z))$
+                          - type: "null"
+                      workingStartedAt:
+                        anyOf:
+                          - type: string
+                            format: date-time
+                            pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z))$
+                          - type: "null"
+                      decisionLockedAt:
+                        anyOf:
+                          - type: string
+                            format: date-time
+                            pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z))$
+                          - type: "null"
+                      turnDeliveredAt:
+                        anyOf:
+                          - type: string
+                            format: date-time
+                            pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z))$
+                          - type: "null"
+                      turnLockedAt:
+                        anyOf:
+                          - type: string
+                            format: date-time
+                            pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z))$
+                          - type: "null"
+                      defenseCompletedAt:
+                        anyOf:
+                          - type: string
+                            format: date-time
+                            pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z))$
+                          - type: "null"
+                      scoredAt:
+                        anyOf:
+                          - type: string
+                            format: date-time
+                            pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z))$
+                          - type: "null"
+                      confirmedAt:
+                        anyOf:
+                          - type: string
+                            format: date-time
+                            pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z))$
+                          - type: "null"
+                      recordedAt:
+                        anyOf:
+                          - type: string
+                            format: date-time
+                            pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z))$
+                          - type: "null"
+                      voidedAt:
+                        anyOf:
+                          - type: string
+                            format: date-time
+                            pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z))$
+                          - type: "null"
+                    required:
+                      - policyDisplayedAt
+                      - workingStartedAt
+                      - decisionLockedAt
+                      - turnDeliveredAt
+                      - turnLockedAt
+                      - defenseCompletedAt
+                      - scoredAt
+                      - confirmedAt
+                      - recordedAt
+                      - voidedAt
+                    additionalProperties: false
+                  version:
+                    type: integer
+                    minimum: 0
+                    maximum: 9007199254740991
+                  links:
+                    type: object
+                    properties:
+                      next:
+                        type: string
+                    required:
+                      - next
+                    additionalProperties: false
+                required:
+                  - id
+                  - assignmentId
+                  - attemptNo
+                  - state
+                  - mode
+                  - isWalkthrough
+                  - clock
+                  - turn
+                  - scoringStatus
+                  - timestamps
+                  - version
+                  - links
+                additionalProperties: false
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "429":
+          $ref: "#/components/responses/RateLimited"
   /runs/{runId}/defense:
     get:
       tags:

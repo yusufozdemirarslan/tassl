@@ -115,6 +115,14 @@ export const ERROR_STATUS = {
   BAND_LOCKED_BY_INSTRUCTOR: 403,
   RUN_NOT_CONFIRMED: 409,
   NEUTRALIZATION_EXISTS: 409,
+  // debrief (10 §13). `DEBRIEF_NOT_AVAILABLE` is a read or an answer asked for on a run whose bands
+  // have not been drafted, or on one that was voided; it carries `details.state`, the shape
+  // `TURN_NOT_OPEN` and `RECORD_NOT_AVAILABLE` already use, so a screen left open while the run
+  // moved follows the run. `DEBRIEF_ANSWERED` is FR-152's one answer per run: the two questions are
+  // a record of what the student thought at the end of the run, and a second submission would be a
+  // different thing written over it.
+  DEBRIEF_NOT_AVAILABLE: 409,
+  DEBRIEF_ANSWERED: 409,
   LLM_BUDGET_EXCEEDED: 402,
   LLM_PROVIDER_ERROR: 502,
   LLM_CIRCUIT_OPEN: 503,
@@ -196,6 +204,8 @@ export const DEFAULT_MESSAGES: Record<ErrorCode, string> = {
   BAND_LOCKED_BY_INSTRUCTOR: 'The instructor has decided this dimension.',
   RUN_NOT_CONFIRMED: 'This run has no course export yet; its bands are not confirmed.',
   NEUTRALIZATION_EXISTS: 'This claim has already been neutralized on this run.',
+  DEBRIEF_NOT_AVAILABLE: 'This run’s debrief opens once its bands have been drafted.',
+  DEBRIEF_ANSWERED: 'The two questions on this run have already been answered.',
   LLM_BUDGET_EXCEEDED: 'The assistant budget for this period has been used up.',
   LLM_PROVIDER_ERROR: 'The assistant provider did not respond correctly.',
   LLM_CIRCUIT_OPEN: 'The assistant is temporarily unavailable.',

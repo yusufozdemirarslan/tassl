@@ -2718,5 +2718,165 @@
     "operationId": "getRecord",
     "role": "outsider",
     "expected": "deny"
+  },
+  {
+    "operationId": "getDebrief",
+    "role": "student",
+    "expected": "allow"
+  },
+  {
+    "operationId": "getDebrief",
+    "role": "instructor",
+    "expected": "allow"
+  },
+  {
+    "operationId": "getDebrief",
+    "role": "ta",
+    "expected": "allow"
+  },
+  {
+    "operationId": "getDebrief",
+    "role": "author",
+    "expected": "deny"
+  },
+  {
+    "operationId": "getDebrief",
+    "role": "program_lead",
+    "expected": "deny"
+  },
+  {
+    "operationId": "getDebrief",
+    "role": "editor",
+    "expected": "deny"
+  },
+  {
+    "operationId": "getDebrief",
+    "role": "admin",
+    "expected": "deny"
+  },
+  {
+    "operationId": "getDebrief",
+    "role": "outsider",
+    "expected": "deny"
+  },
+  {
+    "operationId": "answerDebrief",
+    "role": "student",
+    "expected": "allow"
+  },
+  {
+    "operationId": "answerDebrief",
+    "role": "instructor",
+    "expected": "deny"
+  },
+  {
+    "operationId": "answerDebrief",
+    "role": "ta",
+    "expected": "deny"
+  },
+  {
+    "operationId": "answerDebrief",
+    "role": "author",
+    "expected": "deny"
+  },
+  {
+    "operationId": "answerDebrief",
+    "role": "program_lead",
+    "expected": "deny"
+  },
+  {
+    "operationId": "answerDebrief",
+    "role": "editor",
+    "expected": "deny"
+  },
+  {
+    "operationId": "answerDebrief",
+    "role": "admin",
+    "expected": "deny"
+  },
+  {
+    "operationId": "answerDebrief",
+    "role": "outsider",
+    "expected": "deny"
+  },
+  {
+    "operationId": "previewMappingChange",
+    "role": "student",
+    "expected": "deny"
+  },
+  {
+    "operationId": "previewMappingChange",
+    "role": "instructor",
+    "expected": "allow"
+  },
+  {
+    "operationId": "previewMappingChange",
+    "role": "ta",
+    "expected": "deny"
+  },
+  {
+    "operationId": "previewMappingChange",
+    "role": "author",
+    "expected": "deny"
+  },
+  {
+    "operationId": "previewMappingChange",
+    "role": "program_lead",
+    "expected": "deny"
+  },
+  {
+    "operationId": "previewMappingChange",
+    "role": "editor",
+    "expected": "deny"
+  },
+  {
+    "operationId": "previewMappingChange",
+    "role": "admin",
+    "expected": "deny"
+  },
+  {
+    "operationId": "previewMappingChange",
+    "role": "outsider",
+    "expected": "deny"
+  },
+  {
+    "operationId": "changeMapping",
+    "role": "student",
+    "expected": "deny"
+  },
+  {
+    "operationId": "changeMapping",
+    "role": "instructor",
+    "expected": "allow"
+  },
+  {
+    "operationId": "changeMapping",
+    "role": "ta",
+    "expected": "deny"
+  },
+  {
+    "operationId": "changeMapping",
+    "role": "author",
+    "expected": "deny"
+  },
+  {
+    "operationId": "changeMapping",
+    "role": "program_lead",
+    "expected": "deny"
+  },
+  {
+    "operationId": "changeMapping",
+    "role": "editor",
+    "expected": "deny"
+  },
+  {
+    "operationId": "changeMapping",
+    "role": "admin",
+    "expected": "deny"
+  },
+  {
+    "operationId": "changeMapping",
+    "role": "outsider",
+    "expected": "deny"
   }
 ]

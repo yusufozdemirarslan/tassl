@@ -124,7 +124,7 @@ Queues (`src/server/jobs/queues.ts`), created by `scripts/pgboss-migrate.ts` (`b
 | `generate_package_step` | `{ packageVersionId, step, passNumber }` | `authoring.runGenerationStep` | `generate:<versionId>:<step>` |
 | `send_email` | `{ to, template, props }` | `email.deliver` | none |
 | `purge_deleted_accounts` | `{}` | `identity.purgeDeletedAccounts` | `purge:<date>` |
-| `recompute_exports` | `{ courseId }` | `courses.recomputeExports` | `recompute:<courseId>` |
+| `recompute_exports` | `{ courseId, organizationId }` | `courses.recomputeExports` | `recompute:<courseId>` |
 
 Drain (`src/server/jobs/drain.ts`): `drainQueues({ maxMs })` loops over the queues in priority order (`score_run`, `generate_package_step`, `recompute_exports`, `send_email`, `purge_deleted_accounts`), calls `boss.fetch(name, { batchSize: 5 })`, runs each handler inside its own job context, then `boss.complete(name, id)` or `boss.fail(name, id, { message })`, until every queue is empty or `maxMs` (270,000) elapses.
 

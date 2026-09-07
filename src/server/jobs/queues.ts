@@ -49,7 +49,12 @@ export type JobPayloads = {
   generate_package_step: { packageVersionId: string; step: string; passNumber: number }
   send_email: { to: string; template: string; props: Record<string, unknown> }
   purge_deleted_accounts: Record<string, never>
-  recompute_exports: { courseId: string }
+  /**
+   * The mapping change's recompute (FR-206). It carries its institution as well as its course,
+   * because a job has no session to resolve one from and every read it makes is tenant-scoped
+   * (D-006, D-447); the singleton key stays the course, which is the thing being recomputed.
+   */
+  recompute_exports: { courseId: string; organizationId: string }
 }
 
 export type Payload<Q extends QueueName> = JobPayloads[Q]

@@ -16,9 +16,11 @@
 //      and the condition it names cannot drift apart.
 //   4. Analytics fire after the writing transaction commits (17 §5.4), never inside it.
 //
-// Three functions of 10 §3 are deliberately absent: `previewMappingChange`, `changeMapping` and
-// `recomputeExports` belong to Phase 11 (FR-206, D-095 — `updateCoursePolicy` here accepts a
-// mapping only while no run is confirmed).
+// The mapping change is the one part of this module that reaches outside it (FR-206, D-095):
+// `previewMappingChange` prices every confirmed run twice, `changeMapping` records the change and
+// enqueues the recompute, and `recomputeExports` is the job that reprices and re-exports. Until a
+// run is confirmed a mapping is still just a course setting, which is why `updateCoursePolicy`
+// below accepts one directly and refuses once a run has been confirmed.
 import { isAppError } from '@/lib/errors'
 import { t } from '@/lib/i18n/t'
 import { track } from '@/server/analytics/track'
@@ -40,7 +42,17 @@ import { audit } from '@/server/modules/admin'
 // run clock (10 §10). Both files it reaches are free of anything but their own module.
 import type { RunReviewSummary, RunsQuery } from '@/server/modules/runs/schema'
 import { toRunSummary } from '@/server/modules/runs/summary'
+// The mapping change reaches the two modules that own the columns it moves, through their public
+// doors (D-290): `run_scores.points_*` is `scoring`'s and `course_exports` is `records`', and a
+// mapping change that wrote either from here would be a second definition of what a band is worth
+// and of what a filed export is. Both imports close a cycle back to this module —
+// `scoring → runs → courses` — which is the shape D-286 already records for `reliance` and `runs`
+// and is safe for the same reason: every reference across it is a function called long after the
+// modules have finished evaluating, and nothing here runs at import time (D-446).
+import { writeCourseExport } from '@/server/modules/records'
+import { gradebookPointsOf, priceBands, readBands, repriceRun } from '@/server/modules/scoring'
 import { getInstitutionSettings, listMyInstitutions } from '@/server/modules/tenancy'
+import { enqueueAfterCommit } from '@/server/jobs/enqueue'
 import {
   assignmentInUse,
   assignmentNotFound,
@@ -61,6 +73,7 @@ import {
   type AddSectionMemberInput,
   type Assignment,
   type AssignmentView,
+  type ChangeMappingInput,
   type ConfirmedPackageVersion,
   type Course,
   type CourseSummary,
@@ -69,7 +82,10 @@ import {
   type CreateCourseInput,
   type CreateSectionInput,
   type Mapping,
+  type MappingChangePreview,
+  type MappingChangeRow,
   type MappingInput,
+  type PreviewMappingChangeInput,
   type PageQuery,
   type PolicyDisplay,
   type Section,
@@ -482,6 +498,192 @@ export async function updateCoursePolicy(
   )
   if (!row) courseNotFound()
   return toCourse(row)
+}
+
+// ---------------------------------------------------------------------------------------------
+// The mapping change (FR-206, D-095, DATA-055)
+//
+// A course may change what a band is worth after runs have been confirmed, and PRD §7.19's edge
+// says what has to happen when it does: the instructor is shown which exported points will change,
+// the change is recorded as instructor-set with its date, and every confirmed run in the course is
+// recomputed and re-exported. The bands do not move — a mapping change is the course changing what
+// a band is worth, not Tassl changing what the run recorded.
+// ---------------------------------------------------------------------------------------------
+
+/**
+ * `POST /courses/{courseId}/mapping/preview` (07 §5, FR-206): the diff, before anything moves.
+ *
+ * One row per confirmed or recorded run of the course, with the points the gradebook holds for it
+ * now and the points it would hold after. **Both are computed the same way, from the same bands** —
+ * `scoring.priceBands` under the two mappings — so the difference between the columns is the
+ * mapping's effect and nothing else, and the "after" column is exactly what `changeMapping` will
+ * write (D-446). A run whose number does not move is still listed: FR-206's sentence is about which
+ * exported points will change, and a reader can only see that against the ones that will not.
+ */
+export async function previewMappingChange(
+  actor: SessionUser,
+  courseId: string,
+  input: PreviewMappingChangeInput,
+): Promise<MappingChangePreview> {
+  const scope = await requireCourseInstructor(actor, courseId)
+  const proposed = assertMapping(input.mapping)
+  if (!proposed) mappingInvalid()
+  const course = await repo.findCourse(scope.organizationId, courseId)
+  if (!course) courseNotFound()
+
+  const affected = await priceCourseRuns(scope.organizationId, courseId, course.mapping, proposed)
+  return {
+    current: course.mapping,
+    proposed,
+    affected,
+    changedCount: affected.filter((row) => row.changed).length,
+  }
+}
+
+/**
+ * `POST /courses/{courseId}/mapping` (07 §5, FR-206, D-095): apply it.
+ *
+ * `confirm: true` is required and is refused with `MAPPING_CHANGE_UNCONFIRMED` rather than a shape
+ * error, because the box the instructor ticks says what applying does — every confirmed run in the
+ * course is re-exported — and a caller who has not ticked it should be told that sentence.
+ *
+ * The transaction writes three things and enqueues a fourth: the `course_mapping_changes` row that
+ * records what moved, by whom and when (DATA-055), the course's new mapping, the audit row, and the
+ * `recompute_exports` job **after the commit** — a job that started before the mapping was committed
+ * would reprice every run against the old one.
+ *
+ * A mapping that is already the course's is not a change: it writes nothing, enqueues nothing, and
+ * answers the course as it stands. The alternative is a version 2 of every export in the course with
+ * the same numbers in it, which is a ledger entry that records a button press (D-437's reading, one
+ * module along).
+ */
+export async function changeMapping(
+  actor: SessionUser,
+  courseId: string,
+  input: ChangeMappingInput,
+): Promise<Course> {
+  const scope = await requireCourseInstructor(actor, courseId)
+  const proposed = assertMapping(input.mapping)
+  if (!proposed) mappingInvalid()
+  if (!input.confirm) mappingChangeUnconfirmed()
+  const course = await repo.findCourse(scope.organizationId, courseId)
+  if (!course) courseNotFound()
+  if (sameMapping(course.mapping, proposed)) return toCourse(course)
+
+  const affected = await priceCourseRuns(scope.organizationId, courseId, course.mapping, proposed)
+  const row = await repo.withTransaction(async (tx) => {
+    await repo.insertMappingChange(
+      scope.organizationId,
+      {
+        courseId,
+        oldMapping: course.mapping,
+        newMapping: proposed,
+        changedBy: actor.id,
+        affectedRunIds: affected.map((entry) => entry.runId),
+      },
+      tx,
+    )
+    const updated = await repo.updateCourse(
+      scope.organizationId,
+      courseId,
+      { mapping: proposed },
+      tx,
+    )
+    if (!updated) courseNotFound()
+    await audit(tx, {
+      actorId: actor.id,
+      orgId: scope.organizationId,
+      action: 'mapping.change',
+      targetType: 'course',
+      targetId: courseId,
+      metadata: {
+        oldMapping: course.mapping,
+        newMapping: proposed,
+        affected: affected.length,
+        changed: affected.filter((entry) => entry.changed).length,
+      },
+    })
+    await enqueueAfterCommit(tx, 'recompute_exports', {
+      courseId,
+      organizationId: scope.organizationId,
+    })
+    return updated
+  })
+  return toCourse(row)
+}
+
+/**
+ * The `recompute_exports` job (10 §3, FR-206): every confirmed run of the course, repriced and
+ * re-exported.
+ *
+ * It takes no actor. There is no acting user by the time it runs — the instructor pressed Apply and
+ * the transaction that recorded it has committed — so `course_exports.created_by` is null on every
+ * version this writes, which is what that column is nullable for (10 §14). What it does take is the
+ * institution, carried in the payload beside the course: a job has no session to resolve a tenant
+ * from, and every read below is `tenantId`-first like every other read in the codebase (D-006,
+ * D-447). The pair was written by `changeMapping` inside the transaction that had already resolved
+ * the course through `requireCourseInstructor`.
+ *
+ * One transaction per run rather than one for the course. A course can hold a hundred confirmed
+ * runs, each of which rebuilds a whole trace export, and a single transaction would hold the row
+ * locks for all of them while it did; per run, a failure halfway leaves the runs it reached repriced
+ * and re-exported and the rest untouched, which the job's own retry then finishes — the ledger is
+ * append-only and a run repriced twice under the same mapping writes the same numbers (D-447).
+ */
+export async function recomputeExports(payload: {
+  courseId: string
+  organizationId: string
+}): Promise<{ courseId: string; repriced: number; exported: number }> {
+  const course = await repo.findCourse(payload.organizationId, payload.courseId)
+  if (!course) courseNotFound()
+  const runs = await repo.listConfirmedRunsForCourse(course.organizationId, course.id)
+
+  let repriced = 0
+  let exported = 0
+  for (const entry of runs) {
+    await repo.withTransaction(async (tx) => {
+      await repriceRun(tx, entry.run.id, course.mapping, course.mapping)
+      repriced += 1
+      await writeCourseExport(
+        tx,
+        {
+          id: entry.run.id,
+          organizationId: entry.run.organizationId,
+          assignmentId: entry.run.assignmentId,
+        },
+        'mapping_change',
+        { actorId: null },
+      )
+      exported += 1
+    })
+  }
+  return { courseId: course.id, repriced, exported }
+}
+
+/** Both prices of every confirmed run in the course, from one read of its bands (FR-206). */
+async function priceCourseRuns(
+  tenantId: string,
+  courseId: string,
+  current: Mapping,
+  proposed: Mapping,
+): Promise<MappingChangeRow[]> {
+  const runs = await repo.listConfirmedRunsForCourse(tenantId, courseId)
+  const rows: MappingChangeRow[] = []
+  for (const entry of runs) {
+    const bands = await readBands(entry.run.id)
+    const now = gradebookPointsOf(priceBands(bands, current))
+    const after = gradebookPointsOf(priceBands(bands, proposed))
+    rows.push({
+      runId: entry.run.id,
+      assignmentId: entry.assignment.id,
+      assignmentLabel: entry.assignment.label,
+      studentId: entry.run.studentId,
+      pointsNow: now,
+      pointsAfter: after,
+      changed: now !== after,
+    })
+  }
+  return rows
 }
 
 // ---------------------------------------------------------------------------------------------

@@ -182,6 +182,14 @@ const OPERATION_IDS = [
   'listRunExports',
   'listAssignmentExports',
   'getRecord',
+  // Step 11.2 (07 §7, §5): the debrief and the mapping change. 08 §4 gives the debrief to the run's
+  // own student *and* to the reviewers of its section — the one student-facing read on this surface
+  // that a reviewer shares (FR-154) — while the two questions are the student's alone; and the
+  // mapping change, preview and apply, is the course instructor's.
+  'getDebrief',
+  'answerDebrief',
+  'previewMappingChange',
+  'changeMapping',
 ] as const
 
 // ---------------------------------------------------------------------------------------------
@@ -606,6 +614,11 @@ describe('authorization matrix (08 §4)', () => {
     const assignmentExportsRoute =
       await import('@/app/api/v1/assignments/[assignmentId]/exports/route')
     const recordRoute = await import('@/app/api/v1/runs/[runId]/record/route')
+    const debriefRoute = await import('@/app/api/v1/runs/[runId]/debrief/route')
+    const debriefAnswersRoute = await import('@/app/api/v1/runs/[runId]/debrief/answers/route')
+    const mappingPreviewRoute =
+      await import('@/app/api/v1/courses/[courseId]/mapping/preview/route')
+    const mappingRoute = await import('@/app/api/v1/courses/[courseId]/mapping/route')
     const orgPackages = await import('@/app/api/v1/institutions/[orgId]/packages/route')
     const packagesImport = await import('@/app/api/v1/institutions/[orgId]/packages/import/route')
     const packageDetail = await import('@/app/api/v1/packages/[packageId]/route')
@@ -1365,6 +1378,58 @@ describe('authorization matrix (08 §4)', () => {
             path: `/runs/${ownRun}/record`,
             session: await sessionFor(seat),
             params: { runId: ownRun },
+          }),
+      },
+      getDebrief: {
+        route: 'GET /runs/{runId}/debrief',
+        // The one read on this surface two seats share (FR-154): the run's own student and the
+        // reviewers of its section read one document. `ownRun` is in `assigned`, so every allowed
+        // seat meets `DEBRIEF_NOT_AVAILABLE` (409) long after the guard has answered.
+        run: async (seat) =>
+          call(debriefRoute.GET, {
+            path: `/runs/${ownRun}/debrief`,
+            session: await sessionFor(seat),
+            params: { runId: ownRun },
+          }),
+      },
+      answerDebrief: {
+        route: 'POST /runs/{runId}/debrief/answers',
+        // The mirror image of the row above: the two questions ask what *this student* would change,
+        // so a reviewer who may read the whole page has no form on it.
+        run: async (seat) =>
+          call(debriefAnswersRoute.POST, {
+            method: 'POST',
+            path: `/runs/${ownRun}/debrief/answers`,
+            session: await sessionFor(seat),
+            params: { runId: ownRun },
+            body: { stanceToChange: 'C3, to verify.', doDifferently: 'Read the room first.' },
+          }),
+      },
+      previewMappingChange: {
+        route: 'POST /courses/{courseId}/mapping/preview',
+        run: async (seat) =>
+          call(mappingPreviewRoute.POST, {
+            method: 'POST',
+            path: `/courses/${course}/mapping/preview`,
+            session: await sessionFor(seat),
+            params: { courseId: course },
+            body: { mapping: { novice: 1, developing: 2, proficient: 3, professional: 4 } },
+          }),
+      },
+      changeMapping: {
+        route: 'POST /courses/{courseId}/mapping',
+        // `confirm: false`, so the allowed seat meets `MAPPING_CHANGE_UNCONFIRMED` (409) and this
+        // row changes nothing for the rows after it — the guard runs first either way.
+        run: async (seat) =>
+          call(mappingRoute.POST, {
+            method: 'POST',
+            path: `/courses/${course}/mapping`,
+            session: await sessionFor(seat),
+            params: { courseId: course },
+            body: {
+              mapping: { novice: 1, developing: 2, proficient: 3, professional: 4 },
+              confirm: false,
+            },
           }),
       },
     }

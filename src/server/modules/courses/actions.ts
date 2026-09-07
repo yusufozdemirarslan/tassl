@@ -9,20 +9,24 @@
 import { defineAction } from '@/server/http/define-action'
 import {
   addSectionMember,
+  changeMapping,
   createAssignment,
   createCourse,
   createSection,
   deleteWalkthroughRun,
+  previewMappingChange,
   removeSectionMember,
   updateAssignment,
   updateCoursePolicy,
 } from './service'
 import {
   AddSectionMemberActionSchema,
+  ChangeMappingActionSchema,
   CreateAssignmentActionSchema,
   CreateCourseActionSchema,
   CreateSectionActionSchema,
   DeleteWalkthroughRunActionSchema,
+  PreviewMappingChangeActionSchema,
   RemoveSectionMemberActionSchema,
   UpdateAssignmentActionSchema,
   UpdateCoursePolicyActionSchema,
@@ -102,4 +106,28 @@ export const deleteWalkthroughRunAction = defineAction(
     return { data: { deleted: true } as const, revalidate: [COURSES] }
   },
   { name: 'deleteWalkthroughRunAction' },
+)
+
+/**
+ * The mapping change, in the two steps UI-030's editor takes it in (FR-206).
+ *
+ * The preview writes nothing and revalidates nothing: it is the instructor asking what applying
+ * would do. The apply revalidates the course and its assignments' export lists, because every
+ * confirmed run in the course gets a new export version behind it (D-095).
+ */
+export const previewMappingChangeAction = defineAction(
+  PreviewMappingChangeActionSchema,
+  async ({ courseId, ...input }, ctx) => ({
+    data: await previewMappingChange(ctx.actor, courseId, input),
+  }),
+  { name: 'previewMappingChangeAction' },
+)
+
+export const changeMappingAction = defineAction(
+  ChangeMappingActionSchema,
+  async ({ courseId, ...input }, ctx) => ({
+    data: await changeMapping(ctx.actor, courseId, input),
+    revalidate: [COURSES, courseDetail(courseId)],
+  }),
+  { name: 'changeMappingAction' },
 )
