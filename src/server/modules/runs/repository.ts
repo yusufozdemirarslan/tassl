@@ -4,7 +4,7 @@
 // every function that touches it takes `tenantId` first and filters on `organizationId`; the child
 // tables (run_frames, run_briefs, …) have no organization_id and are scoped through the run id the
 // service already resolved. The database handle is always the last parameter (10 §6).
-import { and, desc, eq, getTableColumns, isNull, ne, sql, type SQL } from 'drizzle-orm'
+import { and, asc, desc, eq, getTableColumns, isNull, ne, sql, type SQL } from 'drizzle-orm'
 import { AppError } from '@/lib/errors'
 import { db } from '@/server/db/client'
 import {
@@ -154,6 +154,51 @@ export async function findVariantKey(
     .from(scenarioVariants)
     .where(eq(scenarioVariants.id, variantId))
   return row?.key ?? null
+}
+
+/**
+ * Every variant of a package version, in key order, for the re-offer (10 §6, FR-183).
+ *
+ * The re-offer runs "the other variant", which is a question about the *family* rather than about
+ * the assignment: an assignment names one variant, and the run this one replaces is the only place
+ * that says which one the student already met.
+ */
+export async function listVariantsForVersion(
+  packageVersionId: string,
+  dbx: DbOrTx = db,
+): Promise<{ id: string; key: 'defective' | 'sound' }[]> {
+  return dbx
+    .select({ id: scenarioVariants.id, key: scenarioVariants.key })
+    .from(scenarioVariants)
+    .where(eq(scenarioVariants.packageVersionId, packageVersionId))
+    .orderBy(asc(scenarioVariants.key))
+}
+
+/**
+ * The variants this student has already been given on this assignment, voided runs included.
+ *
+ * A voided run is exactly what makes a re-offer possible, so it counts here: 10 §6's fallback —
+ * "if the family has only two variants and the other is in use, a fresh run on the same variant" —
+ * is asking whether the student has already met the other one, and the run they just had voided is
+ * the run that says so.
+ */
+export async function listStudentRunVariantIds(
+  tenantId: string,
+  assignmentId: string,
+  studentId: string,
+  dbx: DbOrTx = db,
+): Promise<string[]> {
+  const rows = await dbx
+    .select({ variantId: runs.variantId })
+    .from(runs)
+    .where(
+      and(
+        eq(runs.organizationId, tenantId),
+        eq(runs.assignmentId, assignmentId),
+        eq(runs.studentId, studentId),
+      ),
+    )
+  return [...new Set(rows.map((row) => row.variantId))]
 }
 
 export async function insertRun(

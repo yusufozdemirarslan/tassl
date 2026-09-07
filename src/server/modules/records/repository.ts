@@ -4,11 +4,11 @@
 // `tenantId` first, filter on `organizationId`, and never update or delete; run_records has no
 // organization_id and is scoped through the run id the service already resolved in the tenant. The
 // database handle is always the last parameter (10 §6).
-import { and, desc, eq, sql } from 'drizzle-orm'
+import { and, desc, eq, ne, sql } from 'drizzle-orm'
 import type { PgUpdateSetSource } from 'drizzle-orm/pg-core'
 import { AppError } from '@/lib/errors'
 import { db } from '@/server/db/client'
-import { assignments, runs, sections } from '@/server/db/schema'
+import { assignments, runs, scenarioVariants, sections } from '@/server/db/schema'
 import {
   afterCursor,
   clampLimit,
@@ -31,7 +31,7 @@ import type { DbOrTx } from '@/server/db/tx'
 export type { DbOrTx, Tx } from '@/server/db/tx'
 export type { Page, PageInput } from '@/server/db/pagination'
 /** The row types the service names in its signatures; a service may not reach `src/server/db`. */
-export type { CourseExport, RunRecord } from '@/server/db/schema'
+export type { CourseExport, RunRecord, RunRecordSnapshot } from '@/server/db/schema'
 
 /** The record snapshot (and, optionally, the export flag); the run id comes from the parameter. */
 export type RecordUpsert = Omit<NewRunRecord, 'runId' | 'createdAt' | 'updatedAt'>
@@ -115,7 +115,13 @@ export async function findExport(
   return rows[0]
 }
 
-/** Export history of an assignment (FR-184), newest first, cursor-paginated on (created_at, id). */
+/**
+ * Export history of an assignment (FR-184), newest first, cursor-paginated on (created_at, id).
+ *
+ * A voided run's files are not listed (FR-002, D-434). The join is what does it, rather than a
+ * filter after the page is cut, so a voided run cannot use up a page slot and leave the caller with
+ * fewer rows than they asked for.
+ */
 export async function listExports(
   tenantId: string,
   assignmentId: string,
@@ -125,18 +131,23 @@ export async function listExports(
   const limit = clampLimit(input.limit)
   const cursor = decodeCursor(input.cursor)
   const rows = await dbx
-    .select()
+    .select({ export: courseExports })
     .from(courseExports)
+    .innerJoin(runs, eq(runs.id, courseExports.runId))
     .where(
       and(
         eq(courseExports.assignmentId, assignmentId),
         eq(courseExports.organizationId, tenantId),
+        ne(runs.state, 'voided'),
         afterCursor({ createdAt: courseExports.createdAt, id: courseExports.id }, cursor),
       ),
     )
     .orderBy(...cursorOrder({ createdAt: courseExports.createdAt, id: courseExports.id }))
     .limit(limit + 1)
-  return toPage(rows, limit)
+  return toPage(
+    rows.map((row) => row.export),
+    limit,
+  )
 }
 
 /**
@@ -154,6 +165,63 @@ export async function findRunForRecord(
   const [row] = await dbx
     .select({ state: runs.state, assignmentId: runs.assignmentId })
     .from(runs)
+    .where(and(eq(runs.organizationId, tenantId), eq(runs.id, runId)))
+    .limit(1)
+  return row
+}
+
+/**
+ * Every export filed for one run, newest version first (07 §8, FR-184).
+ *
+ * Not paginated: the versions of one run are the corrections it has had, which is a handful at the
+ * outside, and 07 §8 answers this endpoint with an array. The assignment's history next door is the
+ * one that pages, because it is every run of a section.
+ */
+export async function listExportsForRun(
+  tenantId: string,
+  runId: string,
+  dbx: DbOrTx = db,
+): Promise<CourseExport[]> {
+  return dbx
+    .select()
+    .from(courseExports)
+    .where(and(eq(courseExports.runId, runId), eq(courseExports.organizationId, tenantId)))
+    .orderBy(desc(courseExports.version))
+}
+
+/** What the Judgment Record needs from the run row beside its bands and its trace (FR-170). */
+export type RecordContext = {
+  mode: 'guided' | 'standard' | 'open'
+  isWalkthrough: boolean
+  variantId: string
+  variantKey: 'defective' | 'sound'
+  confirmedAt: Date | null
+  adjustedAt: Date | null
+}
+
+/**
+ * The run's mode, its variant and the two instants the record is stamped with.
+ *
+ * The variant is on it because FR-170 puts it there: after scoring, a student is told which of the
+ * two they drew, and the record is the artifact that says so (12 §8.2, D-228). Six columns, read and
+ * never written, in the shape `findRunForRecord` above already has.
+ */
+export async function findRecordContext(
+  tenantId: string,
+  runId: string,
+  dbx: DbOrTx = db,
+): Promise<RecordContext | undefined> {
+  const [row] = await dbx
+    .select({
+      mode: runs.mode,
+      isWalkthrough: runs.isWalkthrough,
+      variantId: runs.variantId,
+      variantKey: scenarioVariants.key,
+      confirmedAt: runs.confirmedAt,
+      adjustedAt: runs.adjustedAt,
+    })
+    .from(runs)
+    .innerJoin(scenarioVariants, eq(scenarioVariants.id, runs.variantId))
     .where(and(eq(runs.organizationId, tenantId), eq(runs.id, runId)))
     .limit(1)
   return row

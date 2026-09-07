@@ -1,0 +1,38 @@
+{
+  "label": "Illustrative sample data",
+  "note": "A four-run trajectory that describes no student and is never mixed with a walkthrough record (FR-171, FR-254, D-035). The four per-run graphs are never illustrative; this is the cross-run picture the build does not compute.",
+  "runs": [
+    { "runIndex": 1, "label": "Run 1" },
+    { "runIndex": 2, "label": "Run 2" },
+    { "runIndex": 3, "label": "Run 3" },
+    { "runIndex": 4, "label": "Run 4" }
+  ],
+  "bands": [
+    { "dimension": "framing", "values": ["novice", "developing", "developing", "proficient"] },
+    {
+      "dimension": "delegation",
+      "values": ["developing", "developing", "proficient", "proficient"]
+    },
+    { "dimension": "verification", "values": ["novice", "developing", "proficient", "proficient"] },
+    { "dimension": "calibration", "values": ["novice", "novice", "developing", "proficient"] },
+    {
+      "dimension": "decision_quality",
+      "values": ["developing", "proficient", "proficient", "professional"]
+    },
+    { "dimension": "adaptation", "values": ["novice", "developing", "developing", "proficient"] },
+    { "dimension": "ownership", "values": ["developing", "proficient", "proficient", "proficient"] }
+  ],
+  "falseChallengeRate": [0.42, 0.31, 0.18, 0.12],
+  "confidenceVsAccuracy": [
+    { "runIndex": 1, "confidenceAtLock": 85, "accuracyAtLock": 0.25 },
+    { "runIndex": 2, "confidenceAtLock": 70, "accuracyAtLock": 0.45 },
+    { "runIndex": 3, "confidenceAtLock": 60, "accuracyAtLock": 0.6 },
+    { "runIndex": 4, "confidenceAtLock": 55, "accuracyAtLock": 0.75 }
+  ],
+  "escalations": [
+    { "runIndex": 1, "used": 0, "outsideCompetence": 0 },
+    { "runIndex": 2, "used": 2, "outsideCompetence": 0 },
+    { "runIndex": 3, "used": 1, "outsideCompetence": 1 },
+    { "runIndex": 4, "used": 1, "outsideCompetence": 1 }
+  ]
+}

@@ -47,8 +47,12 @@ export {
   lockDecision,
   lockFrame,
   lockRunForMutation,
+  markAdjusted,
+  markConfirmed,
   markDefenseComplete,
   markDefenseOpened,
+  markRecorded,
+  markReplayOpened,
   markScored,
   noteFirstDelegation,
   openDocument,
@@ -60,6 +64,7 @@ export {
   startRun,
   submitReadiness,
   toRunSummary,
+  voidRun,
 } from './service'
 
 export type { PauseOptions, PausingRun } from './service'
@@ -69,6 +74,12 @@ export type { PauseOptions, PausingRun } from './service'
 // the product, which is exactly why no page may restate it; it travels through the service because
 // that is the one internal file this index may reach (the `boundaries` policy).
 export { TURN_WINDOW_MS } from './service'
+
+// The void's own wire contract, so the `review` router can declare what 07 §8's endpoint takes and
+// answers without restating the enum or `RunSummary` (04 §2 keeps a module schema free of every
+// import but `src/lib`, so the shape has to be published from where it is written).
+export { VOID_NOTE_MAX_CHARS, VoidReasonSchema, VoidRunResultSchema, VoidRunSchema } from './schema'
+export { RunSummarySchema, RunReviewSummarySchema } from './schema'
 
 export type {
   AddendumInput,
@@ -111,5 +122,8 @@ export type {
   TurnView,
   TurnVoiceValue,
   VariantKeyValue,
+  VoidReasonValue,
+  VoidRunInput,
+  VoidRunResult,
   WorkspaceCapabilities,
 } from './schema'

@@ -160,6 +160,28 @@ const OPERATION_IDS = [
   'decideElement',
   'confirmPackageVersion',
   'regeneratePackageVersion',
+  // Step 11.1 (07 §8): the faculty seat. 08 §4 gives the replay and the band decisions to an
+  // instructor and a TA of the run's section; void, re-offer and neutralize to the instructor
+  // alone; the export history to both reviewers and to no student; and the Judgment Record to the
+  // run's own student and nobody else. Every row below is answered by its guard before the run's
+  // state is read, so no row here depends on another — except `voidRun`, which really does void a
+  // run and so is given one of its own per seat.
+  //
+  // `getRunExport` and `flagDelegation` are absent, and for one reason: both are addressed by a
+  // second id — a version number, a delegation — and answer NOT_FOUND when it names nothing, which
+  // this file counts as a denial. Their seat rules are proven against real ids in
+  // `tests/integration/api/review.test.ts`.
+  'getReviewQueue',
+  'listSectionRunsForReview',
+  'getReplay',
+  'decideBand',
+  'confirmRemainingBands',
+  'bandHeldRunManually',
+  'neutralizeClaim',
+  'voidRun',
+  'listRunExports',
+  'listAssignmentExports',
+  'getRecord',
 ] as const
 
 // ---------------------------------------------------------------------------------------------
@@ -244,6 +266,8 @@ let removable: Record<Seat, UserRow>
 let walkthroughRuns: Record<Seat, string>
 /** The `student` seat's own run, in `assigned`, for the two rows addressed by run id. */
 let ownRun: string
+/** One run per seat for `voidRun`, which is the one row here that really changes what it touches. */
+let voidableRuns: Record<Seat, string>
 
 /**
  * The packages fixture (Step 5.2): a *draft* package of institution A holding one claim. It is a
@@ -486,6 +510,28 @@ describe('authorization matrix (08 §4)', () => {
       })
     ).id
 
+    // `voidRun` is the one operation here whose allowed row changes the world: it voids the run it
+    // is given. So each seat gets its own, on its own student, exactly as `deleteWalkthroughRun`
+    // does — a row that is allowed cannot then change what a later row is answered.
+    const voidableBuilt: Partial<Record<Seat, string>> = {}
+    for (const seat of SEATS) {
+      const runner = await f.createUser(`matrix-voidable-${slugOf(seat)}`)
+      await f.addMember(orgA, runner.id, 'student')
+      await f.addSectionMember(orgA, section, runner.id, 'student')
+      voidableBuilt[seat] = (
+        await runsRepository.insertRun(orgA, {
+          assignmentId: walkthroughAssignment,
+          studentId: runner.id,
+          packageVersionId,
+          variantId: soundVariantId,
+          state: 'working',
+          workingClockSeconds: 1500,
+          turnDelaySeconds: 90,
+        })
+      ).id
+    }
+    voidableRuns = voidableBuilt as Record<Seat, string>
+
     const scenariosRepository = await import('@/server/modules/scenarios/repository')
     const authored = await f.createPackageVersion(orgA, 'matrix-authored', {
       createdBy: seats.instructor.id,
@@ -546,6 +592,20 @@ describe('authorization matrix (08 §4)', () => {
     const forceFailureRoute =
       await import('@/app/api/v1/review/runs/[runId]/test-controls/force-assistant-failure/route')
     const resumeRoute = await import('@/app/api/v1/runs/[runId]/resume/route')
+    const reviewQueueRoute = await import('@/app/api/v1/review/queue/route')
+    const sectionRunsRoute = await import('@/app/api/v1/review/sections/[sectionId]/runs/route')
+    const replayRoute = await import('@/app/api/v1/review/runs/[runId]/route')
+    const bandRoute = await import('@/app/api/v1/review/runs/[runId]/bands/[dimension]/route')
+    const confirmRemainingRoute =
+      await import('@/app/api/v1/review/runs/[runId]/confirm-remaining/route')
+    const manualBandsRoute = await import('@/app/api/v1/review/runs/[runId]/manual-bands/route')
+    const neutralizeRoute =
+      await import('@/app/api/v1/review/runs/[runId]/claims/[claimId]/neutralize/route')
+    const voidRoute = await import('@/app/api/v1/review/runs/[runId]/void/route')
+    const runExportsRoute = await import('@/app/api/v1/runs/[runId]/exports/route')
+    const assignmentExportsRoute =
+      await import('@/app/api/v1/assignments/[assignmentId]/exports/route')
+    const recordRoute = await import('@/app/api/v1/runs/[runId]/record/route')
     const orgPackages = await import('@/app/api/v1/institutions/[orgId]/packages/route')
     const packagesImport = await import('@/app/api/v1/institutions/[orgId]/packages/import/route')
     const packageDetail = await import('@/app/api/v1/packages/[packageId]/route')
@@ -1173,6 +1233,138 @@ describe('authorization matrix (08 §4)', () => {
             session: await sessionFor(seat),
             params: { versionId: authoredVersionId },
             body: { reason: `Matrix copy by ${seat}.` },
+          }),
+      },
+      getReviewQueue: {
+        route: 'GET /review/queue',
+        // No id at all: the queue is whatever sections this actor reviews, and an actor who reviews
+        // none is refused rather than handed an empty one — the rows are about reading other
+        // people's runs (D-096).
+        run: async (seat) =>
+          call(reviewQueueRoute.GET, { path: '/review/queue', session: await sessionFor(seat) }),
+      },
+      listSectionRunsForReview: {
+        route: 'GET /review/sections/{sectionId}/runs',
+        run: async (seat) =>
+          call(sectionRunsRoute.GET, {
+            path: `/review/sections/${section}/runs`,
+            session: await sessionFor(seat),
+            params: { sectionId: section },
+          }),
+      },
+      getReplay: {
+        route: 'GET /review/runs/{runId}',
+        // The row this file exists for on the faculty side: the replay carries warranted stances,
+        // evidence status, failure families, the probe and the expected-answer notes, and the run's
+        // own student is refused it as flatly as an outsider (12 §8.1).
+        run: async (seat) =>
+          call(replayRoute.GET, {
+            path: `/review/runs/${ownRun}`,
+            session: await sessionFor(seat),
+            params: { runId: ownRun },
+          }),
+      },
+      decideBand: {
+        route: 'PUT /review/runs/{runId}/bands/{dimension}',
+        // `ownRun` sits in `assigned`, so the allowed seats meet `RUN_NOT_SCORED` (409) — which is
+        // an allow: the state is the review module's rule, not a permission.
+        run: async (seat) =>
+          call(bandRoute.PUT, {
+            method: 'PUT',
+            path: `/review/runs/${ownRun}/bands/framing`,
+            session: await sessionFor(seat),
+            params: { runId: ownRun, dimension: 'framing' },
+            body: { decision: 'confirmed' },
+          }),
+      },
+      confirmRemainingBands: {
+        route: 'POST /review/runs/{runId}/confirm-remaining',
+        run: async (seat) =>
+          call(confirmRemainingRoute.POST, {
+            method: 'POST',
+            path: `/review/runs/${ownRun}/confirm-remaining`,
+            session: await sessionFor(seat),
+            params: { runId: ownRun },
+          }),
+      },
+      bandHeldRunManually: {
+        route: 'POST /review/runs/{runId}/manual-bands',
+        // Nothing is holding `ownRun`, so the allowed seats meet `RUN_NOT_SCORABLE` (409).
+        run: async (seat) =>
+          call(manualBandsRoute.POST, {
+            method: 'POST',
+            path: `/review/runs/${ownRun}/manual-bands`,
+            session: await sessionFor(seat),
+            params: { runId: ownRun },
+            body: {
+              bands: {
+                framing: 'proficient',
+                delegation: 'proficient',
+                verification: 'proficient',
+                calibration: 'proficient',
+                decision_quality: 'proficient',
+                adaptation: 'proficient',
+                ownership: 'unassessed',
+              },
+            },
+          }),
+      },
+      neutralizeClaim: {
+        route: 'POST /review/runs/{runId}/claims/{claimId}/neutralize',
+        // 08 §4: "Void, re-offer, neutralize (from replay)" is the instructor's row and the TA's is
+        // "—". The claim id names nothing, and it does not have to: the run's state is asked for
+        // first, so the instructor meets `RUN_NOT_SCORED` (409) rather than a missing claim.
+        run: async (seat) =>
+          call(neutralizeRoute.POST, {
+            method: 'POST',
+            path: `/review/runs/${ownRun}/claims/${MISSING_UUID}/neutralize`,
+            session: await sessionFor(seat),
+            params: { runId: ownRun, claimId: MISSING_UUID },
+            body: { reason: 'other', creditChallenge: false, note: '' },
+          }),
+      },
+      voidRun: {
+        route: 'POST /review/runs/{runId}/void',
+        // The allowed row really voids its run, which is why each seat gets its own.
+        run: async (seat) =>
+          call(voidRoute.POST, {
+            method: 'POST',
+            path: `/review/runs/${voidableRuns[seat]}/void`,
+            session: await sessionFor(seat),
+            params: { runId: voidableRuns[seat] },
+            body: { reason: 'other', reoffer: false },
+          }),
+      },
+      listRunExports: {
+        route: 'GET /runs/{runId}/exports',
+        // No export exists on `ownRun`, so the allowed seats meet `RUN_NOT_CONFIRMED` (409).
+        run: async (seat) =>
+          call(runExportsRoute.GET, {
+            path: `/runs/${ownRun}/exports`,
+            session: await sessionFor(seat),
+            params: { runId: ownRun },
+          }),
+      },
+      listAssignmentExports: {
+        route: 'GET /assignments/{assignmentId}/exports',
+        run: async (seat) =>
+          call(assignmentExportsRoute.GET, {
+            path: `/assignments/${assignment}/exports`,
+            session: await sessionFor(seat),
+            params: { assignmentId: assignment },
+          }),
+      },
+      getRecord: {
+        route: 'GET /runs/{runId}/record',
+        // The mirror image of the replay: 08 §4 gives the Judgment Record to the run's own student,
+        // and the reviewers who may read everything else about the run are refused this one — they
+        // read it through the replay and the course export. `ownRun` is not confirmed, so the owner
+        // meets `RECORD_NOT_AVAILABLE` (409).
+        run: async (seat) =>
+          call(recordRoute.GET, {
+            path: `/runs/${ownRun}/record`,
+            session: await sessionFor(seat),
+            params: { runId: ownRun },
           }),
       },
     }

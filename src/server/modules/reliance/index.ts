@@ -25,6 +25,7 @@ export {
   findUnstancedReliedOn,
   findUnstancedWindowClaims,
   listRunClaims,
+  markClaimNeutralized,
   markClaimUsed,
   markReliedOnFromNamedFields,
   runAction,

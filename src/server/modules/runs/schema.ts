@@ -444,6 +444,49 @@ export const ForcedFailureSchema = z.object({ armed: z.literal(true) })
 export type ForcedFailure = z.infer<typeof ForcedFailureSchema>
 
 // ---------------------------------------------------------------------------------------------
+// Void and re-offer (07 §8, FR-002, FR-008, FR-183, D-120)
+// ---------------------------------------------------------------------------------------------
+
+/** `runs.void_reason` (06 §3.4). An enum, because the analytics carry it (D-120). */
+export const VoidReasonSchema = z.enum(['unscoreable', 'scoring_held', 'walkthrough', 'other'])
+export type VoidReasonValue = z.infer<typeof VoidReasonSchema>
+
+/** How long the free-text note on a void may be. The note is written to the event, never a column. */
+export const VOID_NOTE_MAX_CHARS = 1000
+
+/**
+ * `POST /review/runs/{runId}/void` (07 §8).
+ *
+ * The reason is the enum and the sentence is the note, which is D-120's whole point: the column an
+ * analytics query groups by can only ever hold one of four values, and whatever the instructor
+ * actually wrote lives in the `run_voided` event where the replay reads it and no aggregate does.
+ *
+ * `variantId` is optional and is the *override*: left out, a re-offer runs the other variant of the
+ * family (FR-183), which is the behaviour the walkthrough wants and the one an instructor should
+ * not have to ask for.
+ */
+export const VoidRunSchema = z.object({
+  reason: VoidReasonSchema,
+  note: z.string().trim().max(VOID_NOTE_MAX_CHARS).optional(),
+  reoffer: z.boolean(),
+  variantId: z.uuid().optional(),
+})
+export type VoidRunInput = z.infer<typeof VoidRunSchema>
+
+/**
+ * What a void answers: the run that was voided, and the run offered in its place when one was
+ * asked for (07 §8).
+ *
+ * Two `RunSummary`s rather than one, because they are two runs. The student's next act is on the
+ * second one, and the replay the instructor is standing on is about the first.
+ */
+export const VoidRunResultSchema = z.object({
+  voided: RunSummarySchema,
+  reoffered: RunSummarySchema.nullable(),
+})
+export type VoidRunResult = z.infer<typeof VoidRunResultSchema>
+
+// ---------------------------------------------------------------------------------------------
 // The workspace: the Scenario Brief, the Evidence Room, and the frame (07 §7, §10; FR-020 to
 // FR-024, FR-040 to FR-044)
 //

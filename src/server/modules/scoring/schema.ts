@@ -94,6 +94,14 @@ export const bandViewSchema = z.object({
   rationale: z.string(),
   decision: BandDecisionSchema.nullable(),
   decidedBand: BandSchema.nullable(),
+  /**
+   * Who decided, and when. Both are on the reviewer's view because 08 §4's TA row is enforced with
+   * them — "not a band the instructor already decided" is a question about `decidedBy`'s role on the
+   * section — and because the replay names the colleague whose decision a reviewer is looking at.
+   * Neither reaches a student: the debrief's own projection carries the band and the note.
+   */
+  decidedBy: z.string().nullable(),
+  decidedAt: z.iso.datetime().nullable(),
   note: z.string().nullable(),
   bandBeforeCorrection: BandSchema.nullable(),
   bandAfterCorrection: BandSchema.nullable(),

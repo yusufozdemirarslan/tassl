@@ -37,6 +37,10 @@ export type ScoringStatus = Run['scoringStatus']
 // The service may not import `@/server/db` (04 §2), so the transaction boundary it opens is
 // re-exported by the layer that owns database access — the same seam `assistant` and `defense` use.
 export { withTransaction } from '@/server/db/tx'
+// The transaction handle and the read handle, re-exported by the layer that owns database access:
+// a service may not import `@/server/db` (04 §2), and the seams `review` reaches this module
+// through take one of the two in their signatures.
+export type { DbOrTx, Tx } from '@/server/db/tx'
 
 function one<T>(row: T | undefined): T {
   if (row === undefined) throw new AppError('INTERNAL_ERROR', 'Insert returned no row.')
@@ -128,6 +132,33 @@ export async function upsertScore(
     .onConflictDoUpdate({ target: runScores.runId, set })
     .returning()
   return one(score)
+}
+
+/**
+ * Changes some columns of a score row that already exists (D-435).
+ *
+ * `upsertScore` above cannot serve this. Its parameter is `Omit<NewRunScore, 'runId'>`, and
+ * `rubric_version`, `graphs` and `scored_at` are NOT NULL with no default — so a caller that wants
+ * to write `points_confirmed` alone would have to read the four graphs back out of the row and send
+ * them again, on every one of the seven band decisions a run receives. That is not a safety the
+ * upsert is buying: `review` only ever writes a run that has already been scored, so there is no
+ * insert branch to protect, and Drizzle's `.set()` already omits an `undefined` key, which is the
+ * same property D-423 built into the SET clause of the upsert.
+ *
+ * Null when the run has no score row, which the caller reads as "not scored" rather than as an
+ * error: `RUN_NOT_SCORED` is the review module's sentence, not this file's.
+ */
+export async function patchScore(
+  runId: string,
+  patch: Partial<Omit<NewRunScore, 'runId'>>,
+  dbx: DbOrTx = db,
+): Promise<RunScore | null> {
+  const [score] = await dbx
+    .update(runScores)
+    .set(patch)
+    .where(eq(runScores.runId, runId))
+    .returning()
+  return score ?? null
 }
 
 /** The score row of a run, or null before the pipeline has written one. */

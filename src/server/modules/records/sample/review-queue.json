@@ -1,0 +1,36 @@
+{
+  "label": "Illustrative sample data",
+  "note": "These rows are illustrative and describe no student. They show the shapes a review queue takes once a course has run for a term (PRD §7.17, FR-186, D-035, D-096).",
+  "rows": [
+    {
+      "key": "coherence_gaps",
+      "heading": "Coherence gaps",
+      "body": "Runs where the frame and the filed decision point in different directions, gathered so the pattern can be read across a section rather than one run at a time.",
+      "count": 4
+    },
+    {
+      "key": "boundary_cases",
+      "heading": "Boundary cases",
+      "body": "Runs sitting on a band boundary on one dimension, where the descriptor could be read either way and the instructor's judgment is the one that settles it.",
+      "count": 6
+    },
+    {
+      "key": "appeals",
+      "heading": "Appeals",
+      "body": "Runs a student has asked to have looked at again. Nothing here is a dispute about conduct; an appeal is a request to read the evidence together.",
+      "count": 1
+    },
+    {
+      "key": "pattern_flags",
+      "heading": "Pattern flags",
+      "body": "Runs carrying an observation worth a conversation — every dimension at one band, or a defense nobody answered — never a conclusion about the student.",
+      "count": 3
+    },
+    {
+      "key": "batch",
+      "heading": "Batch confirmation",
+      "body": "Runs whose seven drafts are ready to confirm together, each still opening to its own replay before anything is decided.",
+      "count": 12
+    }
+  ]
+}
