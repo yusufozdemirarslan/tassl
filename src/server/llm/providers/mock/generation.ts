@@ -41,14 +41,53 @@ export const isGenerationPrompt = (name: string): name is GenerationPrompt =>
   (GENERATION_PROMPTS as readonly string[]).includes(name)
 
 /**
- * Everything the mock reads from any generation step's input; the rest of the prompt is stripped
- * rather than carried (D-266), so a step's answer cannot turn on a key the step was never given.
+ * What the mock reads from each step's input, declared per step (D-266).
+ *
+ * One schema for all seven would have been shorter and was wrong: §2.1 gives the seed text to step 1
+ * alone, and a mock that read `seedText` on step 7 would be reading a key only a caller could have
+ * set — a channel from the caller's data into an answer no rendered prompt would explain. The rule
+ * `tests/unit/llm/mock.test.ts` enforces is that the mock may read *less* than the prompt sends and
+ * never more, so each entry here is a subset of the keys the prompt of the same name declares.
+ *
+ * Step 6 reads nothing at all: the question bank is templates keyed by claim, and the
+ * counterfactual carries no figure, so neither moves with the seed.
  */
-export const GenerationMockInput = z.object({
-  seedText: z.string().default(''),
-  brief: z.string().default(''),
-  conceptSet: z.array(z.string()).default([]),
-})
+export const GENERATION_MOCK_INPUTS = {
+  'gen-reskin-brief-stakeholders': z.object({
+    seedText: z.string().default(''),
+    conceptSet: z.array(z.string()).default([]),
+  }),
+  'gen-documents': z.object({
+    brief: z.string().default(''),
+    conceptSet: z.array(z.string()).default([]),
+  }),
+  'gen-answer-space-fields': z.object({ brief: z.string().default('') }),
+  'gen-claims-states': z.object({
+    brief: z.string().default(''),
+    conceptSet: z.array(z.string()).default([]),
+  }),
+  'gen-turn-probe': z.object({ brief: z.string().default('') }),
+  'gen-question-bank-counterfactual': z.object({}),
+  'gen-readiness-items': z.object({ conceptSet: z.array(z.string()).default([]) }),
+} as const satisfies Record<GenerationPrompt, z.ZodType>
+
+/** The three figures-bearing keys, normalised, whichever subset the step was allowed to read. */
+export type GenerationMockInput = { seedText: string; brief: string; conceptSet: string[] }
+
+/** Parses the step's own subset and fills the rest with the empty value it would have defaulted to. */
+export function readGenerationInput(
+  prompt: GenerationPrompt,
+  rawInput: unknown,
+): GenerationMockInput {
+  const parsed = GENERATION_MOCK_INPUTS[prompt].parse(
+    rawInput ?? {},
+  ) as Partial<GenerationMockInput>
+  return {
+    seedText: parsed.seedText ?? '',
+    brief: parsed.brief ?? '',
+    conceptSet: parsed.conceptSet ?? [],
+  }
+}
 
 // ---------------------------------------------------------------------------------------------
 // Fixed identity (D-063: deterministic entity substitution, invented so nothing resolves)
@@ -214,7 +253,7 @@ export function drawsFromBrief(brief: string): Draws | null {
 }
 
 /** The seed when the step has one (step 1), the brief it wrote when it does not (steps 2 to 5). */
-export function figuresFor(input: z.infer<typeof GenerationMockInput>): Figures {
+export function figuresFor(input: GenerationMockInput): Figures {
   if (input.seedText.trim() !== '') return figuresFromDraws(drawsFromSeed(input.seedText))
   const recovered = input.brief.trim() === '' ? null : drawsFromBrief(input.brief)
   return figuresFromDraws(recovered ?? DEFAULT_DRAWS)
@@ -1660,7 +1699,7 @@ export function buildMockPackage(
 }
 
 /** The package a step should answer from: seeded in step 1, recovered from the brief afterwards. */
-function packageFor(input: z.infer<typeof GenerationMockInput>): MockPackage {
+function packageFor(input: GenerationMockInput): MockPackage {
   const figures = figuresFor(input)
   const built = buildMockPackage('', input.conceptSet)
   const seeded: MockPackage = {
@@ -1682,8 +1721,7 @@ function packageFor(input: z.infer<typeof GenerationMockInput>): MockPackage {
 
 /** The mock's answer to one `gen-*` prompt, as the object the provider serialises to JSON. */
 export function generationReply(prompt: GenerationPrompt, rawInput: unknown): unknown {
-  const input = GenerationMockInput.parse(rawInput ?? {})
-  const built = packageFor(input)
+  const built = packageFor(readGenerationInput(prompt, rawInput))
 
   switch (prompt) {
     case 'gen-reskin-brief-stakeholders':

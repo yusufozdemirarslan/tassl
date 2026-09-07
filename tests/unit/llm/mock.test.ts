@@ -24,8 +24,8 @@ import { assistantReplyPrompt } from '@/server/llm/prompts/assistant-reply'
 import { mockProvider, renderMock } from '@/server/llm/providers/mock'
 import {
   DEFAULT_CONCEPT_SET,
+  GENERATION_MOCK_INPUTS,
   GENERATION_PROMPTS,
-  GenerationMockInput,
   buildMockPackage,
   drawsFromBrief,
   type MockPackage,
@@ -288,7 +288,9 @@ const MOCK_INPUTS: Record<string, z.ZodType> = {
   'band-read-decision-quality': DecisionQualityInput,
   'band-read-adaptation': AdaptationInput,
   'band-read-ownership': OwnershipInput,
-  ...Object.fromEntries(GENERATION_PROMPTS.map((name) => [name, GenerationMockInput])),
+  // One schema per generation step, not one for all seven: §2.1 hands the seed text to step 1 alone,
+  // so a mock that read `seedText` on step 7 would be reading a key no prompt of step 7 renders.
+  ...Object.fromEntries(GENERATION_PROMPTS.map((name) => [name, GENERATION_MOCK_INPUTS[name]])),
 }
 
 /** The JSON Schema of a Zod schema as it reads its *input*, before defaults and transforms. */
