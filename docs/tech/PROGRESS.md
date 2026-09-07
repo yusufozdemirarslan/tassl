@@ -107,7 +107,7 @@
 - [ ] Phase 11 exit criteria
 
 ## Phase 12 — AI-assisted authoring pipeline (`build-plan/phase-12-authoring-pipeline.md`)
-- [ ] 12.1 Generation prompts, warranted-stance table, mock generation
+- [x] 12.1 Generation prompts, warranted-stance table, mock generation
 - [ ] 12.2 Authoring service and generation jobs
 - [ ] 12.3 Generation progress screen and confirmation workspace regeneration
 - [ ] Phase 12 exit criteria
