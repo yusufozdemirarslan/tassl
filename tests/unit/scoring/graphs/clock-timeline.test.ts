@@ -63,6 +63,21 @@ describe('buildClockTimeline — what the segments are attributed to', () => {
     expect(delegations.every((segment) => segment.claim_ids.length > 0)).toBe(true)
   })
 
+  // FR-055: a marked exchange is not one of the timeline's scored segments. The axis is a partition,
+  // so its interval does not vanish — it falls to `unattributed`, and the clock still adds up.
+  it('gives a delegation a reviewer marked out of scenario no segment (FR-055)', () => {
+    const fixture = loadFixture('marco-8-of-11')
+    const marked = buildClockTimeline({
+      ...fixture,
+      flaggedDelegationIds: ['00000000-0000-4000-8000-000000000201'],
+    })
+    const delegations = marked.segments.filter((segment) => segment.type === 'delegation')
+    expect(delegations.map((segment) => segment.ref_id)).toStrictEqual([
+      '00000000-0000-4000-8000-000000000202',
+    ])
+    assertCovers(marked, 'marco with one exchange marked')
+  })
+
   it('names the document a reading segment was spent in', () => {
     const reading = timeline.segments.find((segment) => segment.type === 'reading')
     expect(reading?.document_id).toBeDefined()

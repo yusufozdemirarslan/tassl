@@ -4,13 +4,15 @@ import type { Route } from 'next'
 import { StanceChip } from '@/components/features/run/stance-chip'
 import { LabelChip } from '@/components/layout/label-chip'
 import { Badge } from '@/components/ui/badge'
+import { formatDateTime } from '@/lib/format/date-time'
 import { t } from '@/lib/i18n/t'
 import type {
   CarriedValue,
-  ClaimExport,
   ClaimImportanceValue,
   ClaimSourceValue,
+  ConfirmationDecisionValue,
   ConsequenceLevelValue,
+  ElementConfirmationView,
   EvidenceStatusValue,
   FailureFamilyValue,
   StanceValue,
@@ -41,6 +43,34 @@ export type ClaimSourceDocument = {
   datedOn: string
 }
 
+/**
+ * The claim itself, stated structurally rather than imported.
+ *
+ * `ClaimExport` satisfies it and so does `scenarios`' `ClaimObjectView`, which is what the faculty
+ * replay reads (UI-033, FR-253): the two shapes differ only in how they name the document a claim
+ * quotes — a package export by element key, the replay by row id — and neither difference is a
+ * field this component draws. Naming one of the two here would make the other caller convert a
+ * shape it already has into a shape it does not.
+ */
+export type ClaimObjectFacts = {
+  key: string
+  text: string
+  sourceKind: ClaimSourceValue
+  sourcePassage: string
+  importance: ClaimImportanceValue
+  consequenceLevel: ConsequenceLevelValue
+  verificationCost: VerificationCostValue
+  weaklySourced: boolean
+  volatile: boolean
+  conceptKey: string
+  carriedValues: readonly CarriedValue[]
+  triggerPhrases: readonly string[]
+  triggerDescription: string
+  escalatable: boolean
+  escalationReply: string | null
+  rationale: string
+}
+
 /** One variant's reading of the claim, as the export carries it (references are element keys). */
 export type ClaimVariantState = {
   variantKey: VariantKeyValue
@@ -52,13 +82,33 @@ export type ClaimVariantState = {
 }
 
 export type ClaimObjectViewProps = {
-  claim: ClaimExport
+  claim: ClaimObjectFacts
   /** The document the claim quotes, resolved from its key; null when it quotes none. */
   sourceDocument: ClaimSourceDocument | null
   states: readonly ClaimVariantState[]
-  /** Document titles by key, so a Source Trace path can name the document it points at. */
+  /**
+   * A label for whatever a Source Trace path names its document by — the element key on a package
+   * screen, the document id on the faculty replay. A reference with no entry renders as itself.
+   */
   documentTitles: ReadonlyMap<string, string>
   backHref: Route
+  /**
+   * The id of the panel the back link returns to. `#claims` on the package version screen and
+   * `#replay-claims` on the faculty replay: a fragment that matches no element sends the reader to
+   * the top of a very long page, which is the exact failure the anchor exists to prevent.
+   */
+  claimsAnchor?: string
+  /**
+   * The variant the reader is standing on, when there is one (UI-033: "both variants' states side
+   * by side with the current one highlighted"). The package version view is not standing on a
+   * variant and passes nothing, which is why this is optional rather than nullable.
+   */
+  currentVariantKey?: VariantKeyValue
+  /**
+   * How this claim was confirmed by its author (FR-253's last field). Null when the version carries
+   * no decision on it; absent on a screen that shows the whole record elsewhere.
+   */
+  confirmation?: ElementConfirmationView | null
 }
 
 /**
@@ -116,6 +166,13 @@ export const COST_LABELS: Record<VerificationCostValue, () => string> = {
 const SOURCE_KIND_LABELS: Record<ClaimSourceValue, () => string> = {
   assistant: () => t('claimObject.sourceKind.assistant'),
   document: () => t('claimObject.sourceKind.document'),
+}
+
+/** The three decisions an author can take on an element, for the one-claim record (FR-253). */
+const CONFIRMATION_DECISION_LABELS: Record<ConfirmationDecisionValue, () => string> = {
+  confirmed: () => t('packageVersion.decision.confirmed'),
+  edited: () => t('packageVersion.decision.edited'),
+  rejected: () => t('packageVersion.decision.rejected'),
 }
 
 const UNIT_LABELS: Record<ValueUnitValue, () => string> = {
@@ -182,7 +239,9 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
 /** A quoted passage: the words as the document has them, set to read rather than to scan. */
 function Passage({ children }: { children: ReactNode }) {
   return (
-    <blockquote className="border-line text-ink text-reading max-w-measure border-l-2 pl-4">
+    // `break-words`: a passage can carry an unbroken token — a url, an id, a long figure — and
+    // `main` has no clip, so one of them gives the whole document a horizontal scrollbar at 360 px.
+    <blockquote className="border-line text-ink text-reading max-w-measure border-l-2 pl-4 break-words">
       {children}
     </blockquote>
   )
@@ -266,11 +325,14 @@ export function ClaimObjectView({
   states,
   documentTitles,
   backHref,
+  currentVariantKey,
+  confirmation,
+  claimsAnchor = CLAIMS_PANEL_ANCHOR,
 }: ClaimObjectViewProps) {
   return (
     <div className="flex flex-col gap-5">
       <Link
-        href={`${backHref}${CLAIMS_PANEL_ANCHOR}` as Route}
+        href={`${backHref}${claimsAnchor}` as Route}
         className="text-primary focus-visible:outline-focus text-meta w-fit rounded-sm underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2"
       >
         {t('claimObject.back')}
@@ -403,37 +465,90 @@ export function ClaimObjectView({
         {states.length === 0 ? (
           <p className="text-ink-muted text-body max-w-measure">{t('claimObject.noStates')}</p>
         ) : (
-          <div className="flex flex-col gap-6">
-            {states.map((state) => (
-              <div key={state.variantKey} className="flex flex-col gap-3">
-                <h4 className="text-reading">
-                  {t('claimObject.variantHeading', { variant: VARIANT_LABELS[state.variantKey]() })}
-                </h4>
-                <dl className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                  <Fact label={t('claimObject.evidenceLabel')}>
-                    <EvidenceBadge status={state.evidenceStatus} />
-                  </Fact>
-                  <Fact label={t('claimObject.familyLabel')}>
-                    {state.failureFamily === null
-                      ? t('claimObject.familyNone')
-                      : FAILURE_FAMILY_LABELS[state.failureFamily]()}
-                  </Fact>
-                  <Fact label={t('claimObject.stanceLabel')}>
-                    <StanceChip stance={state.warrantedStance} />
-                  </Fact>
-                  <Fact label={t('claimObject.plantedLabel')}>
-                    {state.planted ? <PlantedBadge /> : t('claimObject.no')}
-                  </Fact>
-                </dl>
-                <VerificationPaths
-                  paths={state.verificationPaths}
-                  documentTitles={documentTitles}
-                />
-              </div>
-            ))}
+          // Side by side from `lg`, stacked below it, and never a card inside a card: the current
+          // variant is marked by a 2 px teal edge and a chip, and the other keeps a hairline
+          // (DESIGN.md §The One-Layer Rule). Reading the two states in one glance is the whole
+          // point of the view — the difference between them *is* the defect.
+          <div className="grid gap-5 lg:grid-cols-2">
+            {states.map((state) => {
+              const current = state.variantKey === currentVariantKey
+              return (
+                <div
+                  key={state.variantKey}
+                  data-variant={state.variantKey}
+                  aria-current={current ? 'true' : undefined}
+                  className={
+                    current
+                      ? 'border-primary flex flex-col gap-3 border-l-2 pt-1 pb-1 pl-4'
+                      : 'border-line flex flex-col gap-3 border-l pt-1 pb-1 pl-4'
+                  }
+                >
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h4 className="text-reading">
+                      {t('claimObject.variantHeading', {
+                        variant: VARIANT_LABELS[state.variantKey](),
+                      })}
+                    </h4>
+                    {current && (
+                      <span className="bg-primary-soft text-primary text-meta rounded-sm px-2 py-0.5 font-medium">
+                        {t('review.claimCurrentVariant')}
+                      </span>
+                    )}
+                  </div>
+                  <dl className="grid gap-4 sm:grid-cols-2">
+                    <Fact label={t('claimObject.evidenceLabel')}>
+                      <EvidenceBadge status={state.evidenceStatus} />
+                    </Fact>
+                    <Fact label={t('claimObject.familyLabel')}>
+                      {state.failureFamily === null
+                        ? t('claimObject.familyNone')
+                        : FAILURE_FAMILY_LABELS[state.failureFamily]()}
+                    </Fact>
+                    <Fact label={t('claimObject.stanceLabel')}>
+                      <StanceChip stance={state.warrantedStance} />
+                    </Fact>
+                    <Fact label={t('claimObject.plantedLabel')}>
+                      {state.planted ? <PlantedBadge /> : t('claimObject.no')}
+                    </Fact>
+                  </dl>
+                  <VerificationPaths
+                    paths={state.verificationPaths}
+                    documentTitles={documentTitles}
+                  />
+                </div>
+              )
+            })}
           </div>
         )}
       </Section>
+
+      {confirmation !== undefined && (
+        <Section title={t('review.claimConfirmationTitle')}>
+          {confirmation === null ? (
+            <p className="text-ink-muted text-body max-w-measure">
+              {t('review.claimConfirmationNone')}
+            </p>
+          ) : (
+            <dl className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <Fact label={t('packageVersion.columnDecision')}>
+                {CONFIRMATION_DECISION_LABELS[confirmation.decision]()}
+              </Fact>
+              <Fact label={t('packageVersion.columnBy')}>{confirmation.decidedByName}</Fact>
+              <Fact label={t('packageVersion.columnWhen')}>
+                {formatDateTime(confirmation.decidedAt)}
+              </Fact>
+              <Fact label={t('packageVersion.columnRevision')}>
+                <span className="font-mono tabular-nums">{confirmation.revision}</span>
+              </Fact>
+              {confirmation.note.length > 0 && (
+                <div className="sm:col-span-2 lg:col-span-4">
+                  <Fact label={t('review.claimConfirmationNoteLabel')}>{confirmation.note}</Fact>
+                </div>
+              )}
+            </dl>
+          )}
+        </Section>
+      )}
     </div>
   )
 }

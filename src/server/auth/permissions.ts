@@ -9,7 +9,7 @@
 //     scope it proved, so the caller does not repeat the lookup;
 //   - a resource in another organization answers `NOT_FOUND`, never `FORBIDDEN`, so an id cannot be
 //     probed for existence (08 §4 "Cross-tenant").
-import { AppError } from '@/lib/errors'
+import { AppError, isAppError } from '@/lib/errors'
 import {
   findActiveAgreement,
   findCourse,
@@ -37,6 +37,8 @@ export type RunScope = {
   organizationId: string
   studentId: string
   sectionId: string
+  /** The course the run's section belongs to; what `canReviewSection` is asked about (D-483). */
+  courseId: string
 }
 
 const REVIEWER_ROLES: readonly SectionRole[] = ['instructor', 'ta']
@@ -106,6 +108,18 @@ export async function requireSectionRole(
 /**
  * The course's creator, or an `instructor` in one of its sections (08 §5). A course the actor's
  * organization does not contain answers NOT_FOUND rather than FORBIDDEN.
+ *
+ * **Creating a course is not a permission that outlives the seat that had it** (D-516). The
+ * creator branch used to ask only whether an organization membership *existed*, not what it was —
+ * so a course's creator who was later demoted to `student` or `teaching_assistant` still held every
+ * operation this guard admits: the mapping, the assignments, the runs, and now the export history
+ * and the replay link on it. `courses.created_by` is a record of who made the row, not a grant. The
+ * grant is 08 §3's `instructor` organization role, which is the only one the access-control
+ * statement gives `course: update` to.
+ *
+ * The second branch is untouched and needs no role check of its own: a live `instructor` row on a
+ * section of this course *is* the grant 08 §4 names, and it is the one a demoted creator who still
+ * teaches a section keeps.
  */
 export async function requireCourseInstructor(
   actor: SessionUser,
@@ -115,9 +129,52 @@ export async function requireCourseInstructor(
   if (!course) notFound()
   const orgRole = await findOrganizationRole(actor.id, course.organizationId)
   if (orgRole === null) notFound()
-  const isInstructor = course.createdBy === actor.id || (await teachesCourse(actor.id, courseId))
+  const isInstructor =
+    (course.createdBy === actor.id && orgRole === 'instructor') ||
+    (await teachesCourse(actor.id, courseId))
   if (!isInstructor) forbidden()
   return { courseId, organizationId: course.organizationId }
+}
+
+/**
+ * A reviewer of a section: an `instructor` or `ta` row on it, **or** the instructor of its course
+ * (08 §4 "Reviewer", read with D-062 and §5's `requireCourseInstructor`).
+ *
+ * The second half is not a widening. 08 §5 already reads "the section's instructor" as "the course's
+ * creator, or an instructor in one of its sections" — that is what `requireCourseInstructor` is, and
+ * `courses.requireSectionInstructor` uses it for exactly the reason D-062 gives: between creating a
+ * section and putting anyone in it, the course's creator is the only instructor who exists. A guard
+ * that asked only for the section row refused an instructor the runs and the exports on their own
+ * course's assignment, which is why this is one predicate rather than two that agree by hand
+ * (D-483).
+ *
+ * Returns a boolean rather than throwing, because both callers need it twice over: once to gate the
+ * read and once to decide whether a screen offers the link that leads to it.
+ */
+export async function canReviewSection(
+  actor: SessionUser,
+  courseId: string,
+  sectionId: string,
+): Promise<boolean> {
+  const membership = await findSectionMembership(actor.id, sectionId)
+  if (membership && REVIEWER_ROLES.includes(membership.role as SectionRole)) return true
+  try {
+    await requireCourseInstructor(actor, courseId)
+    return true
+  } catch (error) {
+    if (isAppError(error) && (error.code === 'FORBIDDEN' || error.code === 'NOT_FOUND'))
+      return false
+    throw error
+  }
+}
+
+/** The throwing form of `canReviewSection`, for a service that gates a read on it (08 §5). */
+export async function requireSectionReviewer(
+  actor: SessionUser,
+  courseId: string,
+  sectionId: string,
+): Promise<void> {
+  if (!(await canReviewSection(actor, courseId, sectionId))) forbidden()
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -148,6 +205,30 @@ export async function requireRunReviewer(actor: SessionUser, runId: string): Pro
   if (!membership) notFound()
   if (!REVIEWER_ROLES.includes(membership.role as SectionRole)) forbidden()
   return run
+}
+
+/**
+ * The reader of a filed **course export** (08 §4, D-483).
+ *
+ * 08 §4 puts "Download a filed course export" and "list an assignment's export history" on one row,
+ * so they take one predicate: `canReviewSection`, which is `requireRunReviewer`'s section row *or*
+ * the instructor of the course above it. Without this the export history a course's own instructor
+ * can now open would list rows whose every download answered 404 — the defect D-483 fixes, one level
+ * down. It stays separate from `requireRunReviewer`, which guards the replay, the debrief and the
+ * record-form file: those are one student's run, and a section row is the whole of their gate.
+ *
+ * The two refusals keep `requireRunReviewer`'s meaning. A seat with no section row and no course
+ * gets NOT_FOUND, so a run id cannot be probed for existence; a seat that can see the section but
+ * holds the wrong role there gets FORBIDDEN.
+ */
+export async function requireCourseExportReader(
+  actor: SessionUser,
+  runId: string,
+): Promise<RunScope> {
+  const run = await requireRun(runId)
+  if (await canReviewSection(actor, run.courseId, run.sectionId)) return run
+  if (await findSectionMembership(actor.id, run.sectionId)) forbidden()
+  notFound()
 }
 
 /** Section role `instructor` on the run's section (08 §5); a TA is FORBIDDEN, not NOT_FOUND. */

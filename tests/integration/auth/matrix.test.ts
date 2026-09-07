@@ -36,6 +36,8 @@
 // `asUser()` mints and the `X-Requested-With: tassl` header `defineRoute` requires of every
 // cookie-authenticated mutation (08 §2.7) — the same path a browser takes, so a permission check
 // that lives only in the UI cannot make a row pass.
+import { existsSync, readFileSync, readdirSync } from 'node:fs'
+import { join } from 'node:path'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { asUser, testSql, truncateAll } from '@tests/setup/integration'
 import type { OrganizationRole } from '@/server/auth/access-control-shared'
@@ -160,7 +162,114 @@ const OPERATION_IDS = [
   'decideElement',
   'confirmPackageVersion',
   'regeneratePackageVersion',
+  // Step 11.1 (07 §8): the faculty seat. 08 §4 gives the replay and the band decisions to an
+  // instructor and a TA of the run's section; void, re-offer and neutralize to the instructor
+  // alone; the export history to both reviewers and to no student; and the Judgment Record to the
+  // run's own student and nobody else. Every row below is answered by its guard before the run's
+  // state is read, so no row here depends on another — except `voidRun`, which really does void a
+  // run and so is given one of its own per seat.
+  //
+  // `getRunExport` and `flagDelegation` are absent, and for one reason: both are addressed by a
+  // second id — a version number, a delegation — and answer NOT_FOUND when it names nothing, which
+  // this file counts as a denial. Their seat rules are proven against real ids in
+  // `tests/integration/api/review.test.ts`.
+  'getReviewQueue',
+  'listSectionRunsForReview',
+  'getReplay',
+  'decideBand',
+  'confirmRemainingBands',
+  'bandHeldRunManually',
+  'neutralizeClaim',
+  'voidRun',
+  'listRunExports',
+  'listAssignmentExports',
+  'getRecord',
+  // The record-form file is the one act on this surface 08 §4 gives to the owner *and* to the
+  // section's reviewers, which is why it is a row of its own beside `getRecord`'s owner-only one
+  // (D-519). It had no cell at all until the Phase-11 audit (D-520).
+  'exportRecord',
+  // Step 11.2 (07 §7, §5): the debrief and the mapping change. 08 §4 gives the debrief to the run's
+  // own student *and* to the reviewers of its section — the one student-facing read on this surface
+  // that a reviewer shares (FR-154) — while the two questions are the student's alone; and the
+  // mapping change, preview and apply, is the course instructor's.
+  'getDebrief',
+  'answerDebrief',
+  'previewMappingChange',
+  'changeMapping',
 ] as const
+
+// ---------------------------------------------------------------------------------------------
+// The gap, named (D-520)
+// ---------------------------------------------------------------------------------------------
+//
+// `OPERATION_IDS` above is hand-written, and until now nothing compared it with the endpoints that
+// actually exist: an operation added to a router and never added here was uncovered, silently, and
+// twenty-one of them were. So the list below names every registered operation that has **no row**,
+// with the reason, and `REGISTERED_OPERATION_IDS` is read out of the routers themselves — which
+// makes the two lists together a closed statement about the whole API. A *new* endpoint cannot join
+// the gap without a line here saying so.
+//
+// It does not pretend the twenty-one are covered. Nineteen are the run's own lifecycle endpoints
+// from Phases 6 to 9, written before this registry existed and never given cells; they are recorded
+// as the debt they are. The two documented exclusions keep their original reason.
+const NOT_IN_THE_MATRIX: Readonly<Record<string, string>> = {
+  // Addressed by a second id — a version number, a delegation — and NOT_FOUND when it names
+  // nothing, which this file counts as a denial. Their seat rules are proven against real ids in
+  // `tests/integration/api/review.test.ts`.
+  getRunExport: 'a second id; proven in tests/integration/api/review.test.ts',
+  flagDelegation: 'a second id; proven in tests/integration/api/review.test.ts',
+  // No row yet. Each of these is a read or a mutation of the student's own live run, guarded by
+  // `requireRunOwner` and then by the run's state; they predate this registry. Naming them is not
+  // covering them — it is the difference between a gap and a gap nobody can see.
+  advanceRunClock: 'no row yet — the run’s own lifecycle (Phase 6)',
+  answerDefenseQuestion: 'no row yet — the run’s own lifecycle (Phase 9)',
+  answerReadinessItem: 'no row yet — the run’s own lifecycle (Phase 6)',
+  closeDocument: 'no row yet — the run’s own lifecycle (Phase 7)',
+  completeDefense: 'no row yet — the run’s own lifecycle (Phase 9)',
+  getDefense: 'no row yet — the run’s own lifecycle (Phase 9)',
+  getReadiness: 'no row yet — the run’s own lifecycle (Phase 6)',
+  getRunWorkspace: 'no row yet — the run’s own lifecycle (Phase 7)',
+  getTurn: 'no row yet — the run’s own lifecycle (Phase 8)',
+  listRunTrace: 'no row yet — the run’s own trace (Phase 6)',
+  lockFrame: 'no row yet — the run’s own lifecycle (Phase 8)',
+  openDocument: 'no row yet — the run’s own lifecycle (Phase 7)',
+  respondToTurn: 'no row yet — the run’s own lifecycle (Phase 8)',
+  skipReadiness: 'no row yet — the run’s own lifecycle (Phase 6)',
+  submitReadiness: 'no row yet — the run’s own lifecycle (Phase 6)',
+  // No row yet. The actor's own notifications, guarded by the session alone (SYS-010).
+  listNotifications: 'no row yet — the actor’s own notifications (Phase 3)',
+  markAllNotificationsRead: 'no row yet — the actor’s own notifications (Phase 3)',
+  markNotificationRead: 'no row yet — the actor’s own notifications (Phase 3)',
+  unreadNotificationCount: 'no row yet — the actor’s own notifications (Phase 3)',
+}
+
+/**
+ * `delegate` is registered by hand rather than by `defineRoute`: it answers `text/event-stream`, so
+ * `assistant/router.ts` exports a `RouteHandler` with no spec object and its openapi entry is
+ * maintained by hand (D-273). It is the one id `REGISTERED_OPERATION_IDS` cannot read out of a
+ * router, so it is named here rather than left to make the guard below permanently red.
+ */
+const HAND_WRITTEN_OPERATION_IDS = ['delegate'] as const
+
+/**
+ * Every `operationId` the module routers declare, read out of their source.
+ *
+ * The text rather than the modules: importing every route file to enumerate them would drag pg-boss
+ * and the whole job runtime into this suite for a list of strings, and the literal is what a person
+ * adding an endpoint types. `openapi:check` already proves these literals are the shipped API.
+ */
+function registeredOperationIds(): string[] {
+  const root = 'src/server/modules'
+  const ids = new Set<string>(HAND_WRITTEN_OPERATION_IDS)
+  for (const moduleName of readdirSync(root)) {
+    const file = join(root, moduleName, 'router.ts')
+    if (!existsSync(file)) continue
+    for (const match of readFileSync(file, 'utf8').matchAll(/operationId:\s*'([A-Za-z0-9_]+)'/g)) {
+      if (match[1]) ids.add(match[1])
+    }
+  }
+  return [...ids].sort()
+}
 
 // ---------------------------------------------------------------------------------------------
 // The fixture: two institutions, eight seats
@@ -244,6 +353,8 @@ let removable: Record<Seat, UserRow>
 let walkthroughRuns: Record<Seat, string>
 /** The `student` seat's own run, in `assigned`, for the two rows addressed by run id. */
 let ownRun: string
+/** One run per seat for `voidRun`, which is the one row here that really changes what it touches. */
+let voidableRuns: Record<Seat, string>
 
 /**
  * The packages fixture (Step 5.2): a *draft* package of institution A holding one claim. It is a
@@ -486,6 +597,28 @@ describe('authorization matrix (08 §4)', () => {
       })
     ).id
 
+    // `voidRun` is the one operation here whose allowed row changes the world: it voids the run it
+    // is given. So each seat gets its own, on its own student, exactly as `deleteWalkthroughRun`
+    // does — a row that is allowed cannot then change what a later row is answered.
+    const voidableBuilt: Partial<Record<Seat, string>> = {}
+    for (const seat of SEATS) {
+      const runner = await f.createUser(`matrix-voidable-${slugOf(seat)}`)
+      await f.addMember(orgA, runner.id, 'student')
+      await f.addSectionMember(orgA, section, runner.id, 'student')
+      voidableBuilt[seat] = (
+        await runsRepository.insertRun(orgA, {
+          assignmentId: walkthroughAssignment,
+          studentId: runner.id,
+          packageVersionId,
+          variantId: soundVariantId,
+          state: 'working',
+          workingClockSeconds: 1500,
+          turnDelaySeconds: 90,
+        })
+      ).id
+    }
+    voidableRuns = voidableBuilt as Record<Seat, string>
+
     const scenariosRepository = await import('@/server/modules/scenarios/repository')
     const authored = await f.createPackageVersion(orgA, 'matrix-authored', {
       createdBy: seats.instructor.id,
@@ -546,6 +679,26 @@ describe('authorization matrix (08 §4)', () => {
     const forceFailureRoute =
       await import('@/app/api/v1/review/runs/[runId]/test-controls/force-assistant-failure/route')
     const resumeRoute = await import('@/app/api/v1/runs/[runId]/resume/route')
+    const reviewQueueRoute = await import('@/app/api/v1/review/queue/route')
+    const sectionRunsRoute = await import('@/app/api/v1/review/sections/[sectionId]/runs/route')
+    const replayRoute = await import('@/app/api/v1/review/runs/[runId]/route')
+    const bandRoute = await import('@/app/api/v1/review/runs/[runId]/bands/[dimension]/route')
+    const confirmRemainingRoute =
+      await import('@/app/api/v1/review/runs/[runId]/confirm-remaining/route')
+    const manualBandsRoute = await import('@/app/api/v1/review/runs/[runId]/manual-bands/route')
+    const neutralizeRoute =
+      await import('@/app/api/v1/review/runs/[runId]/claims/[claimId]/neutralize/route')
+    const voidRoute = await import('@/app/api/v1/review/runs/[runId]/void/route')
+    const runExportsRoute = await import('@/app/api/v1/runs/[runId]/exports/route')
+    const assignmentExportsRoute =
+      await import('@/app/api/v1/assignments/[assignmentId]/exports/route')
+    const recordRoute = await import('@/app/api/v1/runs/[runId]/record/route')
+    const recordExportRoute = await import('@/app/api/v1/runs/[runId]/record/export/route')
+    const debriefRoute = await import('@/app/api/v1/runs/[runId]/debrief/route')
+    const debriefAnswersRoute = await import('@/app/api/v1/runs/[runId]/debrief/answers/route')
+    const mappingPreviewRoute =
+      await import('@/app/api/v1/courses/[courseId]/mapping/preview/route')
+    const mappingRoute = await import('@/app/api/v1/courses/[courseId]/mapping/route')
     const orgPackages = await import('@/app/api/v1/institutions/[orgId]/packages/route')
     const packagesImport = await import('@/app/api/v1/institutions/[orgId]/packages/import/route')
     const packageDetail = await import('@/app/api/v1/packages/[packageId]/route')
@@ -1175,6 +1328,204 @@ describe('authorization matrix (08 §4)', () => {
             body: { reason: `Matrix copy by ${seat}.` },
           }),
       },
+      getReviewQueue: {
+        route: 'GET /review/queue',
+        // No id at all: the queue is whatever sections this actor reviews, and an actor who reviews
+        // none is refused rather than handed an empty one — the rows are about reading other
+        // people's runs (D-096).
+        run: async (seat) =>
+          call(reviewQueueRoute.GET, { path: '/review/queue', session: await sessionFor(seat) }),
+      },
+      listSectionRunsForReview: {
+        route: 'GET /review/sections/{sectionId}/runs',
+        run: async (seat) =>
+          call(sectionRunsRoute.GET, {
+            path: `/review/sections/${section}/runs`,
+            session: await sessionFor(seat),
+            params: { sectionId: section },
+          }),
+      },
+      getReplay: {
+        route: 'GET /review/runs/{runId}',
+        // The row this file exists for on the faculty side: the replay carries warranted stances,
+        // evidence status, failure families, the probe and the expected-answer notes, and the run's
+        // own student is refused it as flatly as an outsider (12 §8.1).
+        run: async (seat) =>
+          call(replayRoute.GET, {
+            path: `/review/runs/${ownRun}`,
+            session: await sessionFor(seat),
+            params: { runId: ownRun },
+          }),
+      },
+      decideBand: {
+        route: 'PUT /review/runs/{runId}/bands/{dimension}',
+        // `ownRun` sits in `assigned`, so the allowed seats meet `RUN_NOT_SCORED` (409) — which is
+        // an allow: the state is the review module's rule, not a permission.
+        run: async (seat) =>
+          call(bandRoute.PUT, {
+            method: 'PUT',
+            path: `/review/runs/${ownRun}/bands/framing`,
+            session: await sessionFor(seat),
+            params: { runId: ownRun, dimension: 'framing' },
+            body: { decision: 'confirmed' },
+          }),
+      },
+      confirmRemainingBands: {
+        route: 'POST /review/runs/{runId}/confirm-remaining',
+        run: async (seat) =>
+          call(confirmRemainingRoute.POST, {
+            method: 'POST',
+            path: `/review/runs/${ownRun}/confirm-remaining`,
+            session: await sessionFor(seat),
+            params: { runId: ownRun },
+          }),
+      },
+      bandHeldRunManually: {
+        route: 'POST /review/runs/{runId}/manual-bands',
+        // Nothing is holding `ownRun`, so the allowed seats meet `RUN_NOT_SCORABLE` (409).
+        run: async (seat) =>
+          call(manualBandsRoute.POST, {
+            method: 'POST',
+            path: `/review/runs/${ownRun}/manual-bands`,
+            session: await sessionFor(seat),
+            params: { runId: ownRun },
+            body: {
+              bands: {
+                framing: 'proficient',
+                delegation: 'proficient',
+                verification: 'proficient',
+                calibration: 'proficient',
+                decision_quality: 'proficient',
+                adaptation: 'proficient',
+                ownership: 'unassessed',
+              },
+            },
+          }),
+      },
+      neutralizeClaim: {
+        route: 'POST /review/runs/{runId}/claims/{claimId}/neutralize',
+        // 08 §4: "Void, re-offer, neutralize (from replay)" is the instructor's row and the TA's is
+        // "—". The claim id names nothing, and it does not have to: the run's state is asked for
+        // first, so the instructor meets `RUN_NOT_SCORED` (409) rather than a missing claim.
+        run: async (seat) =>
+          call(neutralizeRoute.POST, {
+            method: 'POST',
+            path: `/review/runs/${ownRun}/claims/${MISSING_UUID}/neutralize`,
+            session: await sessionFor(seat),
+            params: { runId: ownRun, claimId: MISSING_UUID },
+            body: { reason: 'other', creditChallenge: false, note: '' },
+          }),
+      },
+      voidRun: {
+        route: 'POST /review/runs/{runId}/void',
+        // The allowed row really voids its run, which is why each seat gets its own.
+        run: async (seat) =>
+          call(voidRoute.POST, {
+            method: 'POST',
+            path: `/review/runs/${voidableRuns[seat]}/void`,
+            session: await sessionFor(seat),
+            params: { runId: voidableRuns[seat] },
+            body: { reason: 'other', reoffer: false },
+          }),
+      },
+      listRunExports: {
+        route: 'GET /runs/{runId}/exports',
+        // No export exists on `ownRun`, so the allowed seats meet `RUN_NOT_CONFIRMED` (409).
+        run: async (seat) =>
+          call(runExportsRoute.GET, {
+            path: `/runs/${ownRun}/exports`,
+            session: await sessionFor(seat),
+            params: { runId: ownRun },
+          }),
+      },
+      listAssignmentExports: {
+        route: 'GET /assignments/{assignmentId}/exports',
+        run: async (seat) =>
+          call(assignmentExportsRoute.GET, {
+            path: `/assignments/${assignment}/exports`,
+            session: await sessionFor(seat),
+            params: { assignmentId: assignment },
+          }),
+      },
+      exportRecord: {
+        route: 'GET /runs/{runId}/record/export',
+        // The record-form file: the run's own student, or a reviewer of its section (08 §4,
+        // `records.requireRecordReader`). `ownRun` is not confirmed, so every admitted seat meets
+        // `RECORD_NOT_AVAILABLE` (409) and every refused one meets the guard first — which is what
+        // this table asks. It is the mirror of `getRecord` a row below, and the pair is the whole
+        // reason 08 §4's old single row had to be split.
+        run: async (seat) =>
+          call(recordExportRoute.GET, {
+            path: `/runs/${ownRun}/record/export`,
+            session: await sessionFor(seat),
+            params: { runId: ownRun },
+          }),
+      },
+      getRecord: {
+        route: 'GET /runs/{runId}/record',
+        // The mirror image of the replay: 08 §4 gives the Judgment Record to the run's own student,
+        // and the reviewers who may read everything else about the run are refused this one — they
+        // read it through the replay and the course export. `ownRun` is not confirmed, so the owner
+        // meets `RECORD_NOT_AVAILABLE` (409).
+        run: async (seat) =>
+          call(recordRoute.GET, {
+            path: `/runs/${ownRun}/record`,
+            session: await sessionFor(seat),
+            params: { runId: ownRun },
+          }),
+      },
+      getDebrief: {
+        route: 'GET /runs/{runId}/debrief',
+        // The one read on this surface two seats share (FR-154): the run's own student and the
+        // reviewers of its section read one document. `ownRun` is in `assigned`, so every allowed
+        // seat meets `DEBRIEF_NOT_AVAILABLE` (409) long after the guard has answered.
+        run: async (seat) =>
+          call(debriefRoute.GET, {
+            path: `/runs/${ownRun}/debrief`,
+            session: await sessionFor(seat),
+            params: { runId: ownRun },
+          }),
+      },
+      answerDebrief: {
+        route: 'POST /runs/{runId}/debrief/answers',
+        // The mirror image of the row above: the two questions ask what *this student* would change,
+        // so a reviewer who may read the whole page has no form on it.
+        run: async (seat) =>
+          call(debriefAnswersRoute.POST, {
+            method: 'POST',
+            path: `/runs/${ownRun}/debrief/answers`,
+            session: await sessionFor(seat),
+            params: { runId: ownRun },
+            body: { stanceToChange: 'C3, to verify.', doDifferently: 'Read the room first.' },
+          }),
+      },
+      previewMappingChange: {
+        route: 'POST /courses/{courseId}/mapping/preview',
+        run: async (seat) =>
+          call(mappingPreviewRoute.POST, {
+            method: 'POST',
+            path: `/courses/${course}/mapping/preview`,
+            session: await sessionFor(seat),
+            params: { courseId: course },
+            body: { mapping: { novice: 1, developing: 2, proficient: 3, professional: 4 } },
+          }),
+      },
+      changeMapping: {
+        route: 'POST /courses/{courseId}/mapping',
+        // `confirm: false`, so the allowed seat meets `MAPPING_CHANGE_UNCONFIRMED` (409) and this
+        // row changes nothing for the rows after it — the guard runs first either way.
+        run: async (seat) =>
+          call(mappingRoute.POST, {
+            method: 'POST',
+            path: `/courses/${course}/mapping`,
+            session: await sessionFor(seat),
+            params: { courseId: course },
+            body: {
+              mapping: { novice: 1, developing: 2, proficient: 3, professional: 4 },
+              confirm: false,
+            },
+          }),
+      },
     }
   })
 
@@ -1235,6 +1586,34 @@ describe('authorization matrix (08 §4)', () => {
 
     it('registers a runnable operation for every id', () => {
       expect(Object.keys(operations).sort()).toEqual([...OPERATION_IDS].sort())
+    })
+
+    it('accounts for every operation the routers declare, covered or named (D-520)', () => {
+      // The guard the file did not have: `OPERATION_IDS` was hand-written and compared only with
+      // this file's own `operations` map, so an endpoint added to a router and never added here was
+      // uncovered and nothing said so — twenty-one of them were. Every registered id must now be
+      // either in the matrix or in `NOT_IN_THE_MATRIX` with a reason beside it.
+      const registered = registeredOperationIds()
+      const accounted = new Set<string>([...OPERATION_IDS, ...Object.keys(NOT_IN_THE_MATRIX)])
+      expect(
+        registered.filter((id) => !accounted.has(id)),
+        'a new endpoint needs a row in matrix.json or a named reason in NOT_IN_THE_MATRIX',
+      ).toEqual([])
+
+      // And in the other direction, so the two lists cannot rot: nothing may be excused or covered
+      // that no router declares any more.
+      const declared = new Set(registered)
+      expect(
+        [...accounted].filter((id) => !declared.has(id)).sort(),
+        'OPERATION_IDS and NOT_IN_THE_MATRIX may only name endpoints that exist',
+      ).toEqual([])
+
+      // The gap is debt, not a design: it may shrink and it may not grow.
+      expect(Object.keys(NOT_IN_THE_MATRIX).length).toBeLessThanOrEqual(21)
+      expect(
+        Object.values(NOT_IN_THE_MATRIX).every((reason) => reason.length > 0),
+        'every excused operation states why',
+      ).toBe(true)
     })
   })
 

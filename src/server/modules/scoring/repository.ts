@@ -20,6 +20,7 @@ import {
   runBands,
   runDefenseAnswers,
   runDefenseQuestions,
+  runDelegations,
   runScores,
   runs,
   scenarioClaims,
@@ -31,12 +32,20 @@ import {
   variantClaimStates,
 } from '@/server/db/schema'
 import type { DbOrTx } from '@/server/db/tx'
+// The one string that says a *reviewer* marked an exchange, rather than a guard (FR-055). 04 §2
+// lets a repository import another module's schema, which is where that module keeps its
+// vocabulary; restating it here would be a second place for it to drift.
+import { DELEGATION_OUT_OF_SCENARIO_FLAG } from '@/server/modules/assistant/schema'
 
 export type ScoringStatus = Run['scoringStatus']
 
 // The service may not import `@/server/db` (04 §2), so the transaction boundary it opens is
 // re-exported by the layer that owns database access — the same seam `assistant` and `defense` use.
 export { withTransaction } from '@/server/db/tx'
+// The transaction handle and the read handle, re-exported by the layer that owns database access:
+// a service may not import `@/server/db` (04 §2), and the seams `review` reaches this module
+// through take one of the two in their signatures.
+export type { DbOrTx, Tx } from '@/server/db/tx'
 
 function one<T>(row: T | undefined): T {
   if (row === undefined) throw new AppError('INTERNAL_ERROR', 'Insert returned no row.')
@@ -128,6 +137,33 @@ export async function upsertScore(
     .onConflictDoUpdate({ target: runScores.runId, set })
     .returning()
   return one(score)
+}
+
+/**
+ * Changes some columns of a score row that already exists (D-435).
+ *
+ * `upsertScore` above cannot serve this. Its parameter is `Omit<NewRunScore, 'runId'>`, and
+ * `rubric_version`, `graphs` and `scored_at` are NOT NULL with no default — so a caller that wants
+ * to write `points_confirmed` alone would have to read the four graphs back out of the row and send
+ * them again, on every one of the seven band decisions a run receives. That is not a safety the
+ * upsert is buying: `review` only ever writes a run that has already been scored, so there is no
+ * insert branch to protect, and Drizzle's `.set()` already omits an `undefined` key, which is the
+ * same property D-423 built into the SET clause of the upsert.
+ *
+ * Null when the run has no score row, which the caller reads as "not scored" rather than as an
+ * error: `RUN_NOT_SCORED` is the review module's sentence, not this file's.
+ */
+export async function patchScore(
+  runId: string,
+  patch: Partial<Omit<NewRunScore, 'runId'>>,
+  dbx: DbOrTx = db,
+): Promise<RunScore | null> {
+  const [score] = await dbx
+    .update(runScores)
+    .set(patch)
+    .where(eq(runScores.runId, runId))
+    .returning()
+  return score ?? null
 }
 
 /** The score row of a run, or null before the pipeline has written one. */
@@ -381,6 +417,31 @@ export async function listVariantStates(
     })
     .from(variantClaimStates)
     .where(eq(variantClaimStates.variantId, variantId))
+}
+
+/**
+ * The exchanges a reviewer marked out of scenario (FR-055, D-481).
+ *
+ * `run_delegations.flags` is the run's reviewer-only channel and holds five other marks the guards,
+ * the probe and the late-reply path write (`rebuilt`, `filtered`, `no_commentary`, `probe`,
+ * `discarded_late`). Only `out_of_scenario` is a faculty seat saying the exchange is not part of
+ * this run's material, and only that one excludes — so the query names it rather than asking
+ * whether the array is non-empty, which is the read that made a rebuilt reply look like a mark.
+ *
+ * Scoped by `runId` and not by tenant, like every other child read in this file: the service has
+ * already resolved the run through `findRunContext` (D-006).
+ */
+export async function listFlaggedDelegationIds(runId: string, dbx: DbOrTx = db): Promise<string[]> {
+  const rows = await dbx
+    .select({ id: runDelegations.id })
+    .from(runDelegations)
+    .where(
+      and(
+        eq(runDelegations.runId, runId),
+        sql`${DELEGATION_OUT_OF_SCENARIO_FLAG} = any(${runDelegations.flags})`,
+      ),
+    )
+  return rows.map((row) => row.id)
 }
 
 export type ScoringDefenseRow = {

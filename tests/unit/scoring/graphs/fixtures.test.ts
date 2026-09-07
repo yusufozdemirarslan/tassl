@@ -74,6 +74,15 @@ describe('the thirteen scoring fixtures', () => {
     expect(stateIds).toStrictEqual(claimIds)
   })
 
+  // `GraphInput`'s fourth field (FR-055, D-481). These files are read back through a cast, so a
+  // fixture that omitted it would reach the builders as `undefined` and no compiler would say so;
+  // the field is written out empty, because a fixture is a run no reviewer ever marked.
+  it.each(FIXTURE_NAMES)('%s declares the reviewer marks it carries, and carries none', (name) => {
+    const fixture = loadFixture(name)
+    expect(Array.isArray(fixture.flaggedDelegationIds)).toBe(true)
+    expect(fixture.flaggedDelegationIds).toStrictEqual([])
+  })
+
   it('never puts the clock on an event outside the working period or the Turn window (D-042)', () => {
     for (const name of FIXTURE_NAMES) {
       const fixture = loadFixture(name)

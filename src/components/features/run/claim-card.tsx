@@ -1,6 +1,6 @@
 'use client'
 
-import { useId, useState, type ReactNode } from 'react'
+import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
 import { FormAlert } from '@/components/features/account/form-feedback'
 import { LabelChip } from '@/components/layout/label-chip'
@@ -231,6 +231,26 @@ export function ClaimControls({
   const escalation: EscalationResult | null = held.escalation
   const remaining = held.remainingEscalations
 
+  // Where the caret goes when the escalation lands (D-500). Sending it closes the dialog *and*
+  // removes the "Escalate" control the dialog would otherwise hand focus back to — the trigger is
+  // drawn only while `escalation === null` — so the student was left on `document.body`, from which
+  // WebKit's Tab moves nothing at all. The answer they just paid five minutes of clock for is the
+  // honest destination: it is what the press produced, it carries its own accessible name, and it
+  // is where a sighted student's eye goes anyway.
+  //
+  // The move is made only when the caret has actually been dropped. That is one test for two rules:
+  // an engine that put focus somewhere real is not fought, and a student who moved on while the
+  // colleague was answering keeps the place they chose.
+  const answer = useRef<HTMLElement>(null)
+  const hadEscalation = useRef(escalation !== null)
+  useEffect(() => {
+    const before = hadEscalation.current
+    hadEscalation.current = escalation !== null
+    if (before || escalation === null) return
+    if (document.activeElement !== null && document.activeElement !== document.body) return
+    answer.current?.focus()
+  }, [escalation])
+
   function run(type: ActionTypeValue): void {
     if (running || !canWrite) return
     setRunning(true)
@@ -352,8 +372,10 @@ export function ClaimControls({
 
       {escalation !== null && (
         <section
+          ref={answer}
+          tabIndex={-1}
           aria-label={t('workspace.escalationTitle')}
-          className="border-line flex flex-col gap-2 border-t pt-3"
+          className="border-line focus-visible:outline-focus flex flex-col gap-2 border-t pt-3 focus-visible:outline-2 focus-visible:outline-offset-2"
         >
           {/* Labelled paragraphs rather than headings: the section is already named, and
               DESIGN.md's Descending-Heading Rule puts the rung below h5 in bold body rather than

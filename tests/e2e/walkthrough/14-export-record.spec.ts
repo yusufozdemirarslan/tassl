@@ -1,8 +1,12 @@
-// Step 14 of the walkthrough (PRD §12), part 1: **the trace as it leaves Tassl**. The Judgment
-// Record screen is UI-029 and arrives in Phase 11 with the confirmation that opens it; what this
-// spec proves is the document underneath it — that the trace is reachable over HTTP once the run is
+// Step 14 of the walkthrough (PRD §12): **the record as it leaves Tassl, and the two screens that
+// hand it over**.
+//
+// Part 1 is the document underneath UI-029 — that the trace is reachable over HTTP once the run is
 // scored, that what comes back is the shape the export schema publishes, and that the three keys
 // FR-170 keeps out of the student's copy are kept out by the schema rather than by anybody's care.
+// Part 2 is the pair of screens the confirmation opens: the assignment's export history (UI-035)
+// listing version 1, and the Judgment Record itself (UI-029) with its four graphs, its confirmed
+// bands, the mode and the variant, and a download that carries none of the course's arithmetic.
 //
 // Five things.
 //
@@ -32,18 +36,13 @@
 //   `GET /runs/{runId}/record/export` answers `RECORD_NOT_AVAILABLE` with the state the student's
 //   own status screen is already showing them. A draft band does not leave Tassl.
 //
-// WHAT THIS SPEC CANNOT YET ASSERT, AND WHY IT IS NOT ASSERTED AROUND
-//
 // FR-170's own acceptance criterion is the whole record document, fetched from
-// `GET /runs/{runId}/record/export` and swept for the three keys. That endpoint opens at `confirmed`
-// (`records/errors.ts`), and nothing in the build reaches `confirmed`: the transition's trigger is
-// the last band decision, and the review module that makes one is Phase 11's. So the document-level
-// sweep runs where the phase file says it runs — `tests/integration/trace/export.test.ts`, through
-// the service, over a run moved to `confirmed` by hand — and what is proved here over HTTP is the
-// gate, the schema, and the live payload the schema strips. When Phase 11 lands the band decisions,
-// the part 2 of this spec that adds the record screen should fetch the file through the endpoint and
-// run `findForbiddenKeys(document, { scored: true, form: 'record' })` over it, which is the one
-// assertion this file is missing rather than avoiding.
+// `GET /runs/{runId}/record/export` and swept for the three keys, and part 2 is where that runs: the
+// instructor confirms the seven bands, the endpoint opens, and `findForbiddenKeys(document,
+// { scored: true, form: 'record' })` is run over the file the student downloads. The one path it
+// exempts is `confidence_line.points` — the three plotted readings of FR-132's line, which are the
+// student's own numbers and which FR-170 puts *in* the record by name (D-439) — and the exemption is
+// named here rather than assumed, exactly as the service names it.
 //
 // The run is set up through the documented endpoints and is assistant-free, for the reasons
 // `11-scoring-debrief.spec.ts` gives at length: the Delegation read falls back to the defense
@@ -52,7 +51,12 @@
 import type { APIRequestContext, APIResponse, Page } from '@playwright/test'
 import { z } from 'zod'
 import { expect, seatEmail, signInAs, signOut, test, type Seat } from '../fixtures'
-import { createStudentAssignment, signInAsInstructor } from '../instructor/api'
+import { addSectionMember, createStudentAssignment, signInAsInstructor } from '../instructor/api'
+// The two instructor writes of part 2 go through the rate-limit-aware pair rather than the local
+// `Page`-shaped one: they are made on the `request` context, and three browser projects share the
+// one instructor seat against D-026's sixty writes a minute (`scored-run.ts`'s `write`).
+import { post as apiPost, put as apiPut } from './scored-run'
+import { findForbiddenKeys } from '@/server/auth/student-view'
 import {
   CourseTraceExportSchema,
   RecordTraceExportSchema,
@@ -81,6 +85,38 @@ const SCORING_TIMEOUT_MS = 20_000
 
 /** The three keys the record form of the export omits at every depth (FR-170, FR-243). */
 const COURSE_ONLY_KEYS = ['weight', 'mapping', 'points'] as const
+
+/**
+ * The one legitimate collision with the containment rule, named rather than assumed (D-439).
+ *
+ * `confidence_line.points` are the three plotted readings of FR-132's line — the student's own
+ * confidence at the frame, at the lock and after the Turn — and FR-170 puts that graph *in* the
+ * record by name. The pattern matches that path and the readings inside it, so a `points_confirmed`
+ * nested anywhere else, including inside a reading, is still a finding.
+ */
+const CONFIDENCE_LINE_POINTS = /(^|\.)confidence_line\.points(\[\d+\])?$/
+
+/**
+ * The one survivor of the always-set in a record-form export (D-370).
+ *
+ * `readiness_item.answer_key` is the option the *student* chose, which is a different field from the
+ * item's answer key and the reason `owner-view.ts` exists at all. `student-view.ts` forbids the name
+ * outright, and `tests/integration/trace/export.test.ts` audits the export key by key; here the one
+ * path is exempted by shape so that a second `answer_key` anywhere else would still be a finding.
+ */
+const STUDENT_ANSWER_KEY = /^events\[\d+\]\.payload\.answer_key$/
+
+/** The note the instructor writes on the band, which the record then carries (FR-170, FR-182). */
+const RECORD_NOTE = 'Read against the Source Trace on the payback figure.'
+
+/**
+ * How long the two recharts graphs may take to appear.
+ *
+ * `@/components/graphs` loads the confidence line and the clock timeline through `next/dynamic` so
+ * the library is not in the route's entry bundle (16 §3.2, D-282, D-074), which means they arrive
+ * in a chunk fetched *after* the page — by design.
+ */
+const GRAPH_TIMEOUT_MS = 20_000
 
 /**
  * The event types PRD §12's "exportable event trace" names, in its order.
@@ -374,6 +410,12 @@ test('walkthrough step 14: the scored run’s trace is served over the API in th
     studentEmail: seatEmail(STUDENT_SEAT),
     variant: 'defective',
   })
+  // The instructor is on the section as well: part 2 needs a seat that may decide the seven bands
+  // and read the assignment's export history (`requireRunReviewer`, `requireSectionRole`).
+  await addSectionMember(request, assignment.section.id, {
+    email: seatEmail('instructor'),
+    role: 'instructor',
+  })
 
   await signInAs(page, STUDENT_SEAT)
   const mine = await myAssignment(page, assignment.label)
@@ -525,6 +567,101 @@ test('walkthrough step 14: the scored run’s trace is served over the API in th
   // Nothing of the document came back with the refusal.
   const body = await refused.text()
   for (const key of COURSE_ONLY_KEYS) expect(body).not.toContain(`"${key}"`)
+
+  // -------------------------------------------------------------------------------------------
+  // Part 2: the confirmation opens the record (UI-029, UI-035, FR-170 to FR-172, FR-204)
+  // -------------------------------------------------------------------------------------------
+
+  await signInAsInstructor(request)
+  const bands = await readJson<{ bands: { dimension: string; band: string | null }[] }>(
+    request,
+    `/api/v1/review/runs/${runId}`,
+  )
+  const verification = bands.bands.find((band) => band.dimension === 'verification')
+  const overrideTo = verification?.band === 'professional' ? 'proficient' : 'professional'
+  await apiPut(request, `/api/v1/review/runs/${runId}/bands/verification`, {
+    decision: 'overridden',
+    band: overrideTo,
+    note: RECORD_NOTE,
+  })
+  await apiPost(request, `/api/v1/review/runs/${runId}/confirm-remaining`)
+
+  // UI-035: the assignment's export history lists version 1, with the reason it was written and a
+  // download beside it, and carries the sentence about the gradebook of record.
+  // The browser drives both screens, one seat at a time: the export history is the instructor's and
+  // the record is the student's, and reading each in the seat it belongs to is half the assertion.
+  await signOut(page)
+  await signInAs(page, 'instructor')
+  await page.goto(`/assignments/${mine.assignmentId}/exports`)
+  await expect(page.getByRole('heading', { level: 1, name: 'Course exports' })).toBeVisible()
+  const table = page.locator('#assignment-exports')
+  await expect(table.getByText('The bands were confirmed')).toBeVisible()
+  await expect(table.getByRole('link', { name: 'Download version 1' })).toBeVisible()
+  await expect(
+    table.getByText(
+      'Enter bands, mapping, and points in the gradebook of record; Tassl holds no grade.',
+    ),
+  ).toBeVisible()
+  await signOut(page)
+
+  // UI-029: the student's own Judgment Record.
+  await signInAs(page, STUDENT_SEAT)
+  await page.goto(`/records/${runId}`)
+  await expect(page.getByRole('heading', { level: 1, name: 'Judgment Record' })).toBeVisible()
+
+  for (const title of [
+    'Confidence line',
+    'Clock timeline',
+    'Stance matrix',
+    'Frame beside decision',
+  ]) {
+    await expect(
+      page.locator('#record-graphs').getByRole('heading', { name: title }),
+      `UI-029 draws all four graphs; "${title}" is missing`,
+    ).toBeVisible({ timeout: GRAPH_TIMEOUT_MS })
+  }
+
+  const recordBands = page.locator('#record-bands')
+  await expect(recordBands.getByText('Confirmed band')).toHaveCount(7)
+  await expect(recordBands.getByText('Draft band')).toHaveCount(0)
+  await expect(recordBands.locator('#band-verification').getByText(RECORD_NOTE)).toBeVisible()
+
+  // FR-170's "mode and variant". The variant is the one this spec chose, so it is asserted by name;
+  // the mode is the assignment's and is asserted as one of the three rather than as a guess.
+  // The two terms, exactly: the panel's own description sentence names both words as well, and a
+  // substring match would resolve to it too.
+  const context = page.locator('#record-context')
+  await expect(context.getByText('Mode', { exact: true })).toBeVisible()
+  await expect(context.getByText('Variant', { exact: true })).toBeVisible()
+  await expect(context.getByText('Defective', { exact: true })).toBeVisible()
+  await expect(context.getByText(/^(Guided|Standard|Open)$/)).toBeVisible()
+
+  // FR-172, through the file the student actually downloads: no key whose name contains `weight`,
+  // `mapping` or `points` at any depth — with the one path FR-170 puts in the record by name.
+  const file = await page.request.get(`/api/v1/runs/${runId}/record/export`)
+  expect(file.status(), await file.text()).toBe(200)
+  const document = (await file.json()) as unknown
+  // Two exemptions, both named rather than assumed, and both the ones the service itself names.
+  // `readiness_item.answer_key` is the key the *student themselves* chose — a different thing from
+  // the item's answer key, which is why `owner-view.ts` exists — and it is the one survivor of the
+  // always-set that `tests/integration/trace/export.test.ts` audits key by key (D-370).
+  // `confidence_line.points` are the three plotted readings of FR-132's line (D-439).
+  const findings = findForbiddenKeys(document, { scored: true, form: 'record' }).filter(
+    (finding) =>
+      !CONFIDENCE_LINE_POINTS.test(finding.path) && !STUDENT_ANSWER_KEY.test(finding.path),
+  )
+  expect(findings, 'FR-170: the record form carries none of the course’s arithmetic').toEqual([])
+  // And the exemption is not a hole: the record-form terms alone, over the whole document, find
+  // nothing at all. That is FR-172's rule — no key whose name contains `weight`, `mapping` or
+  // `points`, at any depth — asserted without any exemption but the graph field FR-170 names.
+  const arithmetic = findForbiddenKeys(document, { scored: true, form: 'record' }).filter(
+    (finding) => finding.set === 'record_form' && !CONFIDENCE_LINE_POINTS.test(finding.path),
+  )
+  expect(arithmetic, 'FR-172: no course arithmetic at any depth of the record').toEqual([])
+  const downloaded = JSON.stringify(document)
+  expect(downloaded.length, 'the download is the record, not an empty envelope').toBeGreaterThan(
+    1000,
+  )
 
   await signOut(page)
 })

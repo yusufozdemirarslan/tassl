@@ -12,8 +12,13 @@ import { AppError } from '@/lib/errors'
 import type { SessionUser } from '@/server/auth/types'
 import { defineRoute, type RouteContext, type RouteHandler } from '@/server/http/define-route'
 import { attachRouteSpec, getRouteSpec, type RegisteredRoute } from '@/server/http/openapi-registry'
-import { listNotificationsSchema, notificationIdSchema, notificationPageSchema } from './schema'
-import { listNotifications, markAllRead, markRead } from './service'
+import {
+  listNotificationsSchema,
+  notificationIdSchema,
+  notificationPageSchema,
+  unreadCountSchema,
+} from './schema'
+import { countUnread, listNotifications, markAllRead, markRead } from './service'
 
 const TAGS = ['notifications']
 
@@ -58,6 +63,28 @@ export const listNotificationsRoute = defineRoute(
     },
   },
   async (ctx) => listNotifications(actorOf(ctx), ctx.input.query),
+)
+
+/**
+ * `GET /notifications/unread-count` — the shell bell's badge (UI-008, SYS-010, D-470).
+ *
+ * A route rather than a Server Action, and the difference is what it costs. Next.js answers a
+ * Server Action with the re-rendered tree of whatever page the caller is on, so a badge polled from
+ * one would re-render the run workspace — `getRunWorkspace` and everything under it — once a minute
+ * for every open tab. This answers one integer and re-renders nothing.
+ */
+export const unreadCountRoute = defineRoute(
+  {
+    auth: 'session',
+    output: unreadCountSchema,
+    rateLimit: { bucket: 'read' },
+    openapi: {
+      operationId: 'unreadNotificationCount',
+      summary: 'How many of my notifications are unread',
+      tags: TAGS,
+    },
+  },
+  async (ctx) => ({ count: await countUnread(actorOf(ctx)) }),
 )
 
 const markReadRoute = defineRoute(

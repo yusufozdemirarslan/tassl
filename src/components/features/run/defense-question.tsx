@@ -352,6 +352,23 @@ export function DefenseInterview({ runId, questions: initial }: DefenseInterview
   const current = unanswered[0] ?? null
   const answered = ordered.length - unanswered.length
 
+  // The caret when the **last** question is answered (D-500). Every other answer hands it on: the
+  // question that becomes current focuses its own box (the effect in `DefenseQuestion` above). The
+  // last one hands it to nobody — the form unmounts into the quoted answer, no question becomes
+  // current, and the student was left on `document.body`, from which WebKit's Tab moves nothing.
+  // Finishing is the one act left, and its control is on screen and stable, so that is where the
+  // caret goes; it is also the moment the button takes the screen's accent. Only when the caret was
+  // actually dropped, so nothing is taken from a student who moved on.
+  const finishButton = useRef<HTMLButtonElement>(null)
+  const hadCurrent = useRef(current !== null)
+  useEffect(() => {
+    const before = hadCurrent.current
+    hadCurrent.current = current !== null
+    if (!before || current !== null) return
+    if (document.activeElement !== null && document.activeElement !== document.body) return
+    finishButton.current?.focus()
+  }, [current])
+
   // The top-level questions in sequence, each with the follow-up that belongs under it (D-344).
   const parents = ordered.filter((question) => question.followUpOf === null)
   const followUps = new Map<string, Question>()
@@ -561,6 +578,7 @@ export function DefenseInterview({ runId, questions: initial }: DefenseInterview
             the first second, because FR-124 allows a student to finish with answers they chose not
             to give — it simply stops wearing the teal until it is the thing left to do. */}
         <Button
+          ref={finishButton}
           type="button"
           variant={unanswered.length === 0 ? 'primary' : 'secondary'}
           aria-disabled={finishing ? true : undefined}

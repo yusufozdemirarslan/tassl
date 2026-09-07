@@ -346,7 +346,8 @@ function framing(context: BandContext): DraftBand {
       rationale: join(`${categorical} ${t('band.framing.singleToken')}`, read?.rationale),
     }
   }
-  if (!read) return unassessed('framing', context, 'read_failed', t('band.unassessed.readFailed'))
+  if (!read)
+    return unassessed('framing', context, 'read_failed', t('band.unassessed.readIncomplete'))
 
   // A.1's Professional boundary turns on "the evidence read before AI entered"; a run that opened
   // nothing before its first delegation cannot meet it, whatever the frame says.
@@ -373,7 +374,7 @@ function delegation(context: BandContext): DraftBand {
   const { facts } = context
   const read = context.reads?.delegation
   if (!read) {
-    return unassessed('delegation', context, 'read_failed', t('band.unassessed.readFailed'))
+    return unassessed('delegation', context, 'read_failed', t('band.unassessed.readIncomplete'))
   }
   // FR-064 and A.2's fixed modifier: an incomplete log is scored from the defense alone, and so is
   // a run with no delegation to read at all (10 §11.3). Both are `defense_only`, which is what
@@ -428,7 +429,12 @@ function decisionQuality(context: BandContext): DraftBand {
     }
   }
   if (!read) {
-    return unassessed('decision_quality', context, 'read_failed', t('band.unassessed.readFailed'))
+    return unassessed(
+      'decision_quality',
+      context,
+      'read_failed',
+      t('band.unassessed.readIncomplete'),
+    )
   }
 
   // FR-109, fixed by PRD §7.10: outside the answer space is the bottom of Decision Quality, and so
@@ -465,7 +471,7 @@ const ADAPTATION_DETAIL: Record<ResponseVsWarrant, string> = {
   over_adaptation: t('band.adaptation.over'),
   under_adaptation: t('band.adaptation.under'),
   implicit_hold_ok: t('band.adaptation.implicitHoldOk'),
-  implicit_hold_failed: t('band.adaptation.implicitHoldFailed'),
+  implicit_hold_failed: t('band.adaptation.implicitHoldAgainstWarrant'),
   no_response: '',
   no_turn: '',
 }
@@ -587,7 +593,8 @@ function ownership(context: BandContext): DraftBand {
       rationale: `${answered} ${t('band.ownership.nothingAnswered')}`,
     }
   }
-  if (!read) return unassessed('ownership', context, 'read_failed', t('band.unassessed.readFailed'))
+  if (!read)
+    return unassessed('ownership', context, 'read_failed', t('band.unassessed.readIncomplete'))
   return {
     ...base,
     band: read.band,

@@ -24,6 +24,7 @@
 // `courses` module's public interface (`getAssignment`, `getPolicyDisplay`), which is also the
 // permission check for them — the policy values written into `policy_displayed` are the same ones
 // UI-021 showed, because they come from the same function.
+import { randomUUID } from 'node:crypto'
 import { isAppError } from '@/lib/errors'
 import { flagsFromEnv } from '@/lib/flags'
 import { track } from '@/server/analytics/track'
@@ -81,6 +82,7 @@ import {
   readinessOptionNotOffered,
   readinessSetUnavailable,
   readinessSkipNotAllowed,
+  reofferVariantMismatch,
   roomNotOpen,
   runActiveExists,
   runLocked,
@@ -149,6 +151,8 @@ import type {
   TurnResponseInput,
   TurnView,
   VariantKeyValue,
+  VoidRunInput,
+  VoidRunResult,
 } from './schema'
 import { readingOf } from './skim'
 import { transition } from './state-machine'
@@ -2136,6 +2140,210 @@ export async function respondToTurn(
 }
 
 // ---------------------------------------------------------------------------------------------
+// Void and re-offer (FR-002, FR-008, FR-183, 10 §6, D-120)
+//
+// "A run that cannot be scored is voided and re-offered on a fresh variant at no cost, with no
+// partial score and no points recorded" (FR-002). Both halves of that sentence live here, and both
+// are the faculty seat's act rather than a rule Tassl applies to itself: a run is voided because an
+// instructor looked at it and said so (FR-008), and the re-offer is written in the same breath so
+// that a student who lost a run to a defect is not left to ask for another one.
+// ---------------------------------------------------------------------------------------------
+
+/**
+ * Voids a run, and offers the student another when the instructor asks for one (10 §6).
+ *
+ * **From any state except `voided`.** That is 10 §9's last row and it is not a convenience: the
+ * walkthrough's own step 15 voids a run that auto-locked with nothing in it, and the held-run path
+ * of FR-140 voids one that reached `defense_complete` and could not be read. A run whose bands are
+ * already confirmed can be voided too, because a correction to a *graded* artifact is exactly the
+ * case FR-002 is written for — and what stops its points from reaching a gradebook is the export
+ * side of the rule (`records`, D-434), not a state list here.
+ *
+ * The reason is an enum and the sentence is the note (D-120): `runs.void_reason` is what an
+ * analytics query groups by, and whatever the instructor actually wrote goes into the `run_voided`
+ * event, where the replay reads it and no aggregate does.
+ *
+ * One transaction for both runs. A void that committed without the re-offer it promised would leave
+ * a student with no run at all and an instructor who believes they gave them one; the unique index
+ * `(assignment_id, student_id) where state <> 'voided'` (D-259) also means the new row can only be
+ * inserted after the old one is voided, which is the same order.
+ */
+export async function voidRun(
+  actor: SessionUser,
+  runId: string,
+  input: VoidRunInput,
+): Promise<VoidRunResult> {
+  const scope = await requireRunInstructor(actor, runId)
+  const tenantId = scope.organizationId
+  const at = new Date()
+
+  const { voided, reoffered } = await repo.withTransaction(async (tx) => {
+    const run = await lockRunForMutation(tx, tenantId, runId)
+    const moved = transition(run, 'voided', { cause: 'voided', at })
+
+    // The order of these four statements is fixed by two constraints pulling opposite ways, and
+    // getting it wrong is a unique-index violation rather than a subtle defect.
+    //
+    // `runs_assignment_id_student_id_live_uidx` (D-259) allows one run per student per assignment
+    // that is not voided, so the replacement cannot be inserted until this run *is* voided. And
+    // `re_offered_to_run_id` is a foreign key to `runs.id`, so it cannot be set until the
+    // replacement row exists. So: the event first, while the run still has the clock the void
+    // interrupted; the transition second, which frees the index; the new run third; the link last.
+    const reofferId = input.reoffer ? randomUUID() : null
+    await append(tx, run, 'run_voided', {
+      reason: input.reason,
+      note: input.note ?? '',
+      re_offered_run_id: reofferId,
+    })
+    const movedRun = await repo.updateRun(
+      tenantId,
+      runId,
+      { ...moved.patch, voidReason: input.reason },
+      tx,
+    )
+    if (!movedRun) runNotFound()
+
+    const next =
+      reofferId === null
+        ? null
+        : await reofferRun(tx, run, {
+            id: reofferId,
+            at,
+            actorId: actor.id,
+            variantId: input.variantId ?? null,
+          })
+
+    const updatedVoid = next
+      ? ((await repo.updateRun(tenantId, runId, { reOfferedToRunId: next.id }, tx)) ?? movedRun)
+      : movedRun
+
+    await audit(tx, {
+      actorId: actor.id,
+      orgId: tenantId,
+      action: 'run.void',
+      targetType: 'run',
+      targetId: runId,
+      metadata: {
+        reason: input.reason,
+        stateAtVoid: run.state,
+        reoffered: next !== null,
+        ...(next ? { reofferedRunId: next.id } : {}),
+      },
+    })
+    if (next) {
+      await audit(tx, {
+        actorId: actor.id,
+        orgId: tenantId,
+        action: 'run.reoffer',
+        targetType: 'run',
+        targetId: next.id,
+        metadata: { fromRunId: runId, variantId: next.variantId },
+      })
+    }
+    return { voided: updatedVoid, reoffered: next }
+  })
+
+  return {
+    voided: toRunSummary(voided),
+    reoffered: reoffered ? toRunSummary(reoffered) : null,
+  }
+}
+
+/**
+ * The run offered in place of a voided one (FR-183, 10 §6).
+ *
+ * It takes the transaction and the voided row rather than an actor, like every other seam in this
+ * file's last section: the permission was proved by `voidRun`, the row is already locked, and the
+ * two runs commit together.
+ *
+ * **Which variant.** The default is the other one of the family, because the point of a re-offer is
+ * that the student meets material they have not already seen. An explicit `variantId` overrides it
+ * — an instructor re-offering a walkthrough run may want the same variant demonstrated again — and
+ * must belong to the run's own package version (`VARIANT_MISMATCH`, the code `courses` already
+ * answers a variant from another version with). When the family's other variant is one the student
+ * has already been given on this assignment, the re-offer is a fresh run on the same variant: 10 §6
+ * names that fallback, and the alternative is refusing to re-offer a run at all on the second
+ * defect, which is the situation FR-002 exists to rescue.
+ *
+ * The new run copies the two numbers the voided one was taken under rather than re-reading the
+ * assignment: a clock or a Turn delay edited between the two would otherwise make the replacement a
+ * different exercise from the one that was lost.
+ */
+async function reofferRun(
+  tx: repo.Tx,
+  from: repo.Run,
+  options: { id: string; at: Date; actorId: string; variantId: string | null },
+): Promise<repo.Run> {
+  const variants = await repo.listVariantsForVersion(from.packageVersionId, tx)
+  const variantId = await chooseReofferVariant(tx, from, variants, options.variantId)
+
+  const attemptNo = await repo.nextAttemptNo(
+    from.organizationId,
+    from.assignmentId,
+    from.studentId,
+    tx,
+  )
+  const next = await repo.insertRun(
+    from.organizationId,
+    {
+      // The id is chosen by the caller, because the `run_voided` event names the replacement and
+      // is written before the row exists (see the ordering note in `voidRun`).
+      id: options.id,
+      assignmentId: from.assignmentId,
+      studentId: from.studentId,
+      packageVersionId: from.packageVersionId,
+      variantId,
+      attemptNo,
+      state: 'assigned',
+      mode: from.mode,
+      isWalkthrough: from.isWalkthrough,
+      workingClockSeconds: from.workingClockSeconds,
+      turnDelaySeconds: from.turnDelaySeconds,
+      reOfferedFromRunId: from.id,
+      accommodationApplied: from.accommodationApplied,
+    },
+    tx,
+  )
+
+  // On the new run, naming the one it replaces (10 §10). It is the first event of that run's trace,
+  // which is what makes a re-offered run legible on its own: everything else about it starts at
+  // `assigned` exactly like a first attempt.
+  await append(
+    tx,
+    next,
+    'run_reoffered',
+    { from_run_id: from.id, variant_id: variantId },
+    {
+      actorId: options.actorId,
+      occurredAt: options.at,
+    },
+  )
+  return next
+}
+
+/** 10 §6's variant rule for a re-offer, with the instructor's override in front of it. */
+async function chooseReofferVariant(
+  tx: repo.Tx,
+  from: repo.Run,
+  variants: readonly { id: string; key: string }[],
+  requested: string | null,
+): Promise<string> {
+  if (requested !== null) {
+    if (!variants.some((variant) => variant.id === requested)) reofferVariantMismatch()
+    return requested
+  }
+  const other = variants.find((variant) => variant.id !== from.variantId)
+  if (!other) return from.variantId
+  const used = await repo.listStudentRunVariantIds(
+    from.organizationId,
+    from.assignmentId,
+    from.studentId,
+    tx,
+  )
+  return used.includes(other.id) ? from.variantId : other.id
+}
+
+// ---------------------------------------------------------------------------------------------
 // The forced-failure test control (FR-118, 12 §4 A04)
 // ---------------------------------------------------------------------------------------------
 
@@ -2403,6 +2611,104 @@ export async function markScored(
   )
   if (!next) runNotFound()
   return next
+}
+
+/**
+ * `scored → confirmed`, which is the seventh band decision landing (10 §9, §12; FR-181).
+ *
+ * The same seam and the same shape as `markScored` above: the transition with its `confirmed_at`
+ * stamp and the `lifecycle` event that explains it, written in the caller's transaction. The seven
+ * `band_decision` events, the confirmed points and the first course export are `review`'s and
+ * `records`', written in that same transaction before this is called — the moment the run *becomes*
+ * confirmed is the moment its file can be handed to a gradebook, so nothing may be missing from it
+ * once it has.
+ *
+ * `actorId` is the reviewer who decided, because unlike scoring there is a seat behind this.
+ */
+export async function markConfirmed(
+  tx: repo.Tx,
+  run: repo.Run,
+  options: { at?: Date; actorId?: string | null } = {},
+): Promise<repo.Run> {
+  const at = options.at ?? new Date()
+  const moved = transition(run, 'confirmed', { cause: 'bands_confirmed', at })
+  await append(tx, run, 'lifecycle', moved.payload, {
+    actorId: options.actorId ?? null,
+    occurredAt: at,
+  })
+  const next = await repo.updateRun(run.organizationId, run.id, moved.patch, tx)
+  if (!next) runNotFound()
+  return next
+}
+
+/**
+ * `confirmed → recorded`, the last transition a run makes (10 §9; FR-152).
+ *
+ * Two callers, one rule. The debrief's two questions move a *confirmed* run here, and a
+ * confirmation moves a run whose student had already answered them while the bands were still
+ * draft — 10 §12 puts that second branch in `decideBand` for exactly the case the walkthrough
+ * produces, a student who answered on Tuesday and an instructor who confirmed on Thursday.
+ */
+export async function markRecorded(
+  tx: repo.Tx,
+  run: repo.Run,
+  options: { at?: Date; actorId?: string | null } = {},
+): Promise<repo.Run> {
+  const at = options.at ?? new Date()
+  const moved = transition(run, 'recorded', { cause: 'debrief_answered', at })
+  await append(tx, run, 'lifecycle', moved.payload, {
+    actorId: options.actorId ?? null,
+    occurredAt: at,
+  })
+  const next = await repo.updateRun(run.organizationId, run.id, moved.patch, tx)
+  if (!next) runNotFound()
+  return next
+}
+
+/**
+ * Stamps `adjusted_at` after a correction (10 §9's "confirmed, recorded → same, `adjusted_at` set").
+ *
+ * It is **not** a transition and writes no `lifecycle` event: a neutralization moves nothing, and
+ * the state machine's table deliberately does not carry that row (`state-machine.ts`). What records
+ * the correction is the `claim_neutralized` event the caller appends in the same transaction; this
+ * is the column a screen reads to say the run has been adjusted since it was confirmed.
+ */
+export async function markAdjusted(
+  tx: repo.Tx,
+  run: repo.Run,
+  at: Date = new Date(),
+): Promise<repo.Run> {
+  const next = await repo.updateRun(run.organizationId, run.id, { adjustedAt: at }, tx)
+  if (!next) runNotFound()
+  return next
+}
+
+/**
+ * Stamps `flags.replay_first_opened_at` the first time a reviewer opens the replay (D-120).
+ *
+ * It lives here because `runs.flags` is this module's column and 12 §8.1 keeps the whole container
+ * out of every student payload — the fewer places that touch it the better, which is the same
+ * reading as `consumeForcedAssistantFailure` and `markDefenseComplete` above.
+ *
+ * The first open wins and every later one is a no-op, which is the whole point: the value is what
+ * `run_confirmed.review_duration_ms` is measured from (17 §3), so a reviewer who reopens the replay
+ * after confirming must not reset how long the review took. It answers whether it wrote, because
+ * that is also what `replay_opened.first_open` reports.
+ */
+export async function markReplayOpened(
+  tx: repo.Tx,
+  run: repo.Run,
+  at: Date = new Date(),
+): Promise<{ run: repo.Run; firstOpen: boolean }> {
+  if (typeof run.flags.replay_first_opened_at === 'string') return { run, firstOpen: false }
+  const next = await repo.updateRun(
+    run.organizationId,
+    run.id,
+    { flags: { ...run.flags, replay_first_opened_at: at.toISOString() } },
+    tx,
+  )
+  if (!next) runNotFound()
+  return { run: next, firstOpen: true }
 }
 
 /**

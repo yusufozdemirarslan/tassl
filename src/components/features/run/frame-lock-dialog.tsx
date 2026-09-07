@@ -43,12 +43,29 @@ export type FrameLockDialogProps = {
   /** The lock is in flight; the dialog stays open and says so until the action answers. */
   locking: boolean
   onConfirm: () => void
+  /**
+   * Where the caret goes when the dialog closes, when the trigger is not the answer (D-500).
+   *
+   * On a cancel it is: the student is back on "Lock the frame", which is where they pressed. On a
+   * *lock* the trigger is about to stop existing — the frame form is the `framing` screen and the
+   * server render replaces the whole of it with the working one — so returning focus there drops
+   * the caret on `document.body` one beat later. The form supplies the page title instead, which is
+   * the same place a client-side navigation puts it (`use-focus-on-route-change.ts`, 09 §6).
+   * Returning `undefined` keeps Base UI's own default.
+   */
+  finalFocus?: () => HTMLElement | undefined
 }
 
-export function FrameLockDialog({ open, onOpenChange, locking, onConfirm }: FrameLockDialogProps) {
+export function FrameLockDialog({
+  open,
+  onOpenChange,
+  locking,
+  onConfirm,
+  finalFocus,
+}: FrameLockDialogProps) {
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
-      <AlertDialogContent>
+      <AlertDialogContent finalFocus={finalFocus}>
         <AlertDialogHeader>
           <AlertDialogTitle>{t('workspace.lockConfirmTitle')}</AlertDialogTitle>
           <AlertDialogDescription>{t('workspace.lockConfirmBody')}</AlertDialogDescription>

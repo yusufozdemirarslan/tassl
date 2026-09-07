@@ -247,6 +247,31 @@ export async function updateReliedOn(
   return row
 }
 
+/**
+ * Marks a run claim neutralized, and credited when the challenge was upheld (FR-003, D-092).
+ *
+ * The two columns are written together because they are one act: `neutralization_id` says the row
+ * is out of the arithmetic, and `inconsistency_credited` says the student's challenge is counted as
+ * a match anyway. The row itself stays — the debrief shows it struck through, because the student
+ * did something on that claim and deserves to see what (§11.5).
+ */
+export async function markClaimNeutralized(
+  runId: string,
+  claimId: string,
+  update: { neutralizationId: string; inconsistencyCredited: boolean },
+  dbx: DbOrTx = db,
+): Promise<RunClaim | undefined> {
+  const [row] = await dbx
+    .update(runClaims)
+    .set({
+      neutralizationId: update.neutralizationId,
+      inconsistencyCredited: update.inconsistencyCredited,
+    })
+    .where(and(eq(runClaims.runId, runId), eq(runClaims.claimId, claimId)))
+    .returning()
+  return row
+}
+
 // ---------------------------------------------------------------------------------------------
 // run_actions — interrogation actions (DATA-035). Append-only.
 // ---------------------------------------------------------------------------------------------

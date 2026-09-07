@@ -675,6 +675,45 @@ export async function listVersions(
     .orderBy(desc(scenarioPackageVersions.version))
 }
 
+/**
+ * Flags a confirmed version for the author's attention (FR-003, 10 §12).
+ *
+ * A narrow update rather than `updateVersionStatus`, because a neutralization changes no status: a
+ * package whose claim turned out to be defective by accident is still the confirmed package every
+ * run of it was taken under, and re-stating its status here would invite a caller to move it.
+ *
+ * These are two of the four columns the `package_version_frozen` trigger allows on a confirmed row
+ * (migration 0004), which is what makes this possible at all — everything else about the version is
+ * frozen the moment it is confirmed (NFR-004).
+ *
+ * The first request wins: `review_requested_at` is coalesced, so a second neutralization on the
+ * same version does not restamp it and the author sees when the version was first questioned.
+ */
+export async function flagVersionForReview(
+  tenantId: string,
+  versionId: string,
+  input: { at: Date; reason: string },
+  dbx: DbOrTx = db,
+): Promise<ScenarioPackageVersion | undefined> {
+  const rows = await dbx
+    .update(scenarioPackageVersions)
+    .set({
+      // The instant is bound as its ISO string and cast in SQL: a `Date` interpolated into a
+      // `sql` fragment reaches postgres-js as a raw parameter it cannot serialize, which the
+      // column's own Drizzle mapper would have done for a plain `.set()` value.
+      reviewRequestedAt: sql`coalesce(${scenarioPackageVersions.reviewRequestedAt}, ${input.at.toISOString()}::timestamptz)`,
+      reviewReason: input.reason,
+    })
+    .where(
+      and(
+        eq(scenarioPackageVersions.id, versionId),
+        eq(scenarioPackageVersions.organizationId, tenantId),
+      ),
+    )
+    .returning()
+  return rows[0]
+}
+
 /** Status transition (draft → confirmed → retired) with the columns that travel with it. */
 export async function updateVersionStatus(
   tenantId: string,

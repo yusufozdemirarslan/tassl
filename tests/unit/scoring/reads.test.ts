@@ -127,6 +127,7 @@ function contextOf(input: GraphInput, overrides: Partial<ReadContext> = {}): Rea
   return {
     events: input.events,
     graphs: buildGraphs(input),
+    flaggedDelegationIds: input.flaggedDelegationIds,
     turn: input.packageVersion.turn,
     positions: POSITIONS,
     documents: DOCUMENTS,
@@ -142,6 +143,10 @@ function contextOf(input: GraphInput, overrides: Partial<ReadContext> = {}): Rea
 }
 
 const marco = (): GraphInput => loadFixture('marco-8-of-11')
+
+/** `run_delegations.id` of the fixture's two exchanges, which is what FR-055's mark names. */
+const FIRST_DELEGATION_ID = '00000000-0000-4000-8000-000000000201'
+const SECOND_DELEGATION_ID = '00000000-0000-4000-8000-000000000202'
 
 /** The same fixture with every piece of the student's free text replaced by an injection. */
 function injectedInput(): GraphInput {
@@ -259,23 +264,55 @@ describe('buildReadInputs', () => {
     }
   })
 
+  // The exclusion is driven from `flaggedDelegationIds`, which is what `run_delegations` holds and
+  // what `scoreRun` reads (FR-055, D-481). The earlier version of this test flagged the *event*
+  // payload, which no reviewer action ever writes — it passed while the product could not reach it.
   it('excludes a delegation a reviewer flagged, and counts the claims marked used (10 §11.3)', () => {
     const fixture = marco()
-    const flagged = fixture.events.map((event) =>
-      event.type === 'delegation' && event.seq === 14
-        ? { ...event, payload: { ...event.payload, flags: ['out_of_scenario'] } }
-        : event,
-    )
     const before = buildReadInputs(contextOf(fixture)).inputs.delegation as {
       delegations: { request: string }[]
     }
-    const after = buildReadInputs(contextOf({ ...fixture, events: flagged })).inputs.delegation as {
-      delegations: { request: string }[]
-    }
+    const after = buildReadInputs(
+      contextOf(fixture, { flaggedDelegationIds: [FIRST_DELEGATION_ID] }),
+    ).inputs.delegation as { delegations: { request: string }[] }
+
     expect(after.delegations.length).toBe(before.delegations.length - 1)
     expect(after.delegations.map((entry) => entry.request)).not.toContain(
       'Give me everything the room supports on the premium launch.',
     )
+  })
+
+  // The guard's own marks share `run_delegations.flags` with the reviewer's, and the `delegation`
+  // event carries only the guard's. Filtering on the event payload dropped a rebuilt reply from the
+  // read; nothing in FR-055 or 10 §11.3 asks for that, and a rebuilt reply is still what the
+  // assistant said to this student.
+  it('keeps a delegation the guard rebuilt: the event’s own flags are not a reviewer’s', () => {
+    const fixture = marco()
+    const rebuilt = fixture.events.map((event) =>
+      event.type === 'delegation'
+        ? { ...event, payload: { ...event.payload, flags: ['rebuilt', 'no_commentary'] } }
+        : event,
+    )
+    const read = buildReadInputs(contextOf({ ...fixture, events: rebuilt })).inputs.delegation as {
+      delegations: { request: string }[]
+    }
+    expect(read.delegations).toHaveLength(2)
+  })
+
+  // Every delegation marked is a log with nothing left in it, which is the condition 10 §11.3 sends
+  // to the stated reason — the same place a run that never delegated goes.
+  it('reads the stated reason when every delegation was flagged (FR-055 with FR-064)', () => {
+    const fixture = marco()
+    const read = buildReadInputs(
+      contextOf(fixture, {
+        flaggedDelegationIds: [FIRST_DELEGATION_ID, SECOND_DELEGATION_ID],
+      }),
+    ).inputs.delegation as {
+      delegations: unknown[]
+      reasonForNotDelegating: string | null
+    }
+    expect(read.delegations).toHaveLength(0)
+    expect(read.reasonForNotDelegating).not.toBeNull()
   })
 
   it('reads the stated reason from the defense when the run made no delegation (FR-064)', () => {
@@ -514,15 +551,21 @@ describe('mapping a read’s output', () => {
         'The answer does not reach the expected answer notes for this question.',
         'expected answer',
       ],
-      [
-        'a peer-relative sentence',
-        'This run sits in the top percentile and ranks above the class median.',
-        'percentile',
-      ],
     ])('redacts %s', (_name, rationale, leaked) => {
       const filtered = filterRationale(rationale)
       expect(filtered.toLowerCase()).not.toContain(leaked)
       expect(filtered).toContain('[…]')
+    })
+
+    it('refuses a peer-relative sentence outright rather than redacting it (D-513)', () => {
+      // This case used to sit in the table above and assert a redaction. FR-131's half of the list
+      // has moved to the shared `RANKING` vocabulary, where a hit refuses the whole rationale and
+      // the band keeps its categorical sentence: a sentence that ranks the student is the wrong
+      // sentence, not a right one with a word missing. `tests/unit/scoring/rationale-voice.test.ts`
+      // holds the whole rule; this line is here so the two lists are read together.
+      expect(
+        filterRationale('This run sits in the top percentile and ranks above the class median.'),
+      ).toBe('')
     })
 
     it('keeps the sentence D-396 approves, which says the placement without the warrant', () => {
@@ -535,7 +578,13 @@ describe('mapping a read’s output', () => {
       const list = BAND_RATIONALE_TERMS.join(' ')
       expect(list).toContain('warrants change')
       expect(list).toContain('proportionate response')
-      expect(list).toContain('percentile')
+      expect(list).toContain('answer notes')
+      // And nothing else. FR-131's terms left this list for `src/lib/product-voice.ts` (D-513), so
+      // what is here is a *disclosure* rule — three fields a student may not be shown — and every
+      // entry can be answered with "which 12 §8.1 field does this name?". A ranking term readmitted
+      // here would be a second, weaker answer to a rule the shared vocabulary already owns.
+      expect(list).not.toContain('percentile')
+      expect(list).not.toContain('rank')
     })
 
     it('drops the whole rationale when it quotes the answer-key prose it was shown', () => {

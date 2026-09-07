@@ -707,4 +707,69 @@ describe('the assignment’s export history', () => {
       'NOT_FOUND',
     )
   })
+
+  // D-483. The history was guarded on a `section_memberships` row alone while the assignment screen
+  // one click up admitted the course's own instructor, so a course creator holding no row in the
+  // section saw the "Course exports" link and got a 404 behind it. The two now ask one predicate,
+  // and this test is that arrangement: the same seat, with the section row taken away.
+  it('draws the replay link for a reviewer who does hold a row in the section (D-517)', async () => {
+    const courses = await import('@/server/modules/courses')
+    for (const actor of [fx.instructor, fx.ta]) {
+      const assignment = await courses.getAssignment(actor, fx.assignment.id)
+      expect(assignment.canViewExports).toBe(true)
+      expect(assignment.canOpenRuns).toBe(true)
+    }
+    // And a student of the section gets neither, which is the same answer both endpoints give.
+    const forStudent = await courses.getAssignment(fx.student, fx.assignment.id)
+    expect(forStudent.canViewExports).toBe(false)
+    expect(forStudent.canOpenRuns).toBe(false)
+  })
+
+  it('is served to the instructor of the course, who may hold no row in its section (D-483)', async () => {
+    const courses = await import('@/server/modules/courses')
+
+    await testSql`delete from section_memberships where user_id = ${fx.instructor.id}`
+    // Precondition: this seat really is outside the section now, so the old guard would refuse.
+    const [row] = await testSql<{ n: string }[]>`
+      select count(*)::text as n from section_memberships where user_id = ${fx.instructor.id}`
+    expect(row?.n).toBe('0')
+
+    const page = await records.listCourseExports(fx.instructor, fx.assignment.id)
+    expect(page.items).toEqual([])
+
+    // The link's visibility and the endpoint's answer are one bit, published by the service that
+    // draws the screen the link is on.
+    const assignment = await courses.getAssignment(fx.instructor, fx.assignment.id)
+    expect(assignment.canViewExports).toBe(true)
+    expect((await courses.listAssignmentRuns(fx.instructor, fx.assignment.id)).items).toEqual([])
+
+    // D-517: and the *replay* link that history draws per row is a different bit, because it is a
+    // different guard. `requireRunReviewer` is untouched by D-483 and is still a section row alone,
+    // so this seat — which may read the whole export history — may not open a run from it, and the
+    // screen has to say so rather than draw a hundred links that all answer 404. That was D-483's
+    // own defect, one level over.
+    expect(assignment.canOpenRuns).toBe(false)
+
+    // Every row of that history carries a download, and 08 §4 puts the two acts on one row: the
+    // same seat reaches `getCourseExport`. This run has filed nothing, so the honest answer is
+    // `EXPORT_NOT_FOUND` — which is the point, because the guard's own refusal is `NOT_FOUND` and
+    // the two are told apart by their codes.
+    const runId = await runInWorking(fx)
+    expect(await codeOf(records.getCourseExport(fx.instructor, runId, 'latest'))).toBe(
+      'EXPORT_NOT_FOUND',
+    )
+
+    // And the widening stops there: a student of the section is still refused — FORBIDDEN, because
+    // they can see the section, and never the NOT_FOUND that would confirm an id — and is still
+    // told nothing by the screen either.
+    expect(await codeOf(records.listCourseExports(fx.student, fx.assignment.id))).toBe('FORBIDDEN')
+    expect((await courses.getAssignment(fx.student, fx.assignment.id)).canViewExports).toBe(false)
+    expect(await codeOf(records.getCourseExport(fx.student, runId, 'latest'))).toBe('FORBIDDEN')
+
+    // A seat outside the section and outside the course is told the run does not exist (08 §4).
+    const other = await setupAssistantFixture('trace-export-outsider')
+    expect(await codeOf(records.getCourseExport(other.instructor, runId, 'latest'))).toBe(
+      'NOT_FOUND',
+    )
+  })
 })

@@ -108,14 +108,28 @@ export default async function AssignmentPage({ params }: PageProps<'/assignments
           </span>
         }
         actions={
-          // `/courses/[courseId]` is UI-030's route (step 4.2); the cast keeps this file from
-          // depending on the moment that page's types are generated.
-          <Link
-            href={`/courses/${assignment.courseId}` as Route}
-            className={buttonVariants({ variant: 'secondary' })}
-          >
-            {t('assignment.backToCourse')}
-          </Link>
+          <div className="flex flex-wrap items-center gap-2">
+            {/* UI-035, the export history of this assignment (FR-204). It is reached from here
+                because an export is a thing about an assignment's runs, and this is the screen an
+                instructor is on when they need one. `canViewExports` is the service's own answer to
+                the guard behind it, so the link and the page cannot disagree (D-483). */}
+            {assignment.canViewExports && (
+              <Link
+                href={`/assignments/${assignment.id}/exports` as Route}
+                className={buttonVariants({ variant: 'secondary' })}
+              >
+                {t('assignment.exportsLink')}
+              </Link>
+            )}
+            {/* `/courses/[courseId]` is UI-030's route (step 4.2); the cast keeps this file from
+                depending on the moment that page's types are generated. */}
+            <Link
+              href={`/courses/${assignment.courseId}` as Route}
+              className={buttonVariants({ variant: 'ghost' })}
+            >
+              {t('assignment.backToCourse')}
+            </Link>
+          </div>
         }
       />
 

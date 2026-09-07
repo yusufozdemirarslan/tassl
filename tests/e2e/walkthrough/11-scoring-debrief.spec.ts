@@ -1,5 +1,9 @@
-// Step 11 of the walkthrough (PRD §12), part 1: **scoring**. The debrief itself is UI-028 and lands
-// in Phase 11; what this spec proves is everything that has to be true before there can be one.
+// Step 11 of the walkthrough (PRD §12): **scoring, and the draft debrief it produces**.
+//
+// Part 1 is scoring: everything that has to be true before there can be a debrief. Part 2 is
+// UI-028's first reading of it — the draft — which PRD §12 puts inside ten minutes of the lock,
+// with every band marked draft and the provisional points labelled draft. The *confirmed* reading
+// of the same page is step 13 (`13-debrief-confirmed.spec.ts`).
 //
 // It picks the run up exactly where `10-defense.spec.ts` puts it down — a finished defense, a run in
 // `defense_complete`, and a status screen that says the run is being scored — and follows it through
@@ -73,6 +77,9 @@ const SCORING_BUDGET_MS = 5_000
 
 /** The ceiling on the poll. Far past the budget: a run that misses it has gone wrong, not slow. */
 const SCORING_TIMEOUT_MS = 20_000
+
+/** PRD §12 step 11: a debrief within ten minutes of the Decision Lock. */
+const DEBRIEF_BUDGET_MS = 10 * 60 * 1000
 
 /** The seven dimensions of PRD Appendix A, in the order `rubric/index.ts` declares them. */
 const DIMENSIONS = [
@@ -175,8 +182,21 @@ type RunView = {
   id: string
   state: string
   scoringStatus: string
-  timestamps: { defenseCompletedAt: string | null; scoredAt: string | null }
+  timestamps: {
+    decisionLockedAt: string | null
+    defenseCompletedAt: string | null
+    scoredAt: string | null
+  }
   links: { next: string }
+}
+type DebriefBandRow = { dimension: string; band: string | null; decision: string | null }
+type DebriefRow = {
+  sections: { key: string; available: boolean; reason: string | null }[]
+  bands: DebriefBandRow[]
+  points: { draft: number | null; confirmed: number | null; effective: number | null }
+  questions: { answered: boolean; canAnswer: boolean }
+  doneWell: string
+  labels: { version: string; uncalibrated: boolean }
 }
 type NotificationRow = {
   id: string
@@ -579,6 +599,82 @@ test('walkthrough step 11: the finished defense becomes a scored run inside the 
   expect(toReviewer, 'the section’s instructors are told there is a run to review').toBeDefined()
   expect(toReviewer?.type).toBe('run_scored')
   expect(toReviewer?.title).toBe('A run is ready to review')
+
+  // -------------------------------------------------------------------------------------------
+  // Part 2: the draft debrief (UI-028, FR-150, FR-151, PRD §12 step 11)
+  //
+  // The page the student is sent to the moment the run is scored. Everything on it is a draft and
+  // says so: the instructor has not read the run yet, and the number the course would enter is
+  // provisional and reaches no export. The *confirmed* reading of the same page is step 13.
+  // -------------------------------------------------------------------------------------------
+
+  const debrief = await readJson<DebriefRow>(page.request, `/api/v1/runs/${runId}/debrief`)
+  expect(debrief.labels.version).toBe('draft')
+  expect(debrief.bands, 'seven dimensions').toHaveLength(DIMENSIONS.length)
+  expect(
+    debrief.bands.every((band) => band.decision === null),
+    'FR-150: nothing on a draft debrief carries an instructor’s decision',
+  ).toBe(true)
+  expect(debrief.points.confirmed, 'no confirmed figure before the seventh decision').toBeNull()
+  expect(debrief.points.draft, 'the provisional figure is computed from the draft bands').not.toBe(
+    null,
+  )
+  // Nothing the reviewer owns is on the student's own document, and the sweep runs over a payload
+  // with seven real bands in it rather than an empty one.
+  expect(findForbiddenKeys(debrief, { scored: true })).toEqual([])
+  const debriefKeys = keysAtAnyDepth(debrief).map((entry) => entry.key)
+  for (const key of ['quotes', 'evidenceEventSeqs', 'evidence_event_seqs', 'decidedBy']) {
+    expect(debriefKeys, `the student's debrief must not carry ${key}`).not.toContain(key)
+  }
+
+  // PRD §12 step 11: the debrief is there inside ten minutes of the Decision Lock. The measure is
+  // the run's own server timestamps, not the browser's clock — what the walkthrough bounds is how
+  // long Tassl takes, and a Playwright process on a loaded Windows box is not part of that.
+  const lockedAt = Date.parse(scored.timestamps.decisionLockedAt ?? '')
+  const readyAt = Date.parse(scored.timestamps.scoredAt ?? '')
+  expect(Number.isFinite(lockedAt) && Number.isFinite(readyAt)).toBe(true)
+  expect(
+    readyAt - lockedAt,
+    'PRD §12 step 11: the debrief is available within ten minutes of the lock',
+  ).toBeLessThan(DEBRIEF_BUDGET_MS)
+  test.info().annotations.push({
+    type: 'PRD §12 step 11',
+    description: `${String(readyAt - lockedAt)} ms from decision_locked to a readable debrief`,
+  })
+
+  await page.goto(`/runs/${runId}/debrief`)
+  await expect(page.getByRole('heading', { level: 1, name: 'Run Debrief' })).toBeVisible()
+
+  // Every band is marked draft, and none is marked confirmed.
+  const bands = page.locator('#debrief-bands')
+  await expect(bands.getByText('Draft band')).toHaveCount(DIMENSIONS.length)
+  await expect(bands.getByText('Confirmed band')).toHaveCount(0)
+  await expect(
+    page.getByText(
+      'Every band below is a draft. Your instructor reads the run and confirms or changes each one; when they do, this page shows what they decided in place of the draft.',
+    ),
+  ).toBeVisible()
+
+  // The provisional points are labelled draft, and say they reach no export.
+  const pointsPanel = page.locator('#debrief-points')
+  await expect(pointsPanel.getByText('Provisional points, draft')).toBeVisible()
+  await expect(
+    pointsPanel.getByText('No draft band reaches a gradebook, and this number is in no export.'),
+  ).toBeVisible()
+  await expect(pointsPanel.getByText('Confirmed points')).toHaveCount(0)
+
+  // The Judgment Record is not offered yet: it opens at `confirmed`, and a button that redirected
+  // the reader back to where they pressed it is worse than an absent one.
+  await expect(page.getByRole('link', { name: 'Open the Judgment Record' })).toHaveCount(0)
+
+  // No composite, no rank, no percentile, anywhere on the page (FR-131).
+  const debriefText = ((await page.locator('main').textContent()) ?? '').toLowerCase()
+  // Phrases rather than bare words where the scenario's own language would collide: the seeded
+  // package is about subscriber retention and says "cohort" throughout the documents the debrief
+  // quotes. The catalogue itself is scanned word by word by `tests/unit/debrief/assembly.test.ts`.
+  for (const word of ['percentile', 'rank', 'cohort average', 'composite score']) {
+    expect(debriefText, `the debrief must not say "${word}"`).not.toContain(word)
+  }
 
   await signOut(page)
 })

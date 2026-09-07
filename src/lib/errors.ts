@@ -103,6 +103,26 @@ export const ERROR_STATUS = {
   // it, so the miss is about the file they asked for.
   RECORD_NOT_AVAILABLE: 409,
   EXPORT_NOT_FOUND: 404,
+  // review (10 §12). `BAND_DECISION_INVALID` is the shape rule an override breaks by naming no
+  // band; `RUN_NOT_SCORED` is a decision asked for on a run that has no draft to decide, and
+  // carries `details.state`, the shape `TURN_NOT_OPEN` uses. `BAND_LOCKED_BY_INSTRUCTOR` is 08 §4's
+  // TA row — "not a band the instructor already decided" — and is a 403 because the TA may read the
+  // band and may decide six others, so the refusal is about this one act. `RUN_NOT_CONFIRMED` is
+  // the export history of a run whose bands nobody has decided: 07 §8 gives it to
+  // `GET /runs/{runId}/exports`. `NEUTRALIZATION_EXISTS` is one correction per claim per run.
+  BAND_DECISION_INVALID: 400,
+  RUN_NOT_SCORED: 409,
+  BAND_LOCKED_BY_INSTRUCTOR: 403,
+  RUN_NOT_CONFIRMED: 409,
+  NEUTRALIZATION_EXISTS: 409,
+  // debrief (10 §13). `DEBRIEF_NOT_AVAILABLE` is a read or an answer asked for on a run whose bands
+  // have not been drafted, or on one that was voided; it carries `details.state`, the shape
+  // `TURN_NOT_OPEN` and `RECORD_NOT_AVAILABLE` already use, so a screen left open while the run
+  // moved follows the run. `DEBRIEF_ANSWERED` is FR-152's one answer per run: the two questions are
+  // a record of what the student thought at the end of the run, and a second submission would be a
+  // different thing written over it.
+  DEBRIEF_NOT_AVAILABLE: 409,
+  DEBRIEF_ANSWERED: 409,
   LLM_BUDGET_EXCEEDED: 402,
   LLM_PROVIDER_ERROR: 502,
   LLM_CIRCUIT_OPEN: 503,
@@ -179,6 +199,13 @@ export const DEFAULT_MESSAGES: Record<ErrorCode, string> = {
   RUBRIC_VERSION_UNKNOWN: 'Something went wrong on our side.',
   RECORD_NOT_AVAILABLE: 'This run’s record opens once its bands are confirmed.',
   EXPORT_NOT_FOUND: 'That export version does not exist for this run.',
+  BAND_DECISION_INVALID: 'An override needs a band to settle on.',
+  RUN_NOT_SCORED: 'This run has no drafted bands to decide yet.',
+  BAND_LOCKED_BY_INSTRUCTOR: 'The instructor has decided this dimension.',
+  RUN_NOT_CONFIRMED: 'This run has no course export yet; its bands are not confirmed.',
+  NEUTRALIZATION_EXISTS: 'A correction has already been entered on this claim for this run.',
+  DEBRIEF_NOT_AVAILABLE: 'This run’s debrief opens once its bands have been drafted.',
+  DEBRIEF_ANSWERED: 'The two questions on this run have already been answered.',
   LLM_BUDGET_EXCEEDED: 'The assistant budget for this period has been used up.',
   LLM_PROVIDER_ERROR: 'The assistant provider did not respond correctly.',
   LLM_CIRCUIT_OPEN: 'The assistant is temporarily unavailable.',

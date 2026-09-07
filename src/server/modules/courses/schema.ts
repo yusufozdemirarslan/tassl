@@ -156,6 +156,30 @@ export const UpdateCoursePolicySchema = z.object({
 })
 export type UpdateCoursePolicyInput = z.infer<typeof UpdateCoursePolicySchema>
 
+/**
+ * `POST /courses/{courseId}/mapping/preview` (07 §5, FR-206): the diff, before anything moves.
+ *
+ * The same shape the apply takes minus the confirmation, because the preview is exactly the question
+ * "what would this do" and an instructor should be able to ask it with the form they are looking at.
+ */
+export const PreviewMappingChangeSchema = z.object({ mapping: MappingInputSchema })
+export type PreviewMappingChangeInput = z.infer<typeof PreviewMappingChangeSchema>
+
+/**
+ * `POST /courses/{courseId}/mapping` (07 §5, FR-206, D-095): apply it.
+ *
+ * `confirm` is `z.boolean()` here rather than `z.literal(true)`, and the service refuses `false` with
+ * `MAPPING_CHANGE_UNCONFIRMED` (409). The distinction is the one the module already makes for the
+ * mapping itself: a rule that carries its own error code is applied where the code is thrown, so an
+ * instructor who has not ticked the box is told what the box means rather than being handed a shape
+ * error about a literal (D-287, and `assertMapping` next door).
+ */
+export const ChangeMappingSchema = z.object({
+  mapping: MappingInputSchema,
+  confirm: z.boolean(),
+})
+export type ChangeMappingInput = z.infer<typeof ChangeMappingSchema>
+
 export const CreateSectionSchema = z.object({ name: z.string().trim().min(1).max(100) })
 export type CreateSectionInput = z.infer<typeof CreateSectionSchema>
 
@@ -203,6 +227,10 @@ export const UpdateAssignmentActionSchema = UpdateAssignmentSchema.extend({
   assignmentId: z.uuid(),
 })
 export const DeleteWalkthroughRunActionSchema = RunIdParamsSchema
+export const PreviewMappingChangeActionSchema = PreviewMappingChangeSchema.extend({
+  courseId: z.uuid(),
+})
+export const ChangeMappingActionSchema = ChangeMappingSchema.extend({ courseId: z.uuid() })
 
 // ---------------------------------------------------------------------------------------------
 // Views
@@ -288,6 +316,29 @@ export const AssignmentViewSchema = AssignmentSchema.extend({
   turnDelaySeconds: z.number().int(),
   effectiveWeight: z.number(),
   inUse: z.boolean(),
+  /**
+   * Whether this reader may open the assignment's export history (FR-204, UI-035, D-483).
+   *
+   * It is on the view so the "Course exports" link and `records.listCourseExports` answer one
+   * predicate — `canReviewSection`, the section's instructor or TA or the course's own instructor.
+   * A screen that decided for itself who sees the link is how the link came to be drawn for a
+   * reader the endpoint behind it refused.
+   */
+  canViewExports: z.boolean(),
+  /**
+   * Whether this reader may open the *replay* of a run of this assignment (D-517).
+   *
+   * It is **not** `canViewExports`, and that is the whole reason it exists. D-483 widened the
+   * export history to the course's own instructor, who may hold no row in the section, and left
+   * `requireRunReviewer` — a section row alone — guarding the replay, the debrief and the record
+   * file, because those are one student's run rather than the course's gradebook. So the export
+   * history draws a row per filed version with an "Open run" link beside each, and for that seat
+   * every one of them answered 404: D-483's own defect, one level over.
+   *
+   * The two bits are separate because the two guards are separate. A screen that drew the link off
+   * `canViewExports` would be back to a link and an endpoint that disagree.
+   */
+  canOpenRuns: z.boolean(),
 })
 export type AssignmentView = z.infer<typeof AssignmentViewSchema>
 
@@ -332,6 +383,37 @@ export const PolicyDisplaySchema = z.object({
   countsStatement: z.literal(true),
 })
 export type PolicyDisplay = z.infer<typeof PolicyDisplaySchema>
+
+/**
+ * `POST /courses/{courseId}/mapping/preview` answers this (07 §5, FR-206, D-095).
+ *
+ * One row per confirmed or recorded run of the course: what the gradebook holds for it now, and what
+ * it would hold under the mapping the instructor is proposing. The two numbers travel together
+ * because the sentence FR-206 asks for is "which exported points will change", and a list of runs
+ * with one number beside each cannot be read that way.
+ *
+ * `label` and `studentId` are on the row so the table names a person and an assignment rather than a
+ * uuid. A course instructor is the only reader (07 §5), and the runs are their own students'.
+ */
+export const MappingChangeRowSchema = z.object({
+  runId: z.uuid(),
+  assignmentId: z.uuid(),
+  assignmentLabel: z.string(),
+  studentId: z.string(),
+  pointsNow: z.number().nullable(),
+  pointsAfter: z.number().nullable(),
+  changed: z.boolean(),
+})
+export type MappingChangeRow = z.infer<typeof MappingChangeRowSchema>
+
+export const MappingChangePreviewSchema = z.object({
+  current: MappingSchema,
+  proposed: MappingSchema,
+  affected: z.array(MappingChangeRowSchema),
+  /** How many of `affected` would carry a different number; the toast's count (UI-030). */
+  changedCount: z.int().min(0),
+})
+export type MappingChangePreview = z.infer<typeof MappingChangePreviewSchema>
 
 /** The student's own latest attempt on an assignment; never another student's (08 §4). */
 export const RunRefSchema = z.object({

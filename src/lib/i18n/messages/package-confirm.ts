@@ -357,7 +357,7 @@ export const packageConfirm = {
   'confirm.field.caseTitle': 'Case title',
   'confirm.field.publisher': 'Publisher',
   'confirm.field.licenseTerms': 'Licence terms relied on',
-  'confirm.field.licensePermitsAdaptation': 'The licence permits adaptation',
+  'confirm.field.licensePermitsAdaptation': 'The license permits adaptation',
   'confirm.field.seedText': 'Seed text',
   'confirm.field.reskinLog': 'Re-skin log',
   'confirm.field.reskinEntry': 'entry',
@@ -434,7 +434,7 @@ export const packageConfirm = {
 
   'confirm.category.foundation': 'Foundation',
   'confirm.category.defect_concept': 'Defect concept',
-  'confirm.category.ai_behavior': 'AI behaviour',
+  'confirm.category.ai_behavior': 'AI behavior',
 
   'confirm.reskinKind.renamed_entity': 'Renamed entity',
   'confirm.reskinKind.altered_number': 'Altered number',

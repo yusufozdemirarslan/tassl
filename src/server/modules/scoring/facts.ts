@@ -35,7 +35,14 @@ import {
   type RunGraphs,
   type StanceMatrixRow,
 } from './graphs'
-import { eventsOfType, firstOfType, lastOfType, rate3, type TypedEvent } from './graphs/types'
+import {
+  eventsOfType,
+  firstOfType,
+  flaggedDelegations,
+  lastOfType,
+  rate3,
+  type TypedEvent,
+} from './graphs/types'
 import type { Dimension } from './rubric'
 
 // ---------------------------------------------------------------------------------------------
@@ -175,8 +182,9 @@ export type CategoricalFacts = {
   // -------------------------------------------------------------------------------------------
   // Delegation (A.2)
   // -------------------------------------------------------------------------------------------
+  /** The exchanges the rubric reads: every delegation the run made, less the flagged ones. */
   delegationCount: number
-  /** Delegations a reviewer flagged, which 10 §11.3 excludes from the Delegation read. */
+  /** Delegations a reviewer flagged, which 10 §11.3 excludes from the Delegation read (FR-055). */
   flaggedDelegationCount: number
   whyLineCount: number
   /** FR-064: a delegation with no response text, which sends Delegation to the defense answers. */
@@ -232,7 +240,14 @@ export function categoricalFacts(
   const actions = eventsOfType(events, 'action')
   const escalations = eventsOfType(events, 'escalation')
   const stances = eventsOfType(events, 'stance_set')
-  const delegations = eventsOfType(events, 'delegation')
+  // FR-055, 10 §11.3: the exchanges a reviewer marked out of scenario are excluded from the
+  // Delegation facts, so `delegations` below is the log the rubric actually reads. The mark is on
+  // `run_delegations.flags` and reaches this file as `input.flaggedDelegationIds` (D-481); the
+  // `delegation` event's own `flags` array carries the *guard's* marks — `rebuilt`, `filtered`,
+  // `no_commentary`, `probe` — and reading it here counted a rebuilt reply as a reviewer's mark.
+  const flagged = flaggedDelegations(input)
+  const everyDelegation = eventsOfType(events, 'delegation')
+  const delegations = everyDelegation.filter((e) => !flagged.has(e.payload.delegation_id))
   const opens = eventsOfType(events, 'document_open')
   const declarations = eventsOfType(events, 'outside_tool_declared')
   const questions = eventsOfType(events, 'defense_question')
@@ -370,7 +385,7 @@ export function categoricalFacts(
     frameFieldSingleToken: frameFields.some((field) => tokens(field).length === 1),
 
     delegationCount: delegations.length,
-    flaggedDelegationCount: delegations.filter((e) => e.payload.flags.length > 0).length,
+    flaggedDelegationCount: everyDelegation.length - delegations.length,
     whyLineCount: delegations.filter((e) => (e.payload.why ?? '').trim() !== '').length,
     incompleteLog: delegations.some((e) => e.payload.response_text.trim() === ''),
     readOrderBeforeAssistant: new Set(
@@ -497,8 +512,18 @@ function responseVsWarrant(
  */
 function evidenceSeqs(input: GraphInput): Record<Dimension, number[]> {
   const { events } = input
+  // FR-055: a band may not cite an exchange the run was not scored on. The Delegation band is the
+  // only one whose list can name a `delegation` event, and the exclusion has to reach the citation
+  // as well as the read — evidence for a placement that never saw it is not evidence.
+  const flagged = flaggedDelegations(input)
+  const excluded = new Set(
+    eventsOfType(events, 'delegation')
+      .filter((event) => flagged.has(event.payload.delegation_id))
+      .map((event) => event.seq),
+  )
+  const scored = events.filter((event) => !excluded.has(event.seq))
   const seqs = (...types: RunEventTypeValue[]): number[] =>
-    events
+    scored
       .filter((event) => types.includes(event.type))
       .map((event) => event.seq)
       .sort((a, b) => a - b)

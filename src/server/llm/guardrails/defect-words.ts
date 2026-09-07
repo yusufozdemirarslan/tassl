@@ -315,6 +315,17 @@ function normalize(source: string): { text: string; offsets: number[] } {
   return { text: characters.join(''), offsets }
 }
 
+/**
+ * The normalised copy of a string, for a caller matching its own patterns against it (D-513).
+ *
+ * `scoring.filterRationale` checks the product's voice with regex sources rather than with a term
+ * list, so it cannot go through `redactTerms` — but it must see the same string this file's own
+ * matcher does, or `cаreless` with a Cyrillic а would be a word the voice rule never met. Nothing
+ * downstream reads the folded copy: it is a haystack, and the text that reaches the student is the
+ * caller's own.
+ */
+export const foldForMatch = (source: string): string => normalize(source).text
+
 const contextAround = (text: string, at: number, length: number): string => {
   const start = Math.max(0, at - CONTEXT_RADIUS)
   const end = Math.min(text.length, at + length + CONTEXT_RADIUS)

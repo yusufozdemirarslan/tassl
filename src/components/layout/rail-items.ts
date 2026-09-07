@@ -44,19 +44,19 @@ export function permittedRailKeys({ roles, platformRole }: RailAudience): RailKe
  * a rail link that 404s is worse than an absent one, so each destination joins the map in the step
  * that creates its page.
  *
- *   runs      → Phase 6, step 6.5  (`/runs`)
- *   review    → Phase 11, step 11.4 (`/review`)
  *   admin     → Phase 13, step 13.5 (`/admin`)
  *
- * `/courses` landed with Phase 4, step 4.2 (UI-030) and `/packages` with Phase 5, step 5.4
- * (UI-040), so an instructor is now offered both; `permittedRailKeys` above is what decides who
- * sees them.
+ * `/courses` landed with Phase 4, step 4.2 (UI-030), `/packages` with Phase 5, step 5.4 (UI-040),
+ * `/runs` with Phase 6, step 6.5 (UI-020) and `/review` with Phase 11, step 11.4 (UI-034);
+ * `permittedRailKeys` above is what decides who sees each.
  *
  * Notifications and Settings are not rail items: they live in the bell and the account menu.
  */
 const READY: Partial<Record<RailKey, RailItem>> = {
   home: { href: '/home', label: t('nav.home'), icon: 'home' },
+  runs: { href: '/runs', label: t('nav.runs'), icon: 'runs' },
   courses: { href: '/courses', label: t('nav.courses'), icon: 'courses' },
+  review: { href: '/review', label: t('nav.review'), icon: 'review' },
   packages: { href: '/packages', label: t('nav.packages'), icon: 'packages' },
 }
 

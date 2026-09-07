@@ -1,8 +1,14 @@
 // Module `debrief` (docs/tech/10-backend-spec-modules.md §13) — repository. Query bodies only: the
-// stored pieces the debrief assembles in one call, and the two-question answer row (DATA-043).
-// findDebriefData reads the tenant-scoped run row and takes tenantId first (D-006); the children
+// stored pieces the debrief assembles in one call, the authored standard the run is walked against,
+// and the two-question answer row (DATA-043).
+//
+// `findDebriefData` reads the tenant-scoped run row and takes tenantId first (D-006); the children
 // (locked artifacts, claims, actions, bands, score, record, answer) are scoped through that run.
-import { and, asc, eq } from 'drizzle-orm'
+// The three package reads below are scoped by the version and the variant the run row names, which
+// the service has already resolved inside the tenant — the same shape `review/repository.ts` uses
+// for `listVersionClaimIds` and for the same reason: a package version is reached through the run
+// that points at it, and the run is what the tenancy check was made on.
+import { and, asc, eq, sql } from 'drizzle-orm'
 import { AppError } from '@/lib/errors'
 import { db } from '@/server/db/client'
 import {
@@ -14,25 +20,42 @@ import {
   type RunBrief,
   type RunClaim,
   type RunDebriefAnswer,
+  type RunEscalation,
+  type RunEvent,
   type RunFrame,
   type RunRecord,
   type RunScore,
   type RunTurnResponse,
+  assignments,
+  courses,
   runActions,
   runAddenda,
   runBands,
   runBriefs,
   runClaims,
   runDebriefAnswers,
+  runEscalations,
+  runEvents,
   runFrames,
   runRecords,
   runScores,
   runTurnResponses,
   runs,
+  scenarioClaims,
+  scenarioDocuments,
+  scenarioPackageVersions,
+  scenarioTurns,
+  scenarioVariants,
+  sections,
+  variantClaimStates,
 } from '@/server/db/schema'
+import type { BandMapping, VerificationPaths } from '@/server/db/schema'
 import type { DbOrTx } from '@/server/db/tx'
 
-/** Everything the debrief reads from the run's own tables; package elements come from `scenarios`. */
+export type { DbOrTx, Tx } from '@/server/db/tx'
+export { withTransaction } from '@/server/db/tx'
+
+/** Everything the debrief reads from the run's own tables; package elements come from below. */
 export type DebriefData = {
   run: Run
   frame: RunFrame | null
@@ -43,6 +66,8 @@ export type DebriefData = {
   claims: RunClaim[]
   /** In completion order. */
   actions: RunAction[]
+  /** In escalation order. */
+  escalations: RunEscalation[]
   /** In rubric (enum) order. */
   bands: RunBand[]
   score: RunScore | null
@@ -87,6 +112,11 @@ export async function findDebriefData(
     .from(runActions)
     .where(eq(runActions.runId, runId))
     .orderBy(asc(runActions.completedAt), asc(runActions.id))
+  const escalations = await dbx
+    .select()
+    .from(runEscalations)
+    .where(eq(runEscalations.runId, runId))
+    .orderBy(asc(runEscalations.createdAt), asc(runEscalations.id))
   const bands = await dbx
     .select()
     .from(runBands)
@@ -108,11 +138,31 @@ export async function findDebriefData(
     turnResponse: turnResponse ?? null,
     claims,
     actions,
+    escalations,
     bands,
     score: score ?? null,
     record: record ?? null,
     debriefAnswer: debriefAnswer ?? null,
   }
+}
+
+/**
+ * The run's two answers, or null before they are filed (FR-152).
+ *
+ * Its own read rather than a field of `findDebriefData`, because `answerDebrief` asks one question
+ * — has this already been answered — and loading the whole debrief inside the write transaction to
+ * find out would be ten statements for a row that either exists or does not.
+ */
+export async function findDebriefAnswer(
+  runId: string,
+  dbx: DbOrTx = db,
+): Promise<RunDebriefAnswer | null> {
+  const [answer] = await dbx
+    .select()
+    .from(runDebriefAnswers)
+    .where(eq(runDebriefAnswers.runId, runId))
+    .limit(1)
+  return answer ?? null
 }
 
 /** Inserts the one debrief answer row; the primary key on `run_id` refuses a second one. */
@@ -122,4 +172,226 @@ export async function insertDebriefAnswer(
 ): Promise<RunDebriefAnswer> {
   const [answer] = await dbx.insert(runDebriefAnswers).values(row).returning()
   return one(answer)
+}
+
+// ---------------------------------------------------------------------------------------------
+// The run's context: which package, which variant, and what the course does with the bands
+// ---------------------------------------------------------------------------------------------
+
+/**
+ * The columns the debrief needs from outside the run's own tables (FR-151, FR-202, D-091).
+ *
+ * The weight is resolved here rather than in the service, because "the assignment's weight, or the
+ * course default" is a fact about two columns and reading both into the service only to pick one
+ * would be a second place the fallback is written (10 §3's `getPolicyDisplay` picks it the same
+ * way). `numeric` reaches here as a string, so the service converts once.
+ */
+export type DebriefContext = {
+  studentId: string
+  sectionId: string
+  assignmentId: string
+  packageVersionId: string
+  variantId: string
+  variantKey: 'defective' | 'sound'
+  mode: 'guided' | 'standard' | 'open'
+  isWalkthrough: boolean
+  mapping: BandMapping
+  /** `assignments.weight` where the assignment sets one, else `courses.default_run_weight`. */
+  weight: string
+  counterfactual: string
+}
+
+export async function findDebriefContext(
+  tenantId: string,
+  runId: string,
+  dbx: DbOrTx = db,
+): Promise<DebriefContext | undefined> {
+  const [row] = await dbx
+    .select({
+      studentId: runs.studentId,
+      sectionId: assignments.sectionId,
+      assignmentId: runs.assignmentId,
+      packageVersionId: runs.packageVersionId,
+      variantId: runs.variantId,
+      variantKey: scenarioVariants.key,
+      mode: runs.mode,
+      isWalkthrough: runs.isWalkthrough,
+      mapping: courses.mapping,
+      weight: sql<string>`coalesce(${assignments.weight}, ${courses.defaultRunWeight})`,
+      counterfactual: scenarioPackageVersions.debriefCounterfactual,
+    })
+    .from(runs)
+    .innerJoin(assignments, eq(assignments.id, runs.assignmentId))
+    .innerJoin(sections, eq(sections.id, assignments.sectionId))
+    .innerJoin(courses, eq(courses.id, sections.courseId))
+    .innerJoin(scenarioVariants, eq(scenarioVariants.id, runs.variantId))
+    .innerJoin(scenarioPackageVersions, eq(scenarioPackageVersions.id, runs.packageVersionId))
+    .where(and(eq(runs.organizationId, tenantId), eq(runs.id, runId)))
+    .limit(1)
+  return row
+}
+
+// ---------------------------------------------------------------------------------------------
+// The authored standard the run is walked against (FR-151)
+// ---------------------------------------------------------------------------------------------
+
+/**
+ * One consequential claim of the package version, with what this variant says about it.
+ *
+ * Every field here is released to the student at scoring and to nobody before it (12 §8.2): the
+ * warranted stance, the evidence status, the defect kind, the authored "what it deserved and why",
+ * and which interrogation action returns something. `planted` is on the row because the missed-defect
+ * section is defined by it — "planted claims not kept from the decision" (10 §13) — and the service
+ * uses it to select rather than emitting it.
+ */
+export type DebriefClaim = {
+  claimId: string
+  key: string
+  text: string
+  position: number
+  importance: 'load_bearing' | 'supporting'
+  rationale: string
+  sourceDocumentId: string | null
+  sourcePassage: string
+  documentTitle: string | null
+  documentAuthor: string | null
+  documentDatedOn: string | null
+  evidenceStatus: 'sound' | 'defective'
+  failureFamily: string | null
+  warrantedStance: 'accept' | 'verify' | 'challenge' | 'reject' | 'escalate'
+  planted: boolean
+  verificationPaths: VerificationPaths
+}
+
+export async function listDebriefClaims(
+  packageVersionId: string,
+  variantId: string,
+  dbx: DbOrTx = db,
+): Promise<DebriefClaim[]> {
+  return dbx
+    .select({
+      claimId: scenarioClaims.id,
+      key: scenarioClaims.key,
+      text: scenarioClaims.text,
+      position: scenarioClaims.position,
+      importance: scenarioClaims.importance,
+      rationale: scenarioClaims.rationale,
+      sourceDocumentId: scenarioClaims.sourceDocumentId,
+      sourcePassage: scenarioClaims.sourcePassage,
+      documentTitle: scenarioDocuments.title,
+      documentAuthor: scenarioDocuments.author,
+      documentDatedOn: scenarioDocuments.datedOn,
+      evidenceStatus: variantClaimStates.evidenceStatus,
+      failureFamily: variantClaimStates.failureFamily,
+      warrantedStance: variantClaimStates.warrantedStance,
+      planted: variantClaimStates.planted,
+      verificationPaths: variantClaimStates.verificationPaths,
+    })
+    .from(scenarioClaims)
+    .innerJoin(
+      variantClaimStates,
+      and(
+        eq(variantClaimStates.claimId, scenarioClaims.id),
+        eq(variantClaimStates.variantId, variantId),
+      ),
+    )
+    .leftJoin(scenarioDocuments, eq(scenarioDocuments.id, scenarioClaims.sourceDocumentId))
+    .where(eq(scenarioClaims.packageVersionId, packageVersionId))
+    .orderBy(asc(scenarioClaims.position), asc(scenarioClaims.key))
+}
+
+/** The one document a Source Trace reaches, when the path names one the claim itself does not. */
+export type DebriefDocument = { id: string; title: string; author: string; datedOn: string }
+
+export async function listDebriefDocuments(
+  packageVersionId: string,
+  dbx: DbOrTx = db,
+): Promise<DebriefDocument[]> {
+  return dbx
+    .select({
+      id: scenarioDocuments.id,
+      title: scenarioDocuments.title,
+      author: scenarioDocuments.author,
+      datedOn: scenarioDocuments.datedOn,
+    })
+    .from(scenarioDocuments)
+    .where(eq(scenarioDocuments.packageVersionId, packageVersionId))
+    .orderBy(asc(scenarioDocuments.title))
+}
+
+/**
+ * What the Turn warranted, for §13.1's third "done well" rule.
+ *
+ * Two columns of the authored Turn and nothing else. `proportionate_response` is `warrantsChange`'s
+ * companion and is 12 §8.1's "Turn internals" — which is why the service compares it with the filed
+ * response here and emits the *comparison*, never the field.
+ */
+export type DebriefTurnStandard = {
+  warrantsChange: boolean
+  proportionateResponse: 'hold' | 'revise' | 'reverse'
+}
+
+export async function findTurnStandard(
+  packageVersionId: string,
+  dbx: DbOrTx = db,
+): Promise<DebriefTurnStandard | undefined> {
+  const [row] = await dbx
+    .select({
+      warrantsChange: scenarioTurns.warrantsChange,
+      proportionateResponse: scenarioTurns.proportionateResponse,
+    })
+    .from(scenarioTurns)
+    .where(eq(scenarioTurns.packageVersionId, packageVersionId))
+    .limit(1)
+  return row
+}
+
+// ---------------------------------------------------------------------------------------------
+// The trace events the debrief reads directly (FR-053, FR-152)
+// ---------------------------------------------------------------------------------------------
+
+/**
+ * Every event of one type on the run, in sequence order.
+ *
+ * Read here rather than through `trace.listEvents` because the two types this module needs are the
+ * two that endpoint cannot serve: `probe_fired` is hidden from the owner's view in every state, and
+ * 10 §13 makes the debrief the one projection that shows it after the run is scored (FR-053, D-088);
+ * and `debrief_opened` is a read of this module's own bookkeeping rather than of the run's story.
+ */
+export async function listEventsOfType(
+  runId: string,
+  type: RunEvent['type'],
+  dbx: DbOrTx = db,
+): Promise<RunEvent[]> {
+  return dbx
+    .select()
+    .from(runEvents)
+    .where(and(eq(runEvents.runId, runId), eq(runEvents.type, type)))
+    .orderBy(asc(runEvents.seq))
+}
+
+/**
+ * Whether `debrief_opened` has already been written for this version of the bands (10 §13).
+ *
+ * Draft and confirmed are two versions, so the question is asked of the payload rather than of the
+ * type: a student who read the draft and comes back after the confirmation is opening a debrief
+ * they have not seen, and the trace says so.
+ */
+export async function hasDebriefOpened(
+  runId: string,
+  version: 'draft' | 'confirmed',
+  dbx: DbOrTx = db,
+): Promise<boolean> {
+  const [row] = await dbx
+    .select({ seq: runEvents.seq })
+    .from(runEvents)
+    .where(
+      and(
+        eq(runEvents.runId, runId),
+        eq(runEvents.type, 'debrief_opened'),
+        sql`${runEvents.payload}->>'version' = ${version}`,
+      ),
+    )
+    .limit(1)
+  return row !== undefined
 }

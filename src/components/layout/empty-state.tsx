@@ -18,7 +18,7 @@ export function EmptyState({ title, body, action, className, headingLevel = 3 }:
   return (
     <div className={cn('flex flex-col items-start gap-3 py-6', className)}>
       {title && <Heading className={headingLevel === 2 ? 'text-h3' : 'text-h4'}>{title}</Heading>}
-      <p className="text-ink-muted text-body max-w-[60ch]">{body}</p>
+      <p className="text-ink-muted text-body max-w-measure">{body}</p>
       {action && <div className="mt-1">{action}</div>}
     </div>
   )

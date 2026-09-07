@@ -187,6 +187,7 @@
       "planted": false
     }
   ],
+  "flaggedDelegationIds": [],
   "events": [
     {
       "seq": 1,

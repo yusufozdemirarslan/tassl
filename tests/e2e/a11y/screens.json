@@ -1,0 +1,253 @@
+{
+  "$comment": "The axe register (14 §3): every UI-### screen, the addresses it lives at, and the spec that scans it. Nothing here is authoritative on its own — ./coverage.test.ts re-derives the id set from docs/tech/COVERAGE.md, the names from 16 §8.2, the routes from the app router on disk, and the spec from COVERAGE.md's own Tests column, and fails when this file disagrees with any of them. A screen that is not built yet carries `pending` with the build-plan step that builds it, and is checked to be still unbuilt so the marker cannot be left behind.",
+  "unregisteredRoutes": [
+    {
+      "route": "/",
+      "reason": "09 §1: `/` is a signpost, not a screen — it renders nothing and redirects to /home or /sign-in, so there is no document for axe to read."
+    }
+  ],
+  "screens": [
+    {
+      "id": "UI-001",
+      "name": "Sign-in",
+      "routes": ["/sign-in"],
+      "spec": "a11y/public.spec.ts",
+      "states": "empty, validation error, Google button hidden and shown"
+    },
+    {
+      "id": "UI-002",
+      "name": "Sign-up",
+      "routes": ["/sign-up"],
+      "spec": "a11y/public.spec.ts",
+      "states": "empty, validation error"
+    },
+    {
+      "id": "UI-003",
+      "name": "Verify email",
+      "routes": ["/verify-email"],
+      "spec": "a11y/public.spec.ts",
+      "states": "sent, verified, expired"
+    },
+    {
+      "id": "UI-004",
+      "name": "Forgot, reset password",
+      "routes": ["/forgot-password", "/reset-password"],
+      "spec": "a11y/public.spec.ts",
+      "states": "empty, submitted, refusal with no token"
+    },
+    {
+      "id": "UI-005",
+      "name": "Accept invitation",
+      "routes": ["/invitations/[invitationId]"],
+      "spec": "auth/invitation.spec.ts",
+      "states": "pending, email mismatch"
+    },
+    {
+      "id": "UI-006",
+      "name": "Privacy, Terms",
+      "routes": ["/privacy", "/terms"],
+      "spec": "a11y/public.spec.ts",
+      "states": "rendered",
+      "pending": "13.5"
+    },
+    {
+      "id": "UI-007",
+      "name": "Not found, error",
+      "routes": [],
+      "routeless": "The 404 and the error boundary are `not-found.tsx` and `error.tsx`: they are what any address renders when it fails, not addresses of their own.",
+      "spec": "system/errors.spec.ts",
+      "states": "404 at an unknown address; error boundary with a request id"
+    },
+    {
+      "id": "UI-008",
+      "name": "App shell",
+      "routes": ["/home"],
+      "spec": "a11y/shell.spec.ts",
+      "states": "nav, institution switcher, account menu, notifications bell"
+    },
+    {
+      "id": "UI-009",
+      "name": "Home",
+      "routes": ["/home"],
+      "spec": "a11y/shell.spec.ts",
+      "states": "student seat, instructor seat"
+    },
+    {
+      "id": "UI-010",
+      "name": "Account settings",
+      "routes": ["/settings", "/settings/security", "/settings/data"],
+      "spec": "a11y/shell.spec.ts",
+      "states": "each tab, delete-account dialog open"
+    },
+    {
+      "id": "UI-011",
+      "name": "Notifications",
+      "routes": ["/notifications"],
+      "spec": "a11y/shell.spec.ts",
+      "states": "empty, with items"
+    },
+    {
+      "id": "UI-020",
+      "name": "Runs list",
+      "routes": ["/runs"],
+      "spec": "a11y/student-run.spec.ts",
+      "states": "with a startable assignment"
+    },
+    {
+      "id": "UI-021",
+      "name": "Policy display",
+      "routes": ["/runs/[runId]/start"],
+      "spec": "a11y/student-run.spec.ts",
+      "states": "before Begin"
+    },
+    {
+      "id": "UI-022",
+      "name": "Readiness Check, result",
+      "routes": ["/runs/[runId]/readiness", "/runs/[runId]/readiness/result"],
+      "spec": "a11y/student-run.spec.ts",
+      "states": "item with a navigator, result concept map"
+    },
+    {
+      "id": "UI-023",
+      "name": "Run workspace",
+      "routes": ["/runs/[runId]/work"],
+      "spec": "a11y/student-run.spec.ts",
+      "states": "framing with a refused frame and a document open, working with claim cards and the actions menu"
+    },
+    {
+      "id": "UI-024",
+      "name": "Lock refusal, confirmation, addendum",
+      "routes": ["/runs/[runId]/locked"],
+      "spec": "a11y/student-run.spec.ts",
+      "states": "filed brief, addendum dialog open"
+    },
+    {
+      "id": "UI-025",
+      "name": "Turn window",
+      "routes": ["/runs/[runId]/turn"],
+      "spec": "a11y/student-run.spec.ts",
+      "states": "Turn arrived, response form, frozen record beside"
+    },
+    {
+      "id": "UI-026",
+      "name": "Defense",
+      "routes": ["/runs/[runId]/defense"],
+      "spec": "a11y/student-run.spec.ts",
+      "states": "question with an answer typed, finish dialog open"
+    },
+    {
+      "id": "UI-027",
+      "name": "Run status",
+      "routes": ["/runs/[runId]"],
+      "spec": "walkthrough/17-standing-rules-a11y.spec.ts",
+      "states": "scored, with the debrief offered"
+    },
+    {
+      "id": "UI-028",
+      "name": "Debrief",
+      "routes": ["/runs/[runId]/debrief"],
+      "spec": "a11y/student-run.spec.ts",
+      "states": "draft bands, confirmed bands with note"
+    },
+    {
+      "id": "UI-029",
+      "name": "Judgment Record",
+      "routes": ["/records/[runId]"],
+      "spec": "a11y/student-run.spec.ts",
+      "states": "record with the four graphs and the illustrative trajectory"
+    },
+    {
+      "id": "UI-030",
+      "name": "Courses",
+      "routes": ["/courses", "/courses/[courseId]"],
+      "spec": "a11y/instructor.spec.ts",
+      "states": "list, four sub-views, mapping change preview"
+    },
+    {
+      "id": "UI-031",
+      "name": "Roster",
+      "routes": ["/courses/[courseId]/sections/[sectionId]/roster"],
+      "spec": "a11y/instructor.spec.ts",
+      "states": "list, add-by-email form"
+    },
+    {
+      "id": "UI-032",
+      "name": "Assignment configuration",
+      "routes": ["/assignments/[assignmentId]"],
+      "spec": "a11y/instructor.spec.ts",
+      "states": "form, runs list"
+    },
+    {
+      "id": "UI-033",
+      "name": "Faculty replay",
+      "routes": ["/review/runs/[runId]"],
+      "spec": "a11y/instructor.spec.ts",
+      "states": "five tabs and the claim object, in `scored` and again in `confirmed`"
+    },
+    {
+      "id": "UI-034",
+      "name": "Review queue",
+      "routes": ["/review"],
+      "spec": "a11y/shell.spec.ts",
+      "states": "illustrative rows with the label"
+    },
+    {
+      "id": "UI-035",
+      "name": "Course export",
+      "routes": ["/assignments/[assignmentId]/exports"],
+      "spec": "a11y/instructor.spec.ts",
+      "states": "empty history; the filled table in wt-14"
+    },
+    {
+      "id": "UI-040",
+      "name": "Packages list",
+      "routes": ["/packages"],
+      "spec": "a11y/author.spec.ts",
+      "states": "list with the seeded family"
+    },
+    {
+      "id": "UI-041",
+      "name": "New package from seed",
+      "routes": ["/packages/new"],
+      "spec": "a11y/author.spec.ts",
+      "states": "half-filled, validation error"
+    },
+    {
+      "id": "UI-042",
+      "name": "Generation progress",
+      "routes": ["/packages/[packageId]/versions/[versionId]/generation"],
+      "spec": "a11y/author.spec.ts",
+      "states": "running, failed step with retry",
+      "pending": "12.3"
+    },
+    {
+      "id": "UI-043",
+      "name": "Element confirmation",
+      "routes": ["/packages/[packageId]/versions/[versionId]/confirm"],
+      "spec": "a11y/author.spec.ts",
+      "states": "element tree with one element's form open"
+    },
+    {
+      "id": "UI-044",
+      "name": "Package version view",
+      "routes": ["/packages/[packageId]/versions/[versionId]"],
+      "spec": "a11y/author.spec.ts",
+      "states": "confirmed version, measures panel, claim object"
+    },
+    {
+      "id": "UI-050",
+      "name": "Admin",
+      "routes": ["/admin/users", "/admin/flags", "/admin/audit"],
+      "spec": "a11y/admin.spec.ts",
+      "states": "each page, role change dialog",
+      "pending": "13.5"
+    },
+    {
+      "id": "UI-060",
+      "name": "Component gallery",
+      "routes": ["/dev/components"],
+      "spec": "a11y/dev-components.spec.ts",
+      "states": "whole gallery, 360 px, the four graphs"
+    }
+  ]
+}

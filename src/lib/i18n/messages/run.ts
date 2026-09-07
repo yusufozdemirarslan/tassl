@@ -14,6 +14,10 @@ export const run = {
   // another student's run at all, so the sentence must not confirm that the id resolves.
   'run.notFound': 'That run no longer exists.',
   'run.assignmentNotFound': 'That assignment no longer exists.',
+  // A claim id that is not one of the run's package version (10 §12, the faculty replay). It is a
+  // reviewer's sentence: the claim set of a confirmed package is theirs to read, so the refusal can
+  // say plainly that the id names nothing here.
+  'run.claimNotFound': 'That claim is not part of this run’s scenario.',
   'run.notSectionStudent': 'Only a student on this assignment’s section can start a run.',
   'run.notOpenYet': 'This assignment has not opened yet.',
 

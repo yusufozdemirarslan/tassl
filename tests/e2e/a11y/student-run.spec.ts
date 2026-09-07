@@ -1,6 +1,7 @@
 // NFR-012: every screen a student meets in a run — the runs list, the policy display, the Readiness
 // Check, its concept-map result, the workspace in `framing` and again in `working`, the locked
-// decision, the Turn window and the defense — carries no WCAG 2.1 A/AA violation.
+// decision, the Turn window, the defense, and the two screens that come after it, the Run Debrief
+// and the Judgment Record — carries no WCAG 2.1 A/AA violation.
 //
 // Every screen is scanned with something in it rather than empty, because an empty one proves very
 // little: a runs table with no rows has no cells to associate, a check with no items has no radio
@@ -35,8 +36,19 @@
 // has been taken. This scan does not depend on it either way: `purgeRuns` in
 // `tests/e2e/global-setup.ts` takes its own run out.
 import type { APIRequestContext, Page } from '@playwright/test'
-import { axe, expect, seatEmail, signInAs, signOut, test } from '../fixtures'
-import { createStudentAssignment, signInAsInstructor } from '../instructor/api'
+import { axe, expect, seatEmail, signInAs, signOut, test, type Seat } from '../fixtures'
+import { addSectionMember, createStudentAssignment, signInAsInstructor } from '../instructor/api'
+import { driveRunToScored, post, readJson as readApi } from '../walkthrough/scored-run'
+
+/**
+ * The seat the debrief run is taken in.
+ *
+ * `student1` rather than the `student2` the scan above uses: D-041 allows one run per student per
+ * assignment, the two tests in this file make an assignment each, and giving them separate seats
+ * keeps one seat's D-026 write budget from carrying two endpoint-driven runs at once across three
+ * browser projects.
+ */
+const DEBRIEF_STUDENT: Seat = 'student1'
 
 /** Enough answers that the navigator is scanned with both of its states in it. */
 const ANSWERED_ITEMS = 3
@@ -354,6 +366,72 @@ test('the student run screens have no axe violations', async ({ page, request })
   await expect(page.getByRole('alertdialog')).toBeVisible()
   await axe(page)
   await page.keyboard.press('Escape')
+
+  await signOut(page)
+})
+
+// UI-028 and UI-029, the two screens after the run: the Run Debrief in both of its versions and the
+// Judgment Record.
+//
+// A separate test with its own run, because these three screens exist only past states the scan
+// above deliberately stops short of — the debrief opens at `scored` and the record at `confirmed`,
+// and reaching either means an instructor deciding seven bands. The run is driven through the
+// documented endpoints (`../walkthrough/scored-run.ts`) for the reason that file's header gives.
+//
+// All three are dense: twelve labelled regions, seven band articles, four graphs each with a
+// heading, a hidden description and a data table behind a toggle, two textareas with live word
+// counters, and a table of invented numbers inside a labelled sample panel. A scan of one says
+// nothing about the others.
+test('the debrief and the Judgment Record have no axe violations', async ({ page, request }) => {
+  // A full run driven to a confirmed one, then four full-page axe scans (D-188).
+  test.setTimeout(600_000)
+
+  await signInAsInstructor(request)
+  const assignment = await createStudentAssignment(request, {
+    what: 'Axe debrief',
+    studentEmail: seatEmail(DEBRIEF_STUDENT),
+    variant: 'defective',
+  })
+  await addSectionMember(request, assignment.section.id, {
+    email: seatEmail('instructor'),
+    role: 'instructor',
+  })
+
+  await signInAs(page, DEBRIEF_STUDENT)
+  const runId = await driveRunToScored(page.request, assignment.assignment.id)
+
+  // The draft version: every band amber, the provisional figure labelled draft, the form open.
+  await page.goto(`/runs/${runId}/debrief`)
+  await expect(page.getByRole('heading', { level: 1, name: 'Run Debrief' })).toBeVisible()
+  await expect(page.locator('#debrief-bands').getByText('Draft band').first()).toBeVisible()
+  // Scanned with something typed into the two questions: a form nobody has typed into has no
+  // counter to associate and no error to announce.
+  await page
+    .locator('#debrief-questions')
+    .getByLabel('Which single stance would you change, and to what?')
+    .fill('I would verify the premium payback figure rather than accepting it.')
+  await axe(page)
+
+  await signOut(page)
+
+  // The confirmed version, and the record it opens.
+  await signInAsInstructor(request)
+  await post(request, `/api/v1/review/runs/${runId}/confirm-remaining`)
+  const confirmed = await readApi<{ run: { state: string } }>(
+    request,
+    `/api/v1/review/runs/${runId}`,
+  )
+  expect(confirmed.run.state).toBe('confirmed')
+
+  await signInAs(page, DEBRIEF_STUDENT)
+  await page.goto(`/runs/${runId}/debrief`)
+  await expect(page.locator('#debrief-bands').getByText('Confirmed band').first()).toBeVisible()
+  await axe(page)
+
+  await page.goto(`/records/${runId}`)
+  await expect(page.getByRole('heading', { level: 1, name: 'Judgment Record' })).toBeVisible()
+  await expect(page.locator('#record-bands').getByText('Confirmed band').first()).toBeVisible()
+  await axe(page)
 
   await signOut(page)
 })

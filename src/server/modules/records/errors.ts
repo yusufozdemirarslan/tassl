@@ -7,6 +7,9 @@ import { AppError, type ErrorCode } from '@/lib/errors'
 export const RECORDS_ERROR_CODES = [
   'RECORD_NOT_AVAILABLE',
   'EXPORT_NOT_FOUND',
+  // 07 §8 gives this one to `GET /runs/{runId}/exports`, whose list exists only once a run's bands
+  // are confirmed — and never for a voided run, whose bands are absent from any export (FR-002).
+  'RUN_NOT_CONFIRMED',
 ] as const satisfies readonly ErrorCode[]
 
 /**
@@ -27,4 +30,18 @@ export function recordNotAvailable(state: string): never {
 /** A course export version that names no row: no export at all yet, or a version past the last. */
 export function exportNotFound(runId: string, version: number | 'latest'): never {
   throw new AppError('EXPORT_NOT_FOUND', undefined, { details: { runId, version } })
+}
+
+/**
+ * The export history of a run that has none (07 §8, FR-002, FR-184).
+ *
+ * Two runs reach it and both are honest answers to "where are the files": one whose bands nobody has
+ * confirmed, and one an instructor voided — a voided run contributes nothing to a gradebook, which
+ * is FR-002's "no partial score and no points recorded" applied at the read, because the ledger
+ * itself is append-only and nothing may unwrite a file that was handed over (D-434).
+ *
+ * `details.state` names the step the run is at, so the screen can say which of the two it is.
+ */
+export function runNotConfirmed(state: string): never {
+  throw new AppError('RUN_NOT_CONFIRMED', undefined, { details: { state } })
 }

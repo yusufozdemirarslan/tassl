@@ -48,6 +48,24 @@ export const notifications = {
   'notifications.runHeld.title': 'A run is held for review',
   'notifications.runHeld.body':
     'Tassl could not draft the bands for a run in one of your sections, so nothing has been placed. Band it by hand from the replay, or void the run.',
+
+  // -------------------------------------------------------------------------------------------
+  // Review (FR-181, FR-184, SYS-010)
+  //
+  // The student is told their instructor has finished, and where their debrief is. No band, no
+  // count and no number: the same rule as the scoring notices above, and for the same reason — a
+  // notification is delivered by e-mail as well as in the app (D-015).
+  //
+  // `export_ready` goes to the section's instructors and TAs, never to the student: the course
+  // export is the reviewer's document for the gradebook of record (12 §8.1), and the student's own
+  // copy is the Judgment Record they download from their run.
+  // -------------------------------------------------------------------------------------------
+  'notifications.bandsConfirmed.title': 'Your bands are confirmed',
+  'notifications.bandsConfirmed.body':
+    'Your instructor has finished reviewing your run. Your debrief now shows the confirmed bands and any note they left.',
+  'notifications.exportReady.title': 'A course export is ready',
+  'notifications.exportReady.body':
+    'A run in one of your sections has a new course export. Open the assignment’s export history to download it and enter the result in your gradebook.',
 } as const
 
 /** `t` over this namespace alone; the key is still the full dotted key. */

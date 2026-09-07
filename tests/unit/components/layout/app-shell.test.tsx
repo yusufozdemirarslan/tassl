@@ -223,11 +223,14 @@ describe('rail derivation (UI-008)', () => {
       roles: ['student', 'instructor', 'scenario_author'],
       platformRole: 'admin',
     })
-    // Runs, Review and Admin are permitted for these roles but have no route yet; Courses landed
-    // with step 4.2 (UI-030) and Packages with step 5.4 (UI-040), so those two render.
+    // Admin is permitted for the platform role but has no route yet (step 13.5). The other five
+    // landed with the steps that built them: `/runs` 6.5, `/courses` 4.2, `/review` 11.4,
+    // `/packages` 5.4 — and each renders in the order `permittedRailKeys` puts it.
     expect(items).toEqual([
       { href: '/home', label: enUS['nav.home'], icon: 'home' },
+      { href: '/runs', label: enUS['nav.runs'], icon: 'runs' },
       { href: '/courses', label: enUS['nav.courses'], icon: 'courses' },
+      { href: '/review', label: enUS['nav.review'], icon: 'review' },
       { href: '/packages', label: enUS['nav.packages'], icon: 'packages' },
     ])
   })
@@ -237,9 +240,21 @@ describe('rail derivation (UI-008)', () => {
       { href: '/home', label: enUS['nav.home'], icon: 'home' },
       { href: '/courses', label: enUS['nav.courses'], icon: 'courses' },
     ])
+    // A student is offered their own runs and nothing else: no course, no queue, no shelf.
     expect(railFor({ roles: ['student'], platformRole: 'none' })).toEqual([
       { href: '/home', label: enUS['nav.home'], icon: 'home' },
+      { href: '/runs', label: enUS['nav.runs'], icon: 'runs' },
     ])
+  })
+
+  it('offers Review to the two seats that read a run and to no other', () => {
+    const review = { href: '/review', label: enUS['nav.review'], icon: 'review' as const }
+    expect(railFor({ roles: ['teaching_assistant'], platformRole: 'none' })).toEqual([
+      { href: '/home', label: enUS['nav.home'], icon: 'home' },
+      review,
+    ])
+    expect(railFor({ roles: ['student'], platformRole: 'none' })).not.toContainEqual(review)
+    expect(railFor({ roles: ['program_lead'], platformRole: 'none' })).not.toContainEqual(review)
   })
 })
 

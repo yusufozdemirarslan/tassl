@@ -13,6 +13,7 @@ export {
   createPackageFromSeed,
   decideElement,
   exportPackage,
+  flagVersionForReview,
   getClaimObject,
   getPackage,
   getPackageVersion,

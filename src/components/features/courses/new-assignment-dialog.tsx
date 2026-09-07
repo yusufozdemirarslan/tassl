@@ -66,7 +66,7 @@ export function NewAssignmentDialog({
         >
           {t('courses.newAssignment')}
         </Button>
-        <p id={reasonId} className="text-ink-muted text-body max-w-[60ch]">
+        <p id={reasonId} className="text-ink-muted text-body max-w-measure">
           {blockedReason}
         </p>
       </div>

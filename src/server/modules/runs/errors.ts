@@ -29,6 +29,10 @@ export const RUNS_ERROR_CODES = [
   'TURN_NOT_OPEN',
   'TURN_CLAIMS_UNSTANCED',
   'TEST_CONTROLS_DISABLED',
+  // FR-183's re-offer: an explicit variant that does not belong to the run's own package version.
+  // The same code `courses` answers an assignment configured that way with, because it is the same
+  // mistake — a variant id from another package — and one meaning per code is the rule.
+  'VARIANT_MISMATCH',
 ] as const satisfies readonly ErrorCode[]
 
 /**
@@ -38,6 +42,16 @@ export const RUNS_ERROR_CODES = [
  */
 export function runNotFound(): never {
   throw new AppError('NOT_FOUND', t('run.notFound'))
+}
+
+/**
+ * A re-offer asked for on a variant that is not one of the run's package version (10 §6, FR-183).
+ *
+ * `VARIANT_MISMATCH` rather than NOT_FOUND: the caller is the section's instructor, standing on the
+ * replay of a run they may read, and the id they sent is wrong rather than hidden.
+ */
+export function reofferVariantMismatch(): never {
+  throw new AppError('VARIANT_MISMATCH')
 }
 
 /** An assignment outside the actor's institutions, or one they hold no membership on. */

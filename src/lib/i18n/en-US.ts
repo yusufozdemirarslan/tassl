@@ -36,6 +36,8 @@ import { defense } from './messages/defense'
 import { record } from './messages/record'
 import { graph } from './messages/graph'
 import { band } from './messages/band'
+import { review } from './messages/review'
+import { debrief } from './messages/debrief'
 
 export const enUS = {
   ...landing,
@@ -71,6 +73,8 @@ export const enUS = {
   ...graph,
   ...band,
   ...record,
+  ...review,
+  ...debrief,
 } as const
 
 export type MessageKey = keyof typeof enUS

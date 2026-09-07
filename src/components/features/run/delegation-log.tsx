@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Loader2Icon } from 'lucide-react'
 import { FormAlert } from '@/components/features/account/form-feedback'
@@ -128,6 +128,25 @@ export function DelegationLog({
   const [failed, setFailed] = useState<{ message: string; requestId?: string } | null>(null)
   const { worked, announce } = useRunWork()
 
+  // Where the caret goes when a "Mark used" removes itself (D-500). The mark is drawn by the claim
+  // itself from `usedMarked`, so this control is the one that has not been pressed yet and nothing
+  // once it has — which left a keyboard user on `document.body`, and from there WebKit's Tab moves
+  // nothing at all while the other two engines restart at the top of a workspace many viewports
+  // tall. The claim's own card is the destination: it already carries `tabIndex={-1}` and the
+  // `data-claim-id` anchor the Decision Lock's "Go to the claim" lands on, it is where the `used`
+  // chip has just appeared, and its heading names the claim that was marked.
+  //
+  // Only when the caret was actually dropped, so an engine that put it somewhere real is not
+  // fought and a student who moved on while the write was in flight keeps their place.
+  const homeTo = useRef<string | null>(null)
+  useEffect(() => {
+    const claimId = homeTo.current
+    if (claimId === null) return
+    homeTo.current = null
+    if (document.activeElement !== null && document.activeElement !== document.body) return
+    document.querySelector<HTMLElement>(`[data-claim-id="${CSS.escape(claimId)}"]`)?.focus()
+  }, [marked])
+
   function markUsed(delegationId: string, claimId: string): void {
     if (busy !== null || !canWrite) return
     setBusy(`used:${claimId}`)
@@ -141,6 +160,7 @@ export function DelegationLog({
           announce(message)
           return
         }
+        homeTo.current = claimId
         setMarked((held) => (held.includes(claimId) ? held : [...held, claimId]))
         announce(t('workspace.claimUsedExplain'))
         // A used mark is one of FR-084's three routes into `relied_on_via`, so it changes what the

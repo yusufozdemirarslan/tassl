@@ -111,6 +111,19 @@ export type RecomputeArgs = {
    * correction that recomputed it would undo a decision it has no business touching.
    */
   effectiveBands: Partial<Readonly<Record<Dimension, Band | null>>>
+  /**
+   * The dimensions a faculty seat decided this run **cannot be assessed on** (FR-182, D-512).
+   *
+   * `null` in `effectiveBands` means two different things and only one of them is terminal. A
+   * dimension the *pipeline* could not place — an unavailable graph, a lost stance record — is null
+   * and may still be raised by a correction, which is FR-005's whole direction. A dimension a
+   * faculty seat decided `unassessed` is null because a person said the run holds nothing to assess
+   * it on, and nothing may band it: `effectiveBandOf` returns before the floor is applied for
+   * exactly that reason, so a recompute that placed a band there would put a number in the
+   * correction columns, in the `claim_neutralized` event and in the instructor's own dialog that
+   * the run's arithmetic does not use and its bands do not support.
+   */
+  unassessedDimensions?: readonly Dimension[]
   mapping: BandMapping
   /** The reads the run was scored with, carried through unchanged: they are not re-run (§11.5). */
   reads?: BandReads
@@ -141,12 +154,16 @@ export function recomputeAfterNeutralization(args: RecomputeArgs): RecomputeResu
   const bandsBefore: Partial<Record<Dimension, Band | null>> = {}
   const bandsAfter: Partial<Record<Dimension, Band | null>> = {}
   const bandsEffective: Partial<Record<Dimension, Band | null>> = {}
+  // FR-182, D-512: a dimension a faculty seat said this run cannot be assessed on stays unassessed
+  // through the correction. It is not "before was null, so anything is a raise" — there is no band
+  // there for a floor to protect and nothing may put one there.
+  const terminal = new Set<Dimension>(args.unassessedDimensions ?? [])
   for (const dimension of RECOMPUTED_DIMENSIONS) {
     const before = args.effectiveBands[dimension] ?? null
-    const after = bands[dimension].band
+    const after = terminal.has(dimension) ? null : bands[dimension].band
     bandsBefore[dimension] = before
     bandsAfter[dimension] = after
-    bandsEffective[dimension] = higherBand(before, after)
+    bandsEffective[dimension] = terminal.has(dimension) ? null : higherBand(before, after)
   }
 
   // The points are computed over the whole run both times — the five dimensions the recompute did

@@ -3,8 +3,9 @@
 //
 // **The graphs are plotted from the trace and nothing else.** That is the product claim (FR-212,
 // PRD §7.13: "Four graphs are plotted per run, from the run trace and nothing else"), and it is why
-// every builder in this folder is a pure function of `(events, packageVersion, variantStates)` with
-// no database handle in sight. What a builder may read is exactly three things:
+// every builder in this folder is a pure function of `(events, packageVersion, variantStates,
+// flaggedDelegationIds)` with no database handle in sight. What a builder may read is exactly four
+// things:
 //
 //   1. `events` — the run's own `run_events` rows, in sequence order, with their payloads as they
 //      were written. Nothing about the run's *current* row state (`run_claims.stance`,
@@ -16,6 +17,12 @@
 //      claim (DATA-021). These are the answer key, which is why the whole of this folder is a
 //      **reviewer** artifact: no student payload carries a graph before the run is scored
 //      (`src/server/auth/student-view.ts`, `trace/owner-view.ts`).
+//   4. `flaggedDelegationIds` — the exchanges a reviewer marked out of scenario (FR-055, D-481).
+//      This is the one input that is *not* the run's own record, and it is here because FR-055 asks
+//      for exactly that: "offensive or out-of-scenario content is flagged in one action and excluded
+//      from scoring", which 01 §FR-055 spells out as "excluded from the clock timeline's scored
+//      segments and from Delegation reads". It is a subtraction and never an addition — the widest
+//      thing it can do to a graph is turn a delegation segment into unattributed time.
 //
 // The shapes are stated structurally rather than imported from Drizzle: a module-internal file may
 // not import `src/server/db` (04 §2), and a pure function of a dozen authored fields has no
@@ -144,7 +151,21 @@ export type GraphInput = {
   events: readonly GraphEvent[]
   packageVersion: GraphPackageVersion
   variantStates: readonly GraphVariantClaimState[]
+  /**
+   * `run_delegations.id` for every exchange a reviewer marked `out_of_scenario` (FR-055, D-481).
+   *
+   * The mark lives on the row and not on the `delegation` event, because the event was written when
+   * the exchange happened and the trace is append-only (D-272 draws the same line for the why line).
+   * So the ids are read alongside the package version and the variant states, and every consumer
+   * filters on this set rather than on `payload.flags` — which carries the *guard's* marks
+   * (`rebuilt`, `filtered`, `no_commentary`, `probe`) and never a reviewer's.
+   */
+  flaggedDelegationIds: readonly string[]
 }
+
+/** The flagged ids as a set, for the filters that ask "was this exchange marked?" (FR-055). */
+export const flaggedDelegations = (input: GraphInput): ReadonlySet<string> =>
+  new Set(input.flaggedDelegationIds)
 
 // ---------------------------------------------------------------------------------------------
 // The output envelope

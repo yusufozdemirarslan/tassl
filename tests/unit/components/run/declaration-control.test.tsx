@@ -24,9 +24,17 @@ vi.mock('@/server/modules/assistant/actions', () => ({
 const openButton = () => screen.getByRole('button', { name: enUS['workspace.declarationOpen'] })
 const purposeBox = () => screen.getByLabelText(enUS['workspace.declarationPurposeLabel'])
 const submitButton = () => screen.getByRole('button', { name: enUS['workspace.declarationSubmit'] })
+const cancelButton = () => screen.getByRole('button', { name: enUS['workspace.declarationCancel'] })
+/** Somewhere else on the workspace, for the student who moved on while the write was in flight. */
+const elsewhere = () => screen.getByRole('button', { name: 'Somewhere else on the screen' })
 
 function renderControl() {
-  render(<DeclarationControl runId={RUN_ID} />)
+  render(
+    <>
+      <DeclarationControl runId={RUN_ID} />
+      <button type="button">Somewhere else on the screen</button>
+    </>,
+  )
   return userEvent.setup()
 }
 
@@ -73,6 +81,60 @@ describe('DeclarationControl (UI-023, FR-061)', () => {
 
     expect(screen.getByText(enUS['workspace.declarationRequired'])).toBeInTheDocument()
     expect(actions.declareOutsideToolAction).not.toHaveBeenCalled()
+  })
+
+  // FR-210, WCAG 2.2 AA §2.4.3, D-500. Closing the region unmounts the form, and with it the
+  // control the student just pressed. A browser whose focused element is removed drops the caret on
+  // `document.body`; Chromium and Firefox restart Tab at the top of the document from there and
+  // WebKit moves nothing at all, so a keyboard user who declared an outside tool was stranded on the
+  // screen that files an irreversible decision under a clock. The disclosure puts the caret back on
+  // the control the region was opened from — and only when it was still inside the region.
+  describe('the caret, when the region closes', () => {
+    it('comes back to the control the region was opened from after a declaration lands', async () => {
+      const user = renderControl()
+
+      await user.click(openButton())
+      await user.type(purposeBox(), 'A spreadsheet, to recompute the payback myself')
+      await user.click(submitButton())
+
+      expect(await screen.findByText(enUS['workspace.declarationRecorded'])).toBeInTheDocument()
+      await waitFor(() => {
+        expect(openButton()).toHaveFocus()
+      })
+    })
+
+    it('comes back to it when the region is closed with Cancel', async () => {
+      const user = renderControl()
+
+      await user.click(openButton())
+      await user.click(cancelButton())
+
+      expect(openButton()).toHaveFocus()
+      expect(actions.declareOutsideToolAction).not.toHaveBeenCalled()
+    })
+
+    it('stays where the student put it when they moved on while the write was in flight', async () => {
+      let land: (result: unknown) => void = () => undefined
+      actions.declareOutsideToolAction.mockReturnValue(
+        new Promise((resolve) => {
+          land = resolve
+        }),
+      )
+      const user = renderControl()
+
+      await user.click(openButton())
+      await user.type(purposeBox(), 'A spreadsheet, to recompute the payback myself')
+      await user.click(submitButton())
+
+      // The student did not wait: they tabbed on to the rest of the workspace.
+      elsewhere().focus()
+      expect(elsewhere()).toHaveFocus()
+
+      land({ ok: true, data: null })
+
+      expect(await screen.findByText(enUS['workspace.declarationRecorded'])).toBeInTheDocument()
+      expect(elsewhere()).toHaveFocus()
+    })
   })
 
   it('says so in the server’s own words when the declaration does not land', async () => {

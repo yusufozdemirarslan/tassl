@@ -2602,3 +2602,27 @@ export async function getStudentScenario(
   if (!scenario) notFound('run')
   return scenario
 }
+
+/**
+ * Marks a confirmed package version as wanting its author's attention (FR-003, 10 §12).
+ *
+ * The seam `review.neutralizeClaim` reaches this module through, in the shape `trace.append` has:
+ * the transaction and the ids, no actor, because the faculty seat's permission was proved by the
+ * caller — a neutralization is an instructor's act on a *run*, and the version it flags belongs to
+ * whoever authored it.
+ *
+ * Nothing about the version changes but these two columns. A neutralization says one claim of the
+ * package misbehaved in one run; it does not retire the version, does not unconfirm it, and does
+ * not stop the runs already taken under it from being read against it (NFR-004, D-137). What it
+ * does is put the version in front of its author with the reason attached, which is what FR-003
+ * asks for and the whole of what this writes.
+ */
+export async function flagVersionForReview(
+  tx: repo.Tx,
+  tenantId: string,
+  versionId: string,
+  reason: string,
+  at: Date = new Date(),
+): Promise<void> {
+  await repo.flagVersionForReview(tenantId, versionId, { at, reason }, tx)
+}

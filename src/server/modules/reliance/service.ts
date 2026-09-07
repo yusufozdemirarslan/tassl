@@ -269,6 +269,42 @@ export async function markClaimUsed(
   return { recorded: true }
 }
 
+/**
+ * Marks one of the run's claims neutralized (FR-003, FR-232; 10 §11.5, §12).
+ *
+ * The seam `review.neutralizeClaim` reaches this module through, in the shape `markClaimUsed` above
+ * already has: the transaction and the locked run, no actor, because the faculty seat's permission
+ * was proved by the caller and the two writes commit together.
+ *
+ * It writes no event of its own. What records the correction is the `claim_neutralized` event the
+ * caller appends, which carries the reason, the credit and everything the recompute moved (10 §10);
+ * a second event here would be the same fact twice, and the row is what the stance matrix reads.
+ *
+ * `credit_challenge` is D-092's fixed modifier: the student challenged the claim and was right, so
+ * the row is counted as a match whatever stance it carries — for this run only.
+ *
+ * Answers false when the claim was never surfaced on this run, which is not an error: a claim the
+ * student never met is already outside the arithmetic FR-003 is correcting, and the neutralization
+ * row and the recompute stand either way.
+ */
+export async function markClaimNeutralized(
+  tx: repo.Tx,
+  run: SurfacingRun,
+  claimId: string,
+  update: { neutralizationId: string; creditChallenge: boolean },
+): Promise<{ marked: boolean }> {
+  const row = await repo.markClaimNeutralized(
+    run.id,
+    claimId,
+    {
+      neutralizationId: update.neutralizationId,
+      inconsistencyCredited: update.creditChallenge,
+    },
+    tx,
+  )
+  return { marked: row !== undefined }
+}
+
 // ---------------------------------------------------------------------------------------------
 // Surfacing (FR-031, D-077)
 // ---------------------------------------------------------------------------------------------

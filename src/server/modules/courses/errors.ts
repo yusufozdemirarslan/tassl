@@ -46,7 +46,15 @@ export function mappingInvalid(): never {
   throw new AppError('MAPPING_INVALID')
 }
 
-/** The course already has confirmed runs, so the mapping change belongs to Phase 11 (FR-206). */
+/**
+ * A mapping change that has not been confirmed (FR-206, D-095).
+ *
+ * Two callers and one sentence, because it is one rule read from two sides. `updateCoursePolicy`
+ * refuses a mapping on a course that already holds a confirmed run: changing it there would move
+ * points that have already been exported, silently. `changeMapping` refuses a request whose
+ * `confirm` is false: that endpoint is the one that may move them, and the box the instructor ticks
+ * says what applying does — every confirmed run in the course is recomputed and re-exported.
+ */
 export function mappingChangeUnconfirmed(): never {
   throw new AppError('MAPPING_CHANGE_UNCONFIRMED')
 }

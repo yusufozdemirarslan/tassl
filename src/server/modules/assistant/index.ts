@@ -10,8 +10,9 @@
 // stored (D-271). A generator would defer all of that to the first `next()`, by which time the
 // response headers are written and a refusal has nowhere to go.
 //
-// `flagDelegation` (FR-055) has no route yet: 07 §8 puts it on the faculty replay, which arrives
-// with Phase 11. It is exported because the rule is here, not there.
+// `flagDelegation` (FR-055) is mounted under `/review` by that module's router, because the seat
+// that presses it is the faculty one — but the rule is here, where `run_delegations.flags` is
+// (07 §8, 10 §12).
 export {
   assembleReply,
   declareOutsideTool,
