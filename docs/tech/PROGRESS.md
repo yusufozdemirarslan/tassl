@@ -100,7 +100,7 @@
 
 ## Phase 11 — Faculty replay, debrief, record, exports, notifications (`build-plan/phase-11-review-debrief-record.md`)
 - [x] 11.1 Review service: replay, band decisions, confirm, neutralize, void and re-offer, manual banding, flagging
-- [ ] 11.2 Debrief service and mapping change with recompute
+- [x] 11.2 Debrief service and mapping change with recompute
 - [ ] 11.3 Faculty replay screen
 - [ ] 11.4 Debrief, record, run status, exports, notifications, queue screens
 - [ ] 11.5 Full walkthrough E2E on both variants, standing rules, keyboard-only run
