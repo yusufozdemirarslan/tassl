@@ -103,7 +103,7 @@
 - [x] 11.2 Debrief service and mapping change with recompute
 - [x] 11.3 Faculty replay screen
 - [x] 11.4 Debrief, record, run status, exports, notifications, queue screens
-- [ ] 11.5 Full walkthrough E2E on both variants, standing rules, keyboard-only run
+- [x] 11.5 Full walkthrough E2E on both variants, standing rules, keyboard-only run
 - [ ] Phase 11 exit criteria
 
 ## Phase 12 — AI-assisted authoring pipeline (`build-plan/phase-12-authoring-pipeline.md`)
