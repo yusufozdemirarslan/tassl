@@ -3,7 +3,7 @@
 // notifications is not a tenant table (organization_id is an optional label); every read and write
 // is scoped to the owning user id the service takes from the session. The database handle is always
 // the last parameter (10 §6).
-import { and, eq, isNull, sql } from 'drizzle-orm'
+import { and, eq, inArray, isNull, sql } from 'drizzle-orm'
 import { db } from '@/server/db/client'
 import {
   afterCursor,
@@ -14,7 +14,7 @@ import {
   type PageInput,
   cursorOrder,
 } from '@/server/db/pagination'
-import { notifications, type NewNotification, type Notification } from '@/server/db/schema'
+import { notifications, user, type NewNotification, type Notification } from '@/server/db/schema'
 import type { DbOrTx } from '@/server/db/tx'
 
 // The service may not import `@/server/db` (04 §2), so the row types and the page shape it hands
@@ -32,6 +32,23 @@ export async function insertNotifications(
 ): Promise<Notification[]> {
   if (values.length === 0) return []
   return dbx.insert(notifications).values(values).returning()
+}
+
+/**
+ * The addresses an e-mail copy goes to (10 §15), for recipients whose account is still live.
+ *
+ * A deleted account keeps its notification rows until the purge job re-points them (SYS-004), and
+ * `deleted_at` is what says the address behind one is no longer a person to write to.
+ */
+export async function listEmailRecipients(
+  userIds: readonly string[],
+  dbx: DbOrTx = db,
+): Promise<{ id: string; email: string }[]> {
+  if (userIds.length === 0) return []
+  return dbx
+    .select({ id: user.id, email: user.email })
+    .from(user)
+    .where(and(inArray(user.id, [...userIds]), isNull(user.deleted_at)))
 }
 
 /** The user's notifications, newest first, cursor-paginated on (created_at, id) (D-020). */

@@ -18,6 +18,7 @@
 import { afterAll, beforeEach, describe, expect, it } from 'vitest'
 import { truncateAll } from '@tests/setup/integration'
 import {
+  CLOCK_SKEW_MS,
   actionRows,
   codeOf,
   delegate,
@@ -122,11 +123,13 @@ describe('Source Trace (FR-070)', () => {
     const [event] = await eventsOfType(runId, 'action')
     const [row] = await actionRows(runId)
     // `trace.append` reads the clock from the run row as the transaction has it, so a charge written
-    // afterwards would stamp ~600,000 here. Both readings are the post-charge one.
+    // afterwards would stamp ~600,000 here. Both readings are the post-charge one, and the whole
+    // property is that 60,000 ms gap — `CLOCK_SKEW_MS` is the Postgres-versus-Node tolerance the
+    // bound cannot do without and is two orders of magnitude below the charge it is proving.
     const reading = await clockReadingOf(event!.seq)
-    expect(reading).toBeLessThanOrEqual(600_000 - SOURCE_TRACE_MS)
+    expect(reading).toBeLessThanOrEqual(600_000 - SOURCE_TRACE_MS + CLOCK_SKEW_MS)
     expect(reading).toBeGreaterThan(600_000 - SOURCE_TRACE_MS - 30_000)
-    expect(row?.clock_remaining_ms).toBeLessThanOrEqual(600_000 - SOURCE_TRACE_MS)
+    expect(row?.clock_remaining_ms).toBeLessThanOrEqual(600_000 - SOURCE_TRACE_MS + CLOCK_SKEW_MS)
     expect((await runRow(runId)).charged_ms).toBe(SOURCE_TRACE_MS)
   })
 })
@@ -244,7 +247,9 @@ describe('the clock (FR-072, D-132)', () => {
     expect(result.result).toEqual(
       (await verificationPaths(runId, fx.claimId('C1'))).decomposition_check,
     )
-    expect(result.clockCostMs).toBeLessThanOrEqual(30_000)
+    // The cap is the property: uncapped this would be 240,000, so `CLOCK_SKEW_MS` on the bound
+    // leaves it proven with five figures to spare.
+    expect(result.clockCostMs).toBeLessThanOrEqual(30_000 + CLOCK_SKEW_MS)
     expect(result.clockCostMs).toBeGreaterThan(25_000)
 
     // And the next one finds the decision locked: the charge landed the clock exactly on zero, and

@@ -1,5 +1,7 @@
 // scripts/bundle-budget.ts — docs/tech/16-performance-a11y-budgets.md §3.4 (B4, B5).
-// Runs in the CI build job after `pnpm build`; sums gzip bytes of the JS each route loads.
+// Runs in the CI build job after `pnpm build`; sums gzip bytes of the JS each route loads, and
+// then checks that lighthouserc.json's `/dev/components` ceilings are still the ones these numbers
+// imply (D-433) — the `build` job runs before `lhci`, so a divergence fails early and by name.
 //
 // Two assertions, not one (D-187): the framework floor — React and the Next App Router runtime,
 // charged to every route and not something a screen can trade against — is checked once, and each
@@ -20,6 +22,9 @@ const NEXT = join(process.cwd(), '.next')
 /** React 19 + the Next 16 client runtime (`rootMainFiles`), 130,897 bytes gzip on 2026-09-04 (D-187). */
 const FRAMEWORK_FLOOR_MAX_BYTES = 175_000
 
+/** Named so the LHCI cross-check at the bottom of this file reads the same budget row. */
+const GALLERY_LABEL = 'dev gallery'
+
 /** Bytes a route may add on top of the floor: its layouts, its page, and their client components. */
 const budgets: Array<{ pattern: RegExp; maxBytes: number; label: string }> = [
   { pattern: /^\/\(app\)\/runs\/\[runId\](\/|$)/, maxBytes: 130_000, label: 'run route' },
@@ -27,7 +32,7 @@ const budgets: Array<{ pattern: RegExp; maxBytes: number; label: string }> = [
   { pattern: /^\/\(app\)\/records\/\[runId\]$/, maxBytes: 130_000, label: 'run route' },
   { pattern: /^\/\(public\)\//, maxBytes: 110_000, label: 'public page' },
   // The gallery renders every primitive at once (D-156); lighthouserc.json carries the total.
-  { pattern: /^\/dev\//, maxBytes: 205_000, label: 'dev gallery' },
+  { pattern: /^\/dev\//, maxBytes: 205_000, label: GALLERY_LABEL },
   { pattern: /.*/, maxBytes: 175_000, label: 'other route' },
 ]
 
@@ -103,6 +108,76 @@ for (const pageKey of Object.keys(routes)
     `${ok ? 'ok  ' : 'FAIL'} ${String(bytes).padStart(7)} / ${budget.maxBytes} ${budget.label.padEnd(12)} ${route}`,
   )
 }
+// ---------------------------------------------------------------------------------------------
+// The gallery's second ceiling: lighthouserc.json, derived from the numbers above (D-433).
+//
+// LHCI asserts `resource-summary:script:size` and `:total:size` on the live `/dev/components`, and
+// those are transfer sizes — `next start` gzips (`compress: true`), so they are the same unit as
+// everything above. The two files therefore describe one page in one unit, and a number raised in
+// one of them alone is a silent divergence. So the LHCI ceilings are not written by hand: they are
+// built here out of the budgets above plus three named allowances for what LHCI counts and this
+// script cannot see, and the run fails if lighthouserc.json disagrees.
+//
+// Measured on 2026-09-06 (`pnpm exec lhci autorun`, three runs, all identical): script 449,239 of
+// 530,000, total 947,699 of 1,060,000.
+
+/** Chunks the page fetches that `entryJSFiles` does not list: the two `recharts` graphs behind
+ *  `next/dynamic` (§3.3), `instrumentation-client`, and the per-request header bytes Lighthouse
+ *  counts in a transfer size. Measured 131,702 across 31 script requests. */
+const GALLERY_DEFERRED_MAX_BYTES = 150_000
+
+/** All seven self-hosted woff2 faces: the gallery draws a type specimen, so it loads the Mono and
+ *  Serif faces a product page never asks for (a real page loads four). Measured 445,064. */
+const GALLERY_FONT_MAX_BYTES = 460_000
+
+/** The HTML document and the two stylesheets. Measured 56,738. */
+const GALLERY_DOCUMENT_MAX_BYTES = 70_000
+
+const galleryRouteBudget = budgets.find((b) => b.label === GALLERY_LABEL)!.maxBytes
+const galleryLhciBudgets: Record<string, number> = {
+  'resource-summary:script:size':
+    FRAMEWORK_FLOOR_MAX_BYTES + galleryRouteBudget + GALLERY_DEFERRED_MAX_BYTES,
+  'resource-summary:total:size':
+    FRAMEWORK_FLOOR_MAX_BYTES +
+    galleryRouteBudget +
+    GALLERY_DEFERRED_MAX_BYTES +
+    GALLERY_FONT_MAX_BYTES +
+    GALLERY_DOCUMENT_MAX_BYTES,
+}
+
+type Assertion = [level: string, options?: { maxNumericValue?: number }]
+type LhciConfig = {
+  ci?: {
+    assert?: {
+      assertMatrix?: Array<{
+        matchingUrlPattern?: string
+        assertions?: Record<string, Assertion>
+      }>
+    }
+  }
+}
+
+const LHCI_FILE = 'lighthouserc.json'
+const GALLERY_URL_PATTERN = '/dev/components$'
+
+const lhci = JSON.parse(readFileSync(join(process.cwd(), LHCI_FILE), 'utf8')) as LhciConfig
+const galleryEntry = (lhci.ci?.assert?.assertMatrix ?? []).find(
+  (entry) => entry.matchingUrlPattern === GALLERY_URL_PATTERN,
+)
+if (!galleryEntry) {
+  console.error(`no "${GALLERY_URL_PATTERN}" assertMatrix entry in ${LHCI_FILE}`)
+  failed = true
+} else {
+  for (const [audit, expected] of Object.entries(galleryLhciBudgets)) {
+    const found = galleryEntry.assertions?.[audit]?.[1]?.maxNumericValue
+    const ok = found === expected
+    if (!ok) failed = true
+    console.log(
+      `${ok ? 'ok  ' : 'FAIL'} ${String(found ?? 'missing').padStart(7)} / ${expected} ${LHCI_FILE.padEnd(12)} ${audit}`,
+    )
+  }
+}
+
 if (failed) {
   console.error('bundle budget exceeded (docs/tech/16-performance-a11y-budgets.md §3)')
   process.exit(1)

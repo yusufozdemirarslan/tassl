@@ -608,18 +608,19 @@ describe('completing the defense', () => {
     )
     expect(answered).toBeGreaterThanOrEqual(6)
 
+    // What the endpoint answers is the run as this transaction left it: the transition happened and
+    // the job is on the queue (D-046). The job runs afterwards, so the summary never says `scored`.
     const summary = await defense.completeDefense(fx.student, runId)
     expect(summary.state).toBe('defense_complete')
     expect(summary.scoringStatus).toBe('queued')
     expect(summary.links.next).toBe(`/runs/${runId}`)
 
     const row = await runRow(runId)
-    expect(row.state).toBe('defense_complete')
     expect(row.defense_completed_at).not.toBeNull()
     expect(row.flags.nothing_answered).toBeUndefined()
 
     const lifecycle = await eventsOfType(runId, 'lifecycle')
-    expect(lifecycle.at(-1)?.payload).toEqual({
+    expect(lifecycle.map((event) => event.payload)).toContainEqual({
       from: 'defense_pending',
       to: 'defense_complete',
       cause: 'defense_completed',
@@ -628,6 +629,16 @@ describe('completing the defense', () => {
     const jobs = await scoreRunJobs(runId)
     expect(jobs).toHaveLength(1)
     expect(jobs[0]?.singleton_key).toBe(`score_run:${runId}`)
+
+    // Step 10.4 registered the handler, so `enqueue` drains it in this same call (D-181) and the run
+    // is scored by the time `completeDefense` returns. Before that step the job sat unclaimed and
+    // this row read `defense_complete`; the queue behaviour has not changed, only what answers it.
+    expect(row.state).toBe('scored')
+    expect(lifecycle.at(-1)?.payload).toEqual({
+      from: 'defense_complete',
+      to: 'scored',
+      cause: 'scored',
+    })
   })
 
   it('sets `nothing_answered` when every answer is empty or under three words (FR-125)', async () => {
@@ -671,7 +682,36 @@ describe('completing the defense', () => {
         }),
       ),
     ).toBe('DEFENSE_NOT_OPEN')
-    // The read still serves the interview the student gave.
+    // The interview stays on the record whatever the run does next; where a student reads it once
+    // the run is scored is the debrief's question (10 §13), not this endpoint's.
+    const rows = await testSql<{ answered: boolean }[]>`
+      select (a.id is not null) as answered from run_defense_questions q
+        left join run_defense_answers a on a.run_defense_question_id = q.id
+       where q.run_id = ${runId}`
+    expect(rows.length).toBeGreaterThan(0)
+    expect(rows.every((row) => row.answered)).toBe(true)
+  })
+
+  it('still serves the interview while the run sits at defense_complete', async () => {
+    // `DEFENSE_STATES` includes `defense_complete` so a student who finishes and refreshes sees what
+    // they gave rather than a 409 (10 §9). Since Step 10.4 the scoring job runs inside
+    // `completeDefense` and the run is usually `scored` a moment later, so reaching that state on
+    // purpose means giving the pipeline something it cannot finish: `MOCK_FAIL_READS` holds the run
+    // (FR-140, D-401), which leaves it exactly where this rule is about.
+    const runId = await runInDefense()
+    await defense.openDefense(fx.student, runId)
+    await answerEverything(runId, 'From the cohort table of 15 July 2026.')
+
+    process.env.MOCK_FAIL_READS = 'true'
+    try {
+      await defense.completeDefense(fx.student, runId)
+    } finally {
+      delete process.env.MOCK_FAIL_READS
+    }
+
+    const row = await runRow(runId)
+    expect([row.state, row.scoring_status]).toEqual(['defense_complete', 'held'])
+
     const after = await defense.openDefense(fx.student, runId)
     expect(after.questions.every((question) => question.answered)).toBe(true)
   })
@@ -731,14 +771,16 @@ describe('the addendum closes when the defense opens', () => {
   })
 
   it('cannot land on a record already handed to scoring', async () => {
-    // The demonstrated race: `completeDefense` enqueues `score_run` and leaves the run in
-    // `defense_complete` with `scoring_status = 'queued'`, and an addendum written a moment later
-    // was a new `run_addenda` row in the record the in-flight job was reading.
+    // The demonstrated race: `completeDefense` enqueues `score_run`, and an addendum written a
+    // moment later was a new `run_addenda` row in the record the in-flight job was reading. Since
+    // Step 10.4 the job has a handler and the drain runs it in the same call, so the run has been
+    // read and scored by the time the addendum is attempted — which is the same rule one step
+    // further on, and the refusal is what keeps the record the bands were drafted from intact.
     const runId = await runInDefense()
     await answerEverything(runId, '')
     await defense.completeDefense(fx.student, runId)
     const row = await runRow(runId)
-    expect([row.state, row.scoring_status]).toEqual(['defense_complete', 'queued'])
+    expect([row.state, row.scoring_status]).toEqual(['scored', 'done'])
 
     expect(await codeOf(runs.addAddendum(fx.student, runId, { text: NOTE }))).toBe(
       'ILLEGAL_TRANSITION',

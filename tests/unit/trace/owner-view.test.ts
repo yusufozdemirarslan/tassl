@@ -183,6 +183,36 @@ describe('the owner field table', () => {
       claim_id: 'reviewer_only',
       scripted_reversal: 'reviewer_only',
     })
+    // D-428: this table is what the record export applies, and it empties the payload rather than
+    // dropping the event. The type filter that removes `probe_fired` altogether — and the dense
+    // renumbering behind it — belongs to `service.listEvents`, which answers while the run is live;
+    // the record exists only from `confirmed`, after the debrief has shown that student the probe
+    // transcript (10 §13), and it keeps the trace's own sequence so it collates with the course's
+    // copy of the same file (FR-240, FR-243).
+    expect(
+      ownerPayload('probe_fired', { claim_id: 'c', scripted_reversal: 'x' }, 'scored'),
+    ).toEqual({})
+  })
+
+  it('withholds the correction’s point totals from the record, and keeps its band movement', () => {
+    // 12 §8.1's last row (D-420). They are top-level fields of the payload and not members of
+    // `recompute`, because this table classifies the top level and a field nested inside a
+    // classified object is carried by its parent's classification.
+    expect(policyOf('claim_neutralized').points_before).toBe('reviewer_only')
+    expect(policyOf('claim_neutralized').points_after).toBe('reviewer_only')
+    expect(policyOf('claim_neutralized').recompute).toBe('after_scored')
+    expect(
+      ownerPayload(
+        'claim_neutralized',
+        {
+          claim_id: 'c',
+          recompute: { dimensions: ['verification'] },
+          points_before: 3,
+          points_after: 3.5,
+        },
+        'scored',
+      ),
+    ).toEqual({ claim_id: 'c', recompute: { dimensions: ['verification'] } })
   })
 
   it('withholds the instructor observations 12 §8.1 names', () => {

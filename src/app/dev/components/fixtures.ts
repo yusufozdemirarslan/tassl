@@ -1,12 +1,15 @@
-// Fixture props for the component gallery (UI-060). Graph fixtures are added in Phase 10.
-// Server-only: tokenRows() reads DESIGN.md at render time, so this module must never reach a client
-// bundle (the interactive demos keep their own fixtures in demos.tsx).
+// Fixture props for the component gallery (UI-060), the four graphs included.
+// Server-only: tokenRows() reads DESIGN.md and graphFixtures() reads the Marco scoring fixture at
+// render time, so this module must never reach a client bundle (the interactive demos keep their
+// own fixtures in demos.tsx).
 import 'server-only'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { parse } from 'yaml'
+import type { NamedFieldLabel } from '@/components/graphs/frame-beside-decision'
 import type { Institution } from '@/components/layout/institution-switcher'
 import type { RailItem } from '@/components/layout/rail'
+import { buildGraphs, type GraphInput } from '@/server/modules/scoring'
 
 export const institutions: Institution[] = [
   { id: 'org-gw', name: 'George Washington University' },
@@ -203,3 +206,79 @@ export const runs = [
     clock: '—',
   },
 ]
+
+// ---------------------------------------------------------------------------------------------
+// The four graphs (UI-060, FR-212)
+// ---------------------------------------------------------------------------------------------
+
+// The gallery draws all four graphs on the Marco fixture — `tests/fixtures/scoring/marco-8-of-11
+// .json`, the synthetic run PRD §6's arithmetic is written against (nine challenge-or-reject acts
+// on eleven consequential claims, eight of them false alarms). It is fixture data and not a run:
+// no student's trace reaches this page, and the whole of `/dev` is a 404 outside local and test
+// (`src/lib/dev-route.ts`).
+//
+// The payloads are *built* here rather than transcribed, by the same `buildGraphs` the scoring job
+// calls, so the gallery cannot drift from what the debrief will show; the module is `server-only`
+// and the route is `force-dynamic`, so the read happens where the file is.
+
+/** The Marco fixture, read from disk at render time. */
+function marcoFixture(): GraphInput {
+  const source = readFileSync(
+    join(process.cwd(), 'tests', 'fixtures', 'scoring', 'marco-8-of-11.json'),
+    'utf8',
+  )
+  return JSON.parse(source) as GraphInput
+}
+
+/** The author's own labels for the fixture's named fields, as the brief reads them back. */
+const GRAPH_NAMED_FIELDS: NamedFieldLabel[] = [
+  { key: 'unit_margin', label: 'Unit margin', unit: 'percent' },
+  { key: 'payback_months', label: 'Payback', unit: 'months' },
+]
+
+export type GraphGalleryFixtures = ReturnType<typeof graphFixtures>
+
+/** The four graph payloads, plus the frame-beside-decision record in the component's own shape. */
+export function graphFixtures() {
+  const graphs = buildGraphs(marcoFixture())
+  const record = graphs.frame_beside_decision
+
+  return {
+    confidenceLine: graphs.confidence_line,
+    clockTimeline: graphs.clock_timeline,
+    stanceMatrix: graphs.stance_matrix,
+    frameBesideDecision: {
+      frame:
+        record.frame === null
+          ? null
+          : {
+              decision: record.frame.decision,
+              assumptions: record.frame.assumptions,
+              position: record.frame.position,
+              confidence: record.frame.confidence,
+              lockedAt: record.frame.locked_at,
+            },
+      brief:
+        record.brief === null
+          ? null
+          : {
+              recommendation: record.brief.recommendation,
+              briefRationale: record.brief.rationale,
+              assumptions: record.brief.assumptions,
+              changeMyMind: record.brief.change_my_mind,
+              confidence: record.brief.confidence,
+              namedValues: record.brief.named_values,
+              lockedAt: record.brief.locked_at,
+            },
+      namedFields: GRAPH_NAMED_FIELDS,
+      addendum: record.addendum,
+      turn: record.turn,
+      disruptedAssumptionIndexes: record.disrupted_assumption_indexes,
+      unmatchedDisruptedKeys: record.unmatched_disrupted_keys,
+      description: record.description,
+      dataTable: record.data_table,
+      available: record.available,
+      missingEventTypes: record.missing_event_types,
+    },
+  }
+}

@@ -1,0 +1,32 @@
+{
+  "id": "nadia-run-one",
+  "title": "Confidence rising to 85 on claims that were never checked",
+  "fixes": "PRD §7.8, FR-083, FR-086",
+  "fixture": "nadia-run-one",
+  "answerSpace": [
+    {
+      "key": "launch_at_price",
+      "kind": "defensible",
+      "summary": "Go ahead at the higher price point in the coming quarter.",
+      "isMinimumCommitment": false
+    },
+    {
+      "key": "hold_price_until_rebased",
+      "kind": "defensible",
+      "summary": "Proceed, but hold the higher price point until the demand series has been re-based.",
+      "isMinimumCommitment": true
+    },
+    {
+      "key": "sign_on_january_estimate",
+      "kind": "evidence_inconsistent",
+      "summary": "Sign the multi-year tooling contract on the strength of the January estimate alone.",
+      "ignoredEvidence": "The March review re-bases the January estimate downward.",
+      "isMinimumCommitment": false
+    }
+  ],
+  "expect": {
+    "bands": { "verification": "novice" },
+    "confidenceShape": "rising_unchecked",
+    "confidence": { "frame": 40, "lock": 85 }
+  }
+}

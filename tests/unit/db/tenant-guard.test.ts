@@ -42,8 +42,19 @@ function exportedFunctions(source: string): Fn[] {
   return out
 }
 
+/**
+ * Comments are not code, and this guard is about code.
+ *
+ * A function's slice runs from its own `export` to the next one, so a doc comment written *above*
+ * the next function lands inside the previous function's body. A stray table name in prose then
+ * reports an offender that does not exist — which happened once, and cost a real investigation.
+ * Stripping comments first also stops a function's own docstring from convicting it.
+ */
+const stripComments = (body: string): string =>
+  body.replace(/[/][*][\s\S]*?[*][/]/g, ' ').replace(/[/][/].*$/gm, ' ')
+
 const touchesTenantTable = (body: string): boolean =>
-  TENANT_TABLES.some((t) => new RegExp(`\\b${t}\\b`).test(body))
+  TENANT_TABLES.some((t) => new RegExp(`\\b${t}\\b`).test(stripComments(body)))
 
 describe('repository tenant guard (D-006)', () => {
   it('finds the repositories once Step 2.8 lands', () => {

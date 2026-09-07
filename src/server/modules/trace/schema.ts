@@ -407,7 +407,17 @@ export const BandDecisionPayloadSchema = z.strictObject({
   note: z.string().nullable(),
 })
 
-/** FR-005, FR-087, FR-232: the correction and everything it moved. */
+/**
+ * FR-005, FR-087, FR-232: the correction and everything it moved.
+ *
+ * The two point totals are **top-level fields and not part of `recompute`**, and that placement is
+ * the whole reason they can be here at all (D-420). The record export projects each payload through
+ * `owner-view.ts` field by field at the top level, so a `points_*` buried inside `recompute` was
+ * carried into the student's copy of their own record by the block around it — which is the last row
+ * of 12 §8.1, `points` inside the record export form. Hoisted, each is classified on its own and is
+ * `reviewer_only`, while `recompute` keeps the part of the correction FR-005 entitles the student to
+ * see: which dimensions moved, and from which band to which.
+ */
 export const ClaimNeutralizedPayloadSchema = z.strictObject({
   neutralization_id: uuid,
   claim_id: uuid,
@@ -421,9 +431,10 @@ export const ClaimNeutralizedPayloadSchema = z.strictObject({
     // from the recompute (10 §11.5), never all seven.
     bands_before: z.partialRecord(DimensionSchema, BandSchema.nullable()),
     bands_after: z.partialRecord(DimensionSchema, BandSchema.nullable()),
-    points_before: z.number().nullable(),
-    points_after: z.number().nullable(),
   }),
+  /** The run's points before and after the correction (FR-005's `max` floor); course-only. */
+  points_before: z.number().nullable(),
+  points_after: z.number().nullable(),
 })
 
 /** FR-002, FR-008, D-120: the free-text note lives here, not on the run row. */

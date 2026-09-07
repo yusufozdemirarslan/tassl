@@ -86,6 +86,23 @@ export const ERROR_STATUS = {
   DELEGATION_NOT_FOUND: 404,
   // trace (10 §10)
   SEQUENCE_CONFLICT: 500,
+  // scoring (10 §11.5). `RUN_NOT_SCORABLE` is the refusal for a run the pipeline cannot draft bands
+  // for: one that is not at `defense_complete`, or one whose stance records are too far gone to read
+  // (FR-087). It carries `details.state` and `details.reason`, the shape `TURN_NOT_OPEN` uses, and
+  // it is the code `POST /review/runs/{runId}/manual-bands` answers with when a run is not held.
+  // A stored `run_scores.rubric_version` this build no longer carries: the run cannot be re-read
+  // against the standard it was scored against, and substituting the current rubric would silently
+  // change what a confirmed band means (D-033). A 500 because it can only be a deployment that lost
+  // a file a row still points at — nothing the reader did or can act on.
+  RUN_NOT_SCORABLE: 409,
+  RUBRIC_VERSION_UNKNOWN: 500,
+  // records (10 §14). `RECORD_NOT_AVAILABLE` is the refusal for a Judgment Record or its export
+  // before the run's bands are confirmed, and carries `details.state`, the shape `TURN_NOT_OPEN`
+  // and `DEFENSE_NOT_OPEN` already use. `EXPORT_NOT_FOUND` is a 404 rather than a 409 because a
+  // version number that names no export names nothing — the run exists and the reviewer may read
+  // it, so the miss is about the file they asked for.
+  RECORD_NOT_AVAILABLE: 409,
+  EXPORT_NOT_FOUND: 404,
   LLM_BUDGET_EXCEEDED: 402,
   LLM_PROVIDER_ERROR: 502,
   LLM_CIRCUIT_OPEN: 503,
@@ -158,6 +175,10 @@ export const DEFAULT_MESSAGES: Record<ErrorCode, string> = {
     'The assistant did not answer, so the run is paused and the clock has stopped. Nothing you did was lost.',
   DELEGATION_NOT_FOUND: 'That entry is not in this run’s Delegation Log.',
   SEQUENCE_CONFLICT: 'Something went wrong on our side.',
+  RUN_NOT_SCORABLE: 'This run is not at a point where it can be scored.',
+  RUBRIC_VERSION_UNKNOWN: 'Something went wrong on our side.',
+  RECORD_NOT_AVAILABLE: 'This run’s record opens once its bands are confirmed.',
+  EXPORT_NOT_FOUND: 'That export version does not exist for this run.',
   LLM_BUDGET_EXCEEDED: 'The assistant budget for this period has been used up.',
   LLM_PROVIDER_ERROR: 'The assistant provider did not respond correctly.',
   LLM_CIRCUIT_OPEN: 'The assistant is temporarily unavailable.',

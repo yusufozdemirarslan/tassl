@@ -1,0 +1,616 @@
+{
+  "name": "hold-with-reason",
+  "purpose": "An explicit hold with a stated reason on a Turn that did not warrant a change (PRD §7.11, D-108): a hold and a warranted revision are scored identically.",
+  "packageVersion": {
+    "workingClockSeconds": 1500,
+    "claims": [
+      {
+        "id": "00000000-0000-4000-8000-000000000001",
+        "key": "claim_01",
+        "text": "Premium demand grew 6 percent in each of the last three quarters.",
+        "sourceKind": "assistant",
+        "sourceDocumentId": null,
+        "importance": "load_bearing",
+        "consequenceLevel": "medium",
+        "conceptKey": "price_elasticity",
+        "weaklySourced": false,
+        "position": 1
+      },
+      {
+        "id": "00000000-0000-4000-8000-000000000002",
+        "key": "claim_02",
+        "text": "The March review shows unit margin at 34 percent on the premium line.",
+        "sourceKind": "assistant",
+        "sourceDocumentId": null,
+        "importance": "supporting",
+        "consequenceLevel": "medium",
+        "conceptKey": "evidence_recency",
+        "weaklySourced": false,
+        "position": 2
+      },
+      {
+        "id": "00000000-0000-4000-8000-000000000003",
+        "key": "claim_03",
+        "text": "Supplier lead times have held at four weeks since January.",
+        "sourceKind": "assistant",
+        "sourceDocumentId": null,
+        "importance": "supporting",
+        "consequenceLevel": "medium",
+        "conceptKey": "payback_arithmetic",
+        "weaklySourced": false,
+        "position": 3
+      },
+      {
+        "id": "00000000-0000-4000-8000-000000000004",
+        "key": "claim_04",
+        "text": "A two-quarter payback is within the board’s stated tolerance.",
+        "sourceKind": "assistant",
+        "sourceDocumentId": null,
+        "importance": "supporting",
+        "consequenceLevel": "medium",
+        "conceptKey": "supplier_risk",
+        "weaklySourced": false,
+        "position": 4
+      },
+      {
+        "id": "00000000-0000-4000-8000-000000000005",
+        "key": "claim_05",
+        "text": "Competitor pricing moved less than 2 percent over the period.",
+        "sourceKind": "assistant",
+        "sourceDocumentId": null,
+        "importance": "supporting",
+        "consequenceLevel": "medium",
+        "conceptKey": "price_elasticity",
+        "weaklySourced": false,
+        "position": 5
+      },
+      {
+        "id": "00000000-0000-4000-8000-000000000006",
+        "key": "claim_06",
+        "text": "The finance model assumes no change in freight cost.",
+        "sourceKind": "assistant",
+        "sourceDocumentId": null,
+        "importance": "supporting",
+        "consequenceLevel": "medium",
+        "conceptKey": "evidence_recency",
+        "weaklySourced": false,
+        "position": 6
+      }
+    ],
+    "documents": [
+      {
+        "id": "00000000-0000-4000-8000-000000000101",
+        "key": "market_review_2026",
+        "title": "Premium line market review, March 2026"
+      },
+      {
+        "id": "00000000-0000-4000-8000-000000000102",
+        "key": "supplier_letter",
+        "title": "Supplier letter on lead times"
+      },
+      {
+        "id": "00000000-0000-4000-8000-000000000103",
+        "key": "finance_model",
+        "title": "Finance payback model"
+      }
+    ],
+    "namedFields": [
+      { "key": "unit_margin", "label": "Unit margin", "unit": "percent" },
+      { "key": "payback_months", "label": "Payback", "unit": "months" }
+    ],
+    "turn": {
+      "text": "A trade title reports that one regional competitor trimmed list prices by half a point.",
+      "warrantsChange": false,
+      "proportionateResponse": "hold",
+      "disruptedAssumptionKeys": ["competitor_pricing_stability"]
+    }
+  },
+  "variantStates": [
+    {
+      "claimId": "00000000-0000-4000-8000-000000000001",
+      "evidenceStatus": "defective",
+      "failureFamily": "stale_evidence",
+      "warrantedStance": "challenge",
+      "planted": true
+    },
+    {
+      "claimId": "00000000-0000-4000-8000-000000000002",
+      "evidenceStatus": "sound",
+      "failureFamily": null,
+      "warrantedStance": "accept",
+      "planted": false
+    },
+    {
+      "claimId": "00000000-0000-4000-8000-000000000003",
+      "evidenceStatus": "sound",
+      "failureFamily": null,
+      "warrantedStance": "accept",
+      "planted": false
+    },
+    {
+      "claimId": "00000000-0000-4000-8000-000000000004",
+      "evidenceStatus": "sound",
+      "failureFamily": null,
+      "warrantedStance": "accept",
+      "planted": false
+    },
+    {
+      "claimId": "00000000-0000-4000-8000-000000000005",
+      "evidenceStatus": "sound",
+      "failureFamily": null,
+      "warrantedStance": "accept",
+      "planted": false
+    },
+    {
+      "claimId": "00000000-0000-4000-8000-000000000006",
+      "evidenceStatus": "sound",
+      "failureFamily": null,
+      "warrantedStance": "accept",
+      "planted": false
+    }
+  ],
+  "events": [
+    {
+      "seq": 1,
+      "type": "policy_displayed",
+      "occurredAt": "2026-09-01T14:00:00.000Z",
+      "clockRemainingMs": null,
+      "payload": {
+        "outside_ai_policy": "declared",
+        "weight": 0.1,
+        "mapping": { "novice": 1, "developing": 2, "proficient": 3, "professional": 4 },
+        "run_type": "decision",
+        "counts_statement": true
+      }
+    },
+    {
+      "seq": 2,
+      "type": "lifecycle",
+      "occurredAt": "2026-09-01T14:00:00.000Z",
+      "clockRemainingMs": null,
+      "payload": { "from": "assigned", "to": "readiness", "cause": "run_started" }
+    },
+    {
+      "seq": 3,
+      "type": "readiness_item",
+      "occurredAt": "2026-09-01T14:00:30.000Z",
+      "clockRemainingMs": null,
+      "payload": {
+        "item_id": "00000000-0000-4000-8000-000000001101",
+        "item_key": "item_01",
+        "category": "foundation",
+        "concept_key": "price_elasticity",
+        "answer_key": "option_a",
+        "correct": true
+      }
+    },
+    {
+      "seq": 4,
+      "type": "readiness_item",
+      "occurredAt": "2026-09-01T14:00:35.000Z",
+      "clockRemainingMs": null,
+      "payload": {
+        "item_id": "00000000-0000-4000-8000-000000001102",
+        "item_key": "item_02",
+        "category": "defect_concept",
+        "concept_key": "evidence_recency",
+        "answer_key": "option_b",
+        "correct": true
+      }
+    },
+    {
+      "seq": 5,
+      "type": "readiness_item",
+      "occurredAt": "2026-09-01T14:00:40.000Z",
+      "clockRemainingMs": null,
+      "payload": {
+        "item_id": "00000000-0000-4000-8000-000000001103",
+        "item_key": "item_03",
+        "category": "ai_behavior",
+        "concept_key": "payback_arithmetic",
+        "answer_key": "option_c",
+        "correct": false
+      }
+    },
+    {
+      "seq": 6,
+      "type": "readiness_item",
+      "occurredAt": "2026-09-01T14:00:45.000Z",
+      "clockRemainingMs": null,
+      "payload": {
+        "item_id": "00000000-0000-4000-8000-000000001104",
+        "item_key": "item_04",
+        "category": "ai_behavior",
+        "concept_key": "supplier_risk",
+        "answer_key": "option_d",
+        "correct": true
+      }
+    },
+    {
+      "seq": 7,
+      "type": "lifecycle",
+      "occurredAt": "2026-09-01T14:00:50.000Z",
+      "clockRemainingMs": null,
+      "payload": { "from": "readiness", "to": "framing", "cause": "readiness_submitted" }
+    },
+    {
+      "seq": 8,
+      "type": "document_open",
+      "occurredAt": "2026-09-01T14:01:00.000Z",
+      "clockRemainingMs": null,
+      "payload": {
+        "open_id": "00000000-0000-4000-8000-000000000501",
+        "document_id": "00000000-0000-4000-8000-000000000101",
+        "document_key": "market_review_2026",
+        "before_first_delegation": true,
+        "in_turn_window": false
+      }
+    },
+    {
+      "seq": 9,
+      "type": "document_close",
+      "occurredAt": "2026-09-01T14:05:00.000Z",
+      "clockRemainingMs": null,
+      "payload": {
+        "open_id": "00000000-0000-4000-8000-000000000501",
+        "document_id": "00000000-0000-4000-8000-000000000101",
+        "duration_ms": 240000,
+        "before_first_delegation": true,
+        "skim": false,
+        "in_turn_window": false
+      }
+    },
+    {
+      "seq": 10,
+      "type": "document_open",
+      "occurredAt": "2026-09-01T14:05:10.000Z",
+      "clockRemainingMs": null,
+      "payload": {
+        "open_id": "00000000-0000-4000-8000-000000000502",
+        "document_id": "00000000-0000-4000-8000-000000000102",
+        "document_key": "supplier_letter",
+        "before_first_delegation": true,
+        "in_turn_window": false
+      }
+    },
+    {
+      "seq": 11,
+      "type": "document_close",
+      "occurredAt": "2026-09-01T14:07:10.000Z",
+      "clockRemainingMs": null,
+      "payload": {
+        "open_id": "00000000-0000-4000-8000-000000000502",
+        "document_id": "00000000-0000-4000-8000-000000000102",
+        "duration_ms": 120000,
+        "before_first_delegation": true,
+        "skim": false,
+        "in_turn_window": false
+      }
+    },
+    {
+      "seq": 12,
+      "type": "frame_locked",
+      "occurredAt": "2026-09-01T14:07:30.000Z",
+      "clockRemainingMs": 1500000,
+      "payload": {
+        "decision": "Whether to launch the premium line at the higher price point this quarter.",
+        "assumptions": [
+          "Demand for the premium line grows at six percent a year.",
+          "Supplier lead times hold at four weeks.",
+          "The board will accept a two-quarter payback."
+        ],
+        "position": "I expect to launch, unless the supplier picture has changed.",
+        "confidence": 55
+      }
+    },
+    {
+      "seq": 13,
+      "type": "lifecycle",
+      "occurredAt": "2026-09-01T14:07:30.000Z",
+      "clockRemainingMs": 1500000,
+      "payload": { "from": "framing", "to": "working", "cause": "frame_locked" }
+    },
+    {
+      "seq": 14,
+      "type": "delegation",
+      "occurredAt": "2026-09-01T14:08:15.000Z",
+      "clockRemainingMs": 1455000,
+      "payload": {
+        "delegation_id": "00000000-0000-4000-8000-000000000201",
+        "seq": 1,
+        "request_text": "What does the evidence say about the premium launch?",
+        "response_text": "Here is what the room supports, claim by claim.",
+        "claim_ids": [
+          "00000000-0000-4000-8000-000000000001",
+          "00000000-0000-4000-8000-000000000002",
+          "00000000-0000-4000-8000-000000000003",
+          "00000000-0000-4000-8000-000000000004",
+          "00000000-0000-4000-8000-000000000005",
+          "00000000-0000-4000-8000-000000000006"
+        ],
+        "why": "To assemble the case before I write the brief.",
+        "in_turn_window": false,
+        "flags": [],
+        "unverified_numbers": [],
+        "failed": false
+      }
+    },
+    {
+      "seq": 15,
+      "type": "action",
+      "occurredAt": "2026-09-01T14:08:45.000Z",
+      "clockRemainingMs": 1365000,
+      "payload": {
+        "action_id": "00000000-0000-4000-8000-000000000301",
+        "type": "source_trace",
+        "claim_id": "00000000-0000-4000-8000-000000000001",
+        "clock_cost_ms": 60000,
+        "result": { "passage": "The March review, page 4.", "dated_on": "2026-03-11" },
+        "in_turn_window": false
+      }
+    },
+    {
+      "seq": 16,
+      "type": "stance_set",
+      "occurredAt": "2026-09-01T14:09:05.000Z",
+      "clockRemainingMs": 1345000,
+      "payload": {
+        "claim_id": "00000000-0000-4000-8000-000000000001",
+        "stance": "challenge",
+        "previous_stance": null,
+        "action_ids": ["00000000-0000-4000-8000-000000000301"],
+        "in_turn_window": false
+      }
+    },
+    {
+      "seq": 17,
+      "type": "stance_set",
+      "occurredAt": "2026-09-01T14:09:20.000Z",
+      "clockRemainingMs": 1330000,
+      "payload": {
+        "claim_id": "00000000-0000-4000-8000-000000000002",
+        "stance": "accept",
+        "previous_stance": null,
+        "action_ids": [],
+        "in_turn_window": false
+      }
+    },
+    {
+      "seq": 18,
+      "type": "stance_set",
+      "occurredAt": "2026-09-01T14:09:35.000Z",
+      "clockRemainingMs": 1315000,
+      "payload": {
+        "claim_id": "00000000-0000-4000-8000-000000000003",
+        "stance": "accept",
+        "previous_stance": null,
+        "action_ids": [],
+        "in_turn_window": false
+      }
+    },
+    {
+      "seq": 19,
+      "type": "stance_set",
+      "occurredAt": "2026-09-01T14:09:50.000Z",
+      "clockRemainingMs": 1300000,
+      "payload": {
+        "claim_id": "00000000-0000-4000-8000-000000000004",
+        "stance": "accept",
+        "previous_stance": null,
+        "action_ids": [],
+        "in_turn_window": false
+      }
+    },
+    {
+      "seq": 20,
+      "type": "stance_set",
+      "occurredAt": "2026-09-01T14:10:05.000Z",
+      "clockRemainingMs": 1285000,
+      "payload": {
+        "claim_id": "00000000-0000-4000-8000-000000000005",
+        "stance": "accept",
+        "previous_stance": null,
+        "action_ids": [],
+        "in_turn_window": false
+      }
+    },
+    {
+      "seq": 21,
+      "type": "stance_set",
+      "occurredAt": "2026-09-01T14:10:20.000Z",
+      "clockRemainingMs": 1270000,
+      "payload": {
+        "claim_id": "00000000-0000-4000-8000-000000000006",
+        "stance": "accept",
+        "previous_stance": null,
+        "action_ids": [],
+        "in_turn_window": false
+      }
+    },
+    {
+      "seq": 22,
+      "type": "claim_used",
+      "occurredAt": "2026-09-01T14:10:22.000Z",
+      "clockRemainingMs": 1268000,
+      "payload": {
+        "claim_id": "00000000-0000-4000-8000-000000000002",
+        "via": "log_mark",
+        "delegation_id": "00000000-0000-4000-8000-000000000201"
+      }
+    },
+    {
+      "seq": 23,
+      "type": "claim_used",
+      "occurredAt": "2026-09-01T14:10:24.000Z",
+      "clockRemainingMs": 1266000,
+      "payload": {
+        "claim_id": "00000000-0000-4000-8000-000000000004",
+        "via": "log_mark",
+        "delegation_id": "00000000-0000-4000-8000-000000000201"
+      }
+    },
+    {
+      "seq": 24,
+      "type": "brief_opened",
+      "occurredAt": "2026-09-01T14:10:44.000Z",
+      "clockRemainingMs": 1246000,
+      "payload": {}
+    },
+    {
+      "seq": 25,
+      "type": "brief_closed",
+      "occurredAt": "2026-09-01T14:13:44.000Z",
+      "clockRemainingMs": 1066000,
+      "payload": { "duration_ms": 180000 }
+    },
+    {
+      "seq": 26,
+      "type": "decision_locked",
+      "occurredAt": "2026-09-01T14:13:49.000Z",
+      "clockRemainingMs": 1061000,
+      "payload": {
+        "recommendation": "Launch the premium line at the higher price point in the coming quarter.",
+        "rationale": "Demand growth and margin both support the move, and the payback is inside tolerance.",
+        "assumptions": [
+          "Demand growth continues at six percent.",
+          "Lead times stay at four weeks through the launch.",
+          "Payback lands inside two quarters."
+        ],
+        "change_my_mind": "A confirmed change in supplier lead times would change my mind.",
+        "named_values": { "unit_margin": 34, "payback_months": 6 },
+        "confidence": 62,
+        "auto": false,
+        "speed_outlier": false,
+        "relied_on_claim_ids": [
+          "00000000-0000-4000-8000-000000000002",
+          "00000000-0000-4000-8000-000000000004"
+        ],
+        "unstanced_relied_on_claim_ids": [],
+        "elapsed_ms": 379000
+      }
+    },
+    {
+      "seq": 27,
+      "type": "lifecycle",
+      "occurredAt": "2026-09-01T14:13:49.000Z",
+      "clockRemainingMs": null,
+      "payload": { "from": "working", "to": "decision_locked", "cause": "decision_locked" }
+    },
+    {
+      "seq": 28,
+      "type": "turn_delivered",
+      "occurredAt": "2026-09-01T14:15:19.000Z",
+      "clockRemainingMs": null,
+      "payload": {
+        "turn_id": "00000000-0000-4000-8000-000000000700",
+        "text": "A trade title reports that one regional competitor trimmed list prices by half a point.",
+        "voice": "supplier_notice",
+        "window_ends_at": "2026-09-01T14:27:19.000Z",
+        "window_claim_ids": ["00000000-0000-4000-8000-000000000003"]
+      }
+    },
+    {
+      "seq": 29,
+      "type": "lifecycle",
+      "occurredAt": "2026-09-01T14:15:19.000Z",
+      "clockRemainingMs": 720000,
+      "payload": { "from": "decision_locked", "to": "turn_open", "cause": "turn_delivered" }
+    },
+    {
+      "seq": 30,
+      "type": "claim_used",
+      "occurredAt": "2026-09-01T14:15:19.000Z",
+      "clockRemainingMs": 720000,
+      "payload": { "claim_id": "00000000-0000-4000-8000-000000000003", "via": "turn_window" }
+    },
+    {
+      "seq": 31,
+      "type": "turn_response_locked",
+      "occurredAt": "2026-09-01T14:19:19.000Z",
+      "clockRemainingMs": 480000,
+      "payload": {
+        "response": "hold",
+        "justification": "Half a point on one regional list price does not move a two-quarter payback.",
+        "confidence": 60,
+        "implicit": false
+      }
+    },
+    {
+      "seq": 32,
+      "type": "lifecycle",
+      "occurredAt": "2026-09-01T14:19:19.000Z",
+      "clockRemainingMs": null,
+      "payload": { "from": "turn_open", "to": "turn_locked", "cause": "turn_response_locked" }
+    },
+    {
+      "seq": 33,
+      "type": "lifecycle",
+      "occurredAt": "2026-09-01T14:19:29.000Z",
+      "clockRemainingMs": null,
+      "payload": { "from": "turn_locked", "to": "defense_pending", "cause": "defense_opened" }
+    },
+    {
+      "seq": 34,
+      "type": "defense_question",
+      "occurredAt": "2026-09-01T14:19:44.000Z",
+      "clockRemainingMs": null,
+      "payload": {
+        "run_question_id": "00000000-0000-4000-8000-000000000901",
+        "question_id": "00000000-0000-4000-8000-000000000801",
+        "kind": "provenance",
+        "seq": 1,
+        "rendered_text": "Where did the figure of 34 percent unit margin come from?",
+        "follow_up_of": null,
+        "selecting_event_seq": null
+      }
+    },
+    {
+      "seq": 35,
+      "type": "defense_answer",
+      "occurredAt": "2026-09-01T14:20:44.000Z",
+      "clockRemainingMs": null,
+      "payload": {
+        "run_question_id": "00000000-0000-4000-8000-000000000901",
+        "text": "From the March market review, which I opened before I asked the assistant anything.",
+        "duration_ms": 60000
+      }
+    },
+    {
+      "seq": 36,
+      "type": "defense_question",
+      "occurredAt": "2026-09-01T14:20:59.000Z",
+      "clockRemainingMs": null,
+      "payload": {
+        "run_question_id": "00000000-0000-4000-8000-000000000902",
+        "question_id": "00000000-0000-4000-8000-000000000802",
+        "kind": "verification",
+        "seq": 2,
+        "rendered_text": "You did not check the supplier claim. Why not?",
+        "follow_up_of": null,
+        "selecting_event_seq": null
+      }
+    },
+    {
+      "seq": 37,
+      "type": "defense_answer",
+      "occurredAt": "2026-09-01T14:21:59.000Z",
+      "clockRemainingMs": null,
+      "payload": {
+        "run_question_id": "00000000-0000-4000-8000-000000000902",
+        "text": "I had traced the margin figure and judged the lead-time claim less load-bearing.",
+        "duration_ms": 60000
+      }
+    },
+    {
+      "seq": 38,
+      "type": "lifecycle",
+      "occurredAt": "2026-09-01T14:21:59.000Z",
+      "clockRemainingMs": null,
+      "payload": {
+        "from": "defense_pending",
+        "to": "defense_complete",
+        "cause": "defense_completed"
+      }
+    }
+  ]
+}

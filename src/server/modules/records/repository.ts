@@ -8,6 +8,7 @@ import { and, desc, eq, sql } from 'drizzle-orm'
 import type { PgUpdateSetSource } from 'drizzle-orm/pg-core'
 import { AppError } from '@/lib/errors'
 import { db } from '@/server/db/client'
+import { assignments, runs, sections } from '@/server/db/schema'
 import {
   afterCursor,
   clampLimit,
@@ -26,6 +27,11 @@ import {
   type RunRecord,
 } from '@/server/db/schema'
 import type { DbOrTx } from '@/server/db/tx'
+
+export type { DbOrTx, Tx } from '@/server/db/tx'
+export type { Page, PageInput } from '@/server/db/pagination'
+/** The row types the service names in its signatures; a service may not reach `src/server/db`. */
+export type { CourseExport, RunRecord } from '@/server/db/schema'
 
 /** The record snapshot (and, optionally, the export flag); the run id comes from the parameter. */
 export type RecordUpsert = Omit<NewRunRecord, 'runId' | 'createdAt' | 'updatedAt'>
@@ -131,4 +137,64 @@ export async function listExports(
     .orderBy(...cursorOrder({ createdAt: courseExports.createdAt, id: courseExports.id }))
     .limit(limit + 1)
   return toPage(rows, limit)
+}
+
+/**
+ * The run's state, or `undefined` when the run is not in the tenant.
+ *
+ * The Judgment Record and its export exist only from `confirmed` (10 §14), and the state is the
+ * whole of that rule. It is one column of the `runs` module's table, read and never written — the
+ * same narrow reach, for the same reason, as `trace.findRunState` (`owner-view.ts`).
+ */
+export async function findRunForRecord(
+  tenantId: string,
+  runId: string,
+  dbx: DbOrTx = db,
+): Promise<{ state: string; assignmentId: string } | undefined> {
+  const [row] = await dbx
+    .select({ state: runs.state, assignmentId: runs.assignmentId })
+    .from(runs)
+    .where(and(eq(runs.organizationId, tenantId), eq(runs.id, runId)))
+    .limit(1)
+  return row
+}
+
+/** The section an assignment belongs to, and the institution both sit in. */
+export type AssignmentScope = { organizationId: string; sectionId: string }
+
+/**
+ * Where an assignment sits *in this institution*, for the one permission check this module makes by
+ * assignment id (`GET /assignments/{assignmentId}/exports`, 07 §8: reviewers only).
+ *
+ * It reads the `courses` module's tables, which is unusual and narrow on purpose: the question is
+ * "which section is this, so `requireSectionRole` can answer", and the alternative — `getAssignment`
+ * — admits the students of that section, which is exactly the reader FR-184 does not have in mind.
+ * Two columns, read and never written.
+ *
+ * It takes the tenant first like every other function here (D-006, D-389). The service asks it once
+ * per institution the actor belongs to, which is how `courses` and `scenarios` resolve a course, a
+ * section, an assignment or a package version to its tenant, and it makes the tenancy check and the
+ * lookup the same statement: an assignment in an institution the actor is not in is simply not
+ * found, so an id cannot be probed for existence (08 §4 "Cross-tenant"). A soft-deleted section is
+ * still answered — an export history is a record of what happened, and archiving the section does
+ * not unwrite it.
+ */
+export async function findAssignmentScope(
+  tenantId: string,
+  assignmentId: string,
+  dbx: DbOrTx = db,
+): Promise<AssignmentScope | undefined> {
+  const [row] = await dbx
+    .select({ organizationId: sections.organizationId, sectionId: assignments.sectionId })
+    .from(assignments)
+    .innerJoin(sections, eq(sections.id, assignments.sectionId))
+    .where(
+      and(
+        eq(assignments.id, assignmentId),
+        eq(assignments.organizationId, tenantId),
+        eq(sections.organizationId, tenantId),
+      ),
+    )
+    .limit(1)
+  return row
 }

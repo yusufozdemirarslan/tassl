@@ -16,7 +16,7 @@
 ## Steps
 
 ### Step 10.1 — Trace export in two forms
-**Goal:** `buildExport(runId, form)` and `TraceExportSchema` match PRD §12 exactly; endpoints serve both forms.
+**Goal:** `buildExport(tenantId, runId, form)` and `TraceExportSchema` match PRD §12 exactly; endpoints serve both forms.
 **Covers:** FR-240 to FR-243, FR-170 (export part)
 **Prerequisites:** Phase 9 complete
 **Files to create / modify:**

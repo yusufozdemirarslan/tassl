@@ -1,0 +1,916 @@
+{
+  "name": "marco-8-of-11",
+  "purpose": "PRD §6 and §7.13: nine challenge-or-reject acts on eleven consequential claims, one of which catches the planted defect and eight of which are false alarms — a False Challenge Rate of 0.727 against a professional reference band under 0.15.",
+  "packageVersion": {
+    "workingClockSeconds": 1500,
+    "claims": [
+      {
+        "id": "00000000-0000-4000-8000-000000000001",
+        "key": "claim_01",
+        "text": "Premium demand grew 6 percent in each of the last three quarters.",
+        "sourceKind": "assistant",
+        "sourceDocumentId": null,
+        "importance": "load_bearing",
+        "consequenceLevel": "high",
+        "conceptKey": "price_elasticity",
+        "weaklySourced": false,
+        "position": 1
+      },
+      {
+        "id": "00000000-0000-4000-8000-000000000002",
+        "key": "claim_02",
+        "text": "The March review shows unit margin at 34 percent on the premium line.",
+        "sourceKind": "assistant",
+        "sourceDocumentId": null,
+        "importance": "load_bearing",
+        "consequenceLevel": "medium",
+        "conceptKey": "evidence_recency",
+        "weaklySourced": false,
+        "position": 2
+      },
+      {
+        "id": "00000000-0000-4000-8000-000000000003",
+        "key": "claim_03",
+        "text": "Supplier lead times have held at four weeks since January.",
+        "sourceKind": "assistant",
+        "sourceDocumentId": null,
+        "importance": "supporting",
+        "consequenceLevel": "medium",
+        "conceptKey": "payback_arithmetic",
+        "weaklySourced": false,
+        "position": 3
+      },
+      {
+        "id": "00000000-0000-4000-8000-000000000004",
+        "key": "claim_04",
+        "text": "A two-quarter payback is within the board’s stated tolerance.",
+        "sourceKind": "assistant",
+        "sourceDocumentId": null,
+        "importance": "supporting",
+        "consequenceLevel": "medium",
+        "conceptKey": "supplier_risk",
+        "weaklySourced": false,
+        "position": 4
+      },
+      {
+        "id": "00000000-0000-4000-8000-000000000005",
+        "key": "claim_05",
+        "text": "Competitor pricing moved less than 2 percent over the period.",
+        "sourceKind": "assistant",
+        "sourceDocumentId": null,
+        "importance": "supporting",
+        "consequenceLevel": "medium",
+        "conceptKey": "price_elasticity",
+        "weaklySourced": true,
+        "position": 5
+      },
+      {
+        "id": "00000000-0000-4000-8000-000000000006",
+        "key": "claim_06",
+        "text": "The finance model assumes no change in freight cost.",
+        "sourceKind": "assistant",
+        "sourceDocumentId": null,
+        "importance": "supporting",
+        "consequenceLevel": "medium",
+        "conceptKey": "evidence_recency",
+        "weaklySourced": false,
+        "position": 6
+      },
+      {
+        "id": "00000000-0000-4000-8000-000000000007",
+        "key": "claim_07",
+        "text": "Retail partners have absorbed the last two price increases.",
+        "sourceKind": "assistant",
+        "sourceDocumentId": null,
+        "importance": "supporting",
+        "consequenceLevel": "medium",
+        "conceptKey": "payback_arithmetic",
+        "weaklySourced": false,
+        "position": 7
+      },
+      {
+        "id": "00000000-0000-4000-8000-000000000008",
+        "key": "claim_08",
+        "text": "Churn among premium subscribers is under 3 percent a quarter.",
+        "sourceKind": "assistant",
+        "sourceDocumentId": null,
+        "importance": "supporting",
+        "consequenceLevel": "medium",
+        "conceptKey": "supplier_risk",
+        "weaklySourced": true,
+        "position": 8
+      },
+      {
+        "id": "00000000-0000-4000-8000-000000000009",
+        "key": "claim_09",
+        "text": "The March review supersedes the January demand estimate.",
+        "sourceKind": "document",
+        "sourceDocumentId": "00000000-0000-4000-8000-000000000101",
+        "importance": "supporting",
+        "consequenceLevel": "medium",
+        "conceptKey": "price_elasticity",
+        "weaklySourced": false,
+        "position": 9
+      },
+      {
+        "id": "00000000-0000-4000-8000-000000000010",
+        "key": "claim_10",
+        "text": "Trade promotion spend is flat year on year.",
+        "sourceKind": "assistant",
+        "sourceDocumentId": null,
+        "importance": "supporting",
+        "consequenceLevel": "medium",
+        "conceptKey": "evidence_recency",
+        "weaklySourced": false,
+        "position": 10
+      },
+      {
+        "id": "00000000-0000-4000-8000-000000000011",
+        "key": "claim_11",
+        "text": "The premium line carries no regulatory review requirement.",
+        "sourceKind": "assistant",
+        "sourceDocumentId": null,
+        "importance": "load_bearing",
+        "consequenceLevel": "medium",
+        "conceptKey": "payback_arithmetic",
+        "weaklySourced": false,
+        "position": 11
+      }
+    ],
+    "documents": [
+      {
+        "id": "00000000-0000-4000-8000-000000000101",
+        "key": "market_review_2026",
+        "title": "Premium line market review, March 2026"
+      },
+      {
+        "id": "00000000-0000-4000-8000-000000000102",
+        "key": "supplier_letter",
+        "title": "Supplier letter on lead times"
+      },
+      {
+        "id": "00000000-0000-4000-8000-000000000103",
+        "key": "finance_model",
+        "title": "Finance payback model"
+      }
+    ],
+    "namedFields": [
+      { "key": "unit_margin", "label": "Unit margin", "unit": "percent" },
+      { "key": "payback_months", "label": "Payback", "unit": "months" }
+    ],
+    "turn": {
+      "text": "Your supplier has written to say lead times move to nine weeks from next month.",
+      "warrantsChange": true,
+      "proportionateResponse": "revise",
+      "disruptedAssumptionKeys": ["supplier_lead_times", "regulatory_review_window"]
+    }
+  },
+  "variantStates": [
+    {
+      "claimId": "00000000-0000-4000-8000-000000000001",
+      "evidenceStatus": "defective",
+      "failureFamily": "stale_evidence",
+      "warrantedStance": "challenge",
+      "planted": true
+    },
+    {
+      "claimId": "00000000-0000-4000-8000-000000000002",
+      "evidenceStatus": "sound",
+      "failureFamily": null,
+      "warrantedStance": "accept",
+      "planted": false
+    },
+    {
+      "claimId": "00000000-0000-4000-8000-000000000003",
+      "evidenceStatus": "sound",
+      "failureFamily": null,
+      "warrantedStance": "accept",
+      "planted": false
+    },
+    {
+      "claimId": "00000000-0000-4000-8000-000000000004",
+      "evidenceStatus": "sound",
+      "failureFamily": null,
+      "warrantedStance": "accept",
+      "planted": false
+    },
+    {
+      "claimId": "00000000-0000-4000-8000-000000000005",
+      "evidenceStatus": "sound",
+      "failureFamily": null,
+      "warrantedStance": "verify",
+      "planted": false
+    },
+    {
+      "claimId": "00000000-0000-4000-8000-000000000006",
+      "evidenceStatus": "sound",
+      "failureFamily": null,
+      "warrantedStance": "accept",
+      "planted": false
+    },
+    {
+      "claimId": "00000000-0000-4000-8000-000000000007",
+      "evidenceStatus": "sound",
+      "failureFamily": null,
+      "warrantedStance": "accept",
+      "planted": false
+    },
+    {
+      "claimId": "00000000-0000-4000-8000-000000000008",
+      "evidenceStatus": "sound",
+      "failureFamily": null,
+      "warrantedStance": "accept",
+      "planted": false
+    },
+    {
+      "claimId": "00000000-0000-4000-8000-000000000009",
+      "evidenceStatus": "sound",
+      "failureFamily": null,
+      "warrantedStance": "accept",
+      "planted": false
+    },
+    {
+      "claimId": "00000000-0000-4000-8000-000000000010",
+      "evidenceStatus": "sound",
+      "failureFamily": null,
+      "warrantedStance": "accept",
+      "planted": false
+    },
+    {
+      "claimId": "00000000-0000-4000-8000-000000000011",
+      "evidenceStatus": "sound",
+      "failureFamily": null,
+      "warrantedStance": "verify",
+      "planted": false
+    }
+  ],
+  "events": [
+    {
+      "seq": 1,
+      "type": "policy_displayed",
+      "occurredAt": "2026-09-01T14:00:00.000Z",
+      "clockRemainingMs": null,
+      "payload": {
+        "outside_ai_policy": "declared",
+        "weight": 0.1,
+        "mapping": { "novice": 1, "developing": 2, "proficient": 3, "professional": 4 },
+        "run_type": "decision",
+        "counts_statement": true
+      }
+    },
+    {
+      "seq": 2,
+      "type": "lifecycle",
+      "occurredAt": "2026-09-01T14:00:00.000Z",
+      "clockRemainingMs": null,
+      "payload": { "from": "assigned", "to": "readiness", "cause": "run_started" }
+    },
+    {
+      "seq": 3,
+      "type": "readiness_item",
+      "occurredAt": "2026-09-01T14:00:30.000Z",
+      "clockRemainingMs": null,
+      "payload": {
+        "item_id": "00000000-0000-4000-8000-000000001101",
+        "item_key": "item_01",
+        "category": "foundation",
+        "concept_key": "price_elasticity",
+        "answer_key": "option_a",
+        "correct": true
+      }
+    },
+    {
+      "seq": 4,
+      "type": "readiness_item",
+      "occurredAt": "2026-09-01T14:00:35.000Z",
+      "clockRemainingMs": null,
+      "payload": {
+        "item_id": "00000000-0000-4000-8000-000000001102",
+        "item_key": "item_02",
+        "category": "defect_concept",
+        "concept_key": "evidence_recency",
+        "answer_key": "option_b",
+        "correct": true
+      }
+    },
+    {
+      "seq": 5,
+      "type": "readiness_item",
+      "occurredAt": "2026-09-01T14:00:40.000Z",
+      "clockRemainingMs": null,
+      "payload": {
+        "item_id": "00000000-0000-4000-8000-000000001103",
+        "item_key": "item_03",
+        "category": "ai_behavior",
+        "concept_key": "payback_arithmetic",
+        "answer_key": "option_c",
+        "correct": false
+      }
+    },
+    {
+      "seq": 6,
+      "type": "readiness_item",
+      "occurredAt": "2026-09-01T14:00:45.000Z",
+      "clockRemainingMs": null,
+      "payload": {
+        "item_id": "00000000-0000-4000-8000-000000001104",
+        "item_key": "item_04",
+        "category": "ai_behavior",
+        "concept_key": "supplier_risk",
+        "answer_key": "option_d",
+        "correct": true
+      }
+    },
+    {
+      "seq": 7,
+      "type": "lifecycle",
+      "occurredAt": "2026-09-01T14:00:50.000Z",
+      "clockRemainingMs": null,
+      "payload": { "from": "readiness", "to": "framing", "cause": "readiness_submitted" }
+    },
+    {
+      "seq": 8,
+      "type": "document_open",
+      "occurredAt": "2026-09-01T14:01:00.000Z",
+      "clockRemainingMs": null,
+      "payload": {
+        "open_id": "00000000-0000-4000-8000-000000000501",
+        "document_id": "00000000-0000-4000-8000-000000000101",
+        "document_key": "market_review_2026",
+        "before_first_delegation": true,
+        "in_turn_window": false
+      }
+    },
+    {
+      "seq": 9,
+      "type": "document_close",
+      "occurredAt": "2026-09-01T14:05:00.000Z",
+      "clockRemainingMs": null,
+      "payload": {
+        "open_id": "00000000-0000-4000-8000-000000000501",
+        "document_id": "00000000-0000-4000-8000-000000000101",
+        "duration_ms": 240000,
+        "before_first_delegation": true,
+        "skim": false,
+        "in_turn_window": false
+      }
+    },
+    {
+      "seq": 10,
+      "type": "document_open",
+      "occurredAt": "2026-09-01T14:05:10.000Z",
+      "clockRemainingMs": null,
+      "payload": {
+        "open_id": "00000000-0000-4000-8000-000000000502",
+        "document_id": "00000000-0000-4000-8000-000000000102",
+        "document_key": "supplier_letter",
+        "before_first_delegation": true,
+        "in_turn_window": false
+      }
+    },
+    {
+      "seq": 11,
+      "type": "document_close",
+      "occurredAt": "2026-09-01T14:07:10.000Z",
+      "clockRemainingMs": null,
+      "payload": {
+        "open_id": "00000000-0000-4000-8000-000000000502",
+        "document_id": "00000000-0000-4000-8000-000000000102",
+        "duration_ms": 120000,
+        "before_first_delegation": true,
+        "skim": false,
+        "in_turn_window": false
+      }
+    },
+    {
+      "seq": 12,
+      "type": "frame_locked",
+      "occurredAt": "2026-09-01T14:07:30.000Z",
+      "clockRemainingMs": 1500000,
+      "payload": {
+        "decision": "Whether to launch the premium line at the higher price point this quarter.",
+        "assumptions": [
+          "Demand for the premium line grows at six percent a year.",
+          "Supplier lead times hold at four weeks.",
+          "The board will accept a two-quarter payback."
+        ],
+        "position": "I expect to launch, unless the supplier picture has changed.",
+        "confidence": 55
+      }
+    },
+    {
+      "seq": 13,
+      "type": "lifecycle",
+      "occurredAt": "2026-09-01T14:07:30.000Z",
+      "clockRemainingMs": 1500000,
+      "payload": { "from": "framing", "to": "working", "cause": "frame_locked" }
+    },
+    {
+      "seq": 14,
+      "type": "delegation",
+      "occurredAt": "2026-09-01T14:08:10.000Z",
+      "clockRemainingMs": 1460000,
+      "payload": {
+        "delegation_id": "00000000-0000-4000-8000-000000000201",
+        "seq": 1,
+        "request_text": "Give me everything the room supports on the premium launch.",
+        "response_text": "Here is the case as the documents carry it.",
+        "claim_ids": [
+          "00000000-0000-4000-8000-000000000001",
+          "00000000-0000-4000-8000-000000000002",
+          "00000000-0000-4000-8000-000000000003",
+          "00000000-0000-4000-8000-000000000004",
+          "00000000-0000-4000-8000-000000000005",
+          "00000000-0000-4000-8000-000000000006"
+        ],
+        "why": "To see the whole case before I start checking it.",
+        "in_turn_window": false,
+        "flags": [],
+        "unverified_numbers": [],
+        "failed": false
+      }
+    },
+    {
+      "seq": 15,
+      "type": "document_open",
+      "occurredAt": "2026-09-01T14:08:30.000Z",
+      "clockRemainingMs": 1440000,
+      "payload": {
+        "open_id": "00000000-0000-4000-8000-000000000503",
+        "document_id": "00000000-0000-4000-8000-000000000101",
+        "document_key": "market_review_2026",
+        "before_first_delegation": false,
+        "in_turn_window": false
+      }
+    },
+    {
+      "seq": 16,
+      "type": "document_close",
+      "occurredAt": "2026-09-01T14:10:00.000Z",
+      "clockRemainingMs": 1350000,
+      "payload": {
+        "open_id": "00000000-0000-4000-8000-000000000503",
+        "document_id": "00000000-0000-4000-8000-000000000101",
+        "duration_ms": 90000,
+        "before_first_delegation": false,
+        "skim": false,
+        "in_turn_window": false
+      }
+    },
+    {
+      "seq": 17,
+      "type": "action",
+      "occurredAt": "2026-09-01T14:10:15.000Z",
+      "clockRemainingMs": 1275000,
+      "payload": {
+        "action_id": "00000000-0000-4000-8000-000000000301",
+        "type": "source_trace",
+        "claim_id": "00000000-0000-4000-8000-000000000001",
+        "clock_cost_ms": 60000,
+        "result": {
+          "document_id": "00000000-0000-4000-8000-000000000101",
+          "passage": "Premium demand grew 6 percent in each of the last three quarters.",
+          "dated_on": "2025-11-02",
+          "author": "Market Insight Unit"
+        },
+        "in_turn_window": false
+      }
+    },
+    {
+      "seq": 18,
+      "type": "stance_set",
+      "occurredAt": "2026-09-01T14:10:40.000Z",
+      "clockRemainingMs": 1250000,
+      "payload": {
+        "claim_id": "00000000-0000-4000-8000-000000000001",
+        "stance": "challenge",
+        "previous_stance": null,
+        "action_ids": ["00000000-0000-4000-8000-000000000301"],
+        "in_turn_window": false
+      }
+    },
+    {
+      "seq": 19,
+      "type": "delegation",
+      "occurredAt": "2026-09-01T14:11:20.000Z",
+      "clockRemainingMs": 1210000,
+      "payload": {
+        "delegation_id": "00000000-0000-4000-8000-000000000202",
+        "seq": 2,
+        "request_text": "What else does the finance model rest on?",
+        "response_text": "Three further claims, with their sources.",
+        "claim_ids": [
+          "00000000-0000-4000-8000-000000000007",
+          "00000000-0000-4000-8000-000000000008",
+          "00000000-0000-4000-8000-000000000009",
+          "00000000-0000-4000-8000-000000000010",
+          "00000000-0000-4000-8000-000000000011"
+        ],
+        "why": "To finish the sweep before the brief.",
+        "in_turn_window": false,
+        "flags": [],
+        "unverified_numbers": [],
+        "failed": false
+      }
+    },
+    {
+      "seq": 20,
+      "type": "action",
+      "occurredAt": "2026-09-01T14:11:40.000Z",
+      "clockRemainingMs": 1130000,
+      "payload": {
+        "action_id": "00000000-0000-4000-8000-000000000302",
+        "type": "source_trace",
+        "claim_id": "00000000-0000-4000-8000-000000000011",
+        "clock_cost_ms": 60000,
+        "result": {
+          "document_id": "00000000-0000-4000-8000-000000000103",
+          "passage": "The premium line carries no regulatory review requirement.",
+          "dated_on": "2026-02-18",
+          "author": "Regulatory Affairs"
+        },
+        "in_turn_window": false
+      }
+    },
+    {
+      "seq": 21,
+      "type": "stance_set",
+      "occurredAt": "2026-09-01T14:11:58.000Z",
+      "clockRemainingMs": 1112000,
+      "payload": {
+        "claim_id": "00000000-0000-4000-8000-000000000002",
+        "stance": "challenge",
+        "previous_stance": null,
+        "action_ids": [],
+        "in_turn_window": false
+      }
+    },
+    {
+      "seq": 22,
+      "type": "stance_set",
+      "occurredAt": "2026-09-01T14:12:16.000Z",
+      "clockRemainingMs": 1094000,
+      "payload": {
+        "claim_id": "00000000-0000-4000-8000-000000000003",
+        "stance": "accept",
+        "previous_stance": null,
+        "action_ids": [],
+        "in_turn_window": false
+      }
+    },
+    {
+      "seq": 23,
+      "type": "stance_set",
+      "occurredAt": "2026-09-01T14:12:34.000Z",
+      "clockRemainingMs": 1076000,
+      "payload": {
+        "claim_id": "00000000-0000-4000-8000-000000000004",
+        "stance": "challenge",
+        "previous_stance": null,
+        "action_ids": [],
+        "in_turn_window": false
+      }
+    },
+    {
+      "seq": 24,
+      "type": "stance_set",
+      "occurredAt": "2026-09-01T14:12:52.000Z",
+      "clockRemainingMs": 1058000,
+      "payload": {
+        "claim_id": "00000000-0000-4000-8000-000000000005",
+        "stance": "challenge",
+        "previous_stance": null,
+        "action_ids": [],
+        "in_turn_window": false
+      }
+    },
+    {
+      "seq": 25,
+      "type": "stance_set",
+      "occurredAt": "2026-09-01T14:13:10.000Z",
+      "clockRemainingMs": 1040000,
+      "payload": {
+        "claim_id": "00000000-0000-4000-8000-000000000006",
+        "stance": "challenge",
+        "previous_stance": null,
+        "action_ids": [],
+        "in_turn_window": false
+      }
+    },
+    {
+      "seq": 26,
+      "type": "stance_set",
+      "occurredAt": "2026-09-01T14:13:28.000Z",
+      "clockRemainingMs": 1022000,
+      "payload": {
+        "claim_id": "00000000-0000-4000-8000-000000000007",
+        "stance": "challenge",
+        "previous_stance": null,
+        "action_ids": [],
+        "in_turn_window": false
+      }
+    },
+    {
+      "seq": 27,
+      "type": "stance_set",
+      "occurredAt": "2026-09-01T14:13:46.000Z",
+      "clockRemainingMs": 1004000,
+      "payload": {
+        "claim_id": "00000000-0000-4000-8000-000000000008",
+        "stance": "reject",
+        "previous_stance": null,
+        "action_ids": [],
+        "in_turn_window": false
+      }
+    },
+    {
+      "seq": 28,
+      "type": "stance_set",
+      "occurredAt": "2026-09-01T14:14:04.000Z",
+      "clockRemainingMs": 986000,
+      "payload": {
+        "claim_id": "00000000-0000-4000-8000-000000000009",
+        "stance": "reject",
+        "previous_stance": null,
+        "action_ids": [],
+        "in_turn_window": false
+      }
+    },
+    {
+      "seq": 29,
+      "type": "stance_set",
+      "occurredAt": "2026-09-01T14:14:22.000Z",
+      "clockRemainingMs": 968000,
+      "payload": {
+        "claim_id": "00000000-0000-4000-8000-000000000010",
+        "stance": "accept",
+        "previous_stance": null,
+        "action_ids": [],
+        "in_turn_window": false
+      }
+    },
+    {
+      "seq": 30,
+      "type": "stance_set",
+      "occurredAt": "2026-09-01T14:14:40.000Z",
+      "clockRemainingMs": 950000,
+      "payload": {
+        "claim_id": "00000000-0000-4000-8000-000000000011",
+        "stance": "verify",
+        "previous_stance": null,
+        "action_ids": ["00000000-0000-4000-8000-000000000302"],
+        "in_turn_window": false
+      }
+    },
+    {
+      "seq": 31,
+      "type": "claim_used",
+      "occurredAt": "2026-09-01T14:14:42.000Z",
+      "clockRemainingMs": 948000,
+      "payload": {
+        "claim_id": "00000000-0000-4000-8000-000000000010",
+        "via": "log_mark",
+        "delegation_id": "00000000-0000-4000-8000-000000000202"
+      }
+    },
+    {
+      "seq": 32,
+      "type": "claim_used",
+      "occurredAt": "2026-09-01T14:14:44.000Z",
+      "clockRemainingMs": 946000,
+      "payload": {
+        "claim_id": "00000000-0000-4000-8000-000000000011",
+        "via": "log_mark",
+        "delegation_id": "00000000-0000-4000-8000-000000000202"
+      }
+    },
+    {
+      "seq": 33,
+      "type": "claim_used",
+      "occurredAt": "2026-09-01T14:14:46.000Z",
+      "clockRemainingMs": 944000,
+      "payload": {
+        "claim_id": "00000000-0000-4000-8000-000000000002",
+        "via": "named_field",
+        "field_key": "unit_margin"
+      }
+    },
+    {
+      "seq": 34,
+      "type": "outside_tool_declared",
+      "occurredAt": "2026-09-01T14:14:51.000Z",
+      "clockRemainingMs": 939000,
+      "payload": { "purpose": "A calculator for the payback arithmetic." }
+    },
+    {
+      "seq": 35,
+      "type": "brief_opened",
+      "occurredAt": "2026-09-01T14:15:11.000Z",
+      "clockRemainingMs": 919000,
+      "payload": {}
+    },
+    {
+      "seq": 36,
+      "type": "brief_closed",
+      "occurredAt": "2026-09-01T14:19:11.000Z",
+      "clockRemainingMs": 679000,
+      "payload": { "duration_ms": 240000 }
+    },
+    {
+      "seq": 37,
+      "type": "decision_locked",
+      "occurredAt": "2026-09-01T14:19:16.000Z",
+      "clockRemainingMs": 674000,
+      "payload": {
+        "recommendation": "Launch, but hold the higher price point until the demand series has been re-based.",
+        "rationale": "Most of the case survives, but the demand claim did not trace clean and the margin figure is the only number I checked.",
+        "assumptions": [
+          "Demand growth continues at six percent.",
+          "Lead times stay at four weeks through the launch.",
+          "Payback lands inside two quarters."
+        ],
+        "change_my_mind": "A re-based demand series that still shows six percent would settle it.",
+        "named_values": { "unit_margin": 34, "payback_months": 6 },
+        "confidence": 60,
+        "auto": false,
+        "speed_outlier": false,
+        "relied_on_claim_ids": [
+          "00000000-0000-4000-8000-000000000002",
+          "00000000-0000-4000-8000-000000000010",
+          "00000000-0000-4000-8000-000000000011"
+        ],
+        "unstanced_relied_on_claim_ids": [],
+        "elapsed_ms": 706000
+      }
+    },
+    {
+      "seq": 38,
+      "type": "lifecycle",
+      "occurredAt": "2026-09-01T14:19:16.000Z",
+      "clockRemainingMs": null,
+      "payload": { "from": "working", "to": "decision_locked", "cause": "decision_locked" }
+    },
+    {
+      "seq": 39,
+      "type": "addendum",
+      "occurredAt": "2026-09-01T14:20:16.000Z",
+      "clockRemainingMs": null,
+      "payload": {
+        "text": "I should have said explicitly that the demand series is the load-bearing number."
+      }
+    },
+    {
+      "seq": 40,
+      "type": "turn_delivered",
+      "occurredAt": "2026-09-01T14:21:46.000Z",
+      "clockRemainingMs": null,
+      "payload": {
+        "turn_id": "00000000-0000-4000-8000-000000000700",
+        "text": "Your supplier has written to say lead times move to nine weeks from next month.",
+        "voice": "supplier_notice",
+        "window_ends_at": "2026-09-01T14:53:46.000Z",
+        "window_claim_ids": [
+          "00000000-0000-4000-8000-000000000003",
+          "00000000-0000-4000-8000-000000000011"
+        ]
+      }
+    },
+    {
+      "seq": 41,
+      "type": "lifecycle",
+      "occurredAt": "2026-09-01T14:41:46.000Z",
+      "clockRemainingMs": 720000,
+      "payload": { "from": "decision_locked", "to": "turn_open", "cause": "turn_delivered" }
+    },
+    {
+      "seq": 42,
+      "type": "claim_used",
+      "occurredAt": "2026-09-01T14:41:46.000Z",
+      "clockRemainingMs": 720000,
+      "payload": { "claim_id": "00000000-0000-4000-8000-000000000003", "via": "turn_window" }
+    },
+    {
+      "seq": 43,
+      "type": "claim_used",
+      "occurredAt": "2026-09-01T14:41:46.000Z",
+      "clockRemainingMs": 720000,
+      "payload": { "claim_id": "00000000-0000-4000-8000-000000000011", "via": "turn_window" }
+    },
+    {
+      "seq": 44,
+      "type": "action",
+      "occurredAt": "2026-09-01T14:43:16.000Z",
+      "clockRemainingMs": 630000,
+      "payload": {
+        "action_id": "00000000-0000-4000-8000-000000000303",
+        "type": "source_trace",
+        "claim_id": "00000000-0000-4000-8000-000000000003",
+        "clock_cost_ms": 60000,
+        "result": { "passage": "The supplier letter, page 1.", "dated_on": "2026-08-30" },
+        "in_turn_window": true
+      }
+    },
+    {
+      "seq": 45,
+      "type": "stance_set",
+      "occurredAt": "2026-09-01T14:43:46.000Z",
+      "clockRemainingMs": 600000,
+      "payload": {
+        "claim_id": "00000000-0000-4000-8000-000000000003",
+        "stance": "challenge",
+        "previous_stance": "accept",
+        "action_ids": [],
+        "in_turn_window": true
+      }
+    },
+    {
+      "seq": 46,
+      "type": "turn_response_locked",
+      "occurredAt": "2026-09-01T14:46:46.000Z",
+      "clockRemainingMs": 420000,
+      "payload": {
+        "response": "revise",
+        "justification": "Nine-week lead times move the launch a quarter out; the price point stands, the timing does not.",
+        "confidence": 60,
+        "implicit": false
+      }
+    },
+    {
+      "seq": 47,
+      "type": "lifecycle",
+      "occurredAt": "2026-09-01T14:46:46.000Z",
+      "clockRemainingMs": null,
+      "payload": { "from": "turn_open", "to": "turn_locked", "cause": "turn_response_locked" }
+    },
+    {
+      "seq": 48,
+      "type": "lifecycle",
+      "occurredAt": "2026-09-01T14:46:56.000Z",
+      "clockRemainingMs": null,
+      "payload": { "from": "turn_locked", "to": "defense_pending", "cause": "defense_opened" }
+    },
+    {
+      "seq": 49,
+      "type": "defense_question",
+      "occurredAt": "2026-09-01T14:47:11.000Z",
+      "clockRemainingMs": null,
+      "payload": {
+        "run_question_id": "00000000-0000-4000-8000-000000000901",
+        "question_id": "00000000-0000-4000-8000-000000000801",
+        "kind": "provenance",
+        "seq": 1,
+        "rendered_text": "Where did the figure of 34 percent unit margin come from?",
+        "follow_up_of": null,
+        "selecting_event_seq": null
+      }
+    },
+    {
+      "seq": 50,
+      "type": "defense_answer",
+      "occurredAt": "2026-09-01T14:48:11.000Z",
+      "clockRemainingMs": null,
+      "payload": {
+        "run_question_id": "00000000-0000-4000-8000-000000000901",
+        "text": "From the March market review, which I opened before I asked the assistant anything.",
+        "duration_ms": 60000
+      }
+    },
+    {
+      "seq": 51,
+      "type": "defense_question",
+      "occurredAt": "2026-09-01T14:48:26.000Z",
+      "clockRemainingMs": null,
+      "payload": {
+        "run_question_id": "00000000-0000-4000-8000-000000000902",
+        "question_id": "00000000-0000-4000-8000-000000000802",
+        "kind": "verification",
+        "seq": 2,
+        "rendered_text": "You did not check the supplier claim. Why not?",
+        "follow_up_of": null,
+        "selecting_event_seq": null
+      }
+    },
+    {
+      "seq": 52,
+      "type": "defense_answer",
+      "occurredAt": "2026-09-01T14:49:26.000Z",
+      "clockRemainingMs": null,
+      "payload": {
+        "run_question_id": "00000000-0000-4000-8000-000000000902",
+        "text": "I had traced the margin figure and judged the lead-time claim less load-bearing.",
+        "duration_ms": 60000
+      }
+    },
+    {
+      "seq": 53,
+      "type": "lifecycle",
+      "occurredAt": "2026-09-01T14:49:26.000Z",
+      "clockRemainingMs": null,
+      "payload": {
+        "from": "defense_pending",
+        "to": "defense_complete",
+        "cause": "defense_completed"
+      }
+    }
+  ]
+}

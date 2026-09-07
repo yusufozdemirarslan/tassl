@@ -21,7 +21,7 @@ const output = z.object({
 })
 
 async function drainAndMaintain(): Promise<DrainResult> {
-  registerAllHandlers()
+  await registerAllHandlers()
   await scheduleDailyMaintenance()
   return drainQueues({ maxMs: DRAIN_BUDGET_MS })
 }

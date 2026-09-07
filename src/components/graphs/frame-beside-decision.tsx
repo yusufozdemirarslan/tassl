@@ -1,6 +1,7 @@
 import { FramePanel } from '@/components/features/run/frame-panel'
 import { formatDateTime } from '@/lib/format/date-time'
 import { t } from '@/lib/i18n/messages/decision'
+import { t as graphT } from '@/lib/i18n/messages/graph'
 import type { BriefFieldUnitValue } from '@/server/modules/runs/schema'
 
 // `FrameBesideDecision` (09 §4): the frame a student locked before the assistant was in the room,
@@ -72,6 +73,20 @@ export type FiledRecord = {
 /** The author's own label and unit for a named field (06 §3.1). */
 export type NamedFieldLabel = { key: string; label: string; unit: BriefFieldUnitValue }
 
+/**
+ * The Turn and the one response filed against it (FR-112, FR-115), as the graph payload carries
+ * them. Present only on the debrief and the record; the Turn screen has the Turn on the screen
+ * already and passes nothing here.
+ */
+export type TurnRecord = {
+  text: string
+  response: 'hold' | 'revise' | 'reverse' | null
+  justification: string | null
+  confidence: number | null
+  /** True when the window closed unanswered, which files a hold (FR-115). */
+  implicit: boolean
+}
+
 export type FrameBesideDecisionProps = {
   /** The frame locked before the assistant was in the room (FR-041); null on a run without one. */
   frame: FramedRecord | null
@@ -85,6 +100,20 @@ export type FrameBesideDecisionProps = {
    * §The Descending-Heading Rule).
    */
   headingLevel?: 3 | 4
+  /** The fifty words a student may add after the lock (FR-107). */
+  addendum?: string | null
+  /** The Turn and the response, from the graph payload. */
+  turn?: TurnRecord | null
+  /** Indexes into `frame.assumptions` the Turn disrupted (FR-135, D-079). */
+  disruptedAssumptionIndexes?: readonly number[]
+  /** Authored disruptions that matched no framed assumption — "not named in the frame" (D-079). */
+  unmatchedDisruptedKeys?: readonly string[]
+}
+
+const RESPONSE_LABELS: Record<'hold' | 'revise' | 'reverse', string> = {
+  hold: graphT('graph.frameBesideDecision.responseHold'),
+  revise: graphT('graph.frameBesideDecision.responseRevise'),
+  reverse: graphT('graph.frameBesideDecision.responseReverse'),
 }
 
 export function FrameBesideDecision({
@@ -92,6 +121,10 @@ export function FrameBesideDecision({
   brief,
   namedFields,
   headingLevel = 3,
+  addendum = null,
+  turn = null,
+  disruptedAssumptionIndexes = [],
+  unmatchedDisruptedKeys = [],
 }: FrameBesideDecisionProps) {
   // DESIGN.md §The Descending-Heading Rule: an h3 is the Subtitle style, an h4 the same serif at
   // the reading size. The base layer already gives both the serif face and weight 500.
@@ -111,6 +144,25 @@ export function FrameBesideDecision({
             </p>
           ) : (
             <FramePanel frame={frame} />
+          )}
+          {/* FR-135's marking (D-079). The assumptions are already numbered in the frame above, so
+              the mark names their numbers rather than reprinting the sentences: a second copy of an
+              assumption a few lines under the first is two records of one thing. A key the Turn
+              disrupts that the frame never named is the finding on its own, and is listed as
+              such. */}
+          {disruptedAssumptionIndexes.length > 0 && (
+            <p className="border-amber text-ink text-body max-w-measure border-l-2 pl-3">
+              {graphT('graph.frameBesideDecision.disruptedList', {
+                list: disruptedAssumptionIndexes.map((index) => index + 1).join(', '),
+              })}
+            </p>
+          )}
+          {unmatchedDisruptedKeys.length > 0 && (
+            <p className="border-amber text-ink text-body max-w-measure border-l-2 pl-3">
+              {graphT('graph.frameBesideDecision.unmatchedList', {
+                list: unmatchedDisruptedKeys.join(', '),
+              })}
+            </p>
           )}
         </section>
 
@@ -135,8 +187,81 @@ export function FrameBesideDecision({
           ) : (
             <FiledBrief brief={brief} namedFields={namedFields} />
           )}
+          {addendum !== null && addendum.trim() !== '' && (
+            <div className="flex flex-col gap-1">
+              <h4 className="text-ink-muted text-meta font-medium">
+                {graphT('graph.frameBesideDecision.addendumTitle')}
+              </h4>
+              <p className="text-ink text-reading max-w-measure whitespace-pre-line">{addendum}</p>
+            </div>
+          )}
         </section>
       </div>
+
+      {/* The third record FR-135 asks for, under the comparison rather than beside it: the two
+          columns are the comparison, and a third column of the same width would put three 230 px
+          measures inside the Turn screen's aside. The debrief reads down — frame, decision, what
+          arrived and what was done about it. */}
+      {turn !== null && (
+        <section className="border-line mt-6 flex flex-col gap-3 border-t pt-6">
+          <Heading className={headingClass}>
+            {graphT('graph.frameBesideDecision.turnTitle')}
+          </Heading>
+          {/* Every term-and-value pair is a direct child of the `dl`: a `dt` nested two divs deep
+              is a `dlitem` violation, and the two columns are made by the grid rather than by a
+              wrapper (WCAG 1.3.1). The message spans the rows beside it. */}
+          <dl className="grid gap-4 @4xl:grid-cols-2 @4xl:gap-x-8">
+            <div className="flex min-w-0 flex-col gap-1 @4xl:row-span-3">
+              <dt className="text-ink-muted text-meta font-medium">
+                {graphT('graph.frameBesideDecision.rowTurn')}
+              </dt>
+              <dd className="text-ink text-reading max-w-measure whitespace-pre-line">
+                {turn.text}
+              </dd>
+            </div>
+            <div className="flex min-w-0 flex-col gap-1">
+              <dt className="text-ink-muted text-meta font-medium">
+                {graphT('graph.frameBesideDecision.turnResponseLabel')}
+              </dt>
+              <dd className="text-ink text-reading">
+                {turn.implicit
+                  ? graphT('graph.frameBesideDecision.responseImplicit')
+                  : turn.response === null
+                    ? graphT('graph.frameBesideDecision.responseNone')
+                    : RESPONSE_LABELS[turn.response]}
+              </dd>
+            </div>
+            <div className="flex min-w-0 flex-col gap-1">
+              <dt className="text-ink-muted text-meta font-medium">
+                {graphT('graph.frameBesideDecision.turnJustification')}
+              </dt>
+              <dd
+                className={
+                  turn.justification === null || turn.justification.trim() === ''
+                    ? 'text-ink-muted text-reading max-w-measure'
+                    : 'text-ink text-reading max-w-measure whitespace-pre-line'
+                }
+              >
+                {turn.justification === null || turn.justification.trim() === ''
+                  ? graphT('graph.frameBesideDecision.empty')
+                  : turn.justification}
+              </dd>
+            </div>
+            <div className="flex min-w-0 flex-col gap-1">
+              <dt className="text-ink-muted text-meta font-medium">
+                {graphT('graph.frameBesideDecision.turnConfidence')}
+              </dt>
+              <dd className="text-ink text-mono font-mono tabular-nums">
+                {turn.confidence === null
+                  ? t('decision.briefEmptyValue')
+                  : graphT('graph.frameBesideDecision.confidenceValue', {
+                      value: turn.confidence,
+                    })}
+              </dd>
+            </div>
+          </dl>
+        </section>
+      )}
     </div>
   )
 }

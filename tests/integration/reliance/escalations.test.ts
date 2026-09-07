@@ -23,6 +23,7 @@
 import { afterAll, beforeEach, describe, expect, it } from 'vitest'
 import { truncateAll } from '@tests/setup/integration'
 import {
+  CLOCK_SKEW_MS,
   codeOf,
   escalationRows,
   eventsOfType,
@@ -385,7 +386,9 @@ describe('who and when', () => {
       statement: STATEMENT,
     })
     expect(result.responseText).toBe(await authoredReply())
-    expect(result.clockCostMs).toBeLessThanOrEqual(45_000)
+    // The same two-clock tolerance the action cap needs, and for the same reason: uncapped this
+    // would be 300,000, so the bound proves the cap either way (`CLOCK_SKEW_MS`, ./fixture.ts).
+    expect(result.clockCostMs).toBeLessThanOrEqual(45_000 + CLOCK_SKEW_MS)
     expect(result.clockCostMs).toBeGreaterThan(40_000)
   })
 

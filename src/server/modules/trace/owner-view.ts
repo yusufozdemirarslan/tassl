@@ -348,7 +348,16 @@ const OWNER_FIELD_VISIBILITY: OwnerFieldVisibility = {
     credit_challenge: 'after_scored',
     // The instructor's free-text note on the correction; the debrief carries the correction itself.
     note: 'reviewer_only',
+    // Which dimensions the correction moved and from which band to which. FR-005 entitles the
+    // student to know a correction for Tassl's own error raised their band, and bands are what the
+    // debrief shows them anyway; the arithmetic under the bands is the two fields below.
     recompute: 'after_scored',
+    // FR-170 and 12 §8.1's last row: `points` never appears in the record export form. These sit at
+    // the top level rather than inside `recompute` precisely so this table can say so — a field
+    // nested inside a classified object is carried by its parent's classification, and these two
+    // rode into the student's record on `recompute`'s (D-420).
+    points_before: 'reviewer_only',
+    points_after: 'reviewer_only',
   },
 
   run_voided: {

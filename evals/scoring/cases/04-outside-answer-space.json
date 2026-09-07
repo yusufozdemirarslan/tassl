@@ -1,0 +1,28 @@
+{
+  "id": "outside-answer-space",
+  "title": "A recommendation outside the positions the scenario authors",
+  "fixes": "PRD §7.10, FR-109, Appendix A.5",
+  "fixture": "outside-answer-space",
+  "answerSpace": [
+    {
+      "key": "launch_at_price",
+      "kind": "defensible",
+      "summary": "Go ahead at the higher price point in the coming quarter.",
+      "isMinimumCommitment": false
+    },
+    {
+      "key": "hold_price_until_rebased",
+      "kind": "defensible",
+      "summary": "Proceed, but hold the higher price point until the demand series has been re-based.",
+      "isMinimumCommitment": true
+    },
+    {
+      "key": "sign_on_january_estimate",
+      "kind": "evidence_inconsistent",
+      "summary": "Sign the multi-year tooling contract on the strength of the January estimate alone.",
+      "ignoredEvidence": "The March review re-bases the January estimate downward.",
+      "isMinimumCommitment": false
+    }
+  ],
+  "expect": { "bands": { "decision_quality": "novice" } }
+}

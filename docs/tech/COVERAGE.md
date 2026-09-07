@@ -273,7 +273,7 @@ Conventions: steps are `N.M` in `build-plan/phase-NN-*.md`; test paths are relat
 |---|---|---|
 | INT-001 | 0.4, 0.6, 0.10 | integration/system/ready.test.ts |
 | INT-002 | 0.10, 0.11, 15.4 | `scripts/smoke.sh` in production.yml |
-| INT-003 | 3.1 | unit/email/templates.test.tsx, integration/email/send.test.ts |
+| INT-003 | 3.1 | unit/email/templates.test.tsx, integration/email/send.test.ts, integration/email/drain-runtime.test.ts |
 | INT-004 | 3.2, 3.4 | integration/auth/flows.test.ts (provider config), unit/components/auth/sign-in-form.test.tsx (button visibility) |
 | INT-005 | 13.2 | integration/analytics/track.test.ts |
 | INT-006 | 13.1 | unit/logging/ops-events.test.ts, `scripts/sentry-test.ts` |
@@ -316,7 +316,7 @@ Conventions: steps are `N.M` in `build-plan/phase-NN-*.md`; test paths are relat
 | SYS-007 | 13.5, 15.3 | a11y/public.spec.ts, launch checklist (human review) |
 | SYS-008 | 1.4 | e2e system/errors.spec.ts |
 | SYS-009 | 0.6, 2.7 | integration/system/ready.test.ts, e2e system/health.spec.ts |
-| SYS-010 | 3.1, 10.4, 11.4 | integration/notifications/service.test.ts |
+| SYS-010 | 3.1, 10.4, 11.4 | integration/notifications/service.test.ts, integration/email/drain-runtime.test.ts |
 | SYS-011 | 3.2, 11.1, 13.5 | integration/admin/service.test.ts, integration/review/*.test.ts (audit rows) |
 | SYS-012 | 0.5, 2.8, 13.4 | integration/rate-limit/sliding-window.test.ts, integration/rate-limit/coverage.test.ts |
 | SYS-013 | 0.4, 14.6 | unit/lib/config.test.ts, unit/llm/registry.test.ts |

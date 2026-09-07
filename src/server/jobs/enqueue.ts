@@ -27,12 +27,13 @@ async function drainSafely(maxMs: number): Promise<void> {
     // Both loaded lazily: drain.ts imports enqueue() for scheduleDailyMaintenance(), so a static
     // import here would make the two modules a cycle. The registry has to come first — a queue with
     // no handler is skipped, and without this the web process would enqueue an email and never send
-    // it until the nightly cron hit the drain route (D-181).
+    // it until the nightly cron hit the drain route (D-181). It is awaited because `send_email`
+    // registers only where an HTML renderer exists (D-431).
     const [{ registerAllHandlers }, { drainQueues }] = await Promise.all([
       import('@/server/jobs/handlers/register'),
       import('@/server/jobs/drain'),
     ])
-    registerAllHandlers()
+    await registerAllHandlers()
     await drainQueues({ maxMs })
   } catch (error) {
     getLogger().error({ event: 'drain_failed', err: error }, 'drain after enqueue failed')

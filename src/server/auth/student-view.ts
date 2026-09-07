@@ -201,6 +201,30 @@ export const STUDENT_FORBIDDEN_KEYS_RECORD_FORM: readonly string[] = keySet([
   'points',
 ])
 
+/**
+ * The same three, as **terms a key name may not contain** rather than names it may not equal.
+ *
+ * This one row of 12 §8.1 is the only one where containment is right, and it is right because of
+ * what the row forbids: not three particular fields but the course's arithmetic, wherever it is
+ * spelled. `points_before` and `points_after` are the run's points; so are `points_effective`,
+ * `pointsConfirmed` and `points_draft`. An exact-name set was satisfied by every one of them, and
+ * `claim_neutralized.recompute.points_before` shipped inside a student's downloaded record while the
+ * guard reported nothing (D-421).
+ *
+ * The other two sets stay exact matches and must: they name fields, and `owner-view.ts` exists
+ * because two payloads use the same word for opposite things (`readiness_item.answer_key` is the key
+ * the student chose). Containment there would report those collisions as leaks. Here there is no
+ * collision to protect — no student payload has a legitimate field whose name contains "points",
+ * "weight" or "mapping", because that is exactly what the row forbids.
+ */
+const RECORD_FORM_TERMS: readonly string[] = ['weight', 'mapping', 'points']
+
+/** True when a key name carries a course-arithmetic term, in either spelling, at any position. */
+function namesCourseArithmetic(key: string): boolean {
+  const squashed = key.toLowerCase().replace(/[^a-z0-9]+/g, '')
+  return RECORD_FORM_TERMS.some((term) => squashed.includes(term))
+}
+
 // ---------------------------------------------------------------------------------------------
 // The guard
 // ---------------------------------------------------------------------------------------------
@@ -226,7 +250,6 @@ export type ForbiddenKeyFinding = {
 
 const ALWAYS = new Set(STUDENT_FORBIDDEN_KEYS_ALWAYS)
 const BEFORE_SCORED = new Set(STUDENT_FORBIDDEN_KEYS_BEFORE_SCORED)
-const RECORD_FORM = new Set(STUDENT_FORBIDDEN_KEYS_RECORD_FORM)
 
 /**
  * Every forbidden key in `payload`, walked deeply through objects and arrays, with the path it was
@@ -241,9 +264,9 @@ export function findForbiddenKeys(
   payload: unknown,
   stage: StudentViewStage,
 ): ForbiddenKeyFinding[] {
-  const sets: [ForbiddenKeySet, ReadonlySet<string>][] = [['always', ALWAYS]]
-  if (!stage.scored) sets.push(['before_scored', BEFORE_SCORED])
-  if (stage.form === 'record') sets.push(['record_form', RECORD_FORM])
+  const sets: [ForbiddenKeySet, (key: string) => boolean][] = [['always', (key) => ALWAYS.has(key)]]
+  if (!stage.scored) sets.push(['before_scored', (key) => BEFORE_SCORED.has(key)])
+  if (stage.form === 'record') sets.push(['record_form', namesCourseArithmetic])
 
   const findings: ForbiddenKeyFinding[] = []
   const seen = new WeakSet<object>()
@@ -258,8 +281,8 @@ export function findForbiddenKeys(
     }
     for (const [key, child] of Object.entries(value as Record<string, unknown>)) {
       const at = path === '' ? key : `${path}.${key}`
-      for (const [name, set] of sets) {
-        if (set.has(key)) findings.push({ key, path: at, set: name })
+      for (const [name, matches] of sets) {
+        if (matches(key)) findings.push({ key, path: at, set: name })
       }
       walk(child, at)
     }
