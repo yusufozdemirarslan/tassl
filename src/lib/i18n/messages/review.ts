@@ -346,6 +346,22 @@ export const review = {
   'review.guardMark.discarded_late':
     'The reply came back after the run had left the state that asked for it, so it was not kept.',
   'review.guardMark.out_of_scenario': 'A reviewer marked this request as outside the scenario.',
+
+  // ---------------------------------------------------------------------------------------------
+  // FR-055's mark, on the log where a reviewer reads the exchange
+  //
+  // Every word here is about the *material*, never about the student. The mark says one thing —
+  // this exchange was about something the scenario does not cover — and does one thing: the
+  // Delegation read leaves it out (10 §11.3). Nothing about it reaches the student, in any state,
+  // and it takes nothing away from them: the band is read over what is left, and the count of
+  // marked exchanges is the sentence `band.delegation.flagged` writes into the reason.
+  // ---------------------------------------------------------------------------------------------
+  'review.flagButton': 'Mark as outside the scenario',
+  'review.flagPending': 'Marking…',
+  'review.flagExplains':
+    'Marking says the exchange was about something this scenario does not cover, so the Delegation read is taken over the exchanges that remain. It is a note about the material. The student is not told, and nothing is taken away from them.',
+  'review.flagAlready': 'This exchange is already marked, and a mark is recorded once.',
+  'review.flagRefused': 'The mark was not recorded. Try again.',
   /** A mark the log does not yet have a sentence for; the identifier is the honest fallback. */
   'review.guardMarkUnknown': 'An unrecognized guard mark: {flag}',
 
@@ -470,6 +486,63 @@ export const review = {
   'review.exportReason.neutralization': 'A correction was entered',
   'review.exportReason.mapping': 'The course changed its mapping',
   'review.exportReason.unassessed': 'A dimension was marked not assessed',
+
+  // ---------------------------------------------------------------------------------------------
+  // The queue (UI-034, FR-186, FR-254, D-035, D-096)
+  //
+  // Two lists that are never mixed, and the reason the wording keeps saying so: the illustrative
+  // half describes nobody and the real half is a list of this reviewer's own students' work. A
+  // reader who cannot tell the two apart at a glance is a reader who might act on the wrong one.
+  // ---------------------------------------------------------------------------------------------
+  'review.queueTitle': 'Review',
+  'review.queueDescription':
+    'Runs of your own sections that are waiting for a decision, and the shapes a queue takes once a course has run for a term.',
+  'review.queueSampleTitle': 'Review queue (illustrative)',
+  'review.queueSampleNote':
+    'These five groupings describe no student and count no real run. They show how a queue is organised once a term’s worth of runs exists; the list below is the real one.',
+  'review.queueSampleCountLabel': 'Runs in this grouping',
+  'review.queueRealTitle': 'Runs waiting for you',
+  'review.queueRealDescription':
+    'Every run of a section you review that has bands to decide, newest first.',
+  'review.queueEmptyTitle': 'Nothing waiting',
+  'review.queueEmptyBody':
+    'A run appears here once its bands have been drafted. Until then there is nothing on it to decide.',
+  'review.queueCaption': 'Runs of your sections with bands to decide.',
+  'review.queueColumnStudent': 'Student',
+  'review.queueColumnAttempt': 'Attempt',
+  'review.queueColumnState': 'State',
+  'review.queueColumnDecisions': 'Decisions made',
+  'review.queueColumnExport': 'Export',
+  'review.queueColumnOpen': 'Replay',
+  'review.queueDecisions': '{made} of 7',
+  'review.queueNoExport': 'None',
+  'review.queueExportVersion': 'v{version}',
+  'review.queueOpen': 'Open the replay for {student}',
+  // The variant is deliberately not a column here, for UI-032's reason: it would put "defective" or
+  // "sound" beside every student's name on a screen an instructor may well project, and a student
+  // who reads "sound" can accept every claim without doing the work the run measures (12 §8, D-228).
+  // The replay is where a reviewer reads it.
+  'review.queueVariantNote':
+    'Which variant a student drew is on the replay rather than in this list, so this screen can be shown to a room.',
+
+  // ---------------------------------------------------------------------------------------------
+  // The assignment's export history (UI-035, FR-204, FR-184)
+  // ---------------------------------------------------------------------------------------------
+  'review.assignmentExportsTitle': 'Course exports',
+  'review.assignmentExportsDescription':
+    'Every export written for a run on this assignment, newest first.',
+  'review.assignmentExportsGradebook':
+    'Enter bands, mapping, and points in the gradebook of record; Tassl holds no grade.',
+  'review.assignmentExportsEmptyTitle': 'No export yet',
+  'review.assignmentExportsEmptyBody':
+    'The first export for a run is written when all seven of its bands carry a decision. Every correction after that writes another.',
+  'review.assignmentExportsCaption': 'Every course export written on this assignment.',
+  'review.assignmentExportsColumnRun': 'Run',
+  'review.assignmentExportsColumnStudent': 'Student seat',
+  'review.assignmentExportsRunLink': 'Open the replay',
+  'review.assignmentExportsBack': 'Back to the assignment',
+  /** The panel's own title: the page's h1 already says what the screen is. */
+  'review.assignmentExportsPanelTitle': 'Every version written',
 } as const
 
 /** `t` over this namespace alone; the key is still the full dotted key. */

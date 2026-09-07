@@ -11331,6 +11331,33 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "429":
           $ref: "#/components/responses/RateLimited"
+  /notifications/unread-count:
+    get:
+      tags:
+        - notifications
+      operationId: unreadNotificationCount
+      summary: How many of my notifications are unread
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  count:
+                    type: integer
+                    minimum: 0
+                    maximum: 9007199254740991
+                required:
+                  - count
+                additionalProperties: false
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "429":
+          $ref: "#/components/responses/RateLimited"
   /openapi.yaml:
     get:
       tags:
@@ -14468,6 +14495,8 @@ paths:
                         type: boolean
                       canBandManually:
                         type: boolean
+                      canFlagDelegation:
+                        type: boolean
                       isInstructor:
                         type: boolean
                     required:
@@ -14476,6 +14505,7 @@ paths:
                       - canNeutralize
                       - canForceFailure
                       - canBandManually
+                      - canFlagDelegation
                       - isInstructor
                     additionalProperties: false
                 required:

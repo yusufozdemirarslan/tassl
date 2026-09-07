@@ -17,10 +17,10 @@ export const metadata: Metadata = { title: t('run.statusTitle') }
 // the one state that is both finished and not yet anything, and it stays here, which is where the
 // poll in the RunFrame is watching for scoring to end.
 //
-// The debrief (UI-028) and the Judgment Record (UI-029) are the screens this one leads to, and both
-// land in Phase 11. Until they exist the sentence stands on its own rather than offering a link
-// into a 404: what the student is told is true either way, and a promise the build cannot keep is
-// worse than a missing button.
+// The debrief (UI-028) and the Judgment Record (UI-029) are the screens this one leads to, and each
+// link is offered exactly where its route opens: the debrief from `scored` (`getDebrief`'s own
+// gate), the record from `confirmed` (`getRecord`'s). Offering either earlier would be a button
+// that redirects the reader back to the page they pressed it on.
 const ACTIVE_STATES: readonly RunStateValue[] = [
   'assigned',
   'readiness',
@@ -39,10 +39,22 @@ export default async function RunStatusPage({ params }: PageProps<'/runs/[runId]
 
   if (ACTIVE_STATES.includes(status.run.state)) redirect(status.run.links.next as Route)
 
+  const state = status.run.state
+  const links = {
+    ...(DEBRIEF_STATES.includes(state) ? { debrief: `/runs/${runId}/debrief` } : {}),
+    ...(RECORD_STATES.includes(state) ? { record: `/records/${runId}` } : {}),
+  }
+
   return (
     <>
       <PageHeader title={t('run.statusTitle')} />
-      <RunStatus status={status} />
+      <RunStatus status={status} links={links} />
     </>
   )
 }
+
+/** `getDebrief` opens at `scored` (10 §13); a voided run has no debrief to read. */
+const DEBRIEF_STATES: readonly RunStateValue[] = ['scored', 'confirmed', 'recorded']
+
+/** `getRecord` opens at `confirmed` (10 §14): a draft band does not leave Tassl. */
+const RECORD_STATES: readonly RunStateValue[] = ['confirmed', 'recorded']

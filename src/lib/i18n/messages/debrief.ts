@@ -43,6 +43,38 @@ export const debrief = {
     'This is the student’s own debrief, exactly as they read it. The two questions at the end are theirs to answer.',
 
   // ---------------------------------------------------------------------------------------------
+  // The screen around the twelve sections (UI-028)
+  //
+  // The page is one document read top to bottom, so what is here is only what the sections cannot
+  // say for themselves: where the reader came from, where they can go, and the sentence a section
+  // that could not be drawn stands behind.
+  // ---------------------------------------------------------------------------------------------
+  'debrief.metaTitle': 'Run Debrief',
+  'debrief.description':
+    'Your run, walked in the order it happened: what you framed, what you did with every claim, where the clock went, and where each of the seven dimensions sits.',
+  'debrief.backToRun': 'Back to the run',
+  'debrief.openRecord': 'Open the Judgment Record',
+  'debrief.openReplay': 'Open the replay',
+  'debrief.sectionUnavailableLabel': 'Not drawn for this run',
+  /** FR-155: the section is always named, so the label is never the whole of what is said. */
+  'debrief.sectionUnavailableUnknown':
+    'This run did not record what this section is drawn from, and Tassl has no sentence for why.',
+  'debrief.claimsHeading': 'One row per claim',
+  'debrief.claim.importance.load_bearing': 'Load-bearing',
+  'debrief.claim.importance.supporting': 'Supporting',
+  'debrief.claim.yourStanceLabel': 'Your stance',
+  'debrief.claim.warrantedLabel': 'Warranted',
+  'debrief.claim.noStanceShort': 'None recorded',
+  'debrief.claim.matchYes': 'Same',
+  'debrief.claim.matchNo': 'Different',
+  'debrief.claim.defectiveHere': 'This variant authored the claim as defective.',
+  'debrief.claim.soundHere': 'This variant authored the claim as sound.',
+  'debrief.defect.heading': 'Claim {key}',
+  'debrief.probe.occurredAt': 'It happened at {when}.',
+  'debrief.counterfactual.authored': 'Written by the scenario’s author, not about this run.',
+  'debrief.doneWell.label': 'From this run’s trace',
+
+  // ---------------------------------------------------------------------------------------------
   // The twelve sections, in the fixed order of FR-151 and 10 §13
   // ---------------------------------------------------------------------------------------------
   'debrief.section.frameBesideDecision.title': 'Your frame beside your decision',
@@ -205,6 +237,11 @@ export const debrief = {
   // ---------------------------------------------------------------------------------------------
   'debrief.points.mappingLabel': 'Your course’s mapping',
   'debrief.points.mappingRow': '{band} is worth {value}',
+  'debrief.points.mappingCaption': 'What each band is worth in this course.',
+  'debrief.points.mappingBandColumn': 'Band',
+  'debrief.points.mappingValueColumn': 'Worth',
+  'debrief.points.gradebookNote':
+    'Tassl holds no grade. Your instructor enters the bands, the mapping and the points in the gradebook of record.',
   'debrief.points.weightLabel': 'What this run is worth in the course',
   'debrief.points.weight': '{weight} percent of the course grade',
   'debrief.points.arithmetic':
@@ -248,6 +285,13 @@ export const debrief = {
     'What will you do differently in the next run like this?',
   'debrief.questions.doDifferently.help': 'Up to 100 words.',
   'debrief.questions.submit': 'File both answers',
+  'debrief.questions.pending': 'Filing…',
+  'debrief.questions.filed': 'Both answers are filed.',
+  'debrief.questions.wordCount': '{count} / {limit} words',
+  'debrief.questions.tooLong': 'This answer runs past {limit} words.',
+  'debrief.questions.required': 'Write something in both boxes before filing.',
+  'debrief.questions.refused': 'The two answers were not filed. Try again.',
+  'debrief.questions.yourAnswerLabel': 'What you wrote',
   'debrief.questions.answeredAt': 'Answered {when}',
   'debrief.questions.answeredNote':
     'Both answers are filed and this run is closed. In this build there is no next run to unlock.',

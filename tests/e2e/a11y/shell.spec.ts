@@ -41,3 +41,28 @@ test('the signed-in shell and its screens have no axe violations', async ({ page
 
   await signOut(page)
 })
+
+// UI-009's role panels and UI-034's queue, on the seat that has them.
+//
+// A student's home page carries one panel; an instructor's carries four, and three of them are
+// tables and lists of other people's runs. A scan of the student's says nothing about the
+// instructor's, and the review queue is a screen of its own with two lists on it — one of them the
+// illustrative sample, which is the only panel in the product whose label is mandatory (FR-254).
+test('the instructor’s home panels and the review queue have no axe violations', async ({
+  page,
+}) => {
+  await signInAs(page, 'instructor')
+
+  await page.goto('/home')
+  await expect(page.getByRole('heading', { level: 1, name: 'Home' })).toBeVisible()
+  await expect(page.getByRole('heading', { level: 2, name: 'Review' })).toBeVisible()
+  await expect(page.getByRole('heading', { level: 2, name: 'Courses' })).toBeVisible()
+  await axe(page)
+
+  await page.goto('/review')
+  await expect(page.getByRole('heading', { level: 1, name: 'Review' })).toBeVisible()
+  await expect(page.getByRole('heading', { level: 2, name: 'Runs waiting for you' })).toBeVisible()
+  await axe(page)
+
+  await signOut(page)
+})

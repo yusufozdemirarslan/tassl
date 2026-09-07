@@ -141,7 +141,8 @@ export const courses = {
   'courses.validation.concept': 'A taught concept is at most 120 characters.',
   'courses.validation.conceptsTooMany': 'A course lists at most 50 taught concepts.',
 
-  // UI-030 mapping sub-view (MappingEditor); apply-with-recompute is FR-206, Phase 11
+  // UI-030 mapping sub-view (MappingEditor), in the two steps FR-206 takes it in: the preview,
+  // which writes nothing, and the apply, which re-exports every confirmed run in the course.
   'courses.mappingTitle': 'Band-to-points mapping',
   'courses.mappingDescription':
     "What one confirmed band is worth in this course. A run's points are the mean over the dimensions it assessed; an unassessed dimension is excluded, never counted as zero.",
@@ -149,13 +150,41 @@ export const courses = {
   'courses.mappingDeveloping': 'Developing',
   'courses.mappingProficient': 'Proficient',
   'courses.mappingProfessional': 'Professional',
-  'courses.mappingSubmit': 'Save mapping',
-  'courses.mappingPending': 'Saving…',
-  'courses.mappingSaved': 'Mapping saved.',
-  // The Apply control itself arrives with Phase 11 (FR-206), together with the preview table and
-  // the "every confirmed run will be re-exported" acknowledgement; until then only the note shows.
-  'courses.mappingApply': 'Apply to confirmed runs',
-  'courses.mappingApplyNote': 'Recomputation of confirmed runs arrives with review.',
+  'courses.mappingSubmit': 'Preview changes',
+  'courses.mappingPending': 'Working out what moves…',
+  'courses.mappingApply': 'Apply the new mapping',
+  'courses.mappingApplyPending': 'Applying…',
+  'courses.mappingApplied': 'The mapping is saved. {changed} runs were re-exported.',
+  'courses.mappingAcknowledge': 'I understand every confirmed run will be re-exported.',
+  'courses.mappingAcknowledgeRequired':
+    'Tick the box above before applying: every confirmed run in this course gets a new export version.',
+  'courses.mappingApplyNote':
+    'Applying records the change against your name and the date, writes a new export version for every confirmed run in this course, and leaves the bands exactly where they are.',
+  'courses.mappingPreviewTitle': 'What would change',
+  'courses.mappingPreviewSame': 'These four numbers are the ones the course already uses.',
+  'courses.mappingPreviewNone':
+    'No run in this course is confirmed yet, so nothing is re-exported. Applying sets the mapping for the runs that follow.',
+  'courses.mappingPreviewCount': '{changed} of {total} confirmed runs would carry a new number.',
+  'courses.mappingPreviewCaption':
+    'Every confirmed run in this course, priced under the current mapping and the proposed one.',
+  'courses.mappingPreviewColumnAssignment': 'Assignment',
+  'courses.mappingPreviewColumnNow': 'Points now',
+  'courses.mappingPreviewColumnAfter': 'Points after',
+  'courses.mappingPreviewColumnChange': 'Change',
+  'courses.mappingPreviewColumnRun': 'Run',
+  'courses.mappingPreviewChanged': 'Moves',
+  'courses.mappingPreviewUnchanged': 'Stays',
+  'courses.mappingPreviewOpenRun': 'Open the replay',
+  /** A run whose dimensions were all recorded unassessed has no figure under either mapping. */
+  'courses.mappingPreviewNoPoints': 'No points',
+
+  'courses.mappingPreviewStale':
+    'These four numbers have changed since the preview. Preview again before applying.',
+  // The preview names the assignment and links the run rather than the student: the service carries
+  // an id and not a name, and a column of uuids is not a column anybody can read. The replay behind
+  // each link is where a reviewer sees whose run it is.
+  'courses.mappingPreviewSeatNote':
+    'Each row links to the run’s replay, which is where the student’s name and the seven bands are.',
   'courses.validation.point': 'Enter the points as a number.',
   'courses.validation.pointPositive': 'Points must be above zero.',
 } as const

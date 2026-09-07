@@ -9,6 +9,7 @@ import {
   BandDecisionControl,
   ConfirmRemaining,
 } from '@/components/features/review/band-decision-control'
+import { DelegationFlag } from '@/components/features/review/delegation-flag'
 import { EvidenceDrawer } from '@/components/features/review/evidence-drawer'
 import { ExportsList } from '@/components/features/review/exports-list'
 import { ManualBandsForm } from '@/components/features/review/manual-bands-form'
@@ -387,6 +388,8 @@ function ClaimLink({ basePath, claimKey }: { basePath: Route; claimKey: string }
 
 function Overview({ replay, basePath }: { replay: ReplayBundle; basePath: Route }) {
   const graphs = replay.graphs
+  const { capabilities } = replay
+  const runId = replay.run.id
   return (
     <>
       {/* First, not seventh. "Is there anything unusual about this run?" is the question a reviewer
@@ -649,6 +652,16 @@ function Overview({ replay, basePath }: { replay: ReplayBundle; basePath: Route 
                       </li>
                     ))}
                   </ul>
+                )}
+                {/* FR-055, where the exchange is read. It is one act and a note about the material:
+                    a marked exchange is left out of the Delegation read (10 §11.3) and the student
+                    is never told, in any state. */}
+                {capabilities.canFlagDelegation && (
+                  <DelegationFlag
+                    runId={runId}
+                    delegationId={delegation.id}
+                    alreadyFlagged={(delegation.flags ?? []).includes('out_of_scenario')}
+                  />
                 )}
               </section>
             ))}

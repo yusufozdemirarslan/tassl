@@ -259,6 +259,7 @@ export async function getReplay(actor: SessionUser, runId: string): Promise<Repl
       canNeutralize: isInstructor && DECIDABLE_STATES.has(data.run.state),
       canForceFailure: isInstructor && flagsFromEnv(env).testControls,
       canBandManually: data.run.scoringStatus === 'held',
+      canFlagDelegation: data.run.state !== 'voided',
       isInstructor,
     } satisfies ReplayCapabilities,
   }

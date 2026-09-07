@@ -205,6 +205,23 @@ export async function answerEveryQuestion(api: APIRequestContext, runId: string)
 }
 
 /**
+ * Every open dimension confirmed at its draft, through the endpoint UI-033's shortcut calls.
+ *
+ * Setup for the two specs that are about what happens *after* a run is confirmed — the confirmed
+ * debrief (step 13) and the record and its exports (step 14). The seven decisions themselves are
+ * proved through the screen by `12-faculty-replay.spec.ts`, one at a time, including the boundary at
+ * the seventh; repeating them here would give them a second chance to drift and would say nothing
+ * about the debrief.
+ *
+ * The caller signs in as a reviewer of the run's section first: this takes their API context.
+ */
+export async function confirmEveryBand(api: APIRequestContext, runId: string): Promise<void> {
+  await post(api, `/api/v1/review/runs/${runId}/confirm-remaining`)
+  const run = await readJson<{ state: string }>(api, `/api/v1/runs/${runId}`)
+  expect(run.state, 'the seventh decision confirms the run (FR-181)').toBe('confirmed')
+}
+
+/**
  * The whole of steps 2 to 11 on one assignment: a run in `scored`, with a drafted band on every
  * dimension and nothing decided.
  *

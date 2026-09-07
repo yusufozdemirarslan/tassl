@@ -1,4 +1,5 @@
 import { FramePanel } from '@/components/features/run/frame-panel'
+import { cn } from '@/lib/cn'
 import { formatDateTime } from '@/lib/format/date-time'
 import { t } from '@/lib/i18n/messages/decision'
 import { t as graphT } from '@/lib/i18n/messages/graph'
@@ -203,66 +204,96 @@ export function FrameBesideDecision({
           measures inside the Turn screen's aside. The debrief reads down — frame, decision, what
           arrived and what was done about it. */}
       {turn !== null && (
-        <section className="border-line mt-6 flex flex-col gap-3 border-t pt-6">
-          <Heading className={headingClass}>
-            {graphT('graph.frameBesideDecision.turnTitle')}
-          </Heading>
-          {/* Every term-and-value pair is a direct child of the `dl`: a `dt` nested two divs deep
-              is a `dlitem` violation, and the two columns are made by the grid rather than by a
-              wrapper (WCAG 1.3.1). The message spans the rows beside it. */}
-          <dl className="grid gap-4 @4xl:grid-cols-2 @4xl:gap-x-8">
-            <div className="flex min-w-0 flex-col gap-1 @4xl:row-span-3">
-              <dt className="text-ink-muted text-meta font-medium">
-                {graphT('graph.frameBesideDecision.rowTurn')}
-              </dt>
-              <dd className="text-ink text-reading max-w-measure whitespace-pre-line">
-                {turn.text}
-              </dd>
-            </div>
-            <div className="flex min-w-0 flex-col gap-1">
-              <dt className="text-ink-muted text-meta font-medium">
-                {graphT('graph.frameBesideDecision.turnResponseLabel')}
-              </dt>
-              <dd className="text-ink text-reading">
-                {turn.implicit
-                  ? graphT('graph.frameBesideDecision.responseImplicit')
-                  : turn.response === null
-                    ? graphT('graph.frameBesideDecision.responseNone')
-                    : RESPONSE_LABELS[turn.response]}
-              </dd>
-            </div>
-            <div className="flex min-w-0 flex-col gap-1">
-              <dt className="text-ink-muted text-meta font-medium">
-                {graphT('graph.frameBesideDecision.turnJustification')}
-              </dt>
-              <dd
-                className={
-                  turn.justification === null || turn.justification.trim() === ''
-                    ? 'text-ink-muted text-reading max-w-measure'
-                    : 'text-ink text-reading max-w-measure whitespace-pre-line'
-                }
-              >
-                {turn.justification === null || turn.justification.trim() === ''
-                  ? graphT('graph.frameBesideDecision.empty')
-                  : turn.justification}
-              </dd>
-            </div>
-            <div className="flex min-w-0 flex-col gap-1">
-              <dt className="text-ink-muted text-meta font-medium">
-                {graphT('graph.frameBesideDecision.turnConfidence')}
-              </dt>
-              <dd className="text-ink text-mono font-mono tabular-nums">
-                {turn.confidence === null
-                  ? t('decision.briefEmptyValue')
-                  : graphT('graph.frameBesideDecision.confidenceValue', {
-                      value: turn.confidence,
-                    })}
-              </dd>
-            </div>
-          </dl>
-        </section>
+        <TurnRecordPanel
+          turn={turn}
+          headingLevel={headingLevel}
+          className="border-line mt-6 border-t pt-6"
+        />
       )}
     </div>
+  )
+}
+
+/**
+ * The Turn and the one response filed against it, on its own (FR-112, FR-115, FR-135).
+ *
+ * Extracted from the layout above rather than written twice, because the debrief needs it in two
+ * different places: once under the frame-beside-decision comparison, where it is the third record,
+ * and once as UI-028's own "Turn beside frame" section, where the frozen frame stands beside it and
+ * the filed brief does not (D-467). A component that rendered "the brief is missing" to reach the
+ * Turn block would be telling the reader something false about their own run.
+ *
+ * It renders content and not a panel, exactly as its caller does: the hairline above it is a prop,
+ * so the section that is a section supplies one and the section that is a page does not.
+ */
+export function TurnRecordPanel({
+  turn,
+  headingLevel = 3,
+  className,
+}: {
+  turn: TurnRecord
+  headingLevel?: 3 | 4
+  className?: string
+}) {
+  const Heading = `h${headingLevel}` as const
+  const headingClass = headingLevel === 3 ? 'text-h4' : 'text-reading'
+  return (
+    // The third record FR-135 asks for, under the comparison rather than beside it: the two columns
+    // are the comparison, and a third column of the same width would put three 230 px measures
+    // inside the Turn screen's aside. The debrief reads down — frame, decision, what arrived and
+    // what was done about it.
+    <section className={cn('@container flex flex-col gap-3', className)}>
+      <Heading className={headingClass}>{graphT('graph.frameBesideDecision.turnTitle')}</Heading>
+      {/* Every term-and-value pair is a direct child of the `dl`: a `dt` nested two divs deep is a
+          `dlitem` violation, and the two columns are made by the grid rather than by a wrapper
+          (WCAG 1.3.1). The message spans the rows beside it. */}
+      <dl className="grid gap-4 @4xl:grid-cols-2 @4xl:gap-x-8">
+        <div className="flex min-w-0 flex-col gap-1 @4xl:row-span-3">
+          <dt className="text-ink-muted text-meta font-medium">
+            {graphT('graph.frameBesideDecision.rowTurn')}
+          </dt>
+          <dd className="text-ink text-reading max-w-measure whitespace-pre-line">{turn.text}</dd>
+        </div>
+        <div className="flex min-w-0 flex-col gap-1">
+          <dt className="text-ink-muted text-meta font-medium">
+            {graphT('graph.frameBesideDecision.turnResponseLabel')}
+          </dt>
+          <dd className="text-ink text-reading">
+            {turn.implicit
+              ? graphT('graph.frameBesideDecision.responseImplicit')
+              : turn.response === null
+                ? graphT('graph.frameBesideDecision.responseNone')
+                : RESPONSE_LABELS[turn.response]}
+          </dd>
+        </div>
+        <div className="flex min-w-0 flex-col gap-1">
+          <dt className="text-ink-muted text-meta font-medium">
+            {graphT('graph.frameBesideDecision.turnJustification')}
+          </dt>
+          <dd
+            className={
+              turn.justification === null || turn.justification.trim() === ''
+                ? 'text-ink-muted text-reading max-w-measure'
+                : 'text-ink text-reading max-w-measure whitespace-pre-line'
+            }
+          >
+            {turn.justification === null || turn.justification.trim() === ''
+              ? graphT('graph.frameBesideDecision.empty')
+              : turn.justification}
+          </dd>
+        </div>
+        <div className="flex min-w-0 flex-col gap-1">
+          <dt className="text-ink-muted text-meta font-medium">
+            {graphT('graph.frameBesideDecision.turnConfidence')}
+          </dt>
+          <dd className="text-ink text-mono font-mono tabular-nums">
+            {turn.confidence === null
+              ? t('decision.briefEmptyValue')
+              : graphT('graph.frameBesideDecision.confidenceValue', { value: turn.confidence })}
+          </dd>
+        </div>
+      </dl>
+    </section>
   )
 }
 

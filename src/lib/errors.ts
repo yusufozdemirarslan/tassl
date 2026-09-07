@@ -203,7 +203,7 @@ export const DEFAULT_MESSAGES: Record<ErrorCode, string> = {
   RUN_NOT_SCORED: 'This run has no drafted bands to decide yet.',
   BAND_LOCKED_BY_INSTRUCTOR: 'The instructor has decided this dimension.',
   RUN_NOT_CONFIRMED: 'This run has no course export yet; its bands are not confirmed.',
-  NEUTRALIZATION_EXISTS: 'This claim has already been neutralized on this run.',
+  NEUTRALIZATION_EXISTS: 'A correction has already been entered on this claim for this run.',
   DEBRIEF_NOT_AVAILABLE: 'This run’s debrief opens once its bands have been drafted.',
   DEBRIEF_ANSWERED: 'The two questions on this run have already been answered.',
   LLM_BUDGET_EXCEEDED: 'The assistant budget for this period has been used up.',

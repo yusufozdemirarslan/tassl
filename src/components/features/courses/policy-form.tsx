@@ -203,7 +203,10 @@ export function PolicyForm({
 
         {/* The cap belongs to the control, which holds one number, not to the field, whose hint is
             a sentence: at 32ch the sentence was set three words to a line. */}
-        <Field className="max-w-[60ch]" data-invalid={errors.defaultRunWeight ? 'true' : undefined}>
+        <Field
+          className="max-w-measure"
+          data-invalid={errors.defaultRunWeight ? 'true' : undefined}
+        >
           <FieldLabel htmlFor={weightId}>{t('courses.weightLabel')}</FieldLabel>
           <Input
             id={weightId}
@@ -247,7 +250,7 @@ export function PolicyForm({
         <FormAlert message={formError} />
 
         {readOnly ? (
-          <p className="text-ink-muted text-body max-w-[60ch]">{t('courses.readOnlyNote')}</p>
+          <p className="text-ink-muted text-body max-w-measure">{t('courses.readOnlyNote')}</p>
         ) : (
           <SubmitButton pending={isSubmitting}>
             {isSubmitting ? t('courses.policyPending') : t('courses.policySubmit')}

@@ -5,6 +5,8 @@ export const assignment = {
   'assignment.title': 'Assignment',
   'assignment.context': '{course} · {section}',
   'assignment.backToCourse': 'Back to the course',
+  /** UI-035, reached from the assignment it is the history of (FR-204). */
+  'assignment.exportsLink': 'Course exports',
   'assignment.configureTitle': 'Configuration',
   'assignment.configureDescription': 'What every run on this assignment is taken under.',
   'assignment.labelLabel': 'Assignment name',

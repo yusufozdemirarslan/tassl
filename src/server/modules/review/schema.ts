@@ -211,6 +211,13 @@ export const ReplayCapabilitiesSchema = z.object({
   canNeutralize: z.boolean(),
   canForceFailure: z.boolean(),
   canBandManually: z.boolean(),
+  /**
+   * FR-055's mark, which any reviewer of the section may set — a TA reads the log too. It is false
+   * on a voided run for the reason every other capability here is state-shaped: a voided run's
+   * Delegation band is read by nothing, so the mark would change nothing and a control that
+   * changes nothing is worse than an absent one.
+   */
+  canFlagDelegation: z.boolean(),
   isInstructor: z.boolean(),
 })
 export type ReplayCapabilities = z.infer<typeof ReplayCapabilitiesSchema>

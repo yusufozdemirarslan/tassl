@@ -292,7 +292,7 @@ export function AssignmentForm({
             <LockIcon aria-hidden="true" className="text-ink-muted mt-0.5 size-4 shrink-0" />
             <div className="flex min-w-0 flex-col gap-1">
               <p className="font-medium">{t('assignment.lockedTitle')}</p>
-              <p className="max-w-[60ch]">{t('assignment.lockedBody')}</p>
+              <p className="max-w-measure">{t('assignment.lockedBody')}</p>
             </div>
           </div>
         )}

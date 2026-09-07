@@ -10,6 +10,7 @@ export {
   notificationPageSchema,
   notificationSchema,
   notificationTypeSchema,
+  unreadCountSchema,
   type ListNotificationsInput,
   type NotifyInput,
   type MarkAllReadInput,
@@ -18,4 +19,5 @@ export {
   type NotificationPage,
   type NotificationType,
   type NotificationView,
+  type UnreadCount,
 } from './schema'

@@ -72,3 +72,13 @@ export type MarkAllReadInput = z.infer<typeof markAllReadSchema>
 
 export const markAllReadResultSchema = z.object({ marked: z.number().int().nonnegative() })
 export type MarkAllReadResult = z.infer<typeof markAllReadResultSchema>
+
+/**
+ * `GET /notifications/unread-count` — the shell bell's badge, and nothing else (UI-008, D-470).
+ *
+ * One number rather than a page of rows, because that is what the badge is: a count read once a
+ * minute on every route of the product, and a hundred notification bodies fetched to render "3" is
+ * bandwidth spent on nothing. The actor is the whole scope; there is no input.
+ */
+export const unreadCountSchema = z.object({ count: z.number().int().nonnegative() })
+export type UnreadCount = z.infer<typeof unreadCountSchema>
