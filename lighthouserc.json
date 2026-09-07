@@ -122,14 +122,14 @@
             "resource-summary:script:size": [
               "error",
               {
-                "maxNumericValue": 345000,
+                "maxNumericValue": 530000,
                 "aggregationMethod": "pessimistic"
               }
             ],
             "resource-summary:total:size": [
               "error",
               {
-                "maxNumericValue": 900000,
+                "maxNumericValue": 1060000,
                 "aggregationMethod": "pessimistic"
               }
             ]

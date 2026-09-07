@@ -12,7 +12,7 @@ import { QUEUE_NAMES } from '@/server/jobs/queues'
 import { rootLogger } from '@/server/logging/logger'
 
 async function main(): Promise<void> {
-  registerAllHandlers()
+  await registerAllHandlers()
   const boss = await getBoss()
   let polling = 0
   for (const queue of QUEUE_NAMES) {

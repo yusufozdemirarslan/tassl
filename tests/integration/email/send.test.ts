@@ -12,6 +12,8 @@ import { deliverEmail, renderEmail, sendEmail } from '@/server/email/send'
 import { TEST_EMAIL_DIR } from '@/server/email/transport'
 import { runWithContext } from '@/server/http/request-context'
 import { getBoss, stopBoss } from '@/server/jobs/boss'
+import { drainQueues } from '@/server/jobs/drain'
+import { enqueue } from '@/server/jobs/enqueue'
 import { clearHandlers, getHandler, registerHandler, type JobHandler } from '@/server/jobs/handlers'
 import { registerAllHandlers } from '@/server/jobs/handlers/register'
 import { sendEmailHandler } from '@/server/jobs/handlers/send-email'
@@ -52,7 +54,7 @@ function stubLogger(): { logger: Logger; info: ReturnType<typeof vi.fn> } {
 
 describe('email sending', () => {
   beforeAll(async () => {
-    registerAllHandlers()
+    await registerAllHandlers()
     const boss = await getBoss()
     await boss.deleteAllJobs()
   })
@@ -70,6 +72,31 @@ describe('email sending', () => {
 
   it('registers the send_email handler through the handler registry', () => {
     expect(getHandler('send_email')).toBeDefined()
+  })
+
+  // The path production uses: the cron drain route and the `after()` drain both end in drainQueues,
+  // and the queue only reaches the transport when this process has an HTML renderer (D-431).
+  it('delivers an email end to end when drainQueues claims the queue', async () => {
+    await registerAllHandlers()
+    const jobId = await enqueue(
+      'send_email',
+      { to: TO, template: 'verify-email', props: { url: VERIFY_URL } },
+      { drain: false },
+    )
+    expect(jobId).not.toBeNull()
+
+    const result = await drainQueues({ maxMs: 10_000 })
+
+    expect(result.skippedQueues).not.toContain('send_email')
+    expect(result.failed).toBe(0)
+    expect(result.processed).toBeGreaterThanOrEqual(1)
+
+    const delivered = (await readWrittenEmails()).find((message) => message.to === TO)
+    expect(delivered?.template).toBe('verify-email')
+    expect(delivered?.text).toContain(VERIFY_URL)
+
+    const boss = await getBoss()
+    expect(await boss.findJobs('send_email', { queued: true })).toHaveLength(0)
   })
 
   it('enqueues a send_email job carrying the validated payload', async () => {

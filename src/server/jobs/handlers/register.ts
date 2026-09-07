@@ -2,11 +2,15 @@
 // drain route and the local worker never poll a queue whose handler simply was not imported
 // (10-backend-spec.md §7). Later phases add one import line each: generate_package_step (authoring)
 // and recompute_exports (courses).
+//
+// `send_email` is the exception and is registered by a call, not by an import: only a process with
+// an HTML renderer may claim it (D-431), and asking costs one `await`. Everything else registers on
+// import, so `registerAllHandlers()` has to be awaited before a drain or a poll.
 import '@/server/jobs/handlers/purge-deleted-accounts'
 import '@/server/jobs/handlers/score-run'
-import '@/server/jobs/handlers/send-email'
+import { registerSendEmailHandler } from '@/server/jobs/handlers/send-email'
 
-/** Imported for its side effect; call it (or import the module) before draining or polling. */
-export function registerAllHandlers(): void {
-  // The imports above did the work; this function exists so a caller cannot tree-shake them away.
+/** Call it (or import the module and call it) before draining or polling. */
+export async function registerAllHandlers(): Promise<void> {
+  await registerSendEmailHandler()
 }

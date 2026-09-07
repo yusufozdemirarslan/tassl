@@ -4,6 +4,8 @@
 // the message to the transport. Rendering in the job (not at the call site) keeps the payload small
 // and lets a failed render retry.
 // No `import 'server-only'`: the send_email handler runs in the tsx jobs worker and in Vitest (D-143).
+// Rendering needs `react-dom/server`, which does not exist under the `react-server` export
+// condition; `emailRenderingSupport()` below is how a process finds out before it claims a job.
 import { render } from '@react-email/render'
 import type { ReactNode } from 'react'
 import { z, type ZodType } from 'zod'
@@ -112,6 +114,37 @@ export async function renderEmail<T extends EmailTemplate>(
   const element = entry.component(props as never)
   const [html, text] = await Promise.all([render(element), render(element, { plainText: true })])
   return { subject: entry.subject(props as never), html, text }
+}
+
+export type EmailRenderingSupport = { ok: true } | { ok: false; reason: string }
+
+let support: Promise<EmailRenderingSupport> | null = null
+
+/**
+ * Whether this process can render an email at all — decided once, by rendering an empty document
+ * through the same `render()` a delivery uses (D-431).
+ *
+ * `render()` reaches `react-dom/server`, and React resolves that specifier to a module whose only
+ * statement is `throw new Error('react-dom/server is not supported in React Server Components.')`
+ * for anyone using the `react-server` export condition. Node applies `--conditions` to the whole
+ * process, so `pnpm db:seed` (`tsx --conditions=react-server`, which the seed needs because it
+ * reaches `server-only` through the scenarios service, D-214) has no HTML renderer at all, and
+ * nothing it drains from `send_email` can ever succeed. The Next.js server is not in that state:
+ * Turbopack resolves the real `react-dom/server` in every server layer, so the drain route and the
+ * `after()` drain render email normally.
+ *
+ * The probe is the real code path rather than a guess about the resolver, so it cannot disagree
+ * with what `deliverEmail` will do a moment later.
+ */
+export function emailRenderingSupport(): Promise<EmailRenderingSupport> {
+  support ??= render(null).then(
+    (): EmailRenderingSupport => ({ ok: true }),
+    (error: unknown): EmailRenderingSupport => ({
+      ok: false,
+      reason: error instanceof Error ? error.message : String(error),
+    }),
+  )
+  return support
 }
 
 export type SendEmailInput<T extends EmailTemplate> = {
