@@ -227,8 +227,14 @@ export async function findRecordContext(
   return row
 }
 
-/** The section an assignment belongs to, and the institution both sit in. */
-export type AssignmentScope = { organizationId: string; sectionId: string }
+/**
+ * The section an assignment belongs to, the course above it, and the institution all three sit in.
+ *
+ * `courseId` is here because "a reviewer of this assignment's section" is not only a section row:
+ * the course's own instructor may hold no row in a section they own (D-062, D-483), and the
+ * predicate that admits them takes the course id.
+ */
+export type AssignmentScope = { organizationId: string; sectionId: string; courseId: string }
 
 /**
  * Where an assignment sits *in this institution*, for the one permission check this module makes by
@@ -253,7 +259,11 @@ export async function findAssignmentScope(
   dbx: DbOrTx = db,
 ): Promise<AssignmentScope | undefined> {
   const [row] = await dbx
-    .select({ organizationId: sections.organizationId, sectionId: assignments.sectionId })
+    .select({
+      organizationId: sections.organizationId,
+      sectionId: assignments.sectionId,
+      courseId: sections.courseId,
+    })
     .from(assignments)
     .innerJoin(sections, eq(sections.id, assignments.sectionId))
     .where(

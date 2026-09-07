@@ -260,6 +260,10 @@ export async function getReplay(actor: SessionUser, runId: string): Promise<Repl
       canForceFailure: isInstructor && flagsFromEnv(env).testControls,
       canBandManually: data.run.scoringStatus === 'held',
       canFlagDelegation: data.run.state !== 'voided',
+      // D-482: a mark reaches the drafting while there is a drafting left to reach. `bands` is the
+      // run's own `run_bands`, so this is false from the moment the pipeline wrote them and true
+      // for a held run, which a later attempt scores in full.
+      flagReachesDrafting: bands.length === 0,
       isInstructor,
     } satisfies ReplayCapabilities,
   }

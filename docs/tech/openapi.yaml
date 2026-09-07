@@ -7532,6 +7532,8 @@ paths:
                     type: number
                   inUse:
                     type: boolean
+                  canViewExports:
+                    type: boolean
                 required:
                   - id
                   - sectionId
@@ -7553,6 +7555,7 @@ paths:
                   - turnDelaySeconds
                   - effectiveWeight
                   - inUse
+                  - canViewExports
                 additionalProperties: false
         "400":
           $ref: "#/components/responses/BadRequest"
@@ -11205,7 +11208,10 @@ paths:
         - in: query
           name: unread
           schema:
-            type: boolean
+            description: "A flag: `true` or `false`, spelled as text when it rides on a query string."
+            type:
+              - boolean
+              - string
       responses:
         "200":
           description: OK
@@ -14497,6 +14503,8 @@ paths:
                         type: boolean
                       canFlagDelegation:
                         type: boolean
+                      flagReachesDrafting:
+                        type: boolean
                       isInstructor:
                         type: boolean
                     required:
@@ -14506,6 +14514,7 @@ paths:
                       - canForceFailure
                       - canBandManually
                       - canFlagDelegation
+                      - flagReachesDrafting
                       - isInstructor
                     additionalProperties: false
                 required:

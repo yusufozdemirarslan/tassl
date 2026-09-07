@@ -29,19 +29,20 @@
 //   runs over the student's own API payload with real data in it, because a sweep whose fixture is
 //   empty passes vacuously.
 //
-// WHAT THIS SPEC CANNOT YET ASSERT, AND WHY IT IS NOT ASSERTED AROUND
+// WHAT THIS SPEC ASSERTS OF FR-055, AND WHERE THE REST OF IT LIVES
 //
-// FR-055's other half is that a marked exchange is left out of the Delegation read (10 §11.3), and
-// that is where the mark stops today. `scoring/reads.ts` filters `delegation` **events** on
-// `payload.flags`, and `assistant.flagDelegation` writes the mark to the `run_delegations` **row**
-// — the event was written when the exchange happened and carries the guard's flags alone. So the
-// filter is unreachable from the product: `tests/unit/scoring/reads.test.ts` proves it excludes a
-// delegation whose event carries the flag, and nothing puts the flag there. This spec therefore
-// asserts the half that is real — the control, its copy, the mark on the reviewer's record, and its
-// absence from the student's — and does not assert the band's reason around a gap. The fix belongs
-// where the read is built, not on this screen: `scoring` should take the flagged delegation ids from
-// `run_delegations` alongside the events, the way it already takes the package and the variant
-// states, and `facts.ts` and `reads.ts` should filter on that.
+// This spec asserts the act: the control, its copy, the mark on the reviewer's record, and its
+// absence from the student's. FR-055's other half — that a marked exchange is left out of the
+// Delegation read and out of the clock timeline's scored segments (10 §11.3) — is asserted where it
+// is implemented, in `tests/integration/scoring/score-run.test.ts`, which presses the same
+// `assistant.flagDelegation` and then reads the drafted band and the stored timeline back.
+//
+// It used to be asserted nowhere, and this header used to say so: `scoring` filtered `delegation`
+// **events** on `payload.flags` while the mark was written to the `run_delegations` **row**, so the
+// exclusion was unreachable from the product (D-474). Step 11.5 gave `scoreRun` the flagged ids from
+// that row alongside the events (D-480, D-481). The mark here is still made *before* the defense is
+// filed, which is what makes the exclusion reachable at all: it is applied where the bands are
+// drafted, and a mark set after they exist is recorded and moves nothing (D-482).
 //
 // **The run delegates once, on purpose.** Every other endpoint-driven run in this suite is
 // assistant-free, for D-026's ten delegations a minute; this one has to have a defect its filed

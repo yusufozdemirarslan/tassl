@@ -165,7 +165,7 @@ All routes require the run owner unless noted. Every response includes `run: Run
 
 | Method and path | Purpose | Auth | Request | Response | Errors | Rate | Example |
 |---|---|---|---|---|---|---|---|
-| `GET /notifications` | List (SYS-010) | S | `?cursor&limit&unread?` | `Page<Notification>` | — | read | — |
+| `GET /notifications` | List (SYS-010) | S | `?cursor&limit&unread?` | `Page<Notification>` | — | read | `?unread=true` |
 | `GET /notifications/unread-count` | The shell bell's badge (UI-008, D-470) | S | — | `{ count }` | — | read | `{"count":3}` |
 | `POST /notifications/{id}/read` | Mark read | S | — | `204` | — | write | — |
 | `POST /notifications/read-all` | Mark all read | S | — | `204` | — | write | — |

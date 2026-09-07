@@ -13,10 +13,16 @@ import { flagDelegationAction } from '@/server/modules/review/actions'
 //
 // **One act, and it is a note about the material.** The mark says that this request was about
 // something the scenario does not cover, and what it does is arithmetic: 10 §11.3 excludes a marked
-// exchange from the Delegation read, so the band is placed over the exchanges that remain. It is not
-// a penalty, it takes nothing away, and the student is never told — `runs.flags` and a delegation's
-// `flags` are kept out of every student payload in every state (12 §8.1), which is what makes the
-// sentence beside the control true rather than reassuring.
+// exchange from the Delegation read and from the clock timeline's scored segments, so the band is
+// placed over the exchanges that remain. It is not a penalty, it takes nothing away, and the student
+// is never told — `runs.flags` and a delegation's `flags` are kept out of every student payload in
+// every state (12 §8.1), which is what makes the sentence beside the control true rather than
+// reassuring.
+//
+// **The exclusion is applied where the bands are drafted** (D-481), so a mark set after they exist
+// does not move them and nothing re-drafts them. `reachesDrafting` is the server's answer to which
+// of the two presses this is, and the second sentence says so — a control that acts and says what
+// it did not do is the one thing this control was not, before Step 11.5 (D-474, D-482).
 //
 // **The copy stays neutral because the product does.** Nothing Tassl observes is treated as a
 // question of conduct (PRD §7 standing rules), so there is no word here for one — and the review
@@ -32,9 +38,23 @@ export type DelegationFlagProps = {
   delegationId: string
   /** True when this exchange already carries the mark; the control becomes the sentence. */
   alreadyFlagged: boolean
+  /**
+   * `capabilities.flagReachesDrafting` (D-482): whether a mark set now would reach the drafting.
+   *
+   * The exclusion is applied where the bands are drafted, and a run whose bands already exist was
+   * drafted over this exchange. The mark is still worth recording — it is on the reviewer's record
+   * and off every student payload — so the control stays, and the sentence beside it says which of
+   * the two presses this is.
+   */
+  reachesDrafting: boolean
 }
 
-export function DelegationFlag({ runId, delegationId, alreadyFlagged }: DelegationFlagProps) {
+export function DelegationFlag({
+  runId,
+  delegationId,
+  alreadyFlagged,
+  reachesDrafting,
+}: DelegationFlagProps) {
   const router = useRouter()
   const [marking, setMarking] = useState(false)
   const [refused, setRefused] = useState<string | null>(null)
@@ -67,6 +87,9 @@ export function DelegationFlag({ runId, delegationId, alreadyFlagged }: Delegati
   return (
     <div className="flex flex-col items-start gap-2">
       <p className="text-ink-muted text-body max-w-measure">{t('review.flagExplains')}</p>
+      {!reachesDrafting && (
+        <p className="text-ink-muted text-body max-w-measure">{t('review.flagAfterDraft')}</p>
+      )}
       <Button
         type="button"
         variant="secondary"

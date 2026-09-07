@@ -30,12 +30,16 @@ import {
 /** The columns of `user` that decide whether a session is live and what it may do (08 §2.6, §3). */
 export type ActorRow = { id: string; platformRole: string; deletedAt: Date | null }
 
-/** The run fields the run guards check, with the section the run's assignment belongs to. */
+/**
+ * The run fields the run guards check, with the section the run's assignment belongs to — and the
+ * course above that section, which `canReviewSection` needs (D-483).
+ */
 export type RunContext = {
   runId: string
   organizationId: string
   studentId: string
   sectionId: string
+  courseId: string
 }
 
 export type SectionMembershipRow = { role: string; organizationId: string }
@@ -139,6 +143,7 @@ export async function findRunContext(runId: string): Promise<RunContext | null> 
       organizationId: runs.organizationId,
       studentId: runs.studentId,
       sectionId: sections.id,
+      courseId: sections.courseId,
     })
     .from(runs)
     .innerJoin(assignments, eq(assignments.id, runs.assignmentId))

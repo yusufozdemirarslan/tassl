@@ -277,11 +277,15 @@ async function loadRun(runId: string): Promise<ScoringLoad> {
   const run = await repo.findRunForScoring(tenantId, runId)
   if (!run) runNotFound()
 
-  const [events, authored, variantStates, defenseRows] = await Promise.all([
+  const [events, authored, variantStates, defenseRows, flaggedDelegationIds] = await Promise.all([
     readEvents(runId),
     repo.findPackageForScoring(tenantId, run.packageVersionId),
     repo.listVariantStates(run.variantId),
     repo.listDefenseForScoring(runId),
+    // FR-055, D-481: the exchanges a reviewer marked out of scenario, read from `run_delegations`
+    // beside the package and the variant states because that is where a mark added after the fact
+    // lives — the `delegation` event was written when the exchange happened (D-272).
+    repo.listFlaggedDelegationIds(runId),
   ])
   if (!authored) runNotFound()
 
@@ -335,6 +339,7 @@ async function loadRun(runId: string): Promise<ScoringLoad> {
         turn: authored.turn,
       },
       variantStates,
+      flaggedDelegationIds,
     },
     defense,
     positions: authored.positions,
@@ -424,6 +429,7 @@ export async function scoreRun(runId: string): Promise<ScoreRunResult> {
   const readContext: ReadContext = {
     events: input.events,
     graphs,
+    flaggedDelegationIds: input.flaggedDelegationIds,
     turn: input.packageVersion.turn,
     positions,
     documents,
@@ -1235,12 +1241,17 @@ export function draftBandEventPayload(band: DraftBand) {
   return draftBandPayload(band)
 }
 
-/** The trace, the authored standard and the variant's answer key, read through one handle. */
+/**
+ * The trace, the authored standard, the variant's answer key and the reviewer's marks, read through
+ * one handle. The marks are FR-055's (D-481): every construction of a `GraphInput` carries them, so
+ * a graph rebuilt here excludes a flagged exchange exactly as the pipeline's own did.
+ */
 async function loadGraphInput(run: repo.ScoringRunRow, dbx: repo.DbOrTx): Promise<GraphInput> {
-  const [events, authored, variantStates] = await Promise.all([
+  const [events, authored, variantStates, flaggedDelegationIds] = await Promise.all([
     readEvents(run.id, dbx),
     repo.findPackageForScoring(run.organizationId, run.packageVersionId, dbx),
     repo.listVariantStates(run.variantId, dbx),
+    repo.listFlaggedDelegationIds(run.id, dbx),
   ])
   if (!authored) runNotFound()
   return {
@@ -1263,5 +1274,6 @@ async function loadGraphInput(run: repo.ScoringRunRow, dbx: repo.DbOrTx): Promis
       turn: authored.turn,
     },
     variantStates,
+    flaggedDelegationIds,
   }
 }

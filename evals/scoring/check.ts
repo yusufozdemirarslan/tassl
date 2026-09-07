@@ -153,6 +153,8 @@ async function runPipeline(
   const context: ReadContext = {
     events: input.events,
     graphs,
+    // A fixture is a run nobody reviewed, so it carries no FR-055 mark (D-481).
+    flaggedDelegationIds: input.flaggedDelegationIds,
     turn: input.packageVersion.turn,
     positions: testCase.answerSpace as ReadPosition[],
     documents: documentsOf(input),

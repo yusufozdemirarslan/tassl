@@ -127,6 +127,7 @@ function contextOf(input: GraphInput, overrides: Partial<ReadContext> = {}): Rea
   return {
     events: input.events,
     graphs: buildGraphs(input),
+    flaggedDelegationIds: input.flaggedDelegationIds,
     turn: input.packageVersion.turn,
     positions: POSITIONS,
     documents: DOCUMENTS,
@@ -142,6 +143,10 @@ function contextOf(input: GraphInput, overrides: Partial<ReadContext> = {}): Rea
 }
 
 const marco = (): GraphInput => loadFixture('marco-8-of-11')
+
+/** `run_delegations.id` of the fixture's two exchanges, which is what FR-055's mark names. */
+const FIRST_DELEGATION_ID = '00000000-0000-4000-8000-000000000201'
+const SECOND_DELEGATION_ID = '00000000-0000-4000-8000-000000000202'
 
 /** The same fixture with every piece of the student's free text replaced by an injection. */
 function injectedInput(): GraphInput {
@@ -259,23 +264,55 @@ describe('buildReadInputs', () => {
     }
   })
 
+  // The exclusion is driven from `flaggedDelegationIds`, which is what `run_delegations` holds and
+  // what `scoreRun` reads (FR-055, D-481). The earlier version of this test flagged the *event*
+  // payload, which no reviewer action ever writes — it passed while the product could not reach it.
   it('excludes a delegation a reviewer flagged, and counts the claims marked used (10 §11.3)', () => {
     const fixture = marco()
-    const flagged = fixture.events.map((event) =>
-      event.type === 'delegation' && event.seq === 14
-        ? { ...event, payload: { ...event.payload, flags: ['out_of_scenario'] } }
-        : event,
-    )
     const before = buildReadInputs(contextOf(fixture)).inputs.delegation as {
       delegations: { request: string }[]
     }
-    const after = buildReadInputs(contextOf({ ...fixture, events: flagged })).inputs.delegation as {
-      delegations: { request: string }[]
-    }
+    const after = buildReadInputs(
+      contextOf(fixture, { flaggedDelegationIds: [FIRST_DELEGATION_ID] }),
+    ).inputs.delegation as { delegations: { request: string }[] }
+
     expect(after.delegations.length).toBe(before.delegations.length - 1)
     expect(after.delegations.map((entry) => entry.request)).not.toContain(
       'Give me everything the room supports on the premium launch.',
     )
+  })
+
+  // The guard's own marks share `run_delegations.flags` with the reviewer's, and the `delegation`
+  // event carries only the guard's. Filtering on the event payload dropped a rebuilt reply from the
+  // read; nothing in FR-055 or 10 §11.3 asks for that, and a rebuilt reply is still what the
+  // assistant said to this student.
+  it('keeps a delegation the guard rebuilt: the event’s own flags are not a reviewer’s', () => {
+    const fixture = marco()
+    const rebuilt = fixture.events.map((event) =>
+      event.type === 'delegation'
+        ? { ...event, payload: { ...event.payload, flags: ['rebuilt', 'no_commentary'] } }
+        : event,
+    )
+    const read = buildReadInputs(contextOf({ ...fixture, events: rebuilt })).inputs.delegation as {
+      delegations: { request: string }[]
+    }
+    expect(read.delegations).toHaveLength(2)
+  })
+
+  // Every delegation marked is a log with nothing left in it, which is the condition 10 §11.3 sends
+  // to the stated reason — the same place a run that never delegated goes.
+  it('reads the stated reason when every delegation was flagged (FR-055 with FR-064)', () => {
+    const fixture = marco()
+    const read = buildReadInputs(
+      contextOf(fixture, {
+        flaggedDelegationIds: [FIRST_DELEGATION_ID, SECOND_DELEGATION_ID],
+      }),
+    ).inputs.delegation as {
+      delegations: unknown[]
+      reasonForNotDelegating: string | null
+    }
+    expect(read.delegations).toHaveLength(0)
+    expect(read.reasonForNotDelegating).not.toBeNull()
   })
 
   it('reads the stated reason from the defense when the run made no delegation (FR-064)', () => {

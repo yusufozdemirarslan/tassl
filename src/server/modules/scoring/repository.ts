@@ -20,6 +20,7 @@ import {
   runBands,
   runDefenseAnswers,
   runDefenseQuestions,
+  runDelegations,
   runScores,
   runs,
   scenarioClaims,
@@ -31,6 +32,10 @@ import {
   variantClaimStates,
 } from '@/server/db/schema'
 import type { DbOrTx } from '@/server/db/tx'
+// The one string that says a *reviewer* marked an exchange, rather than a guard (FR-055). 04 §2
+// lets a repository import another module's schema, which is where that module keeps its
+// vocabulary; restating it here would be a second place for it to drift.
+import { DELEGATION_OUT_OF_SCENARIO_FLAG } from '@/server/modules/assistant/schema'
 
 export type ScoringStatus = Run['scoringStatus']
 
@@ -412,6 +417,31 @@ export async function listVariantStates(
     })
     .from(variantClaimStates)
     .where(eq(variantClaimStates.variantId, variantId))
+}
+
+/**
+ * The exchanges a reviewer marked out of scenario (FR-055, D-481).
+ *
+ * `run_delegations.flags` is the run's reviewer-only channel and holds five other marks the guards,
+ * the probe and the late-reply path write (`rebuilt`, `filtered`, `no_commentary`, `probe`,
+ * `discarded_late`). Only `out_of_scenario` is a faculty seat saying the exchange is not part of
+ * this run's material, and only that one excludes — so the query names it rather than asking
+ * whether the array is non-empty, which is the read that made a rebuilt reply look like a mark.
+ *
+ * Scoped by `runId` and not by tenant, like every other child read in this file: the service has
+ * already resolved the run through `findRunContext` (D-006).
+ */
+export async function listFlaggedDelegationIds(runId: string, dbx: DbOrTx = db): Promise<string[]> {
+  const rows = await dbx
+    .select({ id: runDelegations.id })
+    .from(runDelegations)
+    .where(
+      and(
+        eq(runDelegations.runId, runId),
+        sql`${DELEGATION_OUT_OF_SCENARIO_FLAG} = any(${runDelegations.flags})`,
+      ),
+    )
+  return rows.map((row) => row.id)
 }
 
 export type ScoringDefenseRow = {

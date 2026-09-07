@@ -98,8 +98,19 @@ export const DeclareOutsideToolSchema = z.strictObject({
 })
 export type DeclareOutsideToolInput = z.infer<typeof DeclareOutsideToolSchema>
 
+/**
+ * FR-055's mark, as a value rather than only as a member of the enum below.
+ *
+ * `run_delegations.flags` is shared with the guards and the probe (`rebuilt`, `filtered`,
+ * `no_commentary`, `probe`, `discarded_late`), so every reader that asks "did a reviewer mark this
+ * exchange?" has to name this one string — `scoring/repository.ts` does, to build the exclusion
+ * FR-055 asks for (D-481). It is here rather than in `service.ts` because 04 §2 lets another
+ * module's repository import a module *schema* and nothing else of it.
+ */
+export const DELEGATION_OUT_OF_SCENARIO_FLAG = 'out_of_scenario' as const
+
 /** FR-055: the one flag a reviewer may add to a delegation from the replay (Phase 11's screen). */
-export const DelegationFlagSchema = z.enum(['out_of_scenario'])
+export const DelegationFlagSchema = z.enum([DELEGATION_OUT_OF_SCENARIO_FLAG])
 export type DelegationFlagValue = z.infer<typeof DelegationFlagSchema>
 
 export const FlagDelegationSchema = z.strictObject({ flag: DelegationFlagSchema })

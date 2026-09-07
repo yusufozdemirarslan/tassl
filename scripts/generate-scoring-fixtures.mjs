@@ -536,7 +536,18 @@ function packageVersion(claims, turn) {
 // Prettier reflows a short array onto one line where `stringify` always expands it. A generator
 // whose output the linter rejects makes every regeneration dirty the tree.
 async function write(name, purpose, pkg, variantStates, events) {
-  const document = { name, purpose, packageVersion: pkg, variantStates, events }
+  // `flaggedDelegationIds` is the fourth field of `GraphInput` (FR-055, D-481): the exchanges a
+  // reviewer marked out of scenario. A fixture is a run nobody reviewed, so it is always empty —
+  // written out rather than omitted, because these files are read back through a cast and a missing
+  // field would be an `undefined` no compiler would catch.
+  const document = {
+    name,
+    purpose,
+    packageVersion: pkg,
+    variantStates,
+    flaggedDelegationIds: [],
+    events,
+  }
   const file = join(OUT, `${name}.json`)
   const formatted = await prettier.format(JSON.stringify(document), {
     ...(await prettier.resolveConfig(file)),

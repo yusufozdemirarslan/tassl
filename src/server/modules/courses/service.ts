@@ -26,6 +26,7 @@ import { t } from '@/lib/i18n/t'
 import { track } from '@/server/analytics/track'
 import type { OrganizationRole } from '@/server/auth/access-control-shared'
 import {
+  canReviewSection,
   requireCourseInstructor,
   requireMembership,
   requireRunInstructor,
@@ -101,9 +102,6 @@ const COURSE_READERS: readonly OrganizationRole[] = ['instructor', 'program_lead
 
 /** Section roles that may read the assignment and its policy display (07 §5 "S (section member)"). */
 const SECTION_MEMBER_ROLES: readonly SectionRole[] = ['student', 'instructor', 'ta']
-
-/** Section roles that read another student's run (08 §4 "Reviewer"). */
-const REVIEWER_ROLES: readonly SectionRole[] = ['instructor', 'ta']
 
 /** The fields of an assignment a started run freezes (10 §3 `ASSIGNMENT_IN_USE`). */
 const STRUCTURAL_ASSIGNMENT_FIELDS = [
@@ -987,6 +985,10 @@ export async function getAssignment(
     turnDelaySeconds: context.packageVersion.turnDelaySeconds,
     effectiveWeight: numOrNull(context.assignment.weight) ?? num(context.course.defaultRunWeight),
     inUse: started > 0,
+    // D-483: the same bit `records.listCourseExports` gates on, so the link and the page behind it
+    // cannot disagree. A reader who is only a student of the section is not a reviewer and sees no
+    // link — and would be refused if they addressed the history directly.
+    canViewExports: reviewer,
   }
 }
 
@@ -1001,8 +1003,10 @@ async function requireAssignmentReader(
   actor: SessionUser,
   context: repo.AssignmentContext,
 ): Promise<{ reviewer: boolean }> {
-  if (await instructsCourse(actor, context.course.id)) return { reviewer: true }
-  if (await heldSectionRole(actor, context.section.id, REVIEWER_ROLES)) return { reviewer: true }
+  // One predicate, shared with `records.listCourseExports` (D-483): the section's instructor or TA,
+  // or the instructor of the course above it, who may hold no row in a section they own (D-062).
+  if (await canReviewSection(actor, context.course.id, context.section.id))
+    return { reviewer: true }
   if (await heldSectionRole(actor, context.section.id, SECTION_MEMBER_ROLES)) {
     return { reviewer: false }
   }

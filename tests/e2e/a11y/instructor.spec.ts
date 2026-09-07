@@ -33,10 +33,11 @@ test('the Phase 4 instructor screens have no axe violations', async ({ page }) =
   const section = await createSection(page, course.id, SECTION_NAME)
   await addSectionMember(page, section.id, { email: 'student2@tassl.local', role: 'student' })
   // The instructor takes a row on the section as well as owning the course. It is the real
-  // arrangement — every review lane in this suite makes it — and it is what UI-035 needs:
-  // `listCourseExports` admits a reviewer of the assignment's *section*
-  // (`records/service.ts`'s `requireSectionRole`), where `listAssignmentRuns` one screen up also
-  // admits the course's own instructor. Without the row the export history is a 404.
+  // arrangement — every review lane in this suite makes it — and it is what the review screens need:
+  // a replay is `requireRunReviewer`, which is a `section_memberships` row and nothing else.
+  // The export history no longer needs it: `listCourseExports` and `listAssignmentRuns` now ask one
+  // predicate that admits the course's own instructor (D-483), covered in
+  // `tests/integration/trace/export.test.ts`.
   await addSectionMember(page, section.id, {
     email: seatEmail('instructor'),
     role: 'instructor',

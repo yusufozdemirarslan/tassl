@@ -316,6 +316,15 @@ export const AssignmentViewSchema = AssignmentSchema.extend({
   turnDelaySeconds: z.number().int(),
   effectiveWeight: z.number(),
   inUse: z.boolean(),
+  /**
+   * Whether this reader may open the assignment's export history (FR-204, UI-035, D-483).
+   *
+   * It is on the view so the "Course exports" link and `records.listCourseExports` answer one
+   * predicate — `canReviewSection`, the section's instructor or TA or the course's own instructor.
+   * A screen that decided for itself who sees the link is how the link came to be drawn for a
+   * reader the endpoint behind it refused.
+   */
+  canViewExports: z.boolean(),
 })
 export type AssignmentView = z.infer<typeof AssignmentViewSchema>
 

@@ -22,6 +22,9 @@
 //     the run still at `defense_complete`, no band written, and the section's instructors told.
 //   * **The student's copy carries nothing the instructor's does**, and their trace carries no
 //     stored sequence numbers (12 §8.1, `trace/owner-view.ts`).
+//   * **FR-055's mark actually excludes**, pressed through `assistant.flagDelegation` on a run this
+//     file drove and read back off the band and the stored clock timeline (D-481). Only a database
+//     can say this: the mark is a row update, and the exclusion is a pipeline that reads that row.
 // @db:truncate
 import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { asUser, testSql, truncateAll } from '@tests/setup/integration'
@@ -96,10 +99,19 @@ async function advance(runId: string, ms: number): Promise<Response> {
 }
 
 /** A run with every question answered, sitting at `defense_pending`. */
-async function runThroughDefenseAnswers(answer = ANSWER): Promise<string> {
+async function runThroughDefenseAnswers(
+  answer = ANSWER,
+  extraRequests: readonly string[] = [],
+): Promise<string> {
   const runId = await runInWorking(fx)
-  await runs.openDocument(fx.student, runId, fx.documentId('D5'))
+  // Opened and closed, not left open: the clock timeline paints a document open over everything
+  // until its close, so a run that never closes one has a single `reading` segment and no delegation
+  // segment at all (`clock-timeline.ts`'s priority paint). A student's workspace sends the close;
+  // a driver that does not is a run no reader of this file would recognise.
+  const opened = await runs.openDocument(fx.student, runId, fx.documentId('D5'))
+  await runs.closeDocument(fx.student, runId, opened.openId)
   await delegate(fx, runId, 'What is the premium payback?')
+  for (const request of extraRequests) await delegate(fx, runId, request)
 
   const c1 = fx.claimId(claimByKey('C1').key)
   await reliance.setStance(fx.student, runId, c1, 'verify')
@@ -145,8 +157,11 @@ async function reachDefenseComplete(runId: string): Promise<void> {
   })
 }
 
-async function scorableRun(answer = ANSWER): Promise<string> {
-  const runId = await runThroughDefenseAnswers(answer)
+async function scorableRun(
+  answer = ANSWER,
+  extraRequests: readonly string[] = [],
+): Promise<string> {
+  const runId = await runThroughDefenseAnswers(answer, extraRequests)
   await reachDefenseComplete(runId)
   return runId
 }
@@ -379,6 +394,111 @@ describe('scoreRun on a finished defense', () => {
     expect(result.outcome).toBe('scored')
     expect(result.durationMs).toBeLessThan(5_000)
     expect(wallClock).toBeLessThan(5_000)
+  })
+})
+
+// ---------------------------------------------------------------------------------------------
+// FR-055's exclusion, driven from the product (10 §11.3, D-481)
+//
+// The mark is one act on the faculty replay and it writes `run_delegations.flags`. Everything below
+// is asserted from *that act* rather than from a hand-built event: the earlier unit coverage flagged
+// a `delegation` event's own payload, which nothing in the product ever writes, so the filter passed
+// its test while the control it belonged to changed nothing at all (D-474).
+//
+// So this file calls `assistant.flagDelegation` with the section's instructor — the same function
+// the route and the Server Action call — and then runs the pipeline and reads the record. Two halves
+// are asserted, because 01 §FR-055 names two: the exchange is out of the Delegation band's read, and
+// out of the clock timeline's scored segments.
+// ---------------------------------------------------------------------------------------------
+
+describe('a delegation a reviewer marked out of scenario', () => {
+  const delegationsOf = async (runId: string) =>
+    testSql<{ id: string; seq: number; request_text: string; flags: string[] }[]>`
+      select id, seq, request_text, flags from run_delegations where run_id = ${runId} order by seq`
+
+  const delegationEventSeq = async (runId: string, delegationId: string) => {
+    const [row] = await testSql<{ seq: number }[]>`
+      select seq from run_events
+       where run_id = ${runId} and type = 'delegation'
+         and payload->>'delegation_id' = ${delegationId}`
+    return row?.seq ?? null
+  }
+
+  const timelineRefs = async (runId: string) => {
+    const score = await scoreRow(runId)
+    const timeline = (score?.graphs as Record<string, unknown> | undefined)?.clock_timeline as
+      { segments: { type: string; ref_id: string | null }[] } | undefined
+    return (timeline?.segments ?? [])
+      .filter((segment) => segment.type === 'delegation')
+      .map((segment) => segment.ref_id)
+  }
+
+  it('is left out of the band it drafts and the timeline it stores (FR-055)', async () => {
+    const assistant = await import('@/server/modules/assistant')
+    const runId = await scorableRun(ANSWER, ['Compare the cohorts on retention.'])
+
+    const [first, second] = await delegationsOf(runId)
+    expect(first).toBeDefined()
+    expect(second).toBeDefined()
+    const markedSeq = await delegationEventSeq(runId, first!.id)
+    expect(markedSeq).not.toBeNull()
+
+    // One act, by the seat that reads the log. Nothing else about the run changes.
+    const view = await assistant.flagDelegation(fx.instructor, runId, first!.id, 'out_of_scenario')
+    expect(view.flags).toContain('out_of_scenario')
+    expect((await delegationsOf(runId))[1]?.flags).toStrictEqual([])
+
+    await scoring.scoreRun(runId)
+
+    const band = (await bandRows(runId)).find((row) => row.dimension === 'delegation')
+    expect(band).toBeDefined()
+    // The rationale is built from `delegationCount` and `flaggedDelegationCount` (10 §11.3), so it
+    // is where the exclusion becomes readable in the record the student and the reviewer both see.
+    expect(band?.rationale).toContain('1 delegations')
+    expect(band?.rationale).toContain('1 delegations were flagged by a reviewer and left out.')
+    // FR-137: a band does not cite an exchange it was not allowed to read.
+    expect(band?.evidence_event_seqs).not.toContain(markedSeq)
+
+    // The other half of FR-055: the marked exchange takes no scored segment of the clock timeline,
+    // and the exchange beside it still does.
+    const refs = await timelineRefs(runId)
+    expect(refs).not.toContain(first!.id)
+    expect(refs).toContain(second!.id)
+  })
+
+  it('sends the band to the defense answers when it was the only one (FR-055 with FR-064)', async () => {
+    const assistant = await import('@/server/modules/assistant')
+    const runId = await scorableRun()
+
+    const [only] = await delegationsOf(runId)
+    expect(only).toBeDefined()
+    await assistant.flagDelegation(fx.instructor, runId, only!.id, 'out_of_scenario')
+
+    await scoring.scoreRun(runId)
+
+    const band = (await bandRows(runId)).find((row) => row.dimension === 'delegation')
+    // 10 §11.3: with nothing left in the log, the band is read from what the run says about not
+    // delegating — which is the same place a run that never delegated is read from.
+    expect(band?.basis).toBe('defense_only')
+    expect(band?.rationale).toContain('0 delegations')
+    expect(await timelineRefs(runId)).toStrictEqual([])
+  })
+
+  // The guards share `run_delegations.flags` with the reviewer, and the `delegation` event carries
+  // only theirs. A run whose reply the guard rebuilt is a normal run, and the record must not say a
+  // reviewer marked anything.
+  it('is the only kind of flag the exclusion reads (FR-055)', async () => {
+    const runId = await scorableRun()
+    await testSql`update run_delegations set flags = array['rebuilt', 'no_commentary']
+                   where run_id = ${runId}`
+
+    await scoring.scoreRun(runId)
+
+    const band = (await bandRows(runId)).find((row) => row.dimension === 'delegation')
+    expect(band?.basis).toBe('trace')
+    expect(band?.rationale).toContain('1 delegations')
+    expect(band?.rationale).not.toContain('flagged by a reviewer')
+    expect(await timelineRefs(runId)).toHaveLength(1)
   })
 })
 

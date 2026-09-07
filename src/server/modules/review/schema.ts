@@ -218,6 +218,18 @@ export const ReplayCapabilitiesSchema = z.object({
    * changes nothing is worse than an absent one.
    */
   canFlagDelegation: z.boolean(),
+  /**
+   * Whether a mark added now would reach the drafting (FR-055, D-482).
+   *
+   * The exclusion is applied where the bands are drafted: `scoreRun` reads `run_delegations` beside
+   * the trace (D-481), so a mark set before the pipeline runs takes the exchange out of the
+   * Delegation read and out of the clock timeline's scored segments. A run whose bands already
+   * exist was drafted over the exchange, and nothing re-drafts it — so the control says so, and
+   * points at the instrument that does change a placement, which is the band decision (FR-181).
+   * True while the run holds no band, which includes a held run: FR-140's held run is re-scored in
+   * full by a later attempt, and that attempt reads the mark.
+   */
+  flagReachesDrafting: z.boolean(),
   isInstructor: z.boolean(),
 })
 export type ReplayCapabilities = z.infer<typeof ReplayCapabilitiesSchema>

@@ -13,6 +13,10 @@ import { FIXTURE_NAMES, loadFixture, without, type FixtureName } from './graphs/
 
 const factsOf = (name: FixtureName) => categoricalFacts(loadFixture(name))
 
+/** The first of `marco-8-of-11`'s two exchanges: its `run_delegations.id` and its event seq. */
+const FIRST_DELEGATION_ID = '00000000-0000-4000-8000-000000000201'
+const FIRST_DELEGATION_SEQ = 14
+
 // ---------------------------------------------------------------------------------------------
 // Every fixture, every fact
 // ---------------------------------------------------------------------------------------------
@@ -256,6 +260,34 @@ describe('the rest of the run', () => {
     expect(facts.flaggedDelegationCount).toBe(0)
     expect(facts.incompleteLog).toBe(false)
     expect(factsOf('nadia-run-one').whyLineCount).toBe(0)
+  })
+
+  // FR-055, D-481. The set comes from `run_delegations`, because that is where a mark added after
+  // the exchange can live — the `delegation` event was written when the exchange happened, carries
+  // the *guard's* flags, and is append-only.
+  it('leaves a delegation a reviewer marked out of the log the rubric reads (FR-055)', () => {
+    const fixture = loadFixture('marco-8-of-11')
+    const facts = categoricalFacts({
+      ...fixture,
+      flaggedDelegationIds: [FIRST_DELEGATION_ID],
+    })
+    expect(facts.delegationCount).toBe(1)
+    expect(facts.flaggedDelegationCount).toBe(1)
+    expect(facts.whyLineCount).toBe(1)
+    // FR-137: a band may not cite what it was not allowed to read.
+    expect(facts.evidenceEventSeqs.delegation).not.toContain(FIRST_DELEGATION_SEQ)
+  })
+
+  it('does not read the guard’s own flags as a reviewer’s mark (FR-055)', () => {
+    const fixture = loadFixture('marco-8-of-11')
+    const events = fixture.events.map((event) =>
+      event.type === 'delegation'
+        ? { ...event, payload: { ...event.payload, flags: ['rebuilt'] } }
+        : event,
+    )
+    const facts = categoricalFacts({ ...fixture, events })
+    expect(facts.delegationCount).toBe(2)
+    expect(facts.flaggedDelegationCount).toBe(0)
   })
 
   it('calls a log with a delegation carrying no response text incomplete (FR-064)', () => {

@@ -102,6 +102,13 @@ export type ReadDefenseEntry = {
 export type ReadContext = {
   events: readonly GraphEvent[]
   graphs: RunGraphs
+  /**
+   * `run_delegations.id` for the exchanges a reviewer marked out of scenario (FR-055, D-481).
+   *
+   * The same set `GraphInput` carries, restated here because a read is built from the trace and the
+   * authored standard rather than from a graph input. `scoreRun` passes one value to both.
+   */
+  flaggedDelegationIds: readonly string[]
   turn: GraphTurnSpec | null
   positions: readonly ReadPosition[]
   documents: readonly ReadDocument[]
@@ -198,9 +205,14 @@ export function buildReadInputs(context: ReadContext): BuiltReads {
   //
   // Flagged delegations are excluded (10 §11.3): a reviewer has already said the exchange was out of
   // scenario, and reading it would band the student on material the faculty seat discounted.
+  //
+  // The mark is `context.flaggedDelegationIds`, read from `run_delegations` (FR-055, D-481) — not
+  // the `delegation` event's own `flags`, which carries the *guard's* marks and never a reviewer's,
+  // so filtering on it both missed every reviewer mark and silently dropped every rebuilt reply.
   // ------------------------------------------------------------------------------------------
+  const flaggedDelegations = new Set(context.flaggedDelegationIds)
   const delegationEvents = eventsOfType(events, 'delegation').filter(
-    (event) => event.payload.flags.length === 0,
+    (event) => !flaggedDelegations.has(event.payload.delegation_id),
   )
   const usedMarks = eventsOfType(events, 'claim_used').filter(
     (event) => event.payload.via === 'log_mark',

@@ -15,7 +15,12 @@
 //     record of anything: it is the student's copy of a run whose bands are already confirmed, and
 //     two downloads of it are the same file. Which is also why it is refused before `confirmed` —
 //     a draft band never leaves Tassl (PRD §7.13).
-import { requireRunOwner, requireRunReviewer, requireSectionRole } from '@/server/auth/permissions'
+import {
+  requireCourseExportReader,
+  requireRunOwner,
+  requireRunReviewer,
+  requireSectionReviewer,
+} from '@/server/auth/permissions'
 import { findForbiddenKeys } from '@/server/auth/student-view'
 import type { SessionUser } from '@/server/auth/types'
 import { AppError, isAppError } from '@/lib/errors'
@@ -192,13 +197,18 @@ export async function writeCourseExport(
  * It answers the file as it was written, never a rebuild of it. That is the whole point of keeping
  * the versions: an instructor who entered points from version 2 can read version 2 back after a
  * neutralization has produced version 3, and see what they entered.
+ *
+ * `requireCourseExportReader`, not `requireRunReviewer`: 08 §4 puts this act on the same row as the
+ * export history, so it admits the same seats — including the instructor of the course who holds no
+ * row in the section (D-483). Every row of the history the seat can now open carries a download, and
+ * a page of links that all answer 404 is the defect it was fixing, one level down.
  */
 export async function getCourseExport(
   actor: SessionUser,
   runId: string,
   version: number | 'latest',
 ): Promise<CourseTraceExport> {
-  const scope = await requireRunReviewer(actor, runId)
+  const scope = await requireCourseExportReader(actor, runId)
   // FR-002, D-434: a voided run's bands are absent from any export. The ledger is append-only and
   // nothing may unwrite a file that was handed over, so what enforces the rule is the read — a run
   // the instructor voided serves nothing to a gradebook, whatever was written before they did.
@@ -217,6 +227,13 @@ export async function getCourseExport(
  * Summaries, not files: the history answers what was written, when, and why, and each file is its
  * own download. A reviewer of the assignment's section only — a student's own exports are their
  * record, which they reach by run.
+ *
+ * "A reviewer of the section" is `canReviewSection`, which is the section's instructor or TA *and*
+ * the instructor of the course above it (08 §5, D-062, D-483). The same predicate answers
+ * `courses.listAssignmentRuns` one screen up, so the "Course exports" link on the assignment screen
+ * and the history behind it are one question asked twice rather than two guards that have to be
+ * kept in step by hand — which they were not: a course's creator holding no section row saw the
+ * link and got a 404.
  */
 export async function listCourseExports(
   actor: SessionUser,
@@ -224,7 +241,7 @@ export async function listCourseExports(
   input: PageInput = {},
 ): Promise<Page<ExportSummary>> {
   const scope = await resolveAssignment(actor, assignmentId)
-  await requireSectionRole(actor, scope.sectionId, ['instructor', 'ta'])
+  await requireSectionReviewer(actor, scope.courseId, scope.sectionId)
   const page = await listExports(scope.organizationId, assignmentId, input)
   return { items: page.items.map(toExportSummary), nextCursor: page.nextCursor }
 }
@@ -245,7 +262,7 @@ export async function listCourseExports(
 async function resolveAssignment(
   actor: SessionUser,
   assignmentId: string,
-): Promise<{ organizationId: string; sectionId: string }> {
+): Promise<{ organizationId: string; sectionId: string; courseId: string }> {
   const institutions = await listMyInstitutions(actor)
   const ids = institutions.map((institution) => institution.id)
   // The session's active institution is tried first, which is the only one in the common case.

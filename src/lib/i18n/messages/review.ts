@@ -361,6 +361,13 @@ export const review = {
   'review.flagExplains':
     'Marking says the exchange was about something this scenario does not cover, so the Delegation read is taken over the exchanges that remain. It is a note about the material. The student is not told, and nothing is taken away from them.',
   'review.flagAlready': 'This exchange is already marked, and a mark is recorded once.',
+  /**
+   * Shown when the run's bands already exist (D-482). The exclusion is applied where the bands are
+   * drafted, and nothing re-drafts them, so the control says what a mark now does and does not do
+   * rather than leaving a reviewer to infer it from a band that did not move.
+   */
+  'review.flagAfterDraft':
+    'The bands on this run were drafted before this mark, so the mark does not move them. It is recorded on the run, and a band placement is changed with the band decision.',
   'review.flagRefused': 'The mark was not recorded. Try again.',
   /** A mark the log does not yet have a sentence for; the identifier is the honest fallback. */
   'review.guardMarkUnknown': 'An unrecognized guard mark: {flag}',

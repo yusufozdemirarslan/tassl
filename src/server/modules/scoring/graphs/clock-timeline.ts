@@ -31,6 +31,10 @@
 // appears as a segment", and a delegation is one event in the trace — there is no start to pair it
 // with — so the segment has to be the time it closed. Everything still unclaimed is `unattributed`.
 //
+// **The one exception is FR-055's mark.** A delegation a reviewer marked out of scenario claims no
+// segment: it is "excluded from the clock timeline's scored segments", and because the axis is a
+// partition its interval falls through to `unattributed` rather than disappearing.
+//
 // **The window is the same construction over its own span**, and its origin is the `lifecycle`
 // event, not `turn_delivered`. D-334: a Turn fires at `turn_due_at` and `turn_delivered` carries
 // that instant, while everything the window is *made of* is stamped at the read. A run whose
@@ -40,6 +44,7 @@ import type { RunEventTypeValue } from '@/server/modules/trace/schema'
 import {
   eventsOfType,
   firstOfType,
+  flaggedDelegations,
   missingEventTypes,
   msBetween,
   type GraphBase,
@@ -134,13 +139,15 @@ export function buildClockTimeline(input: GraphInput): ClockTimelineGraph {
   const lock = firstOfType(input.events, 'decision_locked')
   if (!frame || !lock) return unavailable(REQUIRED)
 
+  const flagged = flaggedDelegations(input)
   const working = track(
     input.events.filter((event) => event.seq >= frame.seq && event.seq <= lock.seq),
     frame.occurredAt,
     lock.occurredAt,
     input.packageVersion,
+    flagged,
   )
-  const window = buildWindow(input)
+  const window = buildWindow(input, flagged)
 
   return {
     available: true,
@@ -153,7 +160,7 @@ export function buildClockTimeline(input: GraphInput): ClockTimelineGraph {
 }
 
 /** The Turn window, or null when no Turn was delivered (10 §11.1: "same for the Turn window"). */
-function buildWindow(input: GraphInput): TimelineTrack | null {
+function buildWindow(input: GraphInput, flagged: ReadonlySet<string>): TimelineTrack | null {
   const delivered = firstOfType(input.events, 'turn_delivered')
   if (!delivered) return null
 
@@ -170,7 +177,7 @@ function buildWindow(input: GraphInput): TimelineTrack | null {
   const inWindow = input.events.filter(
     (event) => event.seq >= opened.seq && event.seq <= lastSeq && event.seq !== delivered.seq,
   )
-  const built = track(inWindow, opened.occurredAt, endsAt, input.packageVersion)
+  const built = track(inWindow, opened.occurredAt, endsAt, input.packageVersion, flagged)
   built.marks.unshift({ at_ms: 0, kind: 'turn_delivered', ref_id: delivered.payload.turn_id })
   return built
 }
@@ -204,6 +211,7 @@ function track(
   originIso: string,
   terminusIso: string,
   packageVersion: GraphPackageVersion,
+  flagged: ReadonlySet<string>,
 ): TimelineTrack {
   const total = msBetween(originIso, terminusIso)
   const at = (iso: string): number => Math.min(total, msBetween(originIso, iso))
@@ -284,6 +292,11 @@ function track(
     })
   }
   for (const delegation of eventsOfType(events, 'delegation')) {
+    // FR-055: an exchange a reviewer marked out of scenario is not one of the timeline's scored
+    // segments. It is dropped rather than relabelled — the axis is a partition of the working
+    // period, so the interval it would have claimed falls through to `unattributed`, which is
+    // exactly what that type means: time this run spent on no act the rubric reads.
+    if (flagged.has(delegation.payload.delegation_id)) continue
     closers.push({
       type: 'delegation',
       priority: 5,

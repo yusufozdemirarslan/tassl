@@ -655,12 +655,14 @@ function Overview({ replay, basePath }: { replay: ReplayBundle; basePath: Route 
                 )}
                 {/* FR-055, where the exchange is read. It is one act and a note about the material:
                     a marked exchange is left out of the Delegation read (10 §11.3) and the student
-                    is never told, in any state. */}
+                    is never told, in any state. `flagReachesDrafting` says whether a mark set now
+                    would reach the drafting, which is where the exclusion is applied (D-481, D-482). */}
                 {capabilities.canFlagDelegation && (
                   <DelegationFlag
                     runId={runId}
                     delegationId={delegation.id}
                     alreadyFlagged={(delegation.flags ?? []).includes('out_of_scenario')}
+                    reachesDrafting={capabilities.flagReachesDrafting}
                   />
                 )}
               </section>

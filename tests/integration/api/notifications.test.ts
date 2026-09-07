@@ -117,6 +117,31 @@ describe('GET /notifications', () => {
     expect(next.body?.nextCursor).toBeNull()
   })
 
+  // 07 §9 publishes `?cursor&limit&unread?`, and a query string carries no booleans: the schema
+  // declared `z.boolean()`, so `?unread=true` was a 400 and the published parameter could not be
+  // sent at all (D-484). The rows are seeded unread, so `unread=false` is the half that proves the
+  // value is read rather than the key merely being tolerated.
+  it('filters on the published `unread` parameter, in both spellings (D-484)', async () => {
+    const [read = ''] = await seed(student.id, 1)
+    await seed(student.id, 2)
+    await testSql`update notifications set read_at = now() where id = ${read}`
+    const session = await asUser(student.id, { activeOrganizationId: orgId })
+
+    const unread = await call(listRoute.GET, { path: '/notifications?unread=true', session })
+    expect(unread.status).toBe(200)
+    expect(unread.body?.items).toHaveLength(2)
+
+    const all = await call(listRoute.GET, { path: '/notifications?unread=false', session })
+    expect(all.status).toBe(200)
+    expect(all.body?.items).toHaveLength(3)
+
+    // And a value that is neither is a validation error rather than a silently truthy filter, which
+    // is what `z.coerce.boolean()` would have made of it (`Boolean('false') === true`).
+    const bad = await call(listRoute.GET, { path: '/notifications?unread=maybe', session })
+    expect(bad.status).toBe(400)
+    expect(codeOf(bad)).toBe('VALIDATION_ERROR')
+  })
+
   it('rejects a query parameter the endpoint does not declare', async () => {
     const session = await asUser(student.id, { activeOrganizationId: orgId })
     const called = await call(listRoute.GET, { path: '/notifications?userId=someone', session })
