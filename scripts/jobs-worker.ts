@@ -4,6 +4,7 @@
 // the handler's outcome (throw → retry or dead letter). Stops on SIGINT/SIGTERM. Handlers come from
 // `handlers/register`; a queue without one is logged at warn and not polled.
 import type { JobWithMetadata } from 'pg-boss'
+import { shutdownPosthog } from '@/server/analytics/posthog'
 import { getBoss, stopBoss } from '@/server/jobs/boss'
 import { executeJob } from '@/server/jobs/drain'
 import { hasHandler } from '@/server/jobs/handlers'
@@ -36,6 +37,9 @@ async function main(): Promise<void> {
   const shutdown = async (signal: string): Promise<void> => {
     rootLogger.info({ event: 'worker_stopping', signal }, 'jobs worker stopping')
     await stopBoss()
+    // Outside a request there is no after() to flush the analytics client, so the worker's own
+    // process-level client is closed here; without a key this is a no-op (17 §5.3).
+    await shutdownPosthog()
     process.exit(0)
   }
   process.once('SIGINT', () => void shutdown('SIGINT'))

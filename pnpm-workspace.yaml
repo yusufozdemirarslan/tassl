@@ -3,6 +3,12 @@
 # packages in the tree that declare install scripts: esbuild loads its binary from the platform
 # package, msw's postinstall only prints a notice, unrs-resolver's only checks its native binding.
 allowBuilds:
+  # @sentry/cli ships its binary in the platform package @sentry/cli-win32-x64 / -linux-x64, which
+  # pnpm installs as an optional dependency; the install script only re-downloads when that package
+  # is missing, so source-map upload works with the script off (D-561).
+  '@sentry/cli': false
+  # posthog-js pulls core-js in transitively; its postinstall only prints a funding notice.
+  core-js: false
   esbuild: false
   msw: false
   unrs-resolver: false

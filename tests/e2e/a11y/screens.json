@@ -4,6 +4,10 @@
     {
       "route": "/",
       "reason": "09 §1: `/` is a signpost, not a screen — it renders nothing and redirects to /home or /sign-in, so there is no document for axe to read."
+    },
+    {
+      "route": "/admin",
+      "reason": "UI-050's screens are /admin/users, /admin/flags and /admin/audit; the bare prefix renders nothing and redirects to the first of them, so there is no document for axe to read."
     }
   ],
   "screens": [
@@ -47,8 +51,7 @@
       "name": "Privacy, Terms",
       "routes": ["/privacy", "/terms"],
       "spec": "a11y/public.spec.ts",
-      "states": "rendered",
-      "pending": "13.5"
+      "states": "rendered"
     },
     {
       "id": "UI-007",
@@ -238,8 +241,7 @@
       "name": "Admin",
       "routes": ["/admin/users", "/admin/flags", "/admin/audit"],
       "spec": "a11y/admin.spec.ts",
-      "states": "each page, role change dialog",
-      "pending": "13.5"
+      "states": "each page, role change dialog"
     },
     {
       "id": "UI-060",

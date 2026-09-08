@@ -21,6 +21,7 @@ import { EmptyState } from '@/components/layout/empty-state'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/cn'
 import { formatDateTime } from '@/lib/format/date-time'
+import { useActionErrorToast } from '@/lib/hooks/use-action-error-toast'
 import { t } from '@/lib/i18n/messages/notifications'
 import {
   listNotificationsAction,
@@ -72,6 +73,7 @@ export function NotificationList({ initial, initialCursor }: NotificationListPro
   const [pending, startTransition] = useTransition()
 
   const seen = new Set(initial.map((item) => item.id))
+  const showActionError = useActionErrorToast()
   const items = [...initial, ...appended.filter((item) => !seen.has(item.id))]
   const isRead = (item: NotificationView): boolean => item.readAt !== null || readIds.has(item.id)
   const unreadCount = items.filter((item) => !isRead(item)).length
@@ -82,7 +84,7 @@ export function NotificationList({ initial, initialCursor }: NotificationListPro
     const result = await listNotificationsAction({ cursor })
     setLoadingMore(false)
     if (!result.ok) {
-      toast.error(result.error.message)
+      showActionError(result.error)
       return
     }
     setAppended((current) => [...current, ...result.data.items])
@@ -99,7 +101,7 @@ export function NotificationList({ initial, initialCursor }: NotificationListPro
           next.delete(id)
           return next
         })
-        toast.error(result.error.message)
+        showActionError(result.error)
         return
       }
       router.refresh()
@@ -113,7 +115,7 @@ export function NotificationList({ initial, initialCursor }: NotificationListPro
       const result = await markAllNotificationsReadAction({})
       if (!result.ok) {
         setReadIds(new Set())
-        toast.error(result.error.message)
+        showActionError(result.error)
         return
       }
       toast.success(t('notifications.markedAllRead'))

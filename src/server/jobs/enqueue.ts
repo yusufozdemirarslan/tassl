@@ -34,7 +34,9 @@ async function drainSafely(maxMs: number): Promise<void> {
       import('@/server/jobs/drain'),
     ])
     await registerAllHandlers()
-    await drainQueues({ maxMs })
+    // `after` never checks in to the cron monitor: only the daily sweep answers for the schedule
+    // (13 §7), and an after() kick that did not run is not a missed sweep.
+    await drainQueues({ maxMs, trigger: 'after' })
   } catch (error) {
     getLogger().error({ event: 'drain_failed', err: error }, 'drain after enqueue failed')
   }

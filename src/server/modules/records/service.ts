@@ -15,6 +15,8 @@
 //     record of anything: it is the student's copy of a run whose bands are already confirmed, and
 //     two downloads of it are the same file. Which is also why it is refused before `confirmed` —
 //     a draft band never leaves Tassl (PRD §7.13).
+import { runContext } from '@/server/analytics/run-context'
+import { track } from '@/server/analytics/track'
 import {
   requireCourseExportReader,
   requireRunOwner,
@@ -27,6 +29,7 @@ import { AppError, isAppError } from '@/lib/errors'
 import { flagsFromEnv } from '@/lib/flags'
 import { t } from '@/lib/i18n/t'
 import { env } from '@/server/config'
+import { onCommit } from '@/server/jobs/after-commit'
 import { audit } from '@/server/modules/admin'
 import { notify } from '@/server/modules/notifications'
 import { readGraphsForOwner, readScore, type BandView } from '@/server/modules/scoring'
@@ -37,6 +40,7 @@ import {
   findAssignmentScope,
   findExport,
   findRecordContext,
+  findRunAnalytics,
   findRunForRecord,
   insertExport,
   listExports,
@@ -188,7 +192,46 @@ export async function writeCourseExport(
       orgId: run.organizationId,
     })
   }
+  await trackExportWritten(tx, run, row, reason, opts.actorId ?? null)
   return row
+}
+
+/**
+ * AN-004's `export_written` (17 §3.4), deferred to the commit this function was called inside.
+ *
+ * Every other analytics call in the product fires after its own `withTransaction` returns, and this
+ * one cannot: the export is written *through* the caller's transaction so that the file and the
+ * decision it records commit together (D-087), so there is no "after" here to fire in. `onCommit` is
+ * the hook `enqueueAfterCommit` defers a job with, used for the same reason — a file that rolled
+ * back is not a file anybody was handed. An untracked handle has no commit to wait for and fires at
+ * once, which is the same fallback the enqueue makes.
+ *
+ * The run context is read inside the transaction, because the row is locked by the caller and the
+ * pool would wait on it. `actorId` is null for the job that re-exports a course after a mapping
+ * change: `track` then uses the `system` distinct id and creates no person profile (17 §6).
+ */
+async function trackExportWritten(
+  tx: Tx,
+  run: ExportableRun,
+  row: CourseExport,
+  reason: ExportReason,
+  actorId: string | null,
+): Promise<void> {
+  const context = await findRunAnalytics(run.organizationId, run.id, tx)
+  if (!context) return
+  const fire = (): void => {
+    track(
+      'export_written',
+      {
+        ...runContext(context, context.variantKey),
+        export_id: row.id,
+        version: row.version,
+        reason,
+      },
+      { userId: actorId, organizationId: run.organizationId },
+    )
+  }
+  if (!onCommit(tx, fire)) fire()
 }
 
 /**
@@ -323,13 +366,26 @@ export async function getRecord(actor: SessionUser, runId: string): Promise<Reco
   if (!run) throw new AppError('NOT_FOUND')
   if (!RECORD_STATES.has(run.state)) recordNotAvailable(run.state)
 
-  const [score, graphs, context, trace] = await Promise.all([
+  const [score, graphs, context, trace, analytics] = await Promise.all([
     readScore(runId),
     readGraphsForOwner(runId),
     findRecordContext(scope.organizationId, runId),
     buildExport(scope.organizationId, runId, 'record') as Promise<RecordTraceExport>,
+    findRunAnalytics(scope.organizationId, runId),
   ])
   if (!context) throw new AppError('NOT_FOUND')
+
+  // AN-003 (17 §3.3). `viewer` is `owner` because `requireRunOwner` above is the only way in: 08 §4
+  // gives the Judgment Record to the run's own student alone, and a reviewer reads the run through
+  // the replay, which fires `replay_opened` instead. The enum keeps the second value for the day
+  // that row of the matrix changes; until then the reviewer half of it is never emitted from here.
+  if (analytics) {
+    track(
+      'record_opened',
+      { ...runContext(analytics, analytics.variantKey), viewer: 'owner' },
+      { userId: actor.id, organizationId: scope.organizationId },
+    )
+  }
 
   const bands = (score?.bands ?? []).map(toRecordBand)
   const snapshot: RunRecordSnapshot = {

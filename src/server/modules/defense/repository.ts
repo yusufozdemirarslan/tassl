@@ -32,6 +32,7 @@ import {
   runs,
   scenarioClaims,
   scenarioDocuments,
+  scenarioVariants,
 } from '@/server/db/schema'
 import type { DbOrTx } from '@/server/db/tx'
 
@@ -202,6 +203,26 @@ export async function findRunPackage(
     .where(and(eq(runs.organizationId, tenantId), eq(runs.id, runId)))
     .limit(1)
   return row ?? null
+}
+
+/**
+ * The run's variant as a key, for the `variant` property of the `R` analytics group (17 §3).
+ *
+ * A copy of `runs/repository.ts`'s `findVariantKey` rather than an import of it: a module reaches
+ * another only through its public index (04 §2), and one indexed read by primary key is a smaller
+ * thing to duplicate than a door opened in `runs` for a dashboard's benefit. `run-context.ts` says
+ * as much in its own header — "a repository that needs it copies it".
+ */
+export async function findVariantKey(
+  variantId: string,
+  dbx: DbOrTx = db,
+): Promise<'defective' | 'sound' | null> {
+  const [row] = await dbx
+    .select({ key: scenarioVariants.key })
+    .from(scenarioVariants)
+    .where(eq(scenarioVariants.id, variantId))
+    .limit(1)
+  return row?.key ?? null
 }
 
 /** One authored claim, in the fields a selection condition or a template may read. */

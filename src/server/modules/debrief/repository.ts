@@ -231,6 +231,27 @@ export async function findDebriefContext(
   return row
 }
 
+/**
+ * The run's variant as a key, for the `variant` property of the `R` analytics group (17 §3).
+ *
+ * `findDebriefContext` above already answers it for the read, and this exists for the *write*:
+ * `answerDebrief` holds the locked run and nothing else, and the eleven-column join above would be
+ * ten statements to learn one word. A copy of `runs/repository.ts`'s `findVariantKey` rather than an
+ * import of it, for the reason `run-context.ts` gives — a module reaches another only through its
+ * public index, and "a repository that needs it copies it".
+ */
+export async function findVariantKey(
+  variantId: string,
+  dbx: DbOrTx = db,
+): Promise<'defective' | 'sound' | null> {
+  const [row] = await dbx
+    .select({ key: scenarioVariants.key })
+    .from(scenarioVariants)
+    .where(eq(scenarioVariants.id, variantId))
+    .limit(1)
+  return row?.key ?? null
+}
+
 // ---------------------------------------------------------------------------------------------
 // The authored standard the run is walked against (FR-151)
 // ---------------------------------------------------------------------------------------------

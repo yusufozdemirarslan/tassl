@@ -54,6 +54,17 @@ export function proxy(request: NextRequest) {
   return withBaselineHeaders(NextResponse.next({ request: { headers: requestHeaders } }), requestId)
 }
 
+// The matcher of 17-analytics-events.md §5.7, applied here as D-569 left it for whoever next
+// touched this file. The four additions are all requests that must reach their handler untouched:
+// `/ingest/*` is the PostHog reverse proxy (§5.7) and carries no session, so a request id and the
+// baseline headers on it are noise on someone else's endpoint; `api/auth` is Better Auth's own
+// handler, which sets the cookies this proxy only reads; and `api/health` and `api/ready` are the
+// uptime probes of 13 §4, which must answer the same way whether or not a session cookie is
+// present. `favicon.ico` is dropped rather than kept beside `favicon.svg`: the project ships no
+// favicon of either extension (no `src/app/icon.*`, no `public/favicon.*`) and nothing refers to
+// one, and a pattern the spec does not list is how this line and §5.7 drift apart again (D-602).
 export const config = {
-  matcher: ['/((?!_next/static|_next/image|favicon.ico|fonts).*)'],
+  matcher: [
+    '/((?!api/auth|api/health|api/ready|ingest|_next/static|_next/image|fonts|favicon.svg).*)',
+  ],
 }

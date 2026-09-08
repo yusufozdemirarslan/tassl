@@ -1,8 +1,8 @@
 // Server-side analytics: docs/tech/17-analytics-events.md §5.4.
-// Phase 0 validates and logs; Phase 13 adds the PostHog transport (getPosthogServer()) at the
-// marked seam. No `server-only`: loaded by tsx scripts and Vitest (D-143).
+// No `server-only`: loaded by tsx scripts and Vitest (D-143).
 import { EVENTS, type EventName, type EventProps } from '@/lib/analytics/events'
 import { hashUserId } from '@/server/analytics/distinct-id'
+import { getPosthogServer } from '@/server/analytics/posthog'
 import { env } from '@/server/config'
 import { getRequestContext } from '@/server/http/request-context'
 import { rootLogger } from '@/server/logging/logger'
@@ -41,9 +41,17 @@ export function track<N extends EventName>(name: N, props: EventProps<N>, actor:
     },
     ...(organizationId ? { groups: { organization: organizationId } } : {}),
   }
-  // Phase 13: getPosthogServer()?.capture(payload) inside try/catch; until then the line below is the sink.
   ;(ctx?.logger ?? rootLogger).debug(
     { event: 'analytics', analytics: payload },
     `analytics ${name}`,
   )
+  // No key, no client, no network call (D-098). Analytics never changes control flow, so a capture
+  // that throws is a warning and nothing more.
+  const client = getPosthogServer()
+  if (!client) return
+  try {
+    client.capture(payload)
+  } catch (error) {
+    rootLogger.warn({ event: name, err: error }, 'analytics capture failed')
+  }
 }

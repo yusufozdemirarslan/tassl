@@ -7187,26 +7187,91 @@ paths:
       operationId: adminListAuditLog
       summary: Audit log
       parameters:
-        - $ref: "#/components/parameters/cursor"
-        - $ref: "#/components/parameters/limit"
-        - name: orgId
-          in: query
+        - in: query
+          name: cursor
           schema:
             type: string
+            minLength: 1
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+        - in: query
+          name: orgId
+          schema:
+            type: string
+            maxLength: 64
       responses:
         "200":
           description: OK
           content:
             application/json:
               schema:
-                allOf:
-                  - $ref: "#/components/schemas/Page"
-                  - type: object
-                    properties:
-                      items:
-                        type: array
-                        items:
-                          $ref: "#/components/schemas/AuditEntry"
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                          format: uuid
+                          pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                        action:
+                          type: string
+                        targetType:
+                          type: string
+                        targetId:
+                          type: string
+                        actorId:
+                          type:
+                            - string
+                            - "null"
+                        organizationId:
+                          type:
+                            - string
+                            - "null"
+                        requestId:
+                          type: string
+                        metadata:
+                          type: object
+                          propertyNames:
+                            type: string
+                          additionalProperties: {}
+                        createdAt:
+                          type: string
+                          format: date-time
+                          pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z))$
+                      required:
+                        - id
+                        - action
+                        - targetType
+                        - targetId
+                        - actorId
+                        - organizationId
+                        - requestId
+                        - metadata
+                        - createdAt
+                      additionalProperties: false
+                  nextCursor:
+                    type:
+                      - string
+                      - "null"
+                required:
+                  - items
+                  - nextCursor
+                additionalProperties: false
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "429":
+          $ref: "#/components/responses/RateLimited"
   /admin/flags:
     get:
       tags:
@@ -7220,11 +7285,6 @@ paths:
             application/json:
               schema:
                 type: object
-                required:
-                  - ai
-                  - sampleData
-                  - testControls
-                  - effectiveLlmProvider
                 properties:
                   ai:
                     type: boolean
@@ -7234,6 +7294,18 @@ paths:
                     type: boolean
                   effectiveLlmProvider:
                     type: string
+                required:
+                  - ai
+                  - sampleData
+                  - testControls
+                  - effectiveLlmProvider
+                additionalProperties: false
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "429":
+          $ref: "#/components/responses/RateLimited"
   /admin/users:
     get:
       tags:
@@ -7241,28 +7313,81 @@ paths:
       operationId: adminListUsers
       summary: Users
       parameters:
-        - $ref: "#/components/parameters/cursor"
-        - $ref: "#/components/parameters/limit"
-        - name: q
-          in: query
+        - in: query
+          name: cursor
           schema:
             type: string
+            minLength: 1
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+        - in: query
+          name: q
+          schema:
+            type: string
+            maxLength: 320
       responses:
         "200":
           description: OK
           content:
             application/json:
               schema:
-                allOf:
-                  - $ref: "#/components/schemas/Page"
-                  - type: object
-                    properties:
-                      items:
-                        type: array
-                        items:
-                          $ref: "#/components/schemas/AdminUser"
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                        name:
+                          type: string
+                        email:
+                          type: string
+                        platformRole:
+                          type: string
+                          enum:
+                            - none
+                            - tassl_scenario_editor
+                            - admin
+                        deletedAt:
+                          anyOf:
+                            - type: string
+                              format: date-time
+                              pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z))$
+                            - type: "null"
+                        createdAt:
+                          type: string
+                          format: date-time
+                          pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z))$
+                      required:
+                        - id
+                        - name
+                        - email
+                        - platformRole
+                        - deletedAt
+                        - createdAt
+                      additionalProperties: false
+                  nextCursor:
+                    type:
+                      - string
+                      - "null"
+                required:
+                  - items
+                  - nextCursor
+                additionalProperties: false
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
         "403":
           $ref: "#/components/responses/Forbidden"
+        "429":
+          $ref: "#/components/responses/RateLimited"
   /admin/users/{userId}/platform-role:
     put:
       tags:
@@ -7270,20 +7395,18 @@ paths:
       operationId: adminSetPlatformRole
       summary: Set a platform role
       parameters:
-        - name: userId
-          in: path
-          required: true
+        - in: path
+          name: userId
           schema:
             type: string
-        - $ref: "#/components/parameters/requestedWith"
+            minLength: 1
+          required: true
       requestBody:
         required: true
         content:
           application/json:
             schema:
               type: object
-              required:
-                - role
               properties:
                 role:
                   type: string
@@ -7291,13 +7414,56 @@ paths:
                     - none
                     - tassl_scenario_editor
                     - admin
+              required:
+                - role
       responses:
         "200":
           description: OK
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/AdminUser"
+                type: object
+                properties:
+                  id:
+                    type: string
+                  name:
+                    type: string
+                  email:
+                    type: string
+                  platformRole:
+                    type: string
+                    enum:
+                      - none
+                      - tassl_scenario_editor
+                      - admin
+                  deletedAt:
+                    anyOf:
+                      - type: string
+                        format: date-time
+                        pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z))$
+                      - type: "null"
+                  createdAt:
+                    type: string
+                    format: date-time
+                    pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z))$
+                required:
+                  - id
+                  - name
+                  - email
+                  - platformRole
+                  - deletedAt
+                  - createdAt
+                additionalProperties: false
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "429":
+          $ref: "#/components/responses/RateLimited"
   /agreements/{agreementId}:
     patch:
       tags:

@@ -12,6 +12,7 @@ import {
   DropdownMenuRadioItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { useActionErrorToast } from '@/lib/hooks/use-action-error-toast'
 import { t } from '@/lib/i18n/messages/shell'
 import { setActiveInstitutionAction } from '@/server/modules/tenancy/actions'
 import { InstitutionTriggerContent, institutionTriggerClassName } from './header-menu-triggers'
@@ -41,6 +42,7 @@ export function InstitutionMenu({
   const router = useRouter()
   const [pending, startTransition] = useTransition()
   const [switching, setSwitching] = useState<string | null>(null)
+  const showActionError = useActionErrorToast()
 
   function switchTo(id: string): void {
     if (id === active.id) return
@@ -49,7 +51,7 @@ export function InstitutionMenu({
       const result = await setActiveInstitutionAction({ orgId: id })
       setSwitching(null)
       if (!result.ok) {
-        toast.error(result.error.message)
+        showActionError(result.error)
         return
       }
       toast.success(t('shell.institutionSwitched', { name: result.data.name }))

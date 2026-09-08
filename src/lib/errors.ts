@@ -137,6 +137,12 @@ export const ERROR_STATUS = {
   LLM_PROVIDER_ERROR: 502,
   LLM_CIRCUIT_OPEN: 503,
   LLM_OUTPUT_INVALID: 502,
+  // admin (10 §16). `ROLE_INVALID` is the one refusal the platform screens add: a value outside the
+  // three platform roles, and the admin's own row — a self-demotion revokes the sessions it is made
+  // from (10 §16 "revoke the user's sessions"), so the act would sign the actor out of the seat
+  // that is the only way back in. 400 rather than 403: it is the argument that is refused, not the
+  // caller, who may set this role on anybody else (D-571).
+  ROLE_INVALID: 400,
   INTERNAL_ERROR: 500,
 } as const satisfies Record<string, number>
 
@@ -223,6 +229,7 @@ export const DEFAULT_MESSAGES: Record<ErrorCode, string> = {
   LLM_PROVIDER_ERROR: 'The assistant provider did not respond correctly.',
   LLM_CIRCUIT_OPEN: 'The assistant is temporarily unavailable.',
   LLM_OUTPUT_INVALID: 'The assistant returned an unusable response.',
+  ROLE_INVALID: 'That is not a platform role that can be set here.',
   INTERNAL_ERROR: 'Something went wrong on our side.',
 }
 

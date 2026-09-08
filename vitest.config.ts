@@ -24,6 +24,18 @@ export default defineConfig({
     projects: [
       {
         extends: true,
+        resolve: {
+          alias: {
+            'server-only': fileURLToPath(new URL('./tests/setup/server-only.ts', import.meta.url)),
+            // Phase 13: the Sentry SDK's server entry reads `import.meta.url` as a file path at
+            // import time, which Vitest's jsdom transform rewrites to an http URL, so every unit
+            // test that reaches defineRoute/defineAction/ops-events would die on import. The real
+            // SDK is exercised in tests/integration/system/sentry-noop.test.ts (node env).
+            '@sentry/nextjs': fileURLToPath(
+              new URL('./tests/setup/sentry-nextjs.ts', import.meta.url),
+            ),
+          },
+        },
         test: {
           name: 'unit',
           include: ['tests/unit/**/*.test.{ts,tsx}'],

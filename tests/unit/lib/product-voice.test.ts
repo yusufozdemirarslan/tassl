@@ -170,6 +170,17 @@ const INVENTORY: readonly Row[] = [
   { path: 'run.reviewDeleteBody', word: 'good', why: 'ordinary_english' },
   { path: 'run.reviewReplayNote', word: 'scored', why: 'state_name' },
 
+  // The legal pages (UI-006). The only namespace whose job includes naming the things the product
+  // does not do, so every collision here is a denial: FR-006's sentence, FR-131's "no total, no
+  // rank and no percentile", and the one place a run's own lifecycle is named to a reader who has
+  // not signed in. `tests/unit/copy/never-accuses.test.ts` pins the misconduct row a second time,
+  // from the other direction: it is the *only* place in the catalogue that word may be written.
+  { path: 'legal.noMisconductFindings (key)', word: 'Misconduct', why: 'negation' },
+  { path: 'legal.noMisconductFindings', word: 'misconduct', why: 'negation' },
+  { path: 'legal.privacy.limits.noTotals', word: 'rank', why: 'negation' },
+  { path: 'legal.privacy.limits.noTotals', word: 'percentile', why: 'negation' },
+  { path: 'legal.privacy.limits.hidden', word: 'scored', why: 'state_name' },
+
   // "The name your instructors and classmates see beside your work" — who sees it, not a ranking.
   { path: 'settings.profileDescription', word: 'classmates', why: 'not_a_comparison' },
 

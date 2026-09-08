@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import type { ReactNode } from 'react'
 import './globals.css'
 import { plexMono, plexSans, plexSerif } from '@/app/fonts'
+import { AnalyticsEnvironment } from '@/components/layout/analytics-environment'
 import { cn } from '@/lib/cn'
 import { FlagsProvider } from '@/lib/flags-context'
 import { flagsFromEnv } from '@/lib/flags'
@@ -24,6 +25,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
       className={cn(plexSans.variable, plexMono.variable, plexSerif.variable, 'font-sans')}
     >
       <body>
+        <AnalyticsEnvironment appEnv={env.APP_ENV} />
         <FlagsProvider flags={flagsFromEnv(env)}>{children}</FlagsProvider>
       </body>
     </html>

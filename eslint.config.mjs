@@ -160,6 +160,63 @@ export default defineConfig([
     files: ['src/lib/i18n/**', 'src/app/dev/**', 'tests/**', 'evals/**'],
     rules: { 'react/jsx-no-literals': 'off' },
   },
+  // Analytics confinement: docs/tech/17-analytics-events.md §6 and §9.4.
+  // Only three files may touch a PostHog SDK, so every event in the product goes through the typed
+  // helpers and is validated against `EVENTS`; and no code anywhere may write a person property,
+  // which is how the "hashed identity, nothing else" rule survives a future edit.
+  {
+    files: ['src/**/*.{ts,tsx}', 'evals/**/*.ts', 'scripts/**/*.ts'],
+    ignores: [
+      'src/instrumentation-client.ts',
+      'src/lib/analytics/client.ts',
+      'src/server/analytics/posthog.ts',
+    ],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          paths: [
+            {
+              name: 'posthog-js',
+              message:
+                'Import trackClient/identifyClient/resetClient from @/lib/analytics/client instead (17 §6).',
+            },
+            {
+              name: 'posthog-node',
+              message:
+                'Use track() from @/server/analytics/track; the client lives in @/server/analytics/posthog (17 §6).',
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    files: ['src/**/*.{ts,tsx}', 'evals/**/*.ts', 'scripts/**/*.ts'],
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: "MemberExpression[object.name='posthog'][property.name='setPersonProperties']",
+          message: 'No person properties: PostHog holds a hashed id and nothing else (17 §6).',
+        },
+        {
+          selector: "MemberExpression[object.name='posthog'][property.name='people']",
+          message: 'No person properties: PostHog holds a hashed id and nothing else (17 §6).',
+        },
+        {
+          selector:
+            "CallExpression[callee.object.name='posthog'][callee.property.name='identify'][arguments.length>1]",
+          message:
+            'identify() takes the hashed distinct id only; a second argument sets person properties (17 §6).',
+        },
+        {
+          selector: 'Property[key.value=/^\\$set(_once)?$/]',
+          message: 'No $set or $set_once: PostHog holds a hashed id and nothing else (17 §6).',
+        },
+      ],
+    },
+  },
   globalIgnores([
     '.next/**',
     '.claude/**',

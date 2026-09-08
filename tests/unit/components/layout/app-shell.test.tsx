@@ -223,15 +223,17 @@ describe('rail derivation (UI-008)', () => {
       roles: ['student', 'instructor', 'scenario_author'],
       platformRole: 'admin',
     })
-    // Admin is permitted for the platform role but has no route yet (step 13.5). The other five
-    // landed with the steps that built them: `/runs` 6.5, `/courses` 4.2, `/review` 11.4,
-    // `/packages` 5.4 — and each renders in the order `permittedRailKeys` puts it.
+    // Every destination now has a route, each landing with the step that built it: `/courses` 4.2,
+    // `/packages` 5.4, `/runs` 6.5, `/review` 11.4, `/admin/users` 13.5 — and each renders in the
+    // order `permittedRailKeys` puts it. Admin points at its first section rather than at `/admin`,
+    // which is a prefix that only redirects (UI-050).
     expect(items).toEqual([
       { href: '/home', label: enUS['nav.home'], icon: 'home' },
       { href: '/runs', label: enUS['nav.runs'], icon: 'runs' },
       { href: '/courses', label: enUS['nav.courses'], icon: 'courses' },
       { href: '/review', label: enUS['nav.review'], icon: 'review' },
       { href: '/packages', label: enUS['nav.packages'], icon: 'packages' },
+      { href: '/admin/users', label: enUS['nav.admin'], icon: 'admin' },
     ])
   })
 

@@ -27,6 +27,7 @@ import {
   scenarioDocuments,
   scenarioPackageVersions,
   scenarioTurns,
+  scenarioVariants,
   sectionMemberships,
   sections,
   variantClaimStates,
@@ -201,6 +202,12 @@ export type ScoringRunRow = {
   scoringStatus: ScoringStatus
   workingClockSeconds: number
   defenseCompletedAt: Date | null
+  // The three run columns that are nothing to the pipeline and everything to the `R` group the
+  // `run_scored` event carries (17 §3). They ride on the row the job already reads rather than on a
+  // second query, because an analytics projection may not be the reason a scored run is read twice.
+  mode: Run['mode']
+  attemptNo: number
+  isWalkthrough: boolean
   /** `courses.mapping` (FR-202): what each band is worth in this course's gradebook. */
   mapping: { novice: number; developing: number; proficient: number; professional: number }
 }
@@ -233,6 +240,9 @@ export async function findRunForScoring(
       scoringStatus: runs.scoringStatus,
       workingClockSeconds: runs.workingClockSeconds,
       defenseCompletedAt: runs.defenseCompletedAt,
+      mode: runs.mode,
+      attemptNo: runs.attemptNo,
+      isWalkthrough: runs.isWalkthrough,
       mapping: courses.mapping,
     })
     .from(runs)
@@ -400,6 +410,28 @@ export type ScoringVariantStateRow = {
   failureFamily: string | null
   warrantedStance: 'accept' | 'verify' | 'challenge' | 'reject' | 'escalate'
   planted: boolean
+}
+
+/**
+ * Which of the two variants the run drew — the `variant` property of the `R` group (17 §3).
+ *
+ * The key and not the id, because a dashboard breakdown by `defective` against `sound` is the whole
+ * point of the property, and a uuid would make the pilot join a table PostHog does not have. The
+ * runs repository has the same three lines under the same name (D-006's rule is per module, and 04
+ * §2 forbids reaching across for a query); the `key` column is `variant_key`, so the return type is
+ * the enum rather than a string, and a variant id that names nothing is `null` for the caller to
+ * read as "unknown" rather than an exception inside a job that has already scored the run.
+ */
+export async function findVariantKey(
+  variantId: string,
+  dbx: DbOrTx = db,
+): Promise<'defective' | 'sound' | null> {
+  const [row] = await dbx
+    .select({ key: scenarioVariants.key })
+    .from(scenarioVariants)
+    .where(eq(scenarioVariants.id, variantId))
+    .limit(1)
+  return row?.key ?? null
 }
 
 /** The variant's answer key (DATA-021): what each claim deserved in the variant this run drew. */

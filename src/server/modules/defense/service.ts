@@ -37,6 +37,8 @@
 //     never runs against a transaction that rolled back.
 import { AppError, isAppError } from '@/lib/errors'
 import { countWords, stripMarkup } from '@/lib/words'
+import { runContext } from '@/server/analytics/run-context'
+import { track } from '@/server/analytics/track'
 import { assertNoForbiddenKeys } from '@/server/auth/student-view'
 import { requireRunOwner } from '@/server/auth/permissions'
 import type { SessionUser } from '@/server/auth/types'
@@ -471,8 +473,9 @@ async function insertFollowUp(
 export async function completeDefense(actor: SessionUser, runId: string): Promise<RunSummary> {
   const scope = await requireRunOwner(actor, runId)
   const tenantId = scope.organizationId
+  const at = new Date()
 
-  const updated = await withTransaction(async (tx) => {
+  const { updated, interview } = await withTransaction(async (tx) => {
     const run = await lockRunForMutation(tx, tenantId, runId)
     if (run.state !== 'defense_pending') defenseNotOpen(run.state)
 
@@ -490,13 +493,47 @@ export async function completeDefense(actor: SessionUser, runId: string): Promis
     )
 
     const next = await markDefenseComplete(tx, run, {
-      at: new Date(),
+      at,
       actorId: actor.id,
       nothingAnswered,
     })
     await enqueueAfterCommit(tx, 'score_run', { runId })
-    return next
+    return {
+      updated: next,
+      interview: {
+        // The bank questions and their follow-ups are counted apart because they are two different
+        // facts about the interview: how long it was, and how often the student was pressed.
+        questionsCount: questions.filter((row) => row.question.followUpOf === null).length,
+        followUpsCount: questions.filter((row) => row.question.followUpOf !== null).length,
+        answeredCount: questions.filter((row) => row.answer !== null).length,
+        nothingAnswered,
+        // Stamped by `selectOnce`, and non-null on every path that reaches here: the refusal above
+        // makes a defense with no questions unfinishable, and questions exist only where the column
+        // was written. Zero rather than a throw if that ever stops being true — analytics never
+        // changes control flow (17 §1 rule 6).
+        durationMs: run.defenseOpenedAt
+          ? Math.max(0, at.getTime() - run.defenseOpenedAt.getTime())
+          : 0,
+      },
+    }
   })
+
+  // AN-002, AN-003 (17 §3.3), after the commit: a defense that rolled back is not one anybody
+  // finished. What travels is the shape of the interview — how many questions, how many follow-ups,
+  // how many were answered and how long it took — and never a word of what the student said.
+  const variantKey = (await repo.findVariantKey(updated.variantId)) ?? 'defective'
+  track(
+    'defense_completed',
+    {
+      ...runContext(updated, variantKey),
+      questions_count: interview.questionsCount,
+      follow_ups_count: interview.followUpsCount,
+      answered_count: interview.answeredCount,
+      duration_ms: interview.durationMs,
+      nothing_answered: interview.nothingAnswered,
+    },
+    { userId: actor.id, organizationId: tenantId },
+  )
 
   return guarded(toRunSummary(updated))
 }

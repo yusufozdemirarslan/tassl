@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect } from 'react'
+import { ErrorShown } from '@/components/layout/error-shown'
 import { ErrorState } from '@/components/layout/error-state'
 import { Panel } from '@/components/layout/panel'
 import { Button } from '@/components/ui/button'
@@ -22,6 +23,7 @@ export default function AppRouteError({
 
   return (
     <Panel className="mx-auto max-w-lg">
+      <ErrorShown />
       <ErrorState
         headingLevel={1}
         title={t('error.title')}

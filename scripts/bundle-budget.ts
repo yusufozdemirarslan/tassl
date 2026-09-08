@@ -19,7 +19,11 @@ import { gzipSync } from 'node:zlib'
 
 const NEXT = join(process.cwd(), '.next')
 
-/** React 19 + the Next 16 client runtime (`rootMainFiles`), 130,897 bytes gzip on 2026-09-04 (D-187). */
+/**
+ * React 19 and the Next 16 client runtime (`rootMainFiles`), 130,897 bytes gzip on 2026-09-04
+ * (D-187); 132,164 on 2026-09-08, after Phase 13 put both browser SDKs behind `import()` so that
+ * neither is charged to a route that may not even have a key for it (D-579).
+ */
 const FRAMEWORK_FLOOR_MAX_BYTES = 175_000
 
 /** Named so the LHCI cross-check at the bottom of this file reads the same budget row. */

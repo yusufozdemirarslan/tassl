@@ -4,7 +4,19 @@
 // every function that touches it takes `tenantId` first and filters on `organizationId`; the child
 // tables (run_frames, run_briefs, …) have no organization_id and are scoped through the run id the
 // service already resolved. The database handle is always the last parameter (10 §6).
-import { and, asc, desc, eq, getTableColumns, isNull, ne, sql, type SQL } from 'drizzle-orm'
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  getTableColumns,
+  inArray,
+  isNull,
+  lte,
+  ne,
+  sql,
+  type SQL,
+} from 'drizzle-orm'
 import { AppError } from '@/lib/errors'
 import { db } from '@/server/db/client'
 import {
@@ -29,6 +41,7 @@ import {
   runReadinessResults,
   runTurnResponses,
   runs,
+  scenarioClaims,
   scenarioDocuments,
   scenarioPackageVersions,
   scenarioTurns,
@@ -611,6 +624,37 @@ export async function findRunDocument(
   return row
 }
 
+/** `scenario_documents.role`, the authored kind of one document (06 §3.3). */
+export type DocumentRole = (typeof scenarioDocuments.$inferSelect)['role']
+
+/**
+ * The authored role of one of the run's documents, or `undefined` when the id is not in its room.
+ *
+ * A query of its own rather than an eighth column on `RunDocument`, and the difference matters:
+ * 12 §8.2 withholds `role` from a student until their run is scored, so the room's own read must go
+ * on never loading it (D-117). The one caller is the analytics mirror of a closed reading
+ * (17 §3.3 `document_role`), which reaches PostHog as an enum and no student view at all.
+ */
+export async function findDocumentRole(
+  tenantId: string,
+  runId: string,
+  documentId: string,
+  dbx: DbOrTx = db,
+): Promise<DocumentRole | undefined> {
+  const [row] = await dbx
+    .select({ role: scenarioDocuments.role })
+    .from(runs)
+    .innerJoin(scenarioDocuments, eq(scenarioDocuments.packageVersionId, runs.packageVersionId))
+    .where(
+      and(
+        eq(runs.organizationId, tenantId),
+        eq(runs.id, runId),
+        eq(scenarioDocuments.id, documentId),
+      ),
+    )
+  return row?.role
+}
+
 export async function insertDocumentOpen(
   runId: string,
   values: DocumentOpenInsert,
@@ -651,6 +695,30 @@ export async function listOpenDocumentOpens(
     .orderBy(runDocumentOpens.openedAt, runDocumentOpens.id)
 }
 
+/**
+ * How many readings the run had begun by `at`, or in all when `at` is null.
+ *
+ * Opens, not distinct documents: FR-022 records a reading, so a student who comes back to the same
+ * memo has read it twice. Counted at an open's own `opened_at` it is that open's ordinal, which is
+ * `document_opened.open_index`; counted at a frame lock it is `frame_locked.documents_opened_count`
+ * (17 §3.3).
+ */
+export async function countDocumentOpens(
+  runId: string,
+  at: Date | null = null,
+  dbx: DbOrTx = db,
+): Promise<number> {
+  const [row] = await dbx
+    .select({ total: sql<number>`count(*)::int` })
+    .from(runDocumentOpens)
+    .where(
+      at
+        ? and(eq(runDocumentOpens.runId, runId), lte(runDocumentOpens.openedAt, at))
+        : eq(runDocumentOpens.runId, runId),
+    )
+  return row?.total ?? 0
+}
+
 /** Closes one still-open record; `undefined` when it is unknown to the run or already closed. */
 export async function closeDocumentOpen(
   runId: string,
@@ -670,6 +738,48 @@ export async function closeDocumentOpen(
     )
     .returning()
   return row
+}
+
+/** The whole of a claim the `C` analytics group carries (17 §3): a uuid and two enums. */
+export type ClaimFacts = {
+  id: string
+  importance: (typeof scenarioClaims.$inferSelect)['importance']
+  consequenceLevel: (typeof scenarioClaims.$inferSelect)['consequenceLevel']
+}
+
+/**
+ * The named claims of this run's package version, in the two authored properties an event may carry.
+ *
+ * Three columns and no fourth. The claim's text, its warranted stance, its evidence status and its
+ * defect status are not selected here and never will be: D-066 keeps student-authored and answer-key
+ * material out of every external system, and an analytics projection is the last place a widening
+ * `select()` should be able to reach one (12 §8).
+ *
+ * Rooted in the run like `findRunDocument` beside it, so a claim id from another version answers
+ * nothing rather than leaking across a package.
+ */
+export async function listClaimFacts(
+  tenantId: string,
+  runId: string,
+  claimIds: readonly string[],
+  dbx: DbOrTx = db,
+): Promise<ClaimFacts[]> {
+  if (claimIds.length === 0) return []
+  return dbx
+    .select({
+      id: scenarioClaims.id,
+      importance: scenarioClaims.importance,
+      consequenceLevel: scenarioClaims.consequenceLevel,
+    })
+    .from(runs)
+    .innerJoin(scenarioClaims, eq(scenarioClaims.packageVersionId, runs.packageVersionId))
+    .where(
+      and(
+        eq(runs.organizationId, tenantId),
+        eq(runs.id, runId),
+        inArray(scenarioClaims.id, [...claimIds]),
+      ),
+    )
 }
 
 // ---------------------------------------------------------------------------------------------

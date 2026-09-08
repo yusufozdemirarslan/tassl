@@ -21,8 +21,14 @@
 // action that starts with time left completes even when its cost outruns the clock, which is
 // `chargeCost`'s cap rather than a branch here.
 //
-// Four imports need a word.
+// Five imports need a word.
 //
+//   * `analytics` — each of the three acts sends one PostHog event, and each sends it *after* its
+//     transaction has committed (17 §1.6): analytics is a lossy mirror of the trace, so an act that
+//     rolled back must not be in it, and the mirror may never change what the run does. Nothing a
+//     student wrote travels — not the escalation statement, not the colleague's reply, not the
+//     result the author wrote — because a property is an id, an enum, a count or a duration and
+//     nothing else (17 §1.3).
 //   * `runs/clock.ts` — `in_turn_window` and every clock reading are facts about the run's clock
 //     (D-042, D-132), and the module that owns the clock is `runs`. Importing that one pure file is
 //     the same reading, and the same resolution, as the trace module's import of it (10 §10):
@@ -38,6 +44,13 @@
 //     their room in a given state, which the claim table asks rather than restates
 //     (`requireOwnerReadAccess`, D-279).
 import { countWords, stripMarkup } from '@/lib/words'
+import {
+  claimContext,
+  runContext,
+  type ClaimContext,
+  type RunContext,
+} from '@/server/analytics/run-context'
+import { track } from '@/server/analytics/track'
 import { requireRunOwner } from '@/server/auth/permissions'
 import type { SessionUser } from '@/server/auth/types'
 import { lockRunForMutation } from '@/server/modules/runs'
@@ -90,8 +103,14 @@ export type SurfacingRun = TraceRun & ClockRun & { packageVersionId: string; var
  *
  * `inserted` is the difference between "the student has just met this claim" and "the student has
  * met it before and it came up again" (10 §7).
+ *
+ * `reliedOnByWindow` is the other thing only this call knows: the Turn window marked the claim
+ * relied on and *this* surfacing is what recorded it (D-077). It is handed back rather than kept
+ * because the analytics event that mirrors the `claim_used` row (`claim_marked_used`,
+ * 17 §3.3) may only be sent once the caller's transaction has committed, and the transaction is
+ * the caller's — surfacing is always given one, never opens one.
  */
-export type SurfacedClaim = ClaimView & { inserted: boolean }
+export type SurfacedClaim = ClaimView & { inserted: boolean; reliedOnByWindow: boolean }
 
 /**
  * Everything a `ClaimView` needs that is not on the two claim rows: the run's acts and its budget.
@@ -359,14 +378,20 @@ export async function surfaceClaims(
       },
       tx,
     )
-    if (inWindow) await markClaimUsed(tx, run, claim.id, 'turn_window', { at })
+    const marked = inWindow
+      ? await markClaimUsed(tx, run, claim.id, 'turn_window', { at })
+      : { recorded: false }
 
     // Re-read when the window marked it relied on, so the view the caller shows the student is the
     // row as this transaction leaves it rather than as `upsertRunClaim` found it.
     const current = inWindow
       ? ((await repo.findRunClaim(run.id, claim.id, tx)) ?? runClaim)
       : runClaim
-    surfaced.push({ ...toClaimView(current, claim, context), inserted })
+    surfaced.push({
+      ...toClaimView(current, claim, context),
+      inserted,
+      reliedOnByWindow: marked.recorded,
+    })
   }
   return surfaced
 }
@@ -466,6 +491,32 @@ export async function listRunClaims(actor: SessionUser, runId: string): Promise<
 type LockedRun = Awaited<ReturnType<typeof lockRunForMutation>>
 
 /**
+ * The `R` and `C` groups of an act on one claim (17 §3.3), read from the rows the mutation held.
+ *
+ * Every act below fires its event *after* its transaction has committed (17 §1.6), so the groups
+ * are built from the run and the claim the transaction returned rather than read back — a second
+ * read would answer the run as the next request left it, and `ms_since_surfaced` and the clock
+ * readings are about the instant the act happened.
+ *
+ * The variant key is the one property that is not on either row, so it costs the one indexed read
+ * below. `null` — a variant row that the foreign key says exists and does not — drops the event
+ * instead of sending a guessed key: `variant` is the breakdown nearly every insight in 17 §8
+ * splits on, and a wrong one is worse there than a missing row.
+ *
+ * `inTurnWindow` is the same fact each act's trace event carries: whether the *act* happened inside
+ * the Turn window, not whether the claim was surfaced there.
+ */
+async function claimGroups(
+  run: LockedRun,
+  claim: repo.ScenarioClaim,
+  inTurnWindow: boolean,
+): Promise<(RunContext & ClaimContext) | null> {
+  const variantKey = await repo.findVariantKey(run.variantId)
+  if (!variantKey) return null
+  return { ...runContext(run, variantKey), ...claimContext(claim, inTurnWindow) }
+}
+
+/**
  * Records a stance and the `stance_set` event that says what it replaced (FR-080, FR-081, FR-085).
  *
  * `action_ids` is every interrogation action run on this claim *before* the stance, which is what
@@ -485,7 +536,7 @@ async function applyStance(
   stance: StanceValue,
   at: Date,
   actorId: string,
-): Promise<void> {
+): Promise<{ hadPriorAction: boolean }> {
   const actions = await repo.listActions(run.id, { claimId: runClaim.claimId }, tx)
   await repo.setStance(run.id, runClaim.claimId, { stance, stanceSetAt: at }, tx)
   await append(
@@ -501,6 +552,9 @@ async function applyStance(
     },
     { actorId, occurredAt: at },
   )
+  // The same list `action_ids` is written from, answered as the one bit `stance_set` carries
+  // (17 §3.3): whether the student had checked anything on this claim before taking a position.
+  return { hadPriorAction: actions.length > 0 }
 }
 
 /** One claim as the student now reads it, after a mutation has committed. */
@@ -542,15 +596,46 @@ export async function setStance(
   const parsed = StanceSchema.safeParse(stance)
   if (!parsed.success) stanceInvalid()
 
-  await repo.withTransaction(async (tx) => {
+  const recorded = await repo.withTransaction(async (tx) => {
     const run = await lockRunForMutation(tx, tenantId, runId)
     if (!RELIANCE_STATES.includes(run.state)) relianceNotWritable(run.state)
 
-    const runClaim = await repo.findRunClaim(runId, claimId, tx)
-    if (!runClaim) claimNotSurfaced()
+    // The claim as well as the run's row: the stance itself needs only `run_claims`, and the
+    // event's `C` group needs the authored importance and consequence level next to it (17 §3.3).
+    const row = await repo.findRunClaimWithClaim(runId, claimId, tx)
+    if (!row) claimNotSurfaced()
 
-    await applyStance(tx, run, runClaim, parsed.data, new Date(), actor.id)
+    const at = new Date()
+    const { hadPriorAction } = await applyStance(tx, run, row.runClaim, parsed.data, at, actor.id)
+    return {
+      run,
+      claim: row.claim,
+      previousStance: row.runClaim.stance,
+      surfacedAt: row.runClaim.surfacedAt,
+      inTurnWindow: isInTurnWindow(run),
+      hadPriorAction,
+      at,
+    }
   })
+
+  // AN-003 (17 §3.3), after the commit. `is_change` is a stance that replaced a different one:
+  // the first stance on a claim changes nothing, and re-pressing the control the student already
+  // holds is not a change either, though both write a row and an event.
+  const groups = await claimGroups(recorded.run, recorded.claim, recorded.inTurnWindow)
+  if (groups) {
+    track(
+      'stance_set',
+      {
+        ...groups,
+        stance: parsed.data,
+        previous_stance: recorded.previousStance,
+        had_prior_action: recorded.hadPriorAction,
+        is_change: recorded.previousStance !== null && recorded.previousStance !== parsed.data,
+        ms_since_surfaced: Math.max(0, recorded.at.getTime() - recorded.surfacedAt.getTime()),
+      },
+      { userId: actor.id, organizationId: tenantId },
+    )
+  }
 
   return readClaimView(tenantId, runId, claimId)
 }
@@ -597,12 +682,13 @@ export async function runAction(
   const scope = await requireRunOwner(actor, runId)
   const tenantId = scope.organizationId
 
-  return repo.withTransaction(async (tx) => {
+  const done = await repo.withTransaction(async (tx) => {
     const run = await lockRunForMutation(tx, tenantId, runId)
     if (!RELIANCE_STATES.includes(run.state)) relianceNotWritable(run.state)
 
-    const runClaim = await repo.findRunClaim(runId, claimId, tx)
-    if (!runClaim) claimNotSurfaced()
+    // With the authored claim beside the run's row, for the `C` group of `action_run` (17 §3.3).
+    const row = await repo.findRunClaimWithClaim(runId, claimId, tx)
+    if (!row) claimNotSurfaced()
 
     const paths = await repo.findVerificationPaths(run.variantId, claimId, tx)
     const authored = paths?.[type]
@@ -613,6 +699,10 @@ export async function runAction(
     const charged = chargeCost(run, ACTION_COSTS[type], startedAt)
     await repo.applyClockCharge(tenantId, runId, clockCharge(charged.patch), tx)
 
+    // What the check left on the clock. Signed, and stored signed: an action begun with a minute
+    // left costs the minute and completes, and a clock the working period has outrun reads below
+    // zero rather than at it (10 §5).
+    const remainingMs = Math.round(charged.remainingMsBefore - charged.appliedMs)
     const result: Record<string, unknown> = { ...authored }
     const action = await repo.insertAction(
       runId,
@@ -624,7 +714,7 @@ export async function runAction(
         startedAt,
         completedAt: new Date(),
         inTurnWindow,
-        clockRemainingMs: Math.round(charged.remainingMsBefore - charged.appliedMs),
+        clockRemainingMs: remainingMs,
       },
       tx,
     )
@@ -644,8 +734,27 @@ export async function runAction(
       { actorId: actor.id, occurredAt: startedAt },
     )
 
-    return toActionResult(action)
+    return { action, run, claim: row.claim, inTurnWindow, remainingMs }
   })
+
+  // AN-003 (17 §3.3). The result the author wrote is not in it and never will be: what a dashboard
+  // is owed is that a check of this kind was run on this claim, and what it cost.
+  const groups = await claimGroups(done.run, done.claim, done.inTurnWindow)
+  if (groups) {
+    track(
+      'action_run',
+      {
+        ...groups,
+        action_id: done.action.id,
+        type,
+        clock_cost_ms: done.action.clockCostMs,
+        clock_remaining_ms: done.remainingMs,
+      },
+      { userId: actor.id, organizationId: tenantId },
+    )
+  }
+
+  return toActionResult(done.action)
 }
 
 /**
@@ -706,7 +815,7 @@ export async function escalate(
   const scope = await requireRunOwner(actor, runId)
   const tenantId = scope.organizationId
 
-  return repo.withTransaction(async (tx) => {
+  const done = await repo.withTransaction(async (tx) => {
     const run = await lockRunForMutation(tx, tenantId, runId)
     if (!RELIANCE_STATES.includes(run.state)) relianceNotWritable(run.state)
 
@@ -774,8 +883,35 @@ export async function escalate(
     // This one included, and with no `counts` term: D-328's whole point is that the number the
     // student reads moves the same amount whatever claim they spent it on.
     const remaining = Math.max(0, ESCALATIONS_PER_RUN - spentSoFar - 1)
-    return toEscalationResult(escalation, remaining)
+    return {
+      escalation,
+      run,
+      claim: row.claim,
+      inTurnWindow,
+      responseKind: counts ? ('claim' as const) : ('general' as const),
+      remaining,
+    }
   })
+
+  // AN-003 (17 §3.3). The student's sentence and the colleague's reply stay in the run: what
+  // travels is that an escalation happened on this claim, which kind of reply answered it, and
+  // what it cost.
+  const groups = await claimGroups(done.run, done.claim, done.inTurnWindow)
+  if (groups) {
+    track(
+      'escalation_made',
+      {
+        ...groups,
+        escalation_id: done.escalation.id,
+        response_kind: done.responseKind,
+        counts_against_limit: done.escalation.countsAgainstLimit,
+        clock_cost_ms: done.escalation.clockCostMs,
+      },
+      { userId: actor.id, organizationId: tenantId },
+    )
+  }
+
+  return toEscalationResult(done.escalation, done.remaining)
 }
 
 // ---------------------------------------------------------------------------------------------
