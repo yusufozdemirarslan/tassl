@@ -109,7 +109,7 @@
 ## Phase 12 — AI-assisted authoring pipeline (`build-plan/phase-12-authoring-pipeline.md`)
 - [x] 12.1 Generation prompts, warranted-stance table, mock generation
 - [x] 12.2 Authoring service and generation jobs
-- [ ] 12.3 Generation progress screen and confirmation workspace regeneration
+- [x] 12.3 Generation progress screen and confirmation workspace regeneration
 - [ ] Phase 12 exit criteria
 
 ## Phase 13 — Cross-cutting hardening (`build-plan/phase-13-cross-cutting-hardening.md`)
