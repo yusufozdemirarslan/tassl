@@ -14,15 +14,22 @@
 //      `scenarios.getStudentScenario(student, runId)` — the function the run screens call — over a
 //      confirmed version whose every element carries something forbidden.
 //
-// This file is the package half of the invariant. Phase 6 adds the workspace projection and Phase
-// 13 completes it with the run summary, claims, delegations, defense, debrief and record export
-// (build-plan phase-13 §13.4), including the after-scoring reveal and the 403/404 rows.
+// This file is the whole of the invariant. Step 5.2 wrote the package projection, Phase 6 the
+// workspace, Phases 8 and 9 the three acts, the locked record, the Turn and the defense; Step 13.4
+// closes it with the run summary the client polls, the Delegation Log, the debrief on both sides of
+// scoring, the Judgment Record and its export file, and the two refusals — a classmate and another
+// institution (build-plan phase-13 §13.4).
+//
+// The last block runs a real run all the way to `recorded`, because the after-scoring half of D-117
+// cannot be tested any other way: what the debrief may reveal is defined by the run having been
+// scored, and a fixture that wrote `state = 'scored'` in SQL would be testing a string.
 import { existsSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { afterAll, beforeEach, describe, expect, it } from 'vitest'
 import { testSql, truncateAll } from '@tests/setup/integration'
 import { isAppError } from '@/lib/errors'
 import { countWords } from '@/lib/words'
+import { stopBoss } from '@/server/jobs/boss'
 import {
   STUDENT_FORBIDDEN_KEYS_ALWAYS,
   STUDENT_FORBIDDEN_KEYS_BEFORE_SCORED,
@@ -438,6 +445,9 @@ beforeEach(async () => {
 })
 
 afterAll(async () => {
+  // The scored-run block below runs the scoring pipeline, which opens pg-boss; without this the
+  // worker keeps the process alive after the last assertion (D-176).
+  await stopBoss()
   await truncateAll()
 })
 
@@ -1376,5 +1386,274 @@ describe('the key sets themselves', () => {
       ...STUDENT_FORBIDDEN_KEYS_BEFORE_SCORED,
     ])
     for (const key of allowed) expect(forbidden.has(key), `${key} is forbidden`).toBe(false)
+  })
+})
+
+// ---------------------------------------------------------------------------------------------
+// The rest of the student's run (Step 13.4)
+//
+// Everything above is built on a version this file writes element by element, which is what lets it
+// put something forbidden in every field. What it cannot do is *finish a run*: the after-scoring
+// half of D-117 is defined by the run having been scored, and the reads that matter — the five
+// second poll, the Delegation Log, the debrief on both sides of the confirmation, the Judgment
+// Record and the file it exports — only exist on a run that has been through the pipeline.
+//
+// So this block works in the room the review suites work in (`../review/fixture`): the Meridian
+// Roast package, a section with a student, an instructor, a TA and a classmate, and `scoredRun`,
+// which drives readiness, the frame, a delegation, stances, an action, the Decision Lock, the Turn
+// and the whole defense before running the scorer. Nothing is written into a state.
+//
+// The non-vacuity rule of this file is sharper here than anywhere else in it, because after scoring
+// the before-scored set is *allowed*: `expect(findForbiddenKeys(view, { scored: true })).toEqual([])`
+// would pass over an empty object, over a payload with no answer key in it, and over a debrief that
+// failed to draw. Every sweep below is therefore preceded by an assertion that the payload is the
+// real one and full — and the debrief sweeps additionally assert that the *same payload* is a pile
+// of findings under `{ scored: false }`, which is the only way to say "this is the answer key, and
+// scoring is the whole of what makes it legal to be here".
+// ---------------------------------------------------------------------------------------------
+
+type ReviewFixture = typeof import('../review/fixture')
+type Assistant = typeof import('@/server/modules/assistant')
+type Debrief = typeof import('@/server/modules/debrief')
+type Records = typeof import('@/server/modules/records')
+type Review = typeof import('@/server/modules/review')
+
+/** The error code an AppError-throwing read answered with, or how it failed to throw one. */
+async function codeOf(promise: Promise<unknown>): Promise<string> {
+  try {
+    await promise
+    return 'NO_THROW'
+  } catch (error) {
+    return isAppError(error) ? error.code : 'NOT_AN_APP_ERROR'
+  }
+}
+
+describe('the reads a student makes while the run is open', () => {
+  it('the run summary and the Delegation Log carry nothing authored about the run', async () => {
+    const rf: ReviewFixture = await import('../review/fixture')
+    const assistant: Assistant = await import('@/server/modules/assistant')
+    const rx = await rf.setupAssistantFixture('student-view-open')
+    const runId = await rf.runInWorking(rx)
+    await runs.openDocument(rx.student, runId, rx.documentId('D5'))
+    const delegationId = await rf.delegate(rx, runId, 'What is the premium payback?')
+
+    const summary = await runs.getRun(rx.student, runId)
+    const log = await assistant.listDelegations(rx.student, runId)
+
+    // The controls. An empty log and a summary of a run that never started would pass every
+    // assertion below, and the delegation is the payload most worth sweeping in the whole run: it
+    // is assembled from the claims the author wrote, with their stances and their defects next to
+    // them in the same table.
+    expect(delegationId).not.toBe('')
+    expect(log.length).toBeGreaterThan(0)
+    expect(log[0]?.responseText.length).toBeGreaterThan(0)
+    expect(log[0]?.claims.length).toBeGreaterThan(0)
+    expect(summary.state).toBe('working')
+
+    expect(findForbiddenKeys(summary, { scored: false })).toEqual([])
+    expect(findForbiddenKeys(log, { scored: false })).toEqual([])
+
+    // `flags` and `unverifiedNumbers` are on `DelegationViewSchema` as optional and are the
+    // reviewer's half of it (12 §8.1, D-068): the guard flags a delegation carries and the figures
+    // the numeric guard could not source. `flags` is forbidden by name, so the sweep above already
+    // bit; `unverifiedNumbers` is not, and is the reason this line is here as well.
+    expect(keysOf(log).has('flags')).toBe(false)
+    expect(keysOf(log).has('unverifiedNumbers')).toBe(false)
+    // D-228: which variant they drew is whether a defect was planted at all.
+    for (const key of ['variantId', 'variantKey', 'variant_id', 'variant_key']) {
+      expect([key, keysOf(summary).has(key)]).toEqual([key, false])
+    }
+  })
+
+  it('the debrief and the record are not readable at all before the bands are drafted', async () => {
+    const rf: ReviewFixture = await import('../review/fixture')
+    const debriefModule: Debrief = await import('@/server/modules/debrief')
+    const records: Records = await import('@/server/modules/records')
+    const rx = await rf.setupAssistantFixture('student-view-early')
+    const runId = await rf.runInWorking(rx)
+
+    // Not "empty", and not "redacted": refused, with the state the caller is actually in. The two
+    // reads that reveal the answer key are closed by the run's state before any projection runs.
+    expect(await codeOf(debriefModule.getDebrief(rx.student, runId))).toBe('DEBRIEF_NOT_AVAILABLE')
+    expect(await codeOf(records.getRecord(rx.student, runId))).toBe('RECORD_NOT_AVAILABLE')
+    expect(await codeOf(records.exportRecord(rx.student, runId))).toBe('RECORD_NOT_AVAILABLE')
+  })
+})
+
+describe('the reads a student makes after their run is scored', () => {
+  it('the debrief reveals the answer key, and only because the run was scored (D-117)', async () => {
+    const rf: ReviewFixture = await import('../review/fixture')
+    const debriefModule: Debrief = await import('@/server/modules/debrief')
+    const review: Review = await import('@/server/modules/review')
+    const rx = await rf.setupAssistantFixture('student-view-scored')
+    const runId = await rf.scoredRun(rx)
+
+    // ---- the draft debrief (FR-150) -------------------------------------------------------
+    const draft = await debriefModule.getDebrief(rx.student, runId)
+
+    expect(draft.labels.version).toBe('draft')
+    expect(draft.bands).toHaveLength(7)
+    expect(draft.sections.some((section) => section.available)).toBe(true)
+
+    // The assertion that makes the next line mean something. Under `{ scored: false }` this exact
+    // payload is a pile of findings — the warranted stances, the evidence statuses, the failure
+    // families, the planted flags. Scoring is the whole of what makes them legal to be here, which
+    // is D-117 in one pair of expectations.
+    const beforeScored = new Set(keysFound(draft, false))
+    expect(beforeScored.size, 'the debrief revealed no answer key at all').toBeGreaterThan(0)
+    expect([...beforeScored]).toEqual(
+      expect.arrayContaining(['warrantedStance', 'evidenceStatus', 'failureFamily']),
+    )
+
+    expect(findForbiddenKeys(draft, { scored: true })).toEqual([])
+
+    // ---- the confirmed debrief (FR-170) ---------------------------------------------------
+    await review.confirmRemaining(rx.instructor, runId)
+    const confirmed = await debriefModule.getDebrief(rx.student, runId)
+
+    expect(confirmed.labels.version).toBe('confirmed')
+    expect(confirmed.bands.every((band) => band.decision !== null)).toBe(true)
+    expect(findForbiddenKeys(confirmed, { scored: true })).toEqual([])
+
+    // FR-170 is why `weight`, `mapping` and `points` are a third set rather than part of the always
+    // set: the debrief *does* show a student the course's arithmetic. This is the assertion that
+    // says so, and the record assertion below is the one that says where it stops.
+    expect(confirmed.points.mapping).toBeTruthy()
+    expect(findForbiddenKeys(confirmed, { scored: true, form: 'record' }).length).toBeGreaterThan(0)
+
+    // ---- the Judgment Record and its file (FR-170, FR-243, D-421) -------------------------
+    const records: Records = await import('@/server/modules/records')
+    const record = await records.getRecord(rx.student, runId)
+    const file = await records.exportRecord(rx.student, runId)
+
+    const { trace: recordTrace, ...recordOwn } = record
+    expect(record.bands.length).toBe(7)
+    expect(findForbiddenKeys(recordOwn, { scored: true })).toEqual([])
+    // D-438: the one legitimate collision with the record-form rule, named rather than swept under.
+    // `graphs.confidence_line.points` are the student's own three confidence readings; every other
+    // path carrying `points`, `weight` or `mapping` at any depth would be the course's arithmetic
+    // inside the artifact that leaves Tassl for the course.
+    expect(
+      findForbiddenKeys(recordOwn, { scored: true, form: 'record' }).map((f) => f.path),
+    ).toEqual(['graphs.confidence_line.points'])
+
+    // The trace the record embeds is the *other* documented collision, and this is the assertion
+    // that it is still only that one. `owner-view.ts` classifies field by field inside a known
+    // payload precisely because two payloads use one word for opposite things: `readiness_item`'s
+    // `answer_key` is the option the **student** picked, never the item's key, which never enters a
+    // payload at all. So the name sweep finds it, and the value is what proves which of the two it
+    // is — read back from `run_readiness_answers`, which is where the student's own answers live.
+    const answers = await testSql<{ item_id: string; answer_key: string | null }[]>`
+      select item_id, answer_key from run_readiness_answers where run_id = ${runId}`
+    const chosen = new Map(answers.map((row) => [row.item_id, row.answer_key]))
+
+    type ReadinessEvent = {
+      type: string
+      payload?: { item_id?: string; answer_key?: string | null }
+    }
+
+    /**
+     * Asserts a trace's only forbidden-key findings are that collision, structurally and by value.
+     *
+     * Structurally: every finding sits on a `readiness_item` event, the one payload
+     * `owner-view.ts` classifies `answer_key` as `owner` on. By value: each one is exactly what
+     * `run_readiness_answers` holds for that item — the option this student picked, or `null` where
+     * they picked none (a submitted check with an item left blank writes `answer_key: null`, which
+     * is the fixture's own case). An item's authored key never enters a payload at all, so a
+     * finding that failed either half would be the leak this file exists to catch, reported with
+     * its path.
+     */
+    const onlyTheReadinessCollision = (trace: unknown, what: string): void => {
+      const events = (trace as { events: ReadinessEvent[] }).events
+      const findings = findForbiddenKeys(trace, { scored: true })
+
+      expect(
+        findings.filter((finding) => finding.key !== 'answer_key'),
+        `${what} carries something other than the readiness collision`,
+      ).toEqual([])
+
+      const readiness = events.filter((event) => event.type === 'readiness_item')
+      expect(
+        readiness.length,
+        `${what}: no readiness_item event, so this proves nothing`,
+      ).toBeGreaterThan(0)
+      expect(findings.length, `${what}: the sweep and the payloads disagree`).toBe(readiness.length)
+
+      for (const finding of findings) {
+        const index = Number(/^events\[(\d+)]\.payload\.answer_key$/.exec(finding.path)?.[1] ?? -1)
+        expect(events[index]?.type, `${what}: ${finding.path}`).toBe('readiness_item')
+        const itemId = events[index]?.payload?.item_id ?? ''
+        expect(events[index]?.payload?.answer_key ?? null, `${what}: ${finding.path}`).toBe(
+          chosen.get(itemId) ?? null,
+        )
+      }
+
+      // And the record form's own rule holds inside the trace too, which is the half D-421 fixed:
+      // no `points`, `weight` or `mapping` at any depth, under any spelling.
+      expect(
+        findForbiddenKeys(trace, { scored: true, form: 'record' }).filter(
+          (finding) => finding.set === 'record_form',
+        ),
+        `${what} carries the course's arithmetic`,
+      ).toEqual([])
+    }
+
+    onlyTheReadinessCollision(recordTrace, 'the record’s embedded trace')
+
+    expect(JSON.stringify(file).length).toBeGreaterThan(1_000)
+    onlyTheReadinessCollision(file, 'the record export file')
+    // And the seed record and the question bank are still out, scored or not (12 §8.1).
+    for (const key of ['seedText', 'seed_text', 'expectedAnswerNotes', 'expected_answer_notes']) {
+      expect([key, keysOf(file).has(key)]).toEqual([key, false])
+      expect([key, keysOf(record).has(key)]).toEqual([key, false])
+    }
+  })
+})
+
+describe('another student’s run is not a payload at all', () => {
+  it('a classmate and another institution both get NOT_FOUND, on every owner read', async () => {
+    const rf: ReviewFixture = await import('../review/fixture')
+    const assistant: Assistant = await import('@/server/modules/assistant')
+    const records: Records = await import('@/server/modules/records')
+    const rx = await rf.setupAssistantFixture('student-view-refusals')
+    const runId = await rf.runInWorking(rx)
+
+    // A student of another institution entirely. `foreign.activeOrganizationId` is their own org,
+    // so the run is not merely someone else's — it is outside the tenant the actor resolves to.
+    const foreignOrg = (await f.createInstitution('student-view-foreign')).organization.id
+    const foreignUser = await f.createUser('student-view-foreign-student')
+    await f.addMember(foreignOrg, foreignUser.id, 'student')
+    const foreign = actorFor(foreignUser, foreignOrg)
+
+    // 12 §8.3 sketches a 403 for the classmate. This build answers NOT_FOUND, deliberately and in
+    // one place: `requireRunOwner` (08 §5) answers NOT_FOUND both for a run that does not exist and
+    // for one belonging to another student, and every owner read that also admits a reviewer —
+    // `runs.getRun`, `records.exportRecord`, `trace.listEvents` — converts the reviewer guard's
+    // FORBIDDEN back to NOT_FOUND for exactly this reader. A 403 would confirm the run exists to
+    // the one seat 08 §4 gives no read of it at all, which is FR-154 (D-612).
+    for (const [name, reader] of [
+      ['classmate', rx.classmate],
+      ['another institution', foreign],
+    ] as const) {
+      expect([name, await codeOf(runs.getRun(reader, runId))]).toEqual([name, 'NOT_FOUND'])
+      expect([name, await codeOf(runs.getRunWorkspace(reader, runId))]).toEqual([name, 'NOT_FOUND'])
+      expect([name, await codeOf(reliance.listRunClaims(reader, runId))]).toEqual([
+        name,
+        'NOT_FOUND',
+      ])
+      expect([name, await codeOf(assistant.listDelegations(reader, runId))]).toEqual([
+        name,
+        'NOT_FOUND',
+      ])
+      expect([name, await codeOf(trace.listEvents(reader, runId))]).toEqual([name, 'NOT_FOUND'])
+      expect([name, await codeOf(records.getRecord(reader, runId))]).toEqual([name, 'NOT_FOUND'])
+      expect([name, await codeOf(records.exportRecord(reader, runId))]).toEqual([name, 'NOT_FOUND'])
+    }
+
+    // The control: the run's own student reads it, so the refusals above are about the reader.
+    expect(await codeOf(runs.getRun(rx.student, runId))).toBe('NO_THROW')
+    // And the section's instructor is not refused either, which is what makes NOT_FOUND above a
+    // statement about a *student's* relation to the run rather than about the run being invisible.
+    expect(await codeOf(runs.getRun(rx.instructor, runId))).toBe('NO_THROW')
   })
 })

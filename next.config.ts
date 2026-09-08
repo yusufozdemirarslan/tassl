@@ -4,7 +4,28 @@ import { withSentryConfig } from '@sentry/nextjs/config'
 
 // The authoritative listing of this file is docs/tech/12-security.md §4.3; the Sentry keys are
 // owned by 13-observability-ops.md §3.6 and the `/ingest` rewrites by 17-analytics-events.md §5.7.
-// Static security headers and the `headers()` cache rules arrive with 12 §4 in Step 13.3.
+
+/**
+ * The static half of 12 §4.1: every header whose value does not change from request to request.
+ *
+ * They are set here rather than in `src/proxy.ts` because `headers()` runs on `/(.*)` — every
+ * response, including the paths the proxy's matcher skips (`/api/health`, `/ingest/*`,
+ * `/_next/static/*`, `/fonts/*`) and the static assets a proxy should not be woken for. The one
+ * header that cannot join them is the CSP, which carries a per-request nonce.
+ */
+const securityHeaders = [
+  // Two years, subdomains included, and preload-eligible. Browsers ignore it on plain http, so it
+  // is harmless on localhost and correct the moment the response is served over TLS.
+  { key: 'Strict-Transport-Security', value: 'max-age=63072000; includeSubDomains; preload' },
+  { key: 'X-Content-Type-Options', value: 'nosniff' },
+  { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
+  { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=()' },
+  // `frame-ancestors 'none'` in the CSP says the same thing to a modern browser; this is the half
+  // an old one understands, and Tassl is embedded nowhere.
+  { key: 'X-Frame-Options', value: 'DENY' },
+  { key: 'Cross-Origin-Opener-Policy', value: 'same-origin' },
+  { key: 'Cross-Origin-Resource-Policy', value: 'same-origin' },
+] as const
 
 /**
  * The release both halves of Sentry report under. `SENTRY_RELEASE` is the merge commit SHA exported
@@ -29,6 +50,25 @@ const config: NextConfig = {
     APP_ENV: process.env.APP_ENV ?? 'local',
     SENTRY_TRACES_SAMPLE_RATE: process.env.SENTRY_TRACES_SAMPLE_RATE ?? '1',
     SENTRY_RELEASE: release,
+  },
+  // 12 §4.1 (the security headers) and 16 §7.2 (the cache rules). Order matters only in that every
+  // matching rule is applied: a request for `/fonts/IBMPlexSans-Regular.woff2` gets the seven
+  // security headers *and* the immutable cache line.
+  async headers() {
+    return [
+      { source: '/(.*)', headers: [...securityHeaders] },
+      // Hashed by content in their own names and never rewritten (16 §7.1). `next/font/local`
+      // serves its own copies from `/_next/static/media`, which Next already marks immutable;
+      // this rule is for the files as `public/` publishes them.
+      {
+        source: '/fonts/:path*',
+        headers: [{ key: 'Cache-Control', value: 'public, max-age=31536000, immutable' }],
+      },
+      // 16 §7.1: nothing under /api is cacheable. `defineRoute` says the same on every envelope it
+      // writes; this covers the handlers that are not `defineRoute` — Better Auth's `/api/auth/*`
+      // above all, which sets session cookies and must never be held by an intermediary.
+      { source: '/api/:path*', headers: [{ key: 'Cache-Control', value: 'no-store' }] },
+    ]
   },
   // Reverse proxy for PostHog (D-115, D-119): the browser only ever talks to this origin, so the
   // CSP keeps `connect-src 'self'` and `script-src 'self'` with no analytics host in either.

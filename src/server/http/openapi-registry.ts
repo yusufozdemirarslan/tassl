@@ -21,6 +21,18 @@ export type RegisteredRoute = {
   /** Additional documented responses by status code (e.g. 503 for readiness). */
   responses?: Record<string, { description: string; schema: ZodType }>
   rateLimit?: RateLimitBucket
+  /**
+   * `false` when `scripts/openapi-generate.ts` must leave this operation as `openapi.yaml` has it
+   * written by hand.
+   *
+   * One route needs it: `POST /runs/{runId}/delegations` answers `text/event-stream`, so a
+   * generated `application/json` response body would be a lie (D-273). Until Step 13.4 it said so
+   * by carrying no spec at all — which also meant the one endpoint in the product that spends a
+   * model budget declared no rate-limit bucket anywhere a test could read, while enforcing one in
+   * its handler. Saying "not documented" out loud is what lets the bucket be declared with
+   * everything else (D-613).
+   */
+  documented?: boolean
 }
 
 export const ROUTE_SPEC: unique symbol = Symbol.for('tassl.routeSpec')

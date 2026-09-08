@@ -167,8 +167,16 @@ const STREAM_HEADERS = {
  * reply before it yields anything (D-271). A client therefore gets either an error envelope with a
  * status it can act on, or a 200 whose events all arrive. There is no half-answered stream to
  * interpret, which is what lets `use-delegation.ts` be a reader rather than a state machine.
+ *
+ * **Why it still carries a spec.** `documented: false` keeps the generator away from the
+ * hand-written `text/event-stream` operation, which is what the absent spec used to buy. What the
+ * absent spec also bought was silence: `tests/integration/rate-limit/coverage.test.ts` reads the
+ * bucket every route declares, and the one endpoint that spends a model budget declared none —
+ * while enforcing `llm` ten lines down. The spec is the declaration; `enforceRateLimit` below is
+ * the enforcement, and the test at the bottom of this file's suite proves they are the same bucket
+ * (D-613).
  */
-export const delegateRoute: RouteHandler = async (request, routeCtx) => {
+const delegateHandler: RouteHandler = async (request, routeCtx) => {
   const startedAt = Date.now()
   const requestId = getOrCreateRequestId(request.headers)
   const logger = createRequestLogger({
@@ -245,3 +253,19 @@ export const delegateRoute: RouteHandler = async (request, routeCtx) => {
     }
   })
 }
+
+export const delegateRoute: RouteHandler = attachRouteSpec(delegateHandler, {
+  operationId: 'delegate',
+  summary: 'Delegate to the assistant (server-sent events)',
+  tags: TAGS,
+  status: 200,
+  description: 'A stream of `segment` events and one `done` event',
+  auth: 'session',
+  input: { params: RunIdParamsSchema, body: DelegateInputSchema },
+  // Never serialized: `documented: false` keeps this operation as openapi.yaml has it by hand, and
+  // the handler writes the body itself. It is here because `RegisteredRoute` requires an output
+  // schema, and `z.never()` is the honest one — no JSON body is ever produced.
+  output: z.never(),
+  rateLimit: 'llm',
+  documented: false,
+})

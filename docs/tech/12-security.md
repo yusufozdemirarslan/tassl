@@ -249,7 +249,12 @@ const APP_PREFIXES = [
   '/assignments', '/review', '/packages', '/invitations', '/admin',
 ]
 
-export function buildCsp(nonce: string): string {
+// D-614: `appEnv` is a parameter with a default rather than a module constant, so §4.5's two exact
+// strings can be asserted as values instead of through a module reset. The proxy calls it with one
+// argument, exactly as printed below.
+export function buildCsp(nonce: string, appEnv: AppEnv = appEnvOf(process.env.APP_ENV)): string {
+  const IS_LOCAL = appEnv === 'local'
+  const IS_PRODUCTION = appEnv === 'production'
   const scriptSrc = [`'self'`, `'nonce-${nonce}'`, `'strict-dynamic'`, ...(IS_LOCAL ? [`'unsafe-eval'`] : [])]
   const connectSrc = [`'self'`, ...(IS_LOCAL ? ['ws://localhost:*'] : [])]
   return [
@@ -312,7 +317,9 @@ export const config = {
 }
 ```
 
-`src/app/layout.tsx` reads the nonce with `(await headers()).get('x-nonce')` and passes it as the `nonce` prop to `next-themes` `ThemeProvider` (its theme script is inline) and to any `<Script>` element. Nothing else needs it.
+The matcher this build ships is 17 §5.7's literal (D-602), which also excludes `api/auth`, `api/health`, `api/ready` and `ingest`; the static headers of §4.1 still reach those paths, because §4.3 sets them on `/(.*)` rather than here (D-610).
+
+**What reads the nonce.** Next.js itself: it parses the `Content-Security-Policy` *request* header the proxy sets and stamps the nonce onto every script it emits. That works only while rendering a request, so `src/app/layout.tsx` carries `export const dynamic = 'force-dynamic'` (D-611) — a prerendered page's script tags carry no nonce, and `'strict-dynamic'` makes a browser ignore `'self'`, so all of them are blocked. The `x-nonce` request header is the form a Server Component reads with `(await headers()).get('x-nonce')` and passes as the `nonce` prop to a `<Script>` element; this build has no `<Script>` element and no `next-themes`, so nothing reads it yet. `tests/e2e/security/headers.spec.ts` asserts the property that matters: every `<script>` in the served document carries the policy's own nonce, and `x-nonce` never appears on a response.
 
 ### 4.3 `next.config.ts`
 
@@ -344,8 +351,16 @@ const nextConfig: NextConfig = {
     APP_ENV: process.env.APP_ENV ?? 'local',
     SENTRY_TRACES_SAMPLE_RATE: process.env.SENTRY_TRACES_SAMPLE_RATE ?? '1.0',
   },
+  // The seven above on every response, then the cache rules of 16 §7.2. Every matching rule is
+  // applied, so `/fonts/*.woff2` gets the security headers and the immutable cache line. 16 §7.2's
+  // `/favicon.svg` rule is not carried: the project ships no favicon of either extension (D-602,
+  // D-610), and a cache rule for a 404 is a line nobody can test.
   async headers() {
-    return [{ source: '/(.*)', headers: securityHeaders }]
+    return [
+      { source: '/(.*)', headers: securityHeaders },
+      { source: '/fonts/:path*', headers: [{ key: 'Cache-Control', value: 'public, max-age=31536000, immutable' }] },
+      { source: '/api/:path*', headers: [{ key: 'Cache-Control', value: 'no-store' }] },
+    ]
   },
   async rewrites() {
     return [
@@ -386,7 +401,7 @@ Rules: `advanced.useSecureCookies` and `defaultCookieAttributes` in `src/server/
 ### 4.5 Verification
 
 - `tests/unit/security/csp.test.ts` asserts `buildCsp('abc')` returns exactly `default-src 'self'; script-src 'self' 'nonce-abc' 'strict-dynamic'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; worker-src 'self'; manifest-src 'self'; media-src 'none'; object-src 'none'; frame-src 'none'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'` under `APP_ENV=test`, and the same string followed by `; upgrade-insecure-requests` under `APP_ENV=production`.
-- `tests/e2e/security/headers.spec.ts` requests `/sign-in` and `/api/health` and asserts every header in §4.1 byte for byte, that `x-powered-by` is absent, that `x-request-id` is a UUID, and that a request carrying `x-request-id: 11111111-1111-4111-8111-111111111111` gets the same value back.
+- `tests/e2e/security/headers.spec.ts` requests `/sign-in` and `/api/v1/me` and asserts every header in §4.1 byte for byte, that `x-powered-by` and `x-nonce` are absent from the response, that `x-request-id` is a UUID, and that a request carrying `x-request-id: 11111111-1111-4111-8111-111111111111` gets the same value back while `x-request-id: not-a-uuid` does not. `/api/health` is asserted too, for the static headers and `Cache-Control: no-store` alone: it is outside the proxy's matcher (17 §5.7), so it carries no CSP and no request id by design. Two more assertions belong to the CSP rather than to the headers: every `<script>` in `/sign-in`, `/privacy` and a 404 carries the policy's own nonce (D-611), and a signed-out load and navigation raise no CSP violation in the browser console.
 - After every production deploy, `scripts/smoke.sh` requests `/sign-in` and fails unless `strict-transport-security`, `content-security-policy`, `x-content-type-options`, `x-frame-options`, `referrer-policy`, and `permissions-policy` are present (`15-cicd-deployment.md` §9).
 
 ## 5. Dependency audit and secret scanning in CI
@@ -694,9 +709,13 @@ describe('student views never carry answer keys', () => {
     expect(findForbiddenKeys(res.json, { scored: true, form: 'record' })).toEqual([])
   })
 
-  it('another student in the same section gets 403; another organization gets 404', async () => {
+  // D-612: both are 404. `requireRunOwner` answers NOT_FOUND for another student's run as well as
+  // for one that does not exist, and every owner read that also admits a reviewer converts the
+  // reviewer guard's FORBIDDEN back to NOT_FOUND for a classmate — a 403 would confirm to the one
+  // seat §4 gives no read at all that the run exists (FR-154).
+  it('a classmate and another organization both get 404', async () => {
     const { runId, other, foreign } = await seedRunInState('working')
-    expect((await asStudent(other).get(`/api/v1/runs/${runId}`)).status).toBe(403)
+    expect((await asStudent(other).get(`/api/v1/runs/${runId}`)).status).toBe(404)
     expect((await asStudent(foreign).get(`/api/v1/runs/${runId}`)).status).toBe(404)
   })
 })
