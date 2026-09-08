@@ -122,19 +122,21 @@ for (const pageKey of Object.keys(routes)
 // built here out of the budgets above plus three named allowances for what LHCI counts and this
 // script cannot see, and the run fails if lighthouserc.json disagrees.
 //
-// Measured on 2026-09-06 (`pnpm exec lhci autorun`, three runs, all identical): script 449,239 of
-// 530,000, total 947,699 of 1,060,000.
+// Measured on 2026-09-08 (`pnpm lhci`, three runs): script 473,353 of 530,000, total 976,299 of
+// 1,060,000.
 
 /** Chunks the page fetches that `entryJSFiles` does not list: the two `recharts` graphs behind
  *  `next/dynamic` (§3.3), `instrumentation-client`, and the per-request header bytes Lighthouse
- *  counts in a transfer size. Measured 131,702 across 31 script requests. */
+ *  counts in a transfer size. Measured 150,470 on 2026-09-08, which is over this allowance and
+ *  under the ceiling: the floor and the route budget above it are not spent to their caps, and it
+ *  is their sum LHCI asserts. */
 const GALLERY_DEFERRED_MAX_BYTES = 150_000
 
 /** All seven self-hosted woff2 faces: the gallery draws a type specimen, so it loads the Mono and
- *  Serif faces a product page never asks for (a real page loads four). Measured 445,064. */
+ *  Serif faces a product page never asks for (a real page loads four). Measured 447,339. */
 const GALLERY_FONT_MAX_BYTES = 460_000
 
-/** The HTML document and the two stylesheets. Measured 56,738. */
+/** The HTML document and the two stylesheets. Measured 55,607. */
 const GALLERY_DOCUMENT_MAX_BYTES = 70_000
 
 const galleryRouteBudget = budgets.find((b) => b.label === GALLERY_LABEL)!.maxBytes

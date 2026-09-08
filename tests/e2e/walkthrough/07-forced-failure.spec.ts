@@ -30,7 +30,7 @@
 // working period is proven in `06-working-period.spec.ts` and repeating it here would only make this
 // spec slower and give it a second reason to fail.
 import type { APIRequestContext, Page } from '@playwright/test'
-import { expect, seatEmail, signInAs, signOut, test } from '../fixtures'
+import { axe, expect, seatEmail, signInAs, signOut, test } from '../fixtures'
 import { addSectionMember, createStudentAssignment, signInAsInstructor } from '../instructor/api'
 
 /** Cookie-authenticated mutations under /api/v1 carry X-Requested-With (08 §2.7). */
@@ -198,6 +198,11 @@ test('walkthrough step 7: an armed assistant failure pauses the run, and Resume 
   for (const word of ['test control', 'instructor', 'forced', 'provider', 'delegation']) {
     expect(spoken, `the paused overlay must not say "${word}"`).not.toContain(word)
   }
+
+  // UI-023's paused state, scanned (16 §8.2, B14). This is the only place in the suite the overlay
+  // is on screen — it takes an armed failure to reach — and it is a modal `alertdialog` that makes
+  // the workspace behind it `inert`, which is exactly the shape an axe scan is for.
+  await axe(page)
 
   // The run is paused on the server and the clock is stopped there, which is the fact the overlay
   // is drawn from rather than a state this browser is holding.

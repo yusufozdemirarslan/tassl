@@ -308,6 +308,23 @@ test('the student run screens have no axe violations', async ({ page, request })
   await axe(page)
   await page.keyboard.press('Escape')
 
+  // The escalation dialog, opened and cancelled. It is a modal with a word-limited field and a
+  // sentence about a budget, and it is the last surface of the workspace with a role of its own
+  // (16 §8.2). Nothing is sent: a scan has no business spending one of the run's two escalations.
+  await claimCard.getByRole('button', { name: `Escalate claim ${CLAIM_KEY}` }).click()
+  const escalation = page.getByRole('dialog')
+  await expect(escalation).toContainText('Escalate to a colleague')
+  await axe(page)
+  await escalation.getByRole('button', { name: 'Cancel' }).click()
+  await expect(escalation).toBeHidden()
+
+  // The outside-tool declaration, open. FR-006 lives here: the disclosure's own copy is the promise
+  // that a declaration changes nothing, and it is a labelled region with a word-limited field.
+  const declaration = page.locator('#declaration-control')
+  await declaration.getByRole('button', { name: 'Declare outside-tool use' }).click()
+  await expect(declaration.getByLabel('What you used, and what for')).toBeVisible()
+  await axe(page)
+
   // -------------------------------------------------------------------------------------------
   // UI-024 `/runs/[runId]/locked`: the filed brief, the frozen frame, the Turn countdown and the
   // addendum control

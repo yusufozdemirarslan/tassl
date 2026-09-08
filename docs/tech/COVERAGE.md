@@ -145,9 +145,9 @@ Conventions: steps are `N.M` in `build-plan/phase-NN-*.md`; test paths are relat
 | FR-205 | 4.1 | integration/courses/service.test.ts |
 | FR-206 | 11.2, 11.4 | integration/courses/mapping.test.ts, e2e instructor/mapping.spec.ts |
 | FR-210 | 11.5 | a11y/keyboard-only-run.spec.ts |
-| FR-211 | 13.8 | a11y/*.spec.ts |
+| FR-211 | 13.8 | a11y/*.spec.ts, unit/design/contrast.test.ts |
 | FR-212 | 10.2, 11.5 | unit/components/graphs/graph-frame.test.tsx, e2e wt-17 |
-| FR-213 | 8.2, 9.1 | integration/runs/pause.test.ts, unit/runs/timers.test.ts |
+| FR-213 | 8.2, 9.1, 13.8 | integration/runs/pause.test.ts, unit/runs/timers.test.ts, e2e wt-07 (the paused overlay, scanned) |
 | FR-214 | 9.3 | unit/components/run/defense-question.test.tsx, e2e wt-10 |
 | FR-221 | 3.2 | integration/tenancy/agreements.test.ts |
 | FR-230 | 3.2, 3.6 | integration/auth/permissions.test.ts, integration/auth/matrix.test.ts |
@@ -176,9 +176,9 @@ Conventions: steps are `N.M` in `build-plan/phase-NN-*.md`; test paths are relat
 | NFR-003 | 6.2 | unit/runs/clock.test.ts |
 | NFR-004 | 2.6, 8.2 | integration/db/grants.test.ts, integration/runs/lock.test.ts |
 | NFR-005 | 2.4, 6.1 | integration/db/runs-schema.test.ts, integration/trace/append.test.ts |
-| NFR-006 | 1.6, 13.8 | a11y/*.spec.ts, `pnpm lhci` |
+| NFR-006 | 1.6, 13.8 | a11y/*.spec.ts (WCAG 2.2 AA tags, D-644), a11y/reduced-motion.spec.ts, unit/design/contrast.test.ts, `pnpm lhci` |
 | NFR-007 | 13.1, 15.3 | unit/logging/ops-events.test.ts, launch checklist |
-| NFR-008 | 13.1, 13.8, 15.3 | e2e/perf/web-vitals.spec.ts, integration latency summary, k6 |
+| NFR-008 | 13.1, 13.8, 15.3 | e2e/perf/web-vitals.spec.ts, integration/perf/query-plans.test.ts, k6 (query count and the latency summary are open, D-643) |
 | NFR-009 | 3.3, 13.6 | integration/identity/purge.test.ts, integration/identity/retention.test.ts |
 | NFR-010 | 11.5 | Playwright projects chromium, firefox, webkit |
 | NFR-011 | 13.3, 13.4 | unit/security/csp.test.ts, e2e/security/headers.spec.ts, integration/rate-limit/coverage.test.ts |
