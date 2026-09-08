@@ -70,6 +70,10 @@ jobs:
           # from GitHub secrets; the deployment itself still uses the Vercel preview values.
           BETTER_AUTH_SECRET: ${{ secrets.BETTER_AUTH_SECRET_PREVIEW }}
           CRON_SECRET: ${{ secrets.CRON_SECRET_PREVIEW }}
+          # The build validates the whole server env, and `openai-compatible` requires a key
+          # (`config.ts` superRefine). `vercel pull` writes a Secret as the literal
+          # `[SENSITIVE]`, so the key comes from a GitHub secret like the two above (D-160).
+          LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
         run: npx vercel@59.11.2 build --token "$VERCEL_TOKEN"
 
       # D-161: the runner's checkout would attach git metadata, and Vercel then blocks the
