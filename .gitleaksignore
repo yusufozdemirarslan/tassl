@@ -10,3 +10,11 @@ cc4e668de6f2b12d1a27196dd75591284d12239d:src/server/db/seed.ts:generic-api-key:2
 # lines themselves now carry `gitleaks:allow` for every future commit.
 2202bff229e866154a1456bdf7f2ef084c431ded:tests/integration/api/runs.test.ts:generic-api-key:170
 2202bff229e866154a1456bdf7f2ef084c431ded:tests/unit/http/idempotency.test.ts:generic-api-key:57
+
+# The example output in the question-bank generation prompt: a bank question's own `key`, which is
+# an authored identifier like `Q_ASSUMPTION_0`, read by the generic-api-key rule as a credential
+# because the field is spelled `key`. Fingerprints rather than an inline allow, because gitleaks
+# scans history and an inline comment cannot retroact to the commit that introduced the line.
+09b6409531422e68576c6b3f94c25ca941ca2ada:src/server/llm/prompts/gen-question-bank-and-counterfactual.ts:generic-api-key:265
+09b6409531422e68576c6b3f94c25ca941ca2ada:src/server/llm/prompts/gen-question-bank-and-counterfactual.ts:generic-api-key:278
+09b6409531422e68576c6b3f94c25ca941ca2ada:src/server/llm/prompts/gen-question-bank-and-counterfactual.ts:generic-api-key:291
