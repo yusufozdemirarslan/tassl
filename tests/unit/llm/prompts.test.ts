@@ -59,7 +59,7 @@ describe('untrusted', () => {
   // The other half of that normalisation (D-265). A prompt's validated input is handed on as
   // `promptInput` — the mock reads its content from it, the evals read it back — so if the block
   // trims and the schema does not, the same field says two things at once: one prompt rendered, two
-  // different inputs recorded. `assistant-reply@1` applies `normalizeUntrustedText` to every field it
+  // different inputs recorded. `assistant-reply@5` applies `normalizeUntrustedText` to every field it
   // wraps, so what the prompt hands on is what the prompt sent.
   it('is the same normalisation a prompt’s input schema applies, so the two cannot drift', () => {
     const raw = '\r\n  What is the premium payback?  '

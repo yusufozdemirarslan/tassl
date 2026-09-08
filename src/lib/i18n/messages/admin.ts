@@ -70,6 +70,29 @@ export const admin = {
     'The provider the run loop would actually call right now, which is the mock whenever FEATURE_AI is off.',
   'admin.flags.providerMockNote':
     'This deployment answers the assistant from a fixture: no run text reaches a model provider.',
+  // 11 §3's constrained-mode sentence, on the one screen it belongs on (D-655). It is written for an
+  // operator asking what this deployment is running with, and it is deliberately absent from every
+  // student surface: with FEATURE_AI off the product is whole (D-029), and a banner telling a
+  // student their assistant is "constrained" would describe a degradation they are not in and would
+  // be a change that `FEATURE_AI=false` is not allowed to make.
+  'admin.flags.constrainedMode':
+    'AI features are running in constrained mode: every model call is answered by the built-in fixture provider, which is deterministic and costs nothing.',
+
+  // Model usage (NFR-016, D-065): the same sums the budget guardrail reads, on the same clock.
+  'admin.flags.usageTitle': 'Model usage',
+  'admin.flags.usageDescription':
+    'What this deployment has spent with a model provider. These are the sums the budget guard reads before every call, so a call refused for being over budget is refused against exactly these numbers. Calls the built-in fixture provider answered are not counted: nobody was billed for them.',
+  'admin.flags.usageCaption': 'Model calls, tokens and estimated cost, today and this month',
+  'admin.flags.usageColumnMeasure': 'Measure',
+  'admin.flags.usageColumnToday': 'Today (UTC)',
+  'admin.flags.usageColumnMonth': 'This month',
+  'admin.flags.usageCalls': 'Calls',
+  'admin.flags.usageTokens': 'Tokens',
+  'admin.flags.usageCost': 'Estimated cost',
+  'admin.flags.usageMonthlyBudget':
+    'The month has used {used} of the {budget} tokens in LLM_GLOBAL_MONTHLY_TOKEN_BUDGET, which is {share}. Past it, every model call is refused until the calendar month turns.',
+  'admin.flags.usageDailyBudget':
+    'LLM_USER_DAILY_TOKEN_BUDGET is {budget} tokens per person per UTC day. It is counted per person, so the platform-wide figure above is not measured against it.',
 
   // Audit log (UI-050, DATA-048)
   'admin.audit.title': 'Audit log',

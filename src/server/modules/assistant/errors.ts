@@ -6,7 +6,7 @@
 // The throwers return `never` and are function declarations: TypeScript narrows after a
 // `never`-returning call only for declarations, which is what lets a caller read
 // `if (!row) delegationNotFound()` and then use `row`.
-import { AppError, type ErrorCode } from '@/lib/errors'
+import { AppError, isAppError, type ErrorCode } from '@/lib/errors'
 import { t } from '@/lib/i18n/t'
 
 /** The codes of 10 §7. */
@@ -55,9 +55,22 @@ export function requestTooLong(limit: number, length: number): never {
  *
  * 503 rather than 500: nothing about the request was wrong, and the state the run is now in is one
  * the student can act on.
+ *
+ * **Two sentences, because the two outages are different facts about the room** (11 §3, D-065). A
+ * provider that failed is a component the student waits out and asks again; a budget that is spent
+ * will still be spent in thirty seconds, and a student who reads "try again" and tries again has
+ * been told something untrue. So a budget refusal carries §3's own sentence — "The assistant is
+ * unavailable: usage limit reached" — and everything else carries the registry's.
+ *
+ * The cause never reaches the student beyond that: `reason` is `budget_exceeded` or `provider_error`
+ * and nothing finer. Which provider, which status and which delegation are the operator's, and they
+ * are on the `llm_calls` row already.
  */
-export function assistantUnavailable(delegationId: string): never {
-  throw new AppError('ASSISTANT_UNAVAILABLE', undefined, { details: { delegationId } })
+export function assistantUnavailable(delegationId: string, cause?: unknown): never {
+  const budget = isAppError(cause) && cause.code === 'LLM_BUDGET_EXCEEDED'
+  throw new AppError('ASSISTANT_UNAVAILABLE', budget ? t('workspace.assistantBudget') : undefined, {
+    details: { delegationId, reason: budget ? 'budget_exceeded' : 'provider_error' },
+  })
 }
 
 /** A delegation id that is not on this run — another run's entry, or a stale screen. */

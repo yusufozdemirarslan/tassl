@@ -70,7 +70,7 @@ import { StanceChip } from './stance-chip'
 const WHY_MAX_CHARS = 200
 
 /**
- * The marker `assistant-reply@1` writes around a claim object (11 §2.1), removed for reading.
+ * The marker `assistant-reply@5` writes around a claim object (11 §2.1), removed for reading.
  *
  * It is restated here rather than imported because `src/server/llm` is not reachable from a
  * component (the `boundaries` policy) — and because it is a fact about the wire format the log

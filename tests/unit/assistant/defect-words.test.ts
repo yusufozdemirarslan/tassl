@@ -189,7 +189,7 @@ describe('a claim’s authored text is carried through, whatever words the autho
   })
 
   it('survives the whole path a reply takes: segment, filter, render', () => {
-    // The shape `assistant-reply@1` fixes and the mock emits: a connective sentence, the marker,
+    // The shape `assistant-reply@5` fixes and the mock emits: a connective sentence, the marker,
     // then the claim text. Before the claim segment carried its text, every one of these landed in
     // a text segment and came back redacted, with the delegation wrongly flagged `filtered`.
     const reply = AUTHORED.map(

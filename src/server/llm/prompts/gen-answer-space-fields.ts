@@ -35,6 +35,8 @@ import {
   restatedRulesSection,
   section,
   untrustedText,
+  GEN_MAX_OUTPUT_TOKENS,
+  GEN_TIMEOUT_MS,
 } from '@/server/llm/prompts/gen'
 
 /** §2.1: a document reaches this step as its title and its first 300 words. */
@@ -139,6 +141,8 @@ export const genAnswerSpaceFieldsPrompt = definePrompt<
 >({
   name: 'gen-answer-space-fields',
   version: 1,
+  maxOutputTokens: GEN_MAX_OUTPUT_TOKENS,
+  timeoutMs: GEN_TIMEOUT_MS,
   purpose: 'Write the answer space and the named numeric fields of the Decision Brief.',
   input: AnswerSpaceFieldsInputSchema,
   output: AnswerSpaceFieldsOutputSchema,

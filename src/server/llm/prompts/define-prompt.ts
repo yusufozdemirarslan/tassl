@@ -31,6 +31,25 @@ export type PromptDef<I, O> = {
   /** Must wrap every untrusted field with `untrusted(label, text)`. */
   user: (input: I) => string
   examples: PromptExample<I, O>[]
+  /**
+   * What one call to this prompt is allowed to cost, when the environment's defaults are wrong for
+   * it (step 14.4, D-666). Both are optional and both default to the environment
+   * (`LLM_MAX_OUTPUT_TOKENS`, `LLM_TIMEOUT_MS`); a prompt that says nothing is unchanged.
+   *
+   * They exist because the library's prompts are not one kind of call. An assistant reply is six
+   * sentences with a student watching a cursor, and `LLM_TIMEOUT_MS=60000` is generous for it. A
+   * generation step writes a whole Evidence Room inside a background job, and the first
+   * real-provider run measured it wanting more than the 4,096-token ceiling and more than sixty
+   * seconds — the ceiling truncated its JSON mid-document and the repair call then truncated too, so
+   * the step failed as `LLM_OUTPUT_INVALID` twice over. Raising either default globally would give a
+   * student-facing delegation a three-minute hang and a runaway reply room to run in, so the budget
+   * belongs to the prompt that needs it.
+   *
+   * Every call site that renders a prompt passes these through; `structuredViaPrompt` applies them
+   * to the repair call as well, which is what makes the repair as able to finish as the first pass.
+   */
+  maxOutputTokens?: number
+  timeoutMs?: number
 }
 
 export type Prompt<I, O> = Omit<PromptDef<I, O>, 'system'> & {

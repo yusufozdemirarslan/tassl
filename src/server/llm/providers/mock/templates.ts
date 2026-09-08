@@ -25,7 +25,7 @@ import { matchTriggerPhrases } from '@/lib/trigger-match'
 import { rotate } from '@/server/llm/providers/mock/deterministic'
 
 /**
- * What the mock reads out of `assistant-reply@1`'s input (§2.1). Every key the reply is built from
+ * What the mock reads out of `assistant-reply@5`'s input (§2.1). Every key the reply is built from
  * is named here and everything else is stripped, not ignored (D-266): the delegation service loads
  * claim rows that carry `evidenceStatus`, `failureFamily` and `planted` beside the id and the text,
  * and a claim object that still carried them into this file would put the answer key inside the
@@ -101,7 +101,12 @@ export function buildAssistantReply(input: AssistantReplyMockInput, seed: number
 
   const turnContext = input.turnContext ?? ''
   if (turnContext.trim() !== '') paragraphs.push(TURN_NOTE)
-  paragraphs.push(rotate(CLOSINGS, seed))
+  // A different three bits of the seed than the lead-in used. `CLOSINGS.length` divides
+  // `LEAD_INS.length`, so `rotate(CLOSINGS, seed)` was a function of `seed % 8` and the whole reply
+  // had eight possible forms — two different questions collided on all of it one time in eight,
+  // which is what a prompt edit in step 14.4 turned red in `mock.test.ts`. Shifting gives the two
+  // choices independent bits and thirty-two forms (D-665).
+  paragraphs.push(rotate(CLOSINGS, seed >>> 3))
 
   return paragraphs.join('\n\n')
 }

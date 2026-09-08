@@ -108,6 +108,14 @@ export type StepPrompt = {
   version: number
   output: unknown
   render(rawInput: unknown): { messages: LlmMessage[]; input: unknown }
+  /**
+   * The call budget the prompt declares for itself, when the environment's defaults are wrong for it
+   * (D-666). Optional here as it is on `Prompt`, so a prompt that says nothing keeps
+   * `LLM_MAX_OUTPUT_TOKENS` and `LLM_TIMEOUT_MS`; all seven generation prompts say something,
+   * because a step writes a package element in a job rather than a reply a student is waiting on.
+   */
+  maxOutputTokens?: number
+  timeoutMs?: number
 }
 
 export type StepDefinition = {

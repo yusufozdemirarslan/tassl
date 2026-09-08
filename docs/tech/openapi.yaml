@@ -7294,11 +7294,73 @@ paths:
                     type: boolean
                   effectiveLlmProvider:
                     type: string
+                  llmUsage:
+                    type: object
+                    properties:
+                      today:
+                        type: object
+                        properties:
+                          calls:
+                            type: integer
+                            minimum: 0
+                            maximum: 9007199254740991
+                          tokens:
+                            type: integer
+                            minimum: 0
+                            maximum: 9007199254740991
+                          costUsd:
+                            type: number
+                            minimum: 0
+                        required:
+                          - calls
+                          - tokens
+                          - costUsd
+                        additionalProperties: false
+                      month:
+                        type: object
+                        properties:
+                          calls:
+                            type: integer
+                            minimum: 0
+                            maximum: 9007199254740991
+                          tokens:
+                            type: integer
+                            minimum: 0
+                            maximum: 9007199254740991
+                          costUsd:
+                            type: number
+                            minimum: 0
+                        required:
+                          - calls
+                          - tokens
+                          - costUsd
+                        additionalProperties: false
+                      budgets:
+                        type: object
+                        properties:
+                          userDaily:
+                            type: integer
+                            exclusiveMinimum: 0
+                            maximum: 9007199254740991
+                          globalMonthly:
+                            type: integer
+                            exclusiveMinimum: 0
+                            maximum: 9007199254740991
+                        required:
+                          - userDaily
+                          - globalMonthly
+                        additionalProperties: false
+                    required:
+                      - today
+                      - month
+                      - budgets
+                    additionalProperties: false
                 required:
                   - ai
                   - sampleData
                   - testControls
                   - effectiveLlmProvider
+                  - llmUsage
                 additionalProperties: false
         "401":
           $ref: "#/components/responses/Unauthenticated"

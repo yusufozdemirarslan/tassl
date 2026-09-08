@@ -1,4 +1,4 @@
-// Step 7.2 — `assistant-reply@1` and `trigger-classify@1` (docs/tech/11-llm-integration.md §2.1, §3).
+// Step 7.2 — `assistant-reply@5` and `trigger-classify@1` (docs/tech/11-llm-integration.md §2.1, §3).
 //
 // A prompt is product surface: it is where FR-052 and FR-056 stop being intentions and start being
 // text a model reads. So the assertions here are about the promises, not the prose — that the rule
@@ -40,11 +40,11 @@ const userMessage = (input: unknown): string =>
 
 const countOf = (haystack: string, needle: string): number => haystack.split(needle).length - 1
 
-describe('assistant-reply@1 — the system message', () => {
+describe('assistant-reply@5 — the system message', () => {
   const system = assistantReplyPrompt.system
 
   it('is named and versioned for the llm_calls row', () => {
-    expect(assistantReplyPrompt.id).toBe('assistant-reply@1')
+    expect(assistantReplyPrompt.id).toBe('assistant-reply@5')
   })
 
   it('carries the UNTRUSTED sentence as its last paragraph', () => {
@@ -70,7 +70,7 @@ describe('assistant-reply@1 — the system message', () => {
   })
 })
 
-describe('assistant-reply@1 — rendering', () => {
+describe('assistant-reply@5 — rendering', () => {
   it('wraps the world, every document, every claim and the request', () => {
     const rendered = userMessage(INPUT)
     expect(countOf(rendered, UNTRUSTED_OPEN)).toBe(4)
@@ -136,7 +136,7 @@ describe('assistant-reply@1 — rendering', () => {
   })
 })
 
-describe('assistant-reply@1 — the marker contract', () => {
+describe('assistant-reply@5 — the marker contract', () => {
   it('renders and reads back the ids in order, duplicates kept', () => {
     expect(claimMarker('C3')).toBe('[[claim:C3]]')
     expect(
@@ -149,7 +149,7 @@ describe('assistant-reply@1 — the marker contract', () => {
   })
 })
 
-describe('trigger-classify@1', () => {
+describe('trigger-classify@2', () => {
   const input = {
     request: 'how hard is the line running',
     candidates: [
@@ -163,7 +163,7 @@ describe('trigger-classify@1', () => {
   }
 
   it('is named and versioned for the llm_calls row', () => {
-    expect(triggerClassifyPrompt.id).toBe('trigger-classify@1')
+    expect(triggerClassifyPrompt.id).toBe('trigger-classify@2')
     expect(triggerClassifyPrompt.system.endsWith(UNTRUSTED_INSTRUCTION)).toBe(true)
   })
 
@@ -176,9 +176,12 @@ describe('trigger-classify@1', () => {
     const rendered = triggerClassifyPrompt.render(input).messages.at(-1)?.content ?? ''
     expect(rendered).toContain('id: C3')
     expect(rendered).toContain('Raised when the student asks what the premium tier returns.')
-    expect(rendered).toContain('"premium payback"')
+    expect(rendered).toContain('premium payback')
     expect(rendered).toContain('(none given)')
-    expect(countOf(rendered, UNTRUSTED_OPEN)).toBe(1)
+    // Step 14.3 (D-654): the request, plus a block for each candidate's description, plus one for
+    // C3's example wordings. C7 has none, so it renders the sentence rather than an empty block.
+    expect(countOf(rendered, UNTRUSTED_OPEN)).toBe(4)
+    expect(countOf(rendered, UNTRUSTED_OPEN)).toBe(countOf(rendered, UNTRUSTED_CLOSE))
   })
 
   it('accepts only a list of ids back, and defaults an absent list to empty', () => {

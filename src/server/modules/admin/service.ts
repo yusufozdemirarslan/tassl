@@ -15,6 +15,7 @@ import { requirePlatformRole } from '@/server/auth/permissions'
 import type { SessionUser } from '@/server/auth/types'
 import { effectiveLlmProvider, env } from '@/server/config'
 import { getRequestContext } from '@/server/http/request-context'
+import { budgetLimits, startOfUtcDay, startOfUtcMonth } from '@/server/llm/guardrails/budgets'
 import {
   deleteSessionsOfUser,
   findUserById,
@@ -22,6 +23,7 @@ import {
   listAuditLog as listAuditLogRows,
   listInstitutions as listInstitutionRows,
   listUsers as listUserRows,
+  readLlmUsage,
   setPlatformRole as writePlatformRole,
   withTransaction,
   type AuditLog as AuditLogRow,
@@ -148,15 +150,33 @@ export async function listInstitutions(actor: SessionUser): Promise<InstitutionR
 }
 
 /**
- * The three deployment flags and the provider the run loop would actually call (10 §16).
+ * The three deployment flags, the provider the run loop would actually call, and what that provider
+ * has cost today and this month against its two ceilings (10 §16, NFR-016, step 14.5).
  *
  * `effectiveLlmProvider()` and not `env.LLM_PROVIDER`: `FEATURE_AI=false` forces the mock whatever
  * the provider variable says, and the screen exists to show the reader what is true rather than
- * what was configured.
+ * what was configured. The usage numbers answer the second half of the same question — this is what
+ * the deployment is running with, *and* this is what it has spent — and they are the numbers the
+ * budgets themselves sum, read against the same UTC day and calendar month (D-065). They are the
+ * one place in the product where an operator can see budget consumption without PostHog: 13 §6.3's
+ * panels need a key, and Tassl must be fully usable without one (D-098).
+ *
+ * Asynchronous from here on, which is what a screen paid for reading them: the flags themselves are
+ * still pure environment.
  */
-export function getFlags(actor: SessionUser): AdminFlags {
+export async function getFlags(actor: SessionUser): Promise<AdminFlags> {
   requirePlatformRole(actor, 'admin')
-  return { ...flagsFromEnv(env), effectiveLlmProvider: effectiveLlmProvider() }
+  const now = new Date()
+  const usage = await readLlmUsage(startOfUtcMonth(now), startOfUtcDay(now))
+  const limits = budgetLimits()
+  return {
+    ...flagsFromEnv(env),
+    effectiveLlmProvider: effectiveLlmProvider(),
+    llmUsage: {
+      ...usage,
+      budgets: { userDaily: limits.userDaily, globalMonthly: limits.globalMonthly },
+    },
+  }
 }
 
 /**

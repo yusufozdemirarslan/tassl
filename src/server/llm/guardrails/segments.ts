@@ -3,7 +3,7 @@
 //
 // A reply is two kinds of writing interleaved. The connective sentences are the model's own: they
 // carry no stance, they are never scored, and both guards read them. The claim texts are the
-// author's: `assistant-reply@1` tells the model to copy each one "exactly as given, character for
+// author's: `assistant-reply@5` tells the model to copy each one "exactly as given, character for
 // character" behind a `[[claim:<id>]]` marker, the workspace turns that marker into a card with a
 // stance control, and the student stances the words in it. Editing those words would put text nobody
 // authored into a claim object — the numeric guard would flag a figure the author sourced, and the
@@ -64,7 +64,7 @@ const leadingSpace = (text: string): number => text.length - text.trimStart().le
 /**
  * Cut a reply into segments (§3).
  *
- * `claims` are the ones the trigger matcher surfaced — the same list `assistant-reply@1` was given.
+ * `claims` are the ones the trigger matcher surfaced — the same list `assistant-reply@5` was given.
  * A marker for an id that is not among them yields a claim segment with no text and consumes
  * nothing: an invented id must not be able to turn the model's next sentence into unguarded content.
  */
@@ -100,7 +100,7 @@ export const proseOf = (segments: readonly GuardSegment[]): string[] =>
  * The reply as it is shown and stored, after the guards have run over it.
  *
  * A claim segment renders as its marker and the authored text, one space between them — the shape
- * `assistant-reply@1`'s example fixes and the mock emits, so a reply that went through the guards
+ * `assistant-reply@5`'s example fixes and the mock emits, so a reply that went through the guards
  * unchanged comes back out unchanged. A model that separated the two with a newline has that
  * flattened to a space; §3 already contemplates rebuilding a reply whose markers do not line up.
  */

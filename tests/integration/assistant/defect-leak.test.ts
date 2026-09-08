@@ -8,7 +8,7 @@
 // field it adds to a view, a number it lets past the guard, or an error it phrases badly — and this
 // is where that shows up.
 //
-// **What is asserted, over all twelve cases.**
+// **What is asserted, over all sixteen cases.**
 //
 //   1. No reply contains a word from the answer key's vocabulary, and no reply contains a band name.
 //      `containsDefectWord` is the same predicate the filter fires on, so the assertion and the
@@ -52,7 +52,8 @@ const BAND_NAMES = ['novice', 'developing', 'proficient', 'professional']
 type EvalCase = { id: string; request: string; openedDocumentKeys?: string[] }
 
 /**
- * The twelve delegation requests of 11 §5, read from the eval suite rather than restated here.
+ * Every delegation request in the eval suite — 11 §5's twelve, plus step 14.3's four injection
+ * cases — read from the suite rather than restated here.
  *
  * Restating them would let this file and the evals drift, and the point of the pairing is that a
  * case added to the suite is asked of a real run too — a new injection attempt should have to pass
@@ -81,8 +82,12 @@ afterAll(async () => {
 })
 
 describe('no delegation reveals defect status (FR-056)', () => {
-  it('has the twelve cases of 11 §5 to ask', () => {
-    expect(CASES).toHaveLength(12)
+  // Twelve from 11 §5, four added by step 14.3. The number is asserted rather than the file list so
+  // that a case added to the evals and *not* asked of a real run fails here — which is the pairing
+  // the comment above describes, and the reason this count is not simply `CASES.length`.
+  it('has every eval case of 11 §5 and step 14.3 to ask', () => {
+    expect(CASES).toHaveLength(16)
+    expect(CASES.filter((evalCase) => evalCase.id.startsWith('injection-'))).toHaveLength(7)
   })
 
   it('answers every eval case without a defect word or a band name anywhere', async () => {

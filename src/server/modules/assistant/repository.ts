@@ -6,7 +6,7 @@
 // Below the delegation rows sit four reads of tables this module does not own: the version's claims
 // with their trigger phrases, the brief and the stakeholders' names, the documents the student has
 // opened, and the version's Sycophancy Probe. They are here for the reason D-242 gives one module
-// along: what `assistant-reply@1` renders is a handful of columns across four tables, and the
+// along: what `assistant-reply@5` renders is a handful of columns across four tables, and the
 // alternative — a view on the `scenarios` module wide enough to carry them — would be a second
 // student-facing projection of a package, built for a prompt, sitting next to the one 12 §8 governs.
 // Reading the columns here keeps the withholding *in the query*: the trigger phrases and the carried
@@ -190,7 +190,7 @@ export async function listVersionClaims(
   }))
 }
 
-/** The `worldSummary` half of `assistant-reply@1`: the brief, and who is in the room (10 §7). */
+/** The `worldSummary` half of `assistant-reply@5`: the brief, and who is in the room (10 §7). */
 export type WorldSummarySource = {
   brief: string
   people: { name: string; roleTitle: string }[]

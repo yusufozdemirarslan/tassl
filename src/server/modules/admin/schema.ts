@@ -106,14 +106,50 @@ export type InstitutionRef = z.infer<typeof institutionRefSchema>
 export const INSTITUTION_FILTER_LIMIT = 200
 
 /**
- * `GET /admin/flags` (07 §9): the three deployment flags (05 §3) and the provider the run loop
- * would actually call. `effectiveLlmProvider` is a string rather than the provider enum because
- * the flags screen prints it and never branches on it, and the set of providers is a server fact.
+ * One window of model spend (step 14.5, 13 §6.3): what the budgets have counted since an instant.
+ *
+ * Calls the mock answered are not in it. A budget is a spend control and `costEstimateUsd` prices a
+ * mock call at nothing for the same reason (D-651), so a deployment running on the mock reports
+ * zero here — which is the true answer to "what has this deployment spent".
+ */
+export const llmUsageWindowSchema = z.object({
+  calls: z.number().int().nonnegative(),
+  tokens: z.number().int().nonnegative(),
+  costUsd: z.number().nonnegative(),
+})
+export type LlmUsageWindow = z.infer<typeof llmUsageWindowSchema>
+
+/**
+ * The flags page's LLM panel: today, this month, and the two ceilings they are read against
+ * (D-065). `today` is the UTC day and `month` the calendar month, because that is what the budget
+ * means by them — a panel on a different clock from the guardrail would disagree with it at the
+ * moment somebody most needs it to agree.
+ *
+ * The two ceilings are not comparable to the two windows in the same way, and the screen says so:
+ * `globalMonthly` is exactly what `month.tokens` is measured against, while `userDaily` is *per
+ * person* and `today.tokens` is the whole platform's day.
+ */
+export const llmUsageSchema = z.object({
+  today: llmUsageWindowSchema,
+  month: llmUsageWindowSchema,
+  budgets: z.object({
+    userDaily: z.number().int().positive(),
+    globalMonthly: z.number().int().positive(),
+  }),
+})
+export type LlmUsage = z.infer<typeof llmUsageSchema>
+
+/**
+ * `GET /admin/flags` (07 §9): the three deployment flags (05 §3), the provider the run loop would
+ * actually call, and what that provider has cost (NFR-016). `effectiveLlmProvider` is a string
+ * rather than the provider enum because the flags screen prints it and never branches on it, and
+ * the set of providers is a server fact.
  */
 export const adminFlagsSchema = z.object({
   ai: z.boolean(),
   sampleData: z.boolean(),
   testControls: z.boolean(),
   effectiveLlmProvider: z.string(),
+  llmUsage: llmUsageSchema,
 })
 export type AdminFlags = z.infer<typeof adminFlagsSchema>

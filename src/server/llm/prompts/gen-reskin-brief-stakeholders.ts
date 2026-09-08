@@ -39,6 +39,8 @@ import {
   restatedRulesSection,
   section,
   untrustedText,
+  GEN_MAX_OUTPUT_TOKENS,
+  GEN_TIMEOUT_MS,
 } from '@/server/llm/prompts/gen'
 
 /** §3's input cap for generation: the database refuses a longer seed, so the prompt refuses it too. */
@@ -133,6 +135,8 @@ export const genReskinBriefStakeholdersPrompt = definePrompt<
 >({
   name: 'gen-reskin-brief-stakeholders',
   version: 1,
+  maxOutputTokens: GEN_MAX_OUTPUT_TOKENS,
+  timeoutMs: GEN_TIMEOUT_MS,
   purpose:
     'Re-skin a licensed seed case into an invented organisation, and write the brief and the stakeholders.',
   input: ReskinBriefStakeholdersInputSchema,

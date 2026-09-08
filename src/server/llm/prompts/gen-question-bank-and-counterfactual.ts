@@ -45,6 +45,8 @@ import {
   restatedRulesSection,
   section,
   untrustedText,
+  GEN_MAX_OUTPUT_TOKENS,
+  GEN_TIMEOUT_MS,
 } from '@/server/llm/prompts/gen'
 
 export const QuestionBankInputSchema = z.object({
@@ -192,6 +194,8 @@ export const genQuestionBankAndCounterfactualPrompt = definePrompt<
 >({
   name: 'gen-question-bank-counterfactual',
   version: 1,
+  maxOutputTokens: GEN_MAX_OUTPUT_TOKENS,
+  timeoutMs: GEN_TIMEOUT_MS,
   purpose: 'Write the defense question bank and the three-sentence debrief counterfactual.',
   input: QuestionBankInputSchema,
   output: QuestionBankOutputSchema,

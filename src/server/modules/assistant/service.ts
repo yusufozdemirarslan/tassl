@@ -54,18 +54,15 @@ import { track } from '@/server/analytics/track'
 import { requireRunOwner, requireRunReviewer } from '@/server/auth/permissions'
 import type { SessionUser } from '@/server/auth/types'
 import { getLogger, getRequestContext } from '@/server/http/request-context'
-import { DELEGATION_FILTERED_FLAG, defectWordFilter } from '@/server/llm/guardrails/defect-words'
 import {
-  allowedNumbers,
-  numericGuard,
-  type UnverifiedNumber,
-} from '@/server/llm/guardrails/numeric-guard'
-import {
-  proseOf,
-  renderSegments,
-  segmentReply,
-  type GuardSegment,
-} from '@/server/llm/guardrails/segments'
+  DELEGATION_NO_COMMENTARY_FLAG,
+  DELEGATION_REBUILT_FLAG,
+  assembleReply,
+  separator,
+  type AssembledReply,
+} from '@/server/llm/guardrails/assemble'
+import { allowedNumbers } from '@/server/llm/guardrails/numeric-guard'
+import { renderSegments, type GuardSegment } from '@/server/llm/guardrails/segments'
 import type { LlmCallContext } from '@/server/llm/provider'
 import {
   DOCUMENT_EXCERPT_MAX_CHARS,
@@ -313,9 +310,19 @@ async function trackClaimsMarkedUsed(options: {
 // The reply (11 §2.1, §3)
 // ---------------------------------------------------------------------------------------------
 
-/** 11 §3: the delegation flags the guards raise. `out_of_scenario` is a reviewer's (FR-055). */
-export const DELEGATION_NO_COMMENTARY_FLAG = 'no_commentary'
-export const DELEGATION_REBUILT_FLAG = 'rebuilt'
+/**
+ * 11 §3's two guard flags and the assembler that raises them live in `llm/guardrails/assemble.ts`
+ * and are re-exported here, where the module's `index.ts` and every caller already look for them
+ * (D-673). The assembler is a pure function of a reply, its claims and its allowed numbers, and it
+ * moved out of this file so `evals/assistant` can run the real one rather than a second copy: this
+ * file reaches `@/server/analytics/track`, which imports `server-only` and throws under `tsx`.
+ */
+export {
+  DELEGATION_NO_COMMENTARY_FLAG,
+  DELEGATION_REBUILT_FLAG,
+  assembleReply,
+  type AssembledReply,
+}
 
 /**
  * The delegation the Sycophancy Probe fired on (FR-053, D-088, D-278).
@@ -339,95 +346,7 @@ export const DELEGATION_PROBE_FLAG = 'probe'
  */
 export const DELEGATION_DISCARDED_FLAG = 'discarded_late'
 
-/** The paragraph break between two segments the assembler put next to each other. */
-const SEPARATOR = '\n\n'
-
-const separator = (): GuardSegment => ({ type: 'text', text: SEPARATOR })
-
 type AuthoredClaim = { id: string; key: string; text: string }
-
-type AssembledReply = {
-  segments: GuardSegment[]
-  responseText: string
-  flags: string[]
-  unverified: UnverifiedNumber[]
-}
-
-/**
- * Turns a model reply into what is stored and shown (11 §3), in the order §3 fixes: segment, check
- * the markers, guard the numbers, filter the prose.
- *
- * **The marker check comes first**, because everything after it depends on the cut being right.
- * §3 requires each surfaced claim to be marked exactly once; a reply that does not is rebuilt as
- * "claims first, text after" and flagged `rebuilt`. That is not cosmetic — a claim the model forgot
- * to mark is a claim the student was told about and cannot stance, and a claim marked twice is one
- * card too many. Rebuilding keeps the claim objects intact and demotes the model's prose to what it
- * always was: connective text that carries no stance and is never scored (FR-051).
- *
- * **Both guards read text segments only.** A claim segment carries the author's own words (D-264),
- * so the numeric guard cannot flag a figure the author sourced and the filter cannot redact a word
- * the author chose — a package imported from another institution (FR-186) may legitimately say "the
- * defect rate fell to 2.1 percent". It is also what keeps a marker out of authored text: the guard
- * never scans the package's own words, so it can never wrap them.
- *
- * **The numeric guard rewrites the prose in both of its modes** (D-068, D-281). `flag` leaves the
- * figure and puts `[[figure:…]]` round it; `block` leaves the marker and takes the figure out. Either
- * way the mark is in what `renderSegments` returns, so it reaches the student through the stream and
- * the faculty seat through `response_text` and the `delegation` event — one reply, read three times.
- * The `unverified` list beside it is the reviewer's audit of the same figures (D-269).
- *
- * **A reply with no prose left gets 11 §3's content-policy sentence.** A provider that refused, that
- * answered nothing, or whose whole answer was markers leaves the claims on screen with one sentence
- * saying the assistant could not add commentary — never an apology that characterises the request,
- * which would be the assistant commenting on what it was asked (FR-056).
- */
-export function assembleReply(
-  reply: string,
-  claims: readonly AuthoredClaim[],
-  allowed: ReadonlySet<string>,
-): AssembledReply {
-  const flags: string[] = []
-  const authored = claims.map((claim) => ({ id: claim.id, text: claim.text }))
-
-  let segments = segmentReply(reply, authored)
-  const marked = segments
-    .filter((segment) => segment.type === 'claim')
-    .map((segment) => segment.claimId)
-  if (marked.join(',') !== authored.map((claim) => claim.id).join(',')) {
-    const prose = segments.filter((segment) => segment.type === 'text')
-    segments = [
-      ...authored.flatMap((claim, index): GuardSegment[] => [
-        ...(index === 0 ? [] : [separator()]),
-        { type: 'claim', claimId: claim.id, text: claim.text },
-      ]),
-      ...(prose.length === 0 ? [] : [separator(), ...prose]),
-    ]
-    flags.push(DELEGATION_REBUILT_FLAG)
-  }
-
-  const guarded = numericGuard(segments, allowed)
-  const filtered = defectWordFilter(guarded.segments)
-  if (filtered.filtered) {
-    flags.push(DELEGATION_FILTERED_FLAG)
-    getLogger().warn(
-      { terms: filtered.matches.map((match) => match.term) },
-      'assistant reply carried answer-key vocabulary and was redacted',
-    )
-  }
-
-  let final = filtered.segments
-  if (proseOf(final).join('').trim() === '') {
-    final = [{ type: 'text', text: t('workspace.assistantNoCommentary') }, ...final]
-    flags.push(DELEGATION_NO_COMMENTARY_FLAG)
-  }
-
-  return {
-    segments: final,
-    responseText: renderSegments(final),
-    flags,
-    unverified: guarded.unverified,
-  }
-}
 
 /**
  * The numbers the assistant is allowed to say (D-068): the ones already in front of the student.
@@ -814,7 +733,10 @@ export async function delegate(
         latencyMs: Date.now() - requestedAt,
       })
     }
-    assistantUnavailable(prepared.delegationId)
+    // 11 §3's ladder: the run is Paused and the clock credited either way, and the sentence the
+    // student reads says which of the two happened — a component that failed, or a usage limit that
+    // has been reached and will not clear by trying again (D-065).
+    assistantUnavailable(prepared.delegationId, error)
   }
   const ordinary = assembleReply(reply, matched, allowedFor(matched, request, documents))
 

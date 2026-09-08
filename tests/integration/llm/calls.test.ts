@@ -20,7 +20,6 @@ type Provider = typeof import('@/server/llm/provider')
 type Calls = typeof import('@/server/llm/calls')
 
 let getProvider: Registry['getProvider']
-let providerNotInstalled: Registry['providerNotInstalled']
 let MOCK_MODEL: Provider['MOCK_MODEL']
 let costEstimateUsd: Calls['costEstimateUsd']
 
@@ -69,7 +68,7 @@ const rows = async (): Promise<LlmCallRow[]> =>
 
 describe('llm_calls', () => {
   beforeAll(async () => {
-    ;({ getProvider, providerNotInstalled } = await import('@/server/llm/registry'))
+    ;({ getProvider } = await import('@/server/llm/registry'))
     ;({ MOCK_MODEL } = await import('@/server/llm/provider'))
     ;({ costEstimateUsd } = await import('@/server/llm/calls'))
   })
@@ -88,14 +87,15 @@ describe('llm_calls', () => {
     expect(getProvider()).toBe(getProvider())
   })
 
-  it('fails fast, and honestly, for a provider that is not installed yet', () => {
-    expect(() => providerNotInstalled('openai-compatible')).toThrowError('provider not installed')
-    try {
-      providerNotInstalled('anthropic')
-    } catch (error) {
-      expect(isAppError(error) && error.code).toBe('LLM_PROVIDER_ERROR')
-      expect(isAppError(error) && error.status).toBe(502)
-    }
+  // Step 14.1 replaced the two throwing placeholders with the adapters of §1.2 and §1.3. The test
+  // that asserted the placeholders threw is now the test that they are gone: both names resolve to a
+  // provider that answers to its own name, and neither is reachable while `FEATURE_AI=false`.
+  it('has both network adapters installed, and reaches neither on the mock', async () => {
+    const { openAiCompatibleProvider } = await import('@/server/llm/providers/openai-compatible')
+    const { anthropicProvider } = await import('@/server/llm/providers/anthropic')
+    expect(openAiCompatibleProvider.name).toBe('openai-compatible')
+    expect(anthropicProvider.name).toBe('anthropic')
+    expect(getProvider().name).toBe('mock')
   })
 
   it('writes one row for a completion, with every field §4 names', async () => {

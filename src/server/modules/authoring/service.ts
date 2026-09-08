@@ -40,7 +40,7 @@
 // module's public index for the generation record: one of the two edges has to be the deep one or
 // the pair is a cycle (D-530).
 import type { ZodType } from 'zod'
-import { AppError } from '@/lib/errors'
+import { AppError, isAppError } from '@/lib/errors'
 import { t } from '@/lib/i18n/t'
 import { countWords } from '@/lib/words'
 import { track } from '@/server/analytics/track'
@@ -597,6 +597,7 @@ export async function runGenerationStep(
   let failedRules: string[] = []
   let failedMessages: string[] = []
   let error: string | null = null
+  let retryable = true
   let usage = { inputTokens: 0, outputTokens: 0 }
   let provider = ''
   let model = ''
@@ -614,6 +615,16 @@ export async function runGenerationStep(
       // normalised by then, so this is the text the model actually read (D-265).
       promptInput: rendered.input,
       temperature: 0.2,
+      // The prompt's own budget, when it declares one (D-666). A generation step writes a package
+      // element inside a job, not a reply a student is watching for, so the environment's ceiling
+      // and timeout — sized for a delegation — are the wrong ones: 4,096 output tokens truncates an
+      // Evidence Room mid-document and sixty seconds cuts off a step that takes two minutes.
+      ...(definition.prompt.maxOutputTokens === undefined
+        ? {}
+        : { maxOutputTokens: definition.prompt.maxOutputTokens }),
+      ...(definition.prompt.timeoutMs === undefined
+        ? {}
+        : { timeoutMs: definition.prompt.timeoutMs }),
       schema: definition.prompt.output as ZodType<unknown>,
       schemaName: `${definition.prompt.name}-output`,
       context: { packageVersionId: versionId, requestId: run.id },
@@ -631,6 +642,7 @@ export async function runGenerationStep(
   } catch (thrown) {
     failedRules = failedRules.length > 0 ? failedRules : failedRulesOf(thrown)
     error = messageOf(thrown)
+    retryable = generationRetryable(thrown)
   }
 
   const durationMs = Date.now() - startedAt
@@ -645,6 +657,7 @@ export async function runGenerationStep(
     failedRules,
     failedMessages,
     error,
+    retryable,
     usage,
     provider,
     model,
@@ -677,6 +690,23 @@ export async function runGenerationStep(
 
 const messageOf = (error: unknown): string =>
   error instanceof Error ? error.message : String(error)
+
+/**
+ * Whether one more pass of this step could go differently (11 §3, step 14.2).
+ *
+ * 10 §5 gives every step exactly one retry, and it is a retry of the *model's answer*: the second
+ * pass is told which rules the first one broke and asked to write the step again. Two failures are
+ * not answers at all and a second pass cannot change either of them — an exhausted token budget will
+ * still be exhausted, and a circuit that is open fails fast by design. Retrying them spends a second
+ * job, a second minute of the author's wait and, for the budget case, puts the sentence "The
+ * assistant budget for this period has been used up" into the next prompt as a rule the model is
+ * asked to satisfy. So the step fails once, visibly, with the reason on the row that the generation
+ * screen already renders — which is exactly what §3 asks generation to do (D-656).
+ */
+function generationRetryable(error: unknown): boolean {
+  if (!isAppError(error)) return true
+  return error.code !== 'LLM_BUDGET_EXCEEDED' && error.code !== 'LLM_CIRCUIT_OPEN'
+}
 
 /** `llm_calls.provider` is one of three names; anything else is the mock answering (11 §1.1). */
 function providerName(value: string): 'mock' | 'openai-compatible' | 'anthropic' {
@@ -773,6 +803,8 @@ type RecordOutcomeInput = {
   failedRules: string[]
   failedMessages: string[]
   error: string | null
+  /** False when one more pass cannot go differently; see `generationRetryable` (D-656). */
+  retryable: boolean
   usage: { inputTokens: number; outputTokens: number }
   provider: string
   model: string
@@ -864,7 +896,7 @@ async function recordOutcome(input: RecordOutcomeInput): Promise<GenerationStepO
 
     // 10 §5: exactly one more pass, and it is told what the last one broke. The messages rather
     // than the codes, because the validator's sentence names the elements at fault (D-522).
-    if (passNumber < MAX_GENERATION_PASSES) {
+    if (input.retryable && passNumber < MAX_GENERATION_PASSES) {
       await repo.insertGenerationRun(
         { packageVersionId: versionId, step, passNumber: passNumber + 1, status: 'queued' },
         tx,
