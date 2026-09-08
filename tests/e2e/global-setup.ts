@@ -34,6 +34,7 @@ import {
   answerSpacePositions,
   defenseQuestions,
   elementConfirmations,
+  generationRuns,
   namedFields,
   readinessItems,
   runActions,
@@ -304,6 +305,10 @@ async function purgeSuitePackages(organizationId: string): Promise<void> {
     await db
       .delete(elementConfirmations)
       .where(inArray(elementConfirmations.packageVersionId, versionIds))
+    // A version a spec generated into carries one `generation_runs` row per pass (DATA-027), and
+    // the foreign key has no cascade: without this the whole purge — and with it the setup of every
+    // later run — aborts on the first package `author/generate-and-confirm.spec.ts` leaves behind.
+    await db.delete(generationRuns).where(inArray(generationRuns.packageVersionId, versionIds))
     await db.delete(sycophancyProbes).where(inArray(sycophancyProbes.packageVersionId, versionIds))
     await db.delete(scenarioTurns).where(inArray(scenarioTurns.packageVersionId, versionIds))
     await db.delete(defenseQuestions).where(inArray(defenseQuestions.packageVersionId, versionIds))

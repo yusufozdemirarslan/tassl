@@ -23,6 +23,7 @@
 // templates and the readiness items are about concepts, so neither carries a case number, which is
 // also what keeps a readiness item from naming the defect (AI-005).
 import { z } from 'zod'
+import { env } from '@/server/config'
 import { numbersIn } from '@/server/llm/guardrails/numeric-guard'
 import { intBetween, makeRng, seedOf } from '@/server/llm/providers/mock/deterministic'
 
@@ -41,14 +42,72 @@ export const isGenerationPrompt = (name: string): name is GenerationPrompt =>
   (GENERATION_PROMPTS as readonly string[]).includes(name)
 
 /**
- * Everything the mock reads from any generation step's input; the rest of the prompt is stripped
- * rather than carried (D-266), so a step's answer cannot turn on a key the step was never given.
+ * What the mock reads from each step's input, declared per step (D-266).
+ *
+ * One schema for all seven would have been shorter and was wrong: §2.1 gives the seed text to step 1
+ * alone, and a mock that read `seedText` on step 7 would be reading a key only a caller could have
+ * set — a channel from the caller's data into an answer no rendered prompt would explain. The rule
+ * `tests/unit/llm/mock.test.ts` enforces is that the mock may read *less* than the prompt sends and
+ * never more, so each entry here is a subset of the keys the prompt of the same name declares.
+ *
+ * Step 6 reads nothing at all: the question bank is templates keyed by claim, and the
+ * counterfactual carries no figure, so neither moves with the seed.
  */
-export const GenerationMockInput = z.object({
-  seedText: z.string().default(''),
-  brief: z.string().default(''),
-  conceptSet: z.array(z.string()).default([]),
-})
+const restatedRules = z.array(z.string()).default([])
+
+export const GENERATION_MOCK_INPUTS = {
+  'gen-reskin-brief-stakeholders': z.object({
+    seedText: z.string().default(''),
+    conceptSet: z.array(z.string()).default([]),
+    restatedRules,
+  }),
+  'gen-documents': z.object({
+    brief: z.string().default(''),
+    conceptSet: z.array(z.string()).default([]),
+    restatedRules,
+  }),
+  'gen-answer-space-fields': z.object({ brief: z.string().default(''), restatedRules }),
+  'gen-claims-states': z.object({
+    brief: z.string().default(''),
+    conceptSet: z.array(z.string()).default([]),
+    restatedRules,
+  }),
+  'gen-turn-probe': z.object({ brief: z.string().default(''), restatedRules }),
+  'gen-question-bank-counterfactual': z.object({ restatedRules }),
+  'gen-readiness-items': z.object({
+    conceptSet: z.array(z.string()).default([]),
+    restatedRules,
+  }),
+} as const satisfies Record<GenerationPrompt, z.ZodType>
+
+/**
+ * The three figures-bearing keys plus the retry channel, normalised, whichever subset the step was
+ * allowed to read. `restatedRules` is declared by all seven prompts (`gen.ts` `genRestatedRules`),
+ * so reading it breaks no rule of D-266; what it is for here is `MOCK_GEN_FAIL_ONCE` below, which
+ * needs to tell a first pass from the retry that follows it.
+ */
+export type GenerationMockInput = {
+  seedText: string
+  brief: string
+  conceptSet: string[]
+  restatedRules: string[]
+}
+
+/** Parses the step's own subset and fills the rest with the empty value it would have defaulted to. */
+export function readGenerationInput(
+  prompt: GenerationPrompt,
+  rawInput: unknown,
+): GenerationMockInput {
+  const parsed = GENERATION_MOCK_INPUTS[prompt].parse(
+    rawInput ?? {},
+  ) as Partial<GenerationMockInput>
+  return {
+    seedText: parsed.seedText ?? '',
+    brief: parsed.brief ?? '',
+    conceptSet: parsed.conceptSet ?? [],
+    restatedRules: parsed.restatedRules ?? [],
+  }
+}
 
 // ---------------------------------------------------------------------------------------------
 // Fixed identity (D-063: deterministic entity substitution, invented so nothing resolves)
@@ -214,7 +273,7 @@ export function drawsFromBrief(brief: string): Draws | null {
 }
 
 /** The seed when the step has one (step 1), the brief it wrote when it does not (steps 2 to 5). */
-export function figuresFor(input: z.infer<typeof GenerationMockInput>): Figures {
+export function figuresFor(input: GenerationMockInput): Figures {
   if (input.seedText.trim() !== '') return figuresFromDraws(drawsFromSeed(input.seedText))
   const recovered = input.brief.trim() === '' ? null : drawsFromBrief(input.brief)
   return figuresFromDraws(recovered ?? DEFAULT_DRAWS)
@@ -1660,7 +1719,7 @@ export function buildMockPackage(
 }
 
 /** The package a step should answer from: seeded in step 1, recovered from the brief afterwards. */
-function packageFor(input: z.infer<typeof GenerationMockInput>): MockPackage {
+function packageFor(input: GenerationMockInput): MockPackage {
   const figures = figuresFor(input)
   const built = buildMockPackage('', input.conceptSet)
   const seeded: MockPackage = {
@@ -1680,10 +1739,69 @@ function packageFor(input: z.infer<typeof GenerationMockInput>): MockPackage {
   return { ...seeded, questions: questionsOf(seeded.claims) }
 }
 
+// ---------------------------------------------------------------------------------------------
+// The one failure this file can be asked for (10 §5's retry, made testable)
+// ---------------------------------------------------------------------------------------------
+
+/** `generation_runs.step` → the prompt that runs it, so the switch below can be named by step. */
+const PROMPT_FOR_STEP: Readonly<Record<string, GenerationPrompt>> = {
+  reskin_brief_stakeholders: 'gen-reskin-brief-stakeholders',
+  documents: 'gen-documents',
+  answer_space_fields: 'gen-answer-space-fields',
+  claims_and_states: 'gen-claims-states',
+  turn_and_probe: 'gen-turn-probe',
+  question_bank_and_counterfactual: 'gen-question-bank-counterfactual',
+  readiness_items: 'gen-readiness-items',
+}
+
+/**
+ * `MOCK_GEN_FAIL_ONCE=documents` makes the named step's **first** pass produce a package the step's
+ * validation subset refuses, and its retry produce the right one. `MOCK_GEN_FAIL_ONCE=documents:always`
+ * makes every pass fail, which is how the second failure — the one that marks the step `failed` and
+ * notifies `generation_failed` — is reached.
+ *
+ * 10 §5's retry is the hardest path in the pipeline to reach honestly. Every rule the seven output
+ * schemas *can* enforce is enforced there, which is the point of D-526, so a mock that always
+ * answers correctly leaves the re-enqueue, the pass number and the restated-rule channel untested
+ * until the day a real model breaks one. The break is chosen to be schema-valid and rule-invalid:
+ * the documents come back with no stakeholder attributed to any of them, which the output schema
+ * and every `DOCUMENT_*` rule are happy with and `STAKEHOLDER_NO_DOCUMENT` is not.
+ *
+ * The retry is told apart from the first pass by `restatedRules`, which 10 §5 puts in the second
+ * prompt — so a pipeline that re-enqueued the step *without* restating the rule would fail the
+ * second time too, and the test that asserts one pass-2 success asserts the channel with it.
+ *
+ * Read from `process.env` on every call rather than from the parsed `env`, which is frozen at
+ * import (D-401), and refused outside development and test, so it can never be a production switch.
+ */
+type ForcedFailure = { prompt: GenerationPrompt; always: boolean }
+
+function forcedFailures(): ForcedFailure[] {
+  const raw = process.env.MOCK_GEN_FAIL_ONCE ?? ''
+  if (raw === '') return []
+  if (env.APP_ENV === 'production' || env.APP_ENV === 'preview') return []
+  const failures: ForcedFailure[] = []
+  for (const entry of raw.split(',')) {
+    const [name = '', suffix = ''] = entry.trim().split(':')
+    const prompt = PROMPT_FOR_STEP[name]
+    if (prompt !== undefined) failures.push({ prompt, always: suffix === 'always' })
+  }
+  return failures
+}
+
+const isForcedToFail = (prompt: GenerationPrompt, input: GenerationMockInput): boolean =>
+  forcedFailures().some(
+    (failure) => failure.prompt === prompt && (failure.always || input.restatedRules.length === 0),
+  )
+
 /** The mock's answer to one `gen-*` prompt, as the object the provider serialises to JSON. */
 export function generationReply(prompt: GenerationPrompt, rawInput: unknown): unknown {
-  const input = GenerationMockInput.parse(rawInput ?? {})
+  const input = readGenerationInput(prompt, rawInput)
   const built = packageFor(input)
+
+  if (prompt === 'gen-documents' && isForcedToFail(prompt, input)) {
+    return { documents: built.documents.map((document) => ({ ...document, stakeholderKey: null })) }
+  }
 
   switch (prompt) {
     case 'gen-reskin-brief-stakeholders':

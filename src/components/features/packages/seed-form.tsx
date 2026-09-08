@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, type Ref } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import type { Route } from 'next'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Controller, useForm } from 'react-hook-form'
@@ -17,9 +18,9 @@ import {
   trim,
   type output,
 } from 'zod/mini'
-import { XIcon } from 'lucide-react'
+import { Loader2Icon, XIcon } from 'lucide-react'
 import { toast } from 'sonner'
-import { FormAlert, SubmitButton } from '@/components/features/account/form-feedback'
+import { FormAlert } from '@/components/features/account/form-feedback'
 import { Panel } from '@/components/layout/panel'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -37,6 +38,7 @@ import { packageImport } from '@/lib/i18n/messages/package-import'
 import { packageNew } from '@/lib/i18n/messages/package-new'
 import { ui } from '@/lib/i18n/messages/ui'
 import { scopedT } from '@/lib/i18n/scoped'
+import { startGenerationAction } from '@/server/modules/authoring/actions'
 import { createPackageFromSeedAction } from '@/server/modules/scenarios/actions'
 
 // The screen's own strings (packageNew), the two shared words a deferred chunk needs (ui), and the
@@ -49,13 +51,16 @@ const t = scopedT(packageImport, packageNew, ui)
 // record — the case, its publisher, the license terms relied on, the author's confirmation that
 // those terms permit adaptation, and the case text itself.
 //
-// Generation (AI-001) is Phase 12. "Create and generate" is on the screen and cannot act, with the
-// reason attached to it: a control that vanishes leaves the person wondering whether they missed
-// it, and the spec's two controls are what an author has been told to expect. The sentence beside
-// it says what Tassl cannot do yet rather than which phase does it, because an author does not
-// have a build plan; the same sentence is what the created state says, because that is the moment
-// the question "and now what?" is asked. The control that *can* act is named for what it does
-// ("Create the package"), not for the sibling it excludes.
+// Two controls, and the spec names them in the order an author reaches for them (UI-041). "Create
+// and generate" writes the package and then starts the seven generation steps (AI-001), which is
+// what the seed text was pasted for, so it takes the screen's one accent and goes first; "Create
+// the package" beside it is for the author bringing an export or writing the elements by hand. They
+// are two submits of one form, so both are refused by the same eight rules and one summary.
+//
+// The two calls are deliberately not one. `createPackageFromSeed` and `startGeneration` are
+// separate refusals — a family key already taken, a pipeline already running — and a package that
+// exists with a generation that would not start is a state to *say*, not one to undo the package
+// over. The created panel says it, with the way into the progress screen still open.
 //
 // Three rules hold the form together, because six errors on a form this long are otherwise found
 // only by scrolling:
@@ -167,16 +172,39 @@ const EMPTY: SeedValues = {
 /** The dialog is a second route to a package, not part of what this screen paints (B4, 16 §3.2). */
 const loadImportDialog = () => import('./import-dialog')
 
-type CreatedPackage = { packageId: string; versionId: string; title: string }
+type CreatedPackage = {
+  packageId: string
+  versionId: string
+  title: string
+  /** Set when "Create and generate" created the package and the pipeline then refused to start. */
+  generationError: string | null
+}
 
 const versionHref = (packageId: string, versionId: string): Route => {
   const href: string = `/packages/${packageId}/versions/${versionId}`
   return href as Route
 }
 
+const generationHref = (packageId: string, versionId: string): Route =>
+  `${versionHref(packageId, versionId)}/generation` as Route
+
+/**
+ * Which of the two submit controls was pressed. Both submit the same form and both validate the
+ * same eight fields; the difference is what happens after the package exists, so the intent is read
+ * at the end of `onSubmit` rather than branching the form.
+ */
+type SubmitIntent = 'create' | 'generate'
+
 export function SeedForm({ orgId }: { orgId: string }) {
+  const router = useRouter()
   const [formError, setFormError] = useState<string | null>(null)
   const [created, setCreated] = useState<CreatedPackage | null>(null)
+  // Two halves of one fact, because they are needed at two different moments. The ref is set by the
+  // button's own press — which runs before the form's submit event — and read in the handler, where
+  // a ref may be read; the state is set once the handler starts and is what the spinner and the
+  // labels render from, because a ref read during render is a value React never re-renders for.
+  const intent = useRef<SubmitIntent>('create')
+  const [running, setRunning] = useState<SubmitIntent | null>(null)
 
   const {
     control,
@@ -213,6 +241,8 @@ export function SeedForm({ orgId }: { orgId: string }) {
   }, [refusals])
 
   async function onSubmit(values: SeedValues): Promise<void> {
+    const pressed = intent.current
+    setRunning(pressed)
     setFormError(null)
     const result = await createPackageFromSeedAction({
       orgId,
@@ -229,6 +259,7 @@ export function SeedForm({ orgId }: { orgId: string }) {
     })
 
     if (!result.ok) {
+      setRunning(null)
       // Both refusals belong to one field, so they are shown there rather than under the form: the
       // key is the thing to change, and the tick is the thing to reconsider.
       if (result.error.code === 'CONFLICT') {
@@ -247,8 +278,26 @@ export function SeedForm({ orgId }: { orgId: string }) {
       return
     }
 
-    setCreated({ ...result.data, title: values.title })
     toast.success(t('packageNew.created', { title: values.title }))
+
+    if (pressed === 'create') {
+      setCreated({ ...result.data, title: values.title, generationError: null })
+      return
+    }
+
+    // "Create and generate" (UI-041): the package first, then the pipeline, then the screen that
+    // watches it. The two are separate calls because they are separate refusals — a package that
+    // exists and a generation that would not start is a state an author has to be told about, not
+    // one to roll the package back over.
+    const started = await startGenerationAction({
+      packageId: result.data.packageId,
+      versionId: result.data.versionId,
+    })
+    if (!started.ok) {
+      setCreated({ ...result.data, title: values.title, generationError: started.error.message })
+      return
+    }
+    router.push(generationHref(result.data.packageId, result.data.versionId))
   }
 
   if (created !== null) return <CreatedPanel created={created} />
@@ -515,26 +564,54 @@ export function SeedForm({ orgId }: { orgId: string }) {
         {listed.length > 0 && <ErrorSummary ref={summary} entries={listed} />}
         <FormAlert message={formError} />
 
+        {/* One accent, on the act an author came here to take. Generation is why the seed case
+            was pasted, so it is the primary press and it goes first; creating the package on its
+            own stays beside it for the author who is bringing an export or writing by hand. Both
+            are submits of this one form, so both are validated by the same eight rules and a
+            refusal is summarised in the same place. */}
         <div className="flex flex-col gap-3">
           <div className="flex flex-wrap items-center gap-3">
-            <SubmitButton pending={isSubmitting}>
-              {isSubmitting ? t('packageNew.createPending') : t('packageNew.createSubmit')}
-            </SubmitButton>
-            {/* Phase 12 turns this on. Until then it keeps its name, stays reachable by
-                keyboard, and carries the reason it cannot act (as UI-032's blocked control
-                does), because an absent control tells nobody anything. */}
             <Button
-              type="button"
-              variant="secondary"
-              aria-disabled="true"
+              type="submit"
+              aria-disabled={isSubmitting ? true : undefined}
+              aria-busy={running === 'generate'}
               aria-describedby="seed-generate-reason"
-              onClick={(event) => event.preventDefault()}
+              onClick={(event) => {
+                if (isSubmitting) {
+                  event.preventDefault()
+                  return
+                }
+                intent.current = 'generate'
+              }}
             >
-              {t('packageNew.generateSubmit')}
+              {running === 'generate' && (
+                <Loader2Icon aria-hidden="true" className="size-4 animate-spin" />
+              )}
+              {running === 'generate'
+                ? t('packageNew.generatePending')
+                : t('packageNew.generateSubmit')}
+            </Button>
+            <Button
+              type="submit"
+              variant="secondary"
+              aria-disabled={isSubmitting ? true : undefined}
+              aria-busy={running === 'create'}
+              onClick={(event) => {
+                if (isSubmitting) {
+                  event.preventDefault()
+                  return
+                }
+                intent.current = 'create'
+              }}
+            >
+              {running === 'create' && (
+                <Loader2Icon aria-hidden="true" className="size-4 animate-spin" />
+              )}
+              {running === 'create' ? t('packageNew.createPending') : t('packageNew.createSubmit')}
             </Button>
           </div>
           <p id="seed-generate-reason" className="text-ink-muted text-body">
-            {t('packageNew.generateUnavailable')}
+            {t('packageNew.generateNote')}
           </p>
         </div>
       </div>
@@ -788,10 +865,23 @@ function CreatedPanel({ created }: { created: CreatedPackage }) {
           {t('packageNew.createdTitle', { title: created.title })}
         </h2>
         <p className="text-ink-muted text-body">{t('packageNew.createdBody')}</p>
+        {created.generationError !== null && (
+          <FormAlert
+            message={t('packageNew.createdGenerationRefused', {
+              message: created.generationError,
+            })}
+          />
+        )}
         <div className="mt-1 flex flex-wrap items-center gap-3">
           <Link
-            href={versionHref(created.packageId, created.versionId)}
+            href={generationHref(created.packageId, created.versionId)}
             className={buttonVariants({ className: 'w-fit' })}
+          >
+            {t('packageNew.createdGenerate')}
+          </Link>
+          <Link
+            href={versionHref(created.packageId, created.versionId)}
+            className={buttonVariants({ variant: 'secondary', className: 'w-fit' })}
           >
             {t('packageNew.createdOpen')}
           </Link>

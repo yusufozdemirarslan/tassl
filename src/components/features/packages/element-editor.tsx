@@ -40,8 +40,11 @@ import { fieldsFor } from './element-editors/specs'
 //   confirmed    — read-only, with "Reopen for editing" beside the reason. A confirmed element is
 //                  a signature; unlocking it is a deliberate act, and saving after it records a new
 //                  decision on top of the old one rather than replacing it.
-//   rejected     — editable, because the only way out of a rejection before generation exists is to
-//                  author the element by hand. The banner says so.
+//   rejected     — editable, and the bar's Regenerate is live: a rejection is either re-authored
+//                  by hand or sent back to the step that wrote it. The banner says both.
+//   rewriting    — a new draft is being written for this element's whole set. The fields are the
+//                  old draft until it lands and the bar records nothing meanwhile; the band that
+//                  says so belongs to the version, above, because the work does too.
 //   frozen       — the whole version is confirmed; nothing is editable and there is no bar at all.
 //
 // Read-only here is `readOnly`, not `disabled`, wherever the control has the choice: a confirmed
@@ -61,6 +64,10 @@ export type ElementEditorProps = {
   frozen: boolean
   canEdit: boolean
   canDecide: boolean
+  /** 10 §5: a draft, and a seat that may send an element back to the step that wrote it. */
+  canRegenerate: boolean
+  /** A new draft is being written for this version; nothing may be recorded until it lands. */
+  regenerationRunning: boolean
   /** The author has unlocked a confirmed element for another pass. */
   reopened: boolean
   dirty: boolean
@@ -77,6 +84,7 @@ export type ElementEditorProps = {
   onDiscard: () => void
   onConfirm: () => void
   onReject: (note: string) => void
+  onRegenerate: (restatedRule: string) => void
 }
 
 /** A second level of grouping inside the panel: a heading and a hairline, never another panel. */
@@ -222,6 +230,8 @@ export function ElementEditor(props: ElementEditorProps) {
     frozen,
     canEdit,
     canDecide,
+    canRegenerate,
+    regenerationRunning,
     reopened,
     dirty,
     pending,
@@ -361,11 +371,18 @@ export function ElementEditor(props: ElementEditorProps) {
             dirty={dirty}
             locked={settled && !reopened}
             canDecide={canDecide}
+            canRegenerate={canRegenerate}
+            settled={settled}
+            regenerateScope={t(
+              `confirm.regenerateScope.${element.elementType}` as 'confirm.regenerateScope.document',
+            )}
+            regenerationRunning={regenerationRunning}
             pending={pending}
             onSave={props.onSave}
             onDiscard={props.onDiscard}
             onConfirm={props.onConfirm}
             onReject={props.onReject}
+            onRegenerate={props.onRegenerate}
           />
         )}
       </div>

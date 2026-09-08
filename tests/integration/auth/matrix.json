@@ -2918,5 +2918,125 @@
     "operationId": "changeMapping",
     "role": "outsider",
     "expected": "deny"
+  },
+  {
+    "operationId": "startGeneration",
+    "role": "student",
+    "expected": "deny"
+  },
+  {
+    "operationId": "startGeneration",
+    "role": "instructor",
+    "expected": "allow"
+  },
+  {
+    "operationId": "startGeneration",
+    "role": "ta",
+    "expected": "deny"
+  },
+  {
+    "operationId": "startGeneration",
+    "role": "author",
+    "expected": "allow"
+  },
+  {
+    "operationId": "startGeneration",
+    "role": "program_lead",
+    "expected": "deny"
+  },
+  {
+    "operationId": "startGeneration",
+    "role": "editor",
+    "expected": "allow"
+  },
+  {
+    "operationId": "startGeneration",
+    "role": "admin",
+    "expected": "deny"
+  },
+  {
+    "operationId": "startGeneration",
+    "role": "outsider",
+    "expected": "deny"
+  },
+  {
+    "operationId": "getGenerationStatus",
+    "role": "student",
+    "expected": "deny"
+  },
+  {
+    "operationId": "getGenerationStatus",
+    "role": "instructor",
+    "expected": "allow"
+  },
+  {
+    "operationId": "getGenerationStatus",
+    "role": "ta",
+    "expected": "deny"
+  },
+  {
+    "operationId": "getGenerationStatus",
+    "role": "author",
+    "expected": "allow"
+  },
+  {
+    "operationId": "getGenerationStatus",
+    "role": "program_lead",
+    "expected": "deny"
+  },
+  {
+    "operationId": "getGenerationStatus",
+    "role": "editor",
+    "expected": "allow"
+  },
+  {
+    "operationId": "getGenerationStatus",
+    "role": "admin",
+    "expected": "deny"
+  },
+  {
+    "operationId": "getGenerationStatus",
+    "role": "outsider",
+    "expected": "deny"
+  },
+  {
+    "operationId": "regenerateElement",
+    "role": "student",
+    "expected": "deny"
+  },
+  {
+    "operationId": "regenerateElement",
+    "role": "instructor",
+    "expected": "allow"
+  },
+  {
+    "operationId": "regenerateElement",
+    "role": "ta",
+    "expected": "deny"
+  },
+  {
+    "operationId": "regenerateElement",
+    "role": "author",
+    "expected": "allow"
+  },
+  {
+    "operationId": "regenerateElement",
+    "role": "program_lead",
+    "expected": "deny"
+  },
+  {
+    "operationId": "regenerateElement",
+    "role": "editor",
+    "expected": "allow"
+  },
+  {
+    "operationId": "regenerateElement",
+    "role": "admin",
+    "expected": "deny"
+  },
+  {
+    "operationId": "regenerateElement",
+    "role": "outsider",
+    "expected": "deny"
   }
 ]

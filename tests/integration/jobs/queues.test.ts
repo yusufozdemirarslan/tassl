@@ -60,8 +60,10 @@ describe('pg-boss queues', () => {
     expect(result.failed).toBe(0)
     // The queues still waiting for the module that owns them (10 §7). `score_run` left this list in
     // Step 10.4 with `scoring.scoreRun`, `recompute_exports` in Step 11.2 with
-    // `courses.recomputeExports`, and `generate_package_step` leaves it in Phase 12.
-    expect(result.skippedQueues).toEqual(['generate_package_step'])
+    // `courses.recomputeExports`, and `generate_package_step` left it in Step 12.2 with
+    // `authoring.runGenerationStep`. Every queue now has a handler, so nothing is skipped — and a
+    // queue added without one would put this list back.
+    expect(result.skippedQueues).toEqual([])
   })
 
   it('fails a job whose handler throws and reports it', async () => {

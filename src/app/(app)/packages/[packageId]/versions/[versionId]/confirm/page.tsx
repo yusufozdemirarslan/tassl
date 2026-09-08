@@ -54,6 +54,7 @@ import { getViewer } from '../../../../../viewer'
  */
 type ConfirmPageProps = {
   params: Promise<{ packageId: string; versionId: string }>
+  searchParams: Promise<Record<string, string | string[] | undefined>>
 }
 
 /** A version the reader may not see renders the not-found page, never the error boundary. */
@@ -113,8 +114,8 @@ export async function generateMetadata({ params }: ConfirmPageProps): Promise<Me
   }
 }
 
-export default async function ConfirmPage({ params }: ConfirmPageProps) {
-  const { packageId, versionId } = await params
+export default async function ConfirmPage({ params, searchParams }: ConfirmPageProps) {
+  const [{ packageId, versionId }, query] = await Promise.all([params, searchParams])
 
   // An id that is not a uuid never reaches the repository: a malformed address is a 404, not a
   // database cast error on the error boundary.
@@ -194,9 +195,13 @@ export default async function ConfirmPage({ params }: ConfirmPageProps) {
     validation: version.validation,
     canEdit: version.capabilities.canEdit,
     canConfirm: version.capabilities.canConfirm,
+    canRegenerate: version.capabilities.canRegenerate,
     conceptSet: version.conceptSet,
     elements,
     versionHref,
+    // `?element=<uuid>`: how a rule failure on the generation screen hands over the element it is
+    // about (UI-042). An id this version does not hold opens the screen where it always opens.
+    initialElementId: typeof query.element === 'string' ? query.element : undefined,
   }
 
   return (

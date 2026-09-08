@@ -29,6 +29,22 @@ export const notifications = {
     '{title} version {version} is confirmed and frozen, so it can be set on an assignment.',
 
   // -------------------------------------------------------------------------------------------
+  // Authoring (AI-001, FR-191, 10 §5)
+  //
+  // Both are delivered by e-mail as well as in the app (10 §15), so neither carries any part of the
+  // package: not a brief, not a document title, not the sentence a rule failed with. The author
+  // opens the generation screen, which is where all of that lives and where the seat is checked.
+  // -------------------------------------------------------------------------------------------
+  'notifications.generationComplete.title': 'Your scenario package has been drafted',
+  'notifications.generationComplete.bodyValid':
+    'All seven generation steps finished and the draft meets every scenario rule. Open it to confirm the elements one at a time.',
+  'notifications.generationComplete.bodyWithFailures':
+    'All seven generation steps finished. The draft still breaks {count} scenario rules, which are listed on the generation screen.',
+  'notifications.generationFailed.title': 'A generation step could not be completed',
+  'notifications.generationFailed.body':
+    'One step did not meet the scenario rules after a second attempt, so it has stopped. The generation screen names the rules; you can run the step again or author that part by hand.',
+
+  // -------------------------------------------------------------------------------------------
   // Scoring (FR-130, FR-140, SYS-010)
   //
   // Three notices, and no two of them say the same thing. The student's copy says what happened to

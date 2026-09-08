@@ -26,6 +26,7 @@ import { packageNew } from './messages/package-new'
 import { packageImport } from './messages/package-import'
 import { packageVersion } from './messages/package-version'
 import { packageConfirm } from './messages/package-confirm'
+import { packageGeneration } from './messages/package-generation'
 import { claimObject } from './messages/claim-object'
 import { run } from './messages/run'
 import { readiness } from './messages/readiness'
@@ -63,6 +64,7 @@ export const enUS = {
   ...packageImport,
   ...packageVersion,
   ...packageConfirm,
+  ...packageGeneration,
   ...claimObject,
   ...run,
   ...readiness,

@@ -162,6 +162,19 @@ const OPERATION_IDS = [
   'decideElement',
   'confirmPackageVersion',
   'regeneratePackageVersion',
+  // Step 12.2 (07 §6): the generation pipeline. 08 §4's row "Create package from seed; run
+  // generation" decides all three — an instructor or a `scenario_author` of the institution, and
+  // the platform editor only through their `scenario_author` membership, which is the seat the
+  // `editor` fixture holds. The status read is the same row rather than the package view's,
+  // because it reports which rules the draft still breaks, which is where the defects are.
+  //
+  // The two version-scoped rows are answered against a version with no seed record, so an allowed
+  // seat meets `SEED_MISSING` (409) and no row starts a pipeline the next row would be refused
+  // about; `regenerateElement` is answered against a readiness item nothing else on this fixture
+  // reads, so an allowed seat's regeneration cannot change what another row is answered.
+  'startGeneration',
+  'getGenerationStatus',
+  'regenerateElement',
   // Step 11.1 (07 §8): the faculty seat. 08 §4 gives the replay and the band decisions to an
   // instructor and a TA of the run's section; void, re-offer and neutralize to the instructor
   // alone; the export history to both reviewers and to no student; and the Judgment Record to the
@@ -367,6 +380,8 @@ let voidableRuns: Record<Seat, string>
 let authoredPackageId: string
 let authoredVersionId: string
 let authoredClaimId: string
+/** The element `regenerateElement`'s row is answered about; nothing else on this fixture reads it. */
+let authoredReadinessItemId: string
 
 /** Stand-in `element_id` for a singleton element (`scenarios/schema.ts` `SINGLETON_ELEMENT_ID`). */
 const SINGLETON_ELEMENT_ID = '00000000-0000-0000-0000-000000000000'
@@ -637,6 +652,22 @@ describe('authorization matrix (08 §4)', () => {
         position: 0,
       })
     ).id
+    authoredReadinessItemId = (
+      await scenariosRepository.upsertElement(orgA, authoredVersionId, 'readiness_item', {
+        key: 'R1',
+        category: 'foundation',
+        conceptKey: 'payback_period',
+        stem: 'A supplier quote is dated before the contract it is used to price. What follows?',
+        options: [
+          { key: 'a', text: 'The quote settles the price.' },
+          { key: 'b', text: 'The quote may have been superseded and needs checking.' },
+          { key: 'c', text: 'The contract is invalid.' },
+          { key: 'd', text: 'Nothing follows from a date.' },
+        ],
+        answerKey: 'b',
+        position: 0,
+      })
+    ).id
 
     const institutions = await import('@/app/api/v1/institutions/route')
     const institution = await import('@/app/api/v1/institutions/[orgId]/route')
@@ -713,6 +744,9 @@ describe('authorization matrix (08 §4)', () => {
     const versionConfirm = await import('@/app/api/v1/package-versions/[versionId]/confirm/route')
     const versionRegenerate =
       await import('@/app/api/v1/package-versions/[versionId]/regenerate/route')
+    const generation = await import('@/app/api/v1/package-versions/[versionId]/generation/route')
+    const elementRegenerate =
+      await import('@/app/api/v1/package-versions/[versionId]/elements/[elementType]/[elementId]/regenerate/route')
 
     operations = {
       listInstitutions: {
@@ -1326,6 +1360,44 @@ describe('authorization matrix (08 §4)', () => {
             session: await sessionFor(seat),
             params: { versionId: authoredVersionId },
             body: { reason: `Matrix copy by ${seat}.` },
+          }),
+      },
+      startGeneration: {
+        route: 'POST /package-versions/{versionId}/generation',
+        // `authoredVersionId` has no seed record, so the allowed seats are answered `SEED_MISSING`
+        // (409, which is not a denial) and nothing is enqueued. The row is about the seat.
+        run: async (seat) =>
+          call(generation.POST, {
+            method: 'POST',
+            path: `/package-versions/${authoredVersionId}/generation`,
+            session: await sessionFor(seat),
+            params: { versionId: authoredVersionId },
+          }),
+      },
+      getGenerationStatus: {
+        route: 'GET /package-versions/{versionId}/generation',
+        run: async (seat) =>
+          call(generation.GET, {
+            path: `/package-versions/${authoredVersionId}/generation`,
+            session: await sessionFor(seat),
+            params: { versionId: authoredVersionId },
+          }),
+      },
+      regenerateElement: {
+        route: 'POST /package-versions/{versionId}/elements/{elementType}/{elementId}/regenerate',
+        // A readiness item, and one no other row on this fixture reads: an allowed seat really does
+        // queue the step that writes them, and the row must not change what another row is told.
+        run: async (seat) =>
+          call(elementRegenerate.POST, {
+            method: 'POST',
+            path: `/package-versions/${authoredVersionId}/elements/readiness_item/${authoredReadinessItemId}/regenerate`,
+            session: await sessionFor(seat),
+            params: {
+              versionId: authoredVersionId,
+              elementType: 'readiness_item',
+              elementId: authoredReadinessItemId,
+            },
+            body: {},
           }),
       },
       getReviewQueue: {

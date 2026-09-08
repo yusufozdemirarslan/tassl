@@ -1,0 +1,9 @@
+{
+  "id": "short-case",
+  "title": "A short licensed case: one exhibit, one disputed figure",
+  "fixes": "docs/tech/11-llm-integration.md §5, AI-001",
+  "why": "The floor of what an institution may paste. Two paragraphs, one contested number, and no teaching apparatus at all — everything the seven steps write has to be built rather than lifted, and a package that confirms out of this is the shortest honest input the pipeline accepts.",
+  "conceptSet": ["payback_period", "contribution_margin", "cohort_retention", "evidence_recency"],
+  "licenseTerms": "Adaptation permitted for classroom use with attribution in the course pack.",
+  "seedText": "Northbank Dairy Cooperative: pricing the chilled delivery tier.\n\nIn 2019 the cooperative piloted a chilled home-delivery tier at a premium price. The pilot deck put the payback at nine months on a contribution margin that excluded cold-chain freight. A later finance note put the freight at 1.10 dollars a delivery and the payback at fourteen months. The board must decide what share of next year's marketing budget goes to the chilled tier, and on what payback it is betting."
+}

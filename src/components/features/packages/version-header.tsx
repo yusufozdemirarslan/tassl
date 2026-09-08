@@ -41,6 +41,8 @@ export type VersionHeaderProps = {
   version: PackageVersionView
   /** Where the confirmation workspace lives for this version (Step 5.5 builds it). */
   confirmHref: Route
+  /** Where the seven generation steps report (UI-042); the way back to a run already made. */
+  generationHref: Route
 }
 
 type CountEntry = readonly [keyof ElementCounts, () => string]
@@ -253,7 +255,7 @@ function RuleFailures({ failures }: { failures: readonly ValidationFailure[] }) 
   )
 }
 
-export function VersionHeader({ version, confirmHref }: VersionHeaderProps) {
+export function VersionHeader({ version, confirmHref, generationHref }: VersionHeaderProps) {
   const exportHref = `/api/v1/package-versions/${version.id}/export`
   const failures = version.validation.failures
 
@@ -358,9 +360,22 @@ export function VersionHeader({ version, confirmHref }: VersionHeaderProps) {
                 <RuleFailures failures={failures} />
               )}
               {version.capabilities.canEdit ? (
-                <Link href={confirmHref} className={buttonVariants({ className: 'w-fit' })}>
-                  {t('packageVersion.openWorkspace')}
-                </Link>
+                // One accent, on the room where a draft is signed. Generation is the road that got
+                // the elements here and the road back to a step that stopped, so it is the quieter
+                // of the two.
+                <div className="flex flex-wrap items-center gap-3">
+                  <Link href={confirmHref} className={buttonVariants({ className: 'w-fit' })}>
+                    {t('packageVersion.openWorkspace')}
+                  </Link>
+                  {version.capabilities.canRegenerate && (
+                    <Link
+                      href={generationHref}
+                      className={buttonVariants({ variant: 'secondary', className: 'w-fit' })}
+                    >
+                      {t('packageVersion.openGeneration')}
+                    </Link>
+                  )}
+                </div>
               ) : (
                 <p className="text-ink-muted text-body max-w-measure">
                   {t('packageVersion.draftReadOnly')}

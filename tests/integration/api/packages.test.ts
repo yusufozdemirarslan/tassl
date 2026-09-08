@@ -6,7 +6,8 @@
 // another institution answers 404 rather than 403.
 //
 // The two generation rows (`POST` and `GET /package-versions/{versionId}/generation`) and the
-// element-level `.../regenerate` row belong to Phase 12 and have no handler yet.
+// element-level `.../regenerate` row belong to the `authoring` module (10 §5) and are covered by
+// `tests/integration/api/authoring.test.ts`, which owns the pipeline they start.
 //
 // The fixture package is a hand-written `PackageExport` that breaks none of the thirty rules of
 // `validatePackage`: it is what lets `POST .../confirm` be tested green rather than only by its
@@ -884,9 +885,10 @@ describe('POST /institutions/{orgId}/packages', () => {
       version: 1,
       status: 'draft',
       familyKey: 'halden-roastworks',
-      // Generation is Phase 12: the version is created empty and filled by hand or by import.
+      // The version is created empty: `createPackageFromSeed` does not start generation (10 §4),
+      // and until an author presses it the room is filled by hand or by import.
       counts: { claims: 0, documents: 0, variants: 2 },
-      capabilities: { canEdit: true, canConfirm: true, canRegenerate: false },
+      capabilities: { canEdit: true, canConfirm: true, canRegenerate: true },
     })
   })
 
@@ -1109,7 +1111,7 @@ describe('GET /package-versions/{versionId}', () => {
       validation: { ok: true, failures: [] },
       warnings: ['FAMILY_LACKS_ETHICAL_DEFECT'],
       seedRecord: { caseTitle: 'Halden Roastworks (licensed case)', publisher: 'Tassl' },
-      capabilities: { canEdit: true, canConfirm: true, canRegenerate: false },
+      capabilities: { canEdit: true, canConfirm: true, canRegenerate: true },
     })
     // Every element was signed for by the import, so nothing is left undecided and no edit was made.
     const record = read.body?.confirmationRecord as { decision: string }[]

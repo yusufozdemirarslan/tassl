@@ -217,8 +217,7 @@
       "name": "Generation progress",
       "routes": ["/packages/[packageId]/versions/[versionId]/generation"],
       "spec": "a11y/author.spec.ts",
-      "states": "running, failed step with retry",
-      "pending": "12.3"
+      "states": "the seven step rows on a version nothing was generated into (a11y/author.spec.ts) and the complete state with every rule met and the workspace link (author/generate-and-confirm.spec.ts)"
     },
     {
       "id": "UI-043",

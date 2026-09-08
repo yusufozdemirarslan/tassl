@@ -4,18 +4,20 @@
 // these tables carries an organization_id; every function is scoped through the version id the
 // service already resolved in the tenant. Writes to a confirmed version surface as `VERSION_FROZEN`
 // from the package_frozen trigger family. The database handle is always the last parameter (10 §6).
-import { desc, eq, inArray } from 'drizzle-orm'
+import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm'
 import type { PgColumn, PgInsertValue, PgTable } from 'drizzle-orm/pg-core'
 import { AppError } from '@/lib/errors'
 import { db } from '@/server/db/client'
 import {
   answerSpacePositions,
   defenseQuestions,
+  elementConfirmations,
   generationRuns,
   namedFields,
   readinessItems,
   scenarioClaims,
   scenarioDocuments,
+  scenarioPackageVersions,
   scenarioTurns,
   scenarioVariants,
   seedRecords,
@@ -45,9 +47,18 @@ import {
   type SeedRecord,
   type Stakeholder,
   type SycophancyProbe,
+  type ElementConfirmation,
+  type ScenarioPackageVersion,
   type VariantClaimState,
 } from '@/server/db/schema'
 import type { DbOrTx } from '@/server/db/tx'
+
+// The service may not import `@/server/db` (04 §2), so the row types it hands out and the
+// transaction boundary its writes open are re-exported by the layer that owns database access —
+// the same seam `scenarios/repository.ts` keeps.
+export type { ElementConfirmation, GenerationRun, NewGenerationRun } from '@/server/db/schema'
+export type { DbOrTx, Tx } from '@/server/db/tx'
+export { withTransaction } from '@/server/db/tx'
 
 // ---------------------------------------------------------------------------------------------
 // Input and result shapes (rows come straight from the schema; nothing is spread into new shapes)
@@ -264,6 +275,34 @@ export async function updateGenerationRun(
   return rows[0]
 }
 
+/**
+ * Closes a run out **only if it is still the claim the caller took** (D-550).
+ *
+ * `started_at` is the claim's fence token: `claimStep` writes a fresh timestamp every time it takes
+ * or re-takes a step, so a worker whose claim was reclaimed as abandoned updates nothing here and
+ * learns that it did. Without the fence, a step reclaimed after the staleness window could be
+ * closed out twice — the second close-out enqueuing a step the first already enqueued.
+ */
+export async function closeClaimedGenerationRun(
+  id: string,
+  claimedAt: Date,
+  patch: GenerationRunPatch,
+  dbx: DbOrTx = db,
+): Promise<GenerationRun | undefined> {
+  const rows = await dbx
+    .update(generationRuns)
+    .set(patch)
+    .where(
+      and(
+        eq(generationRuns.id, id),
+        eq(generationRuns.status, 'running'),
+        eq(generationRuns.startedAt, claimedAt),
+      ),
+    )
+    .returning()
+  return rows[0]
+}
+
 /** Every step run of the version, newest first (the status view groups them by step and pass). */
 export async function listGenerationRuns(
   versionId: string,
@@ -293,4 +332,278 @@ export async function replaceElements<T extends TableElementType>(
 ): Promise<ElementRow[T][]> {
   const replacer = replacers[type] as Replacer<T>
   return replacer(versionId, rows, dbx)
+}
+
+// ---------------------------------------------------------------------------------------------
+// The generation lock (D-400, D-531)
+// ---------------------------------------------------------------------------------------------
+
+/**
+ * Takes the version row's write lock and answers with the row as it stands under it.
+ *
+ * This is what makes a second `startGeneration`, or a second job for the same step, harmless. It is
+ * **not** the queue's singleton key: pg-boss applies a key as a dedupe only under a
+ * `singleton`-family policy, and every queue here is created with the default `standard` policy, so
+ * a second `send` with the same key makes a second job (D-400). The key stays because it makes the
+ * queue table readable; the guarantee is here, and `tests/integration/authoring/pipeline.test.ts`
+ * asserts the behaviour that exists rather than the one that was assumed.
+ *
+ * Must be called inside a transaction: outside one the lock is released the moment the statement
+ * returns, which is the same as no lock at all.
+ */
+export async function lockVersionForGeneration(
+  tenantId: string,
+  versionId: string,
+  tx: DbOrTx,
+): Promise<ScenarioPackageVersion | undefined> {
+  const rows = await tx
+    .select()
+    .from(scenarioPackageVersions)
+    .where(
+      and(
+        eq(scenarioPackageVersions.id, versionId),
+        eq(scenarioPackageVersions.organizationId, tenantId),
+      ),
+    )
+    .for('update')
+  return rows[0]
+}
+
+/** A step of this version that has not finished: the reason a second start is refused (10 §5). */
+export async function findUnfinishedGenerationRun(
+  versionId: string,
+  dbx: DbOrTx = db,
+): Promise<GenerationRun | undefined> {
+  const rows = await dbx
+    .select()
+    .from(generationRuns)
+    .where(
+      and(
+        eq(generationRuns.packageVersionId, versionId),
+        inArray(generationRuns.status, ['queued', 'running']),
+      ),
+    )
+    .orderBy(asc(generationRuns.createdAt))
+    .limit(1)
+  return rows[0]
+}
+
+/**
+ * The one row for a `(version, step, pass)`, which is how a job finds the work it was sent for.
+ *
+ * `created_at` alone is not a total order — two rows written in one transaction share `now()` — so
+ * the id breaks the tie, exactly as `listGenerationRuns` orders. Which row an ambiguous pair
+ * resolved to decided whether a job ran or skipped, and nothing said which it would be.
+ */
+export async function findGenerationRun(
+  versionId: string,
+  step: GenerationRun['step'],
+  passNumber: number,
+  dbx: DbOrTx = db,
+): Promise<GenerationRun | undefined> {
+  const rows = await dbx
+    .select()
+    .from(generationRuns)
+    .where(
+      and(
+        eq(generationRuns.packageVersionId, versionId),
+        eq(generationRuns.step, step),
+        eq(generationRuns.passNumber, passNumber),
+      ),
+    )
+    .orderBy(desc(generationRuns.createdAt), desc(generationRuns.id))
+    .limit(1)
+  return rows[0]
+}
+
+/**
+ * Closes out every unfinished run of the version whose worker cannot still exist (D-550).
+ *
+ * A `running` row is abandoned when the invocation that claimed it died — a recycled instance, a
+ * function killed at `maxDuration`, a job the queue expired — and a `queued` row is abandoned when
+ * the `boss.send` behind it never happened, which `enqueueAfterCommit` cannot make atomic with the
+ * row's own insert. Both leave a version that refuses every later start with
+ * `GENERATION_ALREADY_RUNNING` and a screen that polls for ever, and nothing else in the system
+ * clears either.
+ *
+ * `staleBefore` is the caller's cut: a row whose clock (`started_at` for a claim, `created_at` for
+ * a queued row) is older than it. The caller must hold the version row's lock, so this and
+ * `claimStep` cannot disagree about one row.
+ */
+export async function failAbandonedGenerationRuns(
+  versionId: string,
+  staleBefore: Date,
+  error: string,
+  dbx: DbOrTx = db,
+): Promise<GenerationRun[]> {
+  return dbx
+    .update(generationRuns)
+    .set({ status: 'failed', error, finishedAt: new Date() })
+    .where(
+      and(
+        eq(generationRuns.packageVersionId, versionId),
+        inArray(generationRuns.status, ['queued', 'running']),
+        // The bound value is an ISO string with an explicit cast: a raw `Date` in a `sql` template
+        // reaches postgres-js untyped and the driver refuses it.
+        sql`coalesce(${generationRuns.startedAt}, ${generationRuns.createdAt}) < ${staleBefore.toISOString()}::timestamptz`,
+      ),
+    )
+    .returning()
+}
+
+/**
+ * Stamps the version with the model that generated it and when (07 §6 `authoringRecord`).
+ *
+ * A separate statement from `upsertElement`'s column patches because these two columns are not an
+ * element: no author confirms them, and nothing in `element_confirmations` addresses them.
+ */
+export async function markGenerated(
+  tenantId: string,
+  versionId: string,
+  values: { generationModel: string; generatedAt: Date },
+  dbx: DbOrTx = db,
+): Promise<void> {
+  await dbx
+    .update(scenarioPackageVersions)
+    .set(values)
+    .where(
+      and(
+        eq(scenarioPackageVersions.id, versionId),
+        eq(scenarioPackageVersions.organizationId, tenantId),
+      ),
+    )
+}
+
+// ---------------------------------------------------------------------------------------------
+// Removing elements a regenerated set no longer holds
+// ---------------------------------------------------------------------------------------------
+
+/** The table and the version column of each element type a step writes as a set. */
+const elementTables = {
+  document: [scenarioDocuments, scenarioDocuments.packageVersionId, scenarioDocuments.id],
+  stakeholder: [stakeholders, stakeholders.packageVersionId, stakeholders.id],
+  answer_space_position: [
+    answerSpacePositions,
+    answerSpacePositions.packageVersionId,
+    answerSpacePositions.id,
+  ],
+  named_field: [namedFields, namedFields.packageVersionId, namedFields.id],
+  claim: [scenarioClaims, scenarioClaims.packageVersionId, scenarioClaims.id],
+  defense_question: [defenseQuestions, defenseQuestions.packageVersionId, defenseQuestions.id],
+  readiness_item: [readinessItems, readinessItems.packageVersionId, readinessItems.id],
+  probe: [sycophancyProbes, sycophancyProbes.packageVersionId, sycophancyProbes.id],
+  turn: [scenarioTurns, scenarioTurns.packageVersionId, scenarioTurns.id],
+  seed_reskin: [seedRecords, seedRecords.packageVersionId, seedRecords.id],
+} as const satisfies Partial<Record<TableElementType, readonly [PgTable, PgColumn, PgColumn]>>
+
+/** The element types a generation step can delete a row of by id. */
+export type DeletableElementType = keyof typeof elementTables
+
+/**
+ * Deletes the named rows of one element type, and only those.
+ *
+ * The counterpart of `replaceElements` for the path 10 §5 actually asks for: a step replaces the
+ * *unconfirmed* elements of its type, so the confirmed ones are never named here and the delete
+ * cannot reach them. A row a later element still points at (a claim behind a question, a document
+ * behind a claim) makes the database refuse, which the step reports as its failure rather than
+ * silently cutting the reference.
+ */
+export async function deleteElements(
+  versionId: string,
+  type: DeletableElementType,
+  ids: readonly string[],
+  dbx: DbOrTx = db,
+): Promise<number> {
+  if (ids.length === 0) return 0
+  const [table, versionColumn, idColumn] = elementTables[type]
+  const deleted = await dbx
+    .delete(table)
+    .where(and(eq(versionColumn, versionId), inArray(idColumn, [...ids])))
+    .returning({ id: idColumn })
+  return deleted.length
+}
+
+/**
+ * Claim states a regenerated claim set dropped; step 4 owns both tables (10 §5).
+ *
+ * Named by state id and scoped by version. Its predecessor deleted by *claim* id with no version
+ * scope at all — the one function in this file that took neither — which made a caller that passed
+ * an id it had not first read out of this version a cross-tenant delete waiting to be written.
+ */
+export async function deleteClaimStates(
+  versionId: string,
+  stateIds: readonly string[],
+  dbx: DbOrTx = db,
+): Promise<number> {
+  if (stateIds.length === 0) return 0
+  const deleted = await dbx
+    .delete(variantClaimStates)
+    .where(
+      and(
+        inArray(variantClaimStates.id, [...stateIds]),
+        inArray(
+          variantClaimStates.variantId,
+          dbx
+            .select({ id: scenarioVariants.id })
+            .from(scenarioVariants)
+            .where(eq(scenarioVariants.packageVersionId, versionId)),
+        ),
+      ),
+    )
+    .returning({ id: variantClaimStates.id })
+  return deleted.length
+}
+
+/** Claim states of the version, with the variant key each belongs to (the natural key of a state). */
+export async function listClaimStates(
+  versionId: string,
+  dbx: DbOrTx = db,
+): Promise<{ id: string; variantId: string; variantKey: string; claimId: string }[]> {
+  return dbx
+    .select({
+      id: variantClaimStates.id,
+      variantId: variantClaimStates.variantId,
+      variantKey: sql<string>`${scenarioVariants.key}`,
+      claimId: variantClaimStates.claimId,
+    })
+    .from(variantClaimStates)
+    .innerJoin(scenarioVariants, eq(scenarioVariants.id, variantClaimStates.variantId))
+    .where(eq(scenarioVariants.packageVersionId, versionId))
+}
+
+/**
+ * Drops the confirmation rows filed against elements that no longer exist.
+ *
+ * Only for rows a step actually deleted: an element that was *replaced* keeps its history, because
+ * `rejectedShare` (FR-198) counts the elements an author sent back and a regeneration that erased
+ * the rejection would erase the measure with it.
+ */
+export async function deleteConfirmationsForElements(
+  versionId: string,
+  elementIds: readonly string[],
+  dbx: DbOrTx = db,
+): Promise<number> {
+  if (elementIds.length === 0) return 0
+  const deleted = await dbx
+    .delete(elementConfirmations)
+    .where(
+      and(
+        eq(elementConfirmations.packageVersionId, versionId),
+        inArray(elementConfirmations.elementId, [...elementIds]),
+      ),
+    )
+    .returning({ id: elementConfirmations.id })
+  return deleted.length
+}
+
+/** Every confirmation decision of the version, newest first (the same read `scenarios` makes). */
+export async function listConfirmations(
+  versionId: string,
+  dbx: DbOrTx = db,
+): Promise<ElementConfirmation[]> {
+  return dbx
+    .select()
+    .from(elementConfirmations)
+    .where(eq(elementConfirmations.packageVersionId, versionId))
+    .orderBy(desc(elementConfirmations.createdAt), desc(elementConfirmations.id))
 }

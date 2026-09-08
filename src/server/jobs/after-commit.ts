@@ -1,7 +1,15 @@
 // After-commit hooks: docs/tech/10-backend-spec.md §6. `enqueueAfterCommit(tx, …)` registers a
 // callback on the transaction object; `withTransaction` (Step 2.8) calls trackTransaction() when it
 // opens the transaction, runAfterCommit() once the commit has returned, and discardAfterCommit() on
-// rollback. Hook failures are logged and never thrown: the daily sweep re-enqueues from state.
+// rollback.
+//
+// Hook failures are logged and never thrown, and so is the send a crash between COMMIT and
+// `boss.send` never reaches: the row the job would have driven is committed and the job is not.
+// There is no sweep that re-enqueues from state — nothing in `scheduleDailyMaintenance` does this,
+// and the claim that it did outlived the phase that wrote it. What recovers the row is the queue's
+// own owner. `generation_runs` closes an orphaned `queued` row out under the version lock whenever
+// an author next opens one of its three doors (D-550, `authoring/service.ts` rule 6); a queue whose
+// rows can be orphaned and has no such reader is one to give the same treatment before it ships.
 import { getLogger } from '@/server/http/request-context'
 
 export type AfterCommitCallback = () => void | Promise<void>

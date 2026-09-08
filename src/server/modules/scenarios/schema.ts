@@ -274,6 +274,21 @@ export const FieldKeySchema = z
 /** A concept key; 10 §17 sets the floor at two characters. */
 export const ConceptKeySchema = z.string().trim().min(2).max(60)
 
+/**
+ * How many concept keys one package version may declare (D-554).
+ *
+ * The floor is 06 §3.3's — the version row's own check refuses fewer than four — and there was no
+ * ceiling anywhere: an author could paste four hundred on `createPackageFromSeed` and every
+ * generation prompt that reads the set would render all of them. `src/server/llm/prompts/gen.ts`
+ * restates the number as `GEN_CONCEPT_SET_MAX` and `tests/unit/authoring/prompts.test.ts` pins the
+ * two together, exactly as it pins the fifteen other thresholds that file restates.
+ */
+export const CONCEPT_SET_MIN = 4
+export const CONCEPT_SET_MAX = 40
+
+/** The vocabulary a course declares: at least four keys, at most `CONCEPT_SET_MAX`. */
+export const ConceptSetSchema = z.array(ConceptKeySchema).min(CONCEPT_SET_MIN).max(CONCEPT_SET_MAX)
+
 /** The package family key; stable across versions and unique per institution (10 §17). */
 export const FamilyKeySchema = z
   .string()
@@ -853,7 +868,7 @@ export const PackageExportSchema = z.object({
   // cohort (PRD §7.18), not part of the package text, and it does not travel to the institution
   // that imports it — an imported version starts uncalibrated, which is the column's default.
   version: z.object({
-    conceptSet: z.array(ConceptKeySchema).min(4),
+    conceptSet: ConceptSetSchema,
     brief: z.string().max(BODY_MAX).default(''),
     workingClockSeconds: z
       .int()
@@ -912,7 +927,7 @@ export const LicensePermitsAdaptationSchema = z.literal(true)
 export const CreatePackageFromSeedSchema = z.object({
   title: z.string().trim().min(1).max(NAME_MAX),
   familyKey: FamilyKeySchema,
-  conceptSet: z.array(ConceptKeySchema).min(4),
+  conceptSet: ConceptSetSchema,
   seed: z.object({
     caseTitle: z.string().trim().min(1).max(NAME_MAX),
     publisher: z.string().trim().min(1).max(NAME_MAX),

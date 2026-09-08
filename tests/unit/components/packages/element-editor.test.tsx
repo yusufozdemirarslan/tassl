@@ -69,6 +69,20 @@ const toasts = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }))
 // Server Actions: importing the real module would pull the scenarios service, the database client
 // and `server-only` into jsdom.
 vi.mock('@/server/modules/scenarios/actions', () => actions)
+vi.mock('@/server/modules/authoring/actions', () => ({ regenerateElementAction: vi.fn() }))
+// `ConfirmWorkspace` refreshes the route when a regeneration finishes, so it holds a router.
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({
+    push: vi.fn(),
+    refresh: vi.fn(),
+    replace: vi.fn(),
+    prefetch: vi.fn(),
+    back: vi.fn(),
+    forward: vi.fn(),
+  }),
+  usePathname: () => '/packages/pkg-1/versions/ver-1/confirm',
+}))
+
 vi.mock('sonner', () => ({ toast: { success: toasts.success, error: toasts.error } }))
 
 /** `n` words, exactly, under `countWords`' rule that a word is a run of non-whitespace. */
@@ -158,6 +172,8 @@ function Harness({ element, errors = {}, failures = [], index }: HarnessProps) {
       frozen={false}
       canEdit
       canDecide
+      canRegenerate={false}
+      regenerationRunning={false}
       reopened={false}
       dirty={false}
       pending={null}
@@ -171,6 +187,7 @@ function Harness({ element, errors = {}, failures = [], index }: HarnessProps) {
       onDiscard={noop}
       onConfirm={noop}
       onReject={noop}
+      onRegenerate={noop}
     />
   )
 }
@@ -438,6 +455,7 @@ function renderWorkspace() {
       validation={{ ok: false, failures: [] }}
       canEdit
       canConfirm
+      canRegenerate={false}
       conceptSet={CONCEPTS}
       elements={versionElements()}
       versionHref={'/packages/pkg-1/versions/ver-1' as Route}

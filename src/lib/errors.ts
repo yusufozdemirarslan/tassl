@@ -123,6 +123,16 @@ export const ERROR_STATUS = {
   // different thing written over it.
   DEBRIEF_NOT_AVAILABLE: 409,
   DEBRIEF_ANSWERED: 409,
+  // authoring (10 §5). `GENERATION_ALREADY_RUNNING` is a second start (or a regeneration) asked for
+  // while a step of this version is queued or running; `SEED_MISSING` is a generation asked for on
+  // a version with no seed record, which is the one input step 1 cannot do without.
+  // `GENERATION_STEP_FAILED` never reaches a client: it is the job's own refusal when a step's
+  // validation subset fails, carrying `details.failedRules`, and the pipeline turns it into the
+  // step's retry or into the `generation_failed` notice (it is a 500 because a caller cannot act
+  // on it — only the author, on the screen, after the notice).
+  GENERATION_ALREADY_RUNNING: 409,
+  SEED_MISSING: 409,
+  GENERATION_STEP_FAILED: 500,
   LLM_BUDGET_EXCEEDED: 402,
   LLM_PROVIDER_ERROR: 502,
   LLM_CIRCUIT_OPEN: 503,
@@ -206,6 +216,9 @@ export const DEFAULT_MESSAGES: Record<ErrorCode, string> = {
   NEUTRALIZATION_EXISTS: 'A correction has already been entered on this claim for this run.',
   DEBRIEF_NOT_AVAILABLE: 'This run’s debrief opens once its bands have been drafted.',
   DEBRIEF_ANSWERED: 'The two questions on this run have already been answered.',
+  GENERATION_ALREADY_RUNNING: 'Generation is already running on this version.',
+  SEED_MISSING: 'This version has no seed case to generate from.',
+  GENERATION_STEP_FAILED: 'A generation step did not satisfy the package rules.',
   LLM_BUDGET_EXCEEDED: 'The assistant budget for this period has been used up.',
   LLM_PROVIDER_ERROR: 'The assistant provider did not respond correctly.',
   LLM_CIRCUIT_OPEN: 'The assistant is temporarily unavailable.',

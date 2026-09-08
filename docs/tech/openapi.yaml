@@ -9935,6 +9935,7 @@ paths:
                   pattern: ^[a-z0-9-]{3,60}$
                 conceptSet:
                   minItems: 4
+                  maxItems: 40
                   type: array
                   items:
                     type: string
@@ -13014,12 +13015,43 @@ paths:
       operationId: regenerateElement
       summary: Regenerate an element or element set
       parameters:
-        - $ref: "#/components/parameters/versionId"
-        - $ref: "#/components/parameters/elementType"
-        - $ref: "#/components/parameters/elementId"
-        - $ref: "#/components/parameters/requestedWith"
+        - in: path
+          name: versionId
+          schema:
+            type: string
+            format: uuid
+            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+          required: true
+        - in: path
+          name: elementType
+          schema:
+            type: string
+            enum:
+              - brief
+              - document
+              - stakeholder
+              - answer_space_position
+              - named_field
+              - claim
+              - variant_claim_state
+              - probe
+              - turn
+              - defense_question
+              - readiness_item
+              - counterfactual
+              - general_escalation_reply
+              - clock_and_difficulty
+              - seed_reskin
+          required: true
+        - in: path
+          name: elementId
+          schema:
+            type: string
+            format: uuid
+            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+          required: true
       requestBody:
-        required: false
+        required: true
         content:
           application/json:
             schema:
@@ -13027,20 +13059,42 @@ paths:
               properties:
                 restatedRule:
                   type: string
+                  minLength: 1
+                  maxLength: 2000
       responses:
         "202":
-          description: Queued
+          description: OK
           content:
             application/json:
               schema:
                 type: object
-                required:
-                  - jobId
                 properties:
                   jobId:
                     type: string
-        "409":
-          $ref: "#/components/responses/Conflict"
+                  step:
+                    type: string
+                    enum:
+                      - reskin_brief_stakeholders
+                      - documents
+                      - answer_space_fields
+                      - claims_and_states
+                      - turn_and_probe
+                      - question_bank_and_counterfactual
+                      - readiness_items
+                required:
+                  - jobId
+                  - step
+                additionalProperties: false
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "429":
+          $ref: "#/components/responses/RateLimited"
   /package-versions/{versionId}/export:
     get:
       tags:
@@ -13091,6 +13145,7 @@ paths:
                     properties:
                       conceptSet:
                         minItems: 4
+                        maxItems: 40
                         type: array
                         items:
                           type: string
@@ -13896,45 +13951,274 @@ paths:
         "429":
           $ref: "#/components/responses/RateLimited"
   /package-versions/{versionId}/generation:
-    post:
-      tags:
-        - packages
-      operationId: startGeneration
-      summary: Start AI-assisted generation
-      parameters:
-        - $ref: "#/components/parameters/versionId"
-        - $ref: "#/components/parameters/requestedWith"
-        - $ref: "#/components/parameters/idempotencyKey"
-      responses:
-        "202":
-          description: Started
-          content:
-            application/json:
-              schema:
-                type: object
-                required:
-                  - started
-                properties:
-                  started:
-                    type: boolean
-        "409":
-          $ref: "#/components/responses/Conflict"
-        "429":
-          $ref: "#/components/responses/RateLimited"
     get:
       tags:
         - packages
       operationId: getGenerationStatus
       summary: Generation status
       parameters:
-        - $ref: "#/components/parameters/versionId"
+        - in: path
+          name: versionId
+          schema:
+            type: string
+            format: uuid
+            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+          required: true
       responses:
         "200":
           description: OK
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/GenerationStatus"
+                type: object
+                properties:
+                  packageVersionId:
+                    type: string
+                    format: uuid
+                    pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                  packageId:
+                    type: string
+                    format: uuid
+                    pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                  version:
+                    type: integer
+                    minimum: -9007199254740991
+                    maximum: 9007199254740991
+                  state:
+                    type: string
+                    enum:
+                      - not_started
+                      - running
+                      - failed
+                      - complete
+                  steps:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        step:
+                          type: string
+                          enum:
+                            - reskin_brief_stakeholders
+                            - documents
+                            - answer_space_fields
+                            - claims_and_states
+                            - turn_and_probe
+                            - question_bank_and_counterfactual
+                            - readiness_items
+                        status:
+                          type: string
+                          enum:
+                            - queued
+                            - running
+                            - succeeded
+                            - failed
+                        passNumber:
+                          type: integer
+                          minimum: -9007199254740991
+                          maximum: 9007199254740991
+                        inputTokens:
+                          anyOf:
+                            - type: integer
+                              minimum: -9007199254740991
+                              maximum: 9007199254740991
+                            - type: "null"
+                        outputTokens:
+                          anyOf:
+                            - type: integer
+                              minimum: -9007199254740991
+                              maximum: 9007199254740991
+                            - type: "null"
+                        costEstimateUsd:
+                          type:
+                            - number
+                            - "null"
+                        failedRules:
+                          type: array
+                          items:
+                            type: string
+                        error:
+                          type:
+                            - string
+                            - "null"
+                        startedAt:
+                          type:
+                            - string
+                            - "null"
+                        finishedAt:
+                          type:
+                            - string
+                            - "null"
+                      required:
+                        - step
+                        - status
+                        - passNumber
+                        - inputTokens
+                        - outputTokens
+                        - costEstimateUsd
+                        - failedRules
+                        - error
+                        - startedAt
+                        - finishedAt
+                      additionalProperties: false
+                  runs:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                          format: uuid
+                          pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                        step:
+                          type: string
+                          enum:
+                            - reskin_brief_stakeholders
+                            - documents
+                            - answer_space_fields
+                            - claims_and_states
+                            - turn_and_probe
+                            - question_bank_and_counterfactual
+                            - readiness_items
+                        passNumber:
+                          type: integer
+                          minimum: -9007199254740991
+                          maximum: 9007199254740991
+                        status:
+                          type: string
+                          enum:
+                            - queued
+                            - running
+                            - succeeded
+                            - failed
+                        provider:
+                          type:
+                            - string
+                            - "null"
+                        model:
+                          type:
+                            - string
+                            - "null"
+                        promptVersion:
+                          type:
+                            - string
+                            - "null"
+                        inputTokens:
+                          anyOf:
+                            - type: integer
+                              minimum: -9007199254740991
+                              maximum: 9007199254740991
+                            - type: "null"
+                        outputTokens:
+                          anyOf:
+                            - type: integer
+                              minimum: -9007199254740991
+                              maximum: 9007199254740991
+                            - type: "null"
+                        costEstimateUsd:
+                          type:
+                            - number
+                            - "null"
+                        failedRules:
+                          type: array
+                          items:
+                            type: string
+                        error:
+                          type:
+                            - string
+                            - "null"
+                        startedAt:
+                          type:
+                            - string
+                            - "null"
+                        finishedAt:
+                          type:
+                            - string
+                            - "null"
+                      required:
+                        - id
+                        - step
+                        - passNumber
+                        - status
+                        - provider
+                        - model
+                        - promptVersion
+                        - inputTokens
+                        - outputTokens
+                        - costEstimateUsd
+                        - failedRules
+                        - error
+                        - startedAt
+                        - finishedAt
+                      additionalProperties: false
+                  validation:
+                    type: object
+                    properties:
+                      ok:
+                        type: boolean
+                      failures:
+                        type: array
+                        items:
+                          type: string
+                    required:
+                      - ok
+                      - failures
+                    additionalProperties: false
+                required:
+                  - packageVersionId
+                  - packageId
+                  - version
+                  - state
+                  - steps
+                  - runs
+                  - validation
+                additionalProperties: false
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+    post:
+      tags:
+        - packages
+      operationId: startGeneration
+      summary: Start AI-assisted generation
+      parameters:
+        - in: path
+          name: versionId
+          schema:
+            type: string
+            format: uuid
+            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+          required: true
+      responses:
+        "202":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  started:
+                    type: boolean
+                required:
+                  - started
+                additionalProperties: false
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "429":
+          $ref: "#/components/responses/RateLimited"
   /package-versions/{versionId}/regenerate:
     post:
       tags:

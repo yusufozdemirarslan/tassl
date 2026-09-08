@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import type { Route } from 'next'
 import { ArrowRightIcon, CircleAlertIcon, Loader2Icon } from 'lucide-react'
 import { toast } from 'sonner'
@@ -23,6 +24,7 @@ import { Field, FieldContent, FieldDescription, FieldLabel } from '@/components/
 import { Progress, ProgressLabel, ProgressValue } from '@/components/ui/progress'
 import { t } from '@/lib/i18n/messages/package-confirm'
 import { countWords } from '@/lib/words'
+import { regenerateElementAction } from '@/server/modules/authoring/actions'
 import {
   confirmVersionAction,
   decideElementAction,
@@ -84,12 +86,23 @@ export type ConfirmWorkspaceProps = {
   validation: ValidationResult
   canEdit: boolean
   canConfirm: boolean
+  /** 10 §5: the version is a draft and this seat may send an element back to the pipeline. */
+  canRegenerate: boolean
   conceptSet: readonly string[]
   elements: readonly WorkspaceElement[]
   versionHref: Route
+  /**
+   * The element to open, from `?element=<uuid>` — how a rule failure on the generation screen
+   * hands an author the element it is about (UI-042). An id this version does not hold is ignored
+   * and the screen opens where it always does: on the first element still waiting for a decision.
+   */
+  initialElementId?: string | undefined
 }
 
 type Drafts = Record<string, Record<string, unknown>>
+
+/** UI-042's interval, for the same reason: the server materializes the outcome, the client reads. */
+const REGENERATION_POLL_MS = 5_000
 
 const same = (a: unknown, b: unknown): boolean => JSON.stringify(a) === JSON.stringify(b)
 
@@ -169,6 +182,7 @@ function SigningLine({ term, value, mono }: { term: string; value: string; mono?
 
 export function ConfirmWorkspace(props: ConfirmWorkspaceProps) {
   const { packageId, versionId, version, frozen, canEdit, canConfirm, versionHref } = props
+  const router = useRouter()
 
   // The server is the record; an override is the gap between an action's answer and the render
   // that follows it. The props take the element back when they carry a decision the override has
@@ -219,18 +233,40 @@ export function ConfirmWorkspace(props: ConfirmWorkspaceProps) {
     [leaves],
   )
 
-  const [selectedId, setSelectedId] = useState<string | null>(
-    () => firstUndecided ?? leaves[0]?.id ?? null,
-  )
+  // Where the screen opens: the element the address names, then the first one still waiting for a
+  // decision, then the top of the tree. Only the address can carry the first — a rule failure on
+  // the generation screen names an element by its row id, which is the id the workspace addresses
+  // a mutation by (D-542).
+  const openingId = useMemo(() => {
+    const requested =
+      props.initialElementId === undefined
+        ? undefined
+        : leaves.find((leaf) => leaf.element.elementId === props.initialElementId)?.id
+    return requested ?? firstUndecided ?? leaves[0]?.id ?? null
+  }, [props.initialElementId, leaves, firstUndecided])
+
+  const [selectedId, setSelectedId] = useState<string | null>(() => openingId)
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(
-    () => new Set(expandedFor(nodes, firstUndecided ?? leaves[0]?.id ?? null)),
+    () => new Set(expandedFor(nodes, openingId)),
   )
+  // The address is read once, on mount, and that is enough: every link that carries `?element=`
+  // lives on the *generation* screen, so following a second one is a route change and this
+  // component is mounted again with it. A screen-to-screen handoff, not a live parameter (D-542).
   const [onlyUndecided, setOnlyUndecided] = useState(false)
   const [drafts, setDrafts] = useState<Drafts>({})
   const [reopened, setReopened] = useState<ReadonlySet<string>>(new Set())
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [formError, setFormError] = useState<string | null>(null)
   const [pending, setPending] = useState<ConfirmBarPending>(null)
+
+  /** The element being rewritten, until the work that owns it finishes (FR-194). */
+  const [regenerating, setRegenerating] = useState<{ id: string; key: string } | null>(null)
+  /**
+   * The drafts as they stand when the new draft lands, not as they stood when it was asked for.
+   * The poll below must not restart on every keystroke, so it reads them through a ref — the same
+   * shape `useRunPoll` uses for its `onChange`.
+   */
+  const draftsNow = useRef<Drafts>({})
 
   const [teachingNote, setTeachingNote] = useState(props.teachingNoteChecked)
   const [confirmOpen, setConfirmOpen] = useState(false)
@@ -275,6 +311,10 @@ export function ConfirmWorkspace(props: ConfirmWorkspaceProps) {
     [selected, drafts],
   )
   const dirty = selected !== null && drafts[selected.id] !== undefined
+
+  useEffect(() => {
+    draftsNow.current = drafts
+  }, [drafts])
 
   // An edit that has not reached the server is lost by a reload; the browser is the only thing
   // that can ask first.
@@ -494,6 +534,95 @@ export function ConfirmWorkspace(props: ConfirmWorkspaceProps) {
     [selected, packageId, versionId, applyElement, nextUndecidedAfter, reveal],
   )
 
+  /**
+   * Send one element back to the step that wrote it (FR-194, UI-043).
+   *
+   * The action queues a job and answers; the new draft arrives on the server a moment later. So
+   * the screen holds the element it asked about, polls the generation status while a step is
+   * running — the same five-second poll UI-042 makes, for the same reason: the server materializes
+   * the outcome, the client only reads it — and asks the route to render again when it stops.
+   *
+   * The overrides go with it. An override is this screen's local echo of an action's answer, and a
+   * regenerated element is a different element under the same key; a stale echo would win over the
+   * fresh props on revision alone. Drafts are *not* swept: an author's unsaved typing is theirs,
+   * and the tree keeps saying it is unsaved.
+   */
+  const regenerate = useCallback(
+    async (restatedRule: string): Promise<void> => {
+      if (selected === null) return
+      setPending('regenerate')
+      setFormError(null)
+      const result = await regenerateElementAction({
+        packageId,
+        versionId,
+        elementType: selected.elementType,
+        elementId: selected.elementId,
+        ...(restatedRule.length > 0 ? { restatedRule } : {}),
+      })
+      setPending(null)
+
+      if (!result.ok) {
+        setFormError(result.error.message)
+        return
+      }
+      setRegenerating({ id: selected.id, key: selected.key })
+      toast.success(t('confirm.regenerateQueuedToast', { name: selected.key }))
+    },
+    [selected, packageId, versionId],
+  )
+
+  useEffect(() => {
+    if (regenerating === null) return undefined
+    let stopped = false
+    let timer: ReturnType<typeof setTimeout> | undefined
+
+    const finish = (state: string): void => {
+      setRegenerating(null)
+      setOverrides({})
+      // A step that did not finish wrote nothing, and a screen that announced a new draft anyway
+      // would be lying about the one thing the author is waiting for.
+      if (state === 'failed') {
+        setFormError(t('confirm.regenerateStopped', { name: regenerating.key }))
+        return
+      }
+      // D-546 keeps an author's unsaved typing, which means the values on the screen are still
+      // theirs and not the ones that just arrived. Saying "the new draft is on the screen" there
+      // would be false; the sentence says where the new draft actually is instead.
+      toast.success(
+        draftsNow.current[regenerating.id] === undefined
+          ? t('confirm.regenerateDoneToast', { name: regenerating.key })
+          : t('confirm.regenerateDoneDraftToast', { name: regenerating.key }),
+      )
+      router.refresh()
+    }
+
+    const poll = async (): Promise<void> => {
+      if (stopped) return
+      try {
+        const response = await fetch(`/api/v1/package-versions/${versionId}/generation`, {
+          cache: 'no-store',
+        })
+        if (stopped) return
+        if (response.ok) {
+          const body = (await response.json()) as { state: string }
+          if (body.state !== 'running') {
+            finish(body.state)
+            return
+          }
+        }
+      } catch {
+        // Offline, or the request was cut off; ask again on the next tick.
+      }
+      if (!stopped) timer = setTimeout(() => void poll(), REGENERATION_POLL_MS)
+    }
+
+    timer = setTimeout(() => void poll(), REGENERATION_POLL_MS)
+    return () => {
+      stopped = true
+      if (timer !== undefined) clearTimeout(timer)
+    }
+  }, [regenerating, versionId, router])
+
   const confirmVersion = useCallback(async (): Promise<void> => {
     setConfirming(true)
     setVersionError(null)
@@ -606,6 +735,29 @@ export function ConfirmWorkspace(props: ConfirmWorkspaceProps) {
                 {t('confirm.nextUndecided')}
                 <ArrowRightIcon aria-hidden="true" />
               </Button>
+            )}
+          </div>
+
+          {/* A new draft is being written for a whole set of elements, not for the one on the
+              screen, so the band that says so belongs to the version and not to the editor: an
+              author who wandered to another element while it ran could otherwise save an edit that
+              the step was about to overwrite. It is amber because the state is provisional, with
+              ink text and the amber on the border and the icon (DESIGN.md, the Amber-Is-Not-Text
+              rule). It carries no live region of its own: both ends of the wait — the press and the
+              arrival — are announced by their toasts, and a second region that appears with its own
+              text is the announcement assistive technology is least likely to read. */}
+          <div className="w-full empty:hidden">
+            {regenerating !== null && (
+              <section className="border-amber bg-amber-soft text-ink text-body max-w-measure flex w-full items-start gap-2 rounded-md border p-3">
+                <Loader2Icon
+                  aria-hidden="true"
+                  className="text-amber mt-0.5 size-4 shrink-0 animate-spin"
+                />
+                <div className="flex min-w-0 flex-1 flex-col gap-1">
+                  <p className="font-medium">{t('confirm.regenerateQueuedTitle')}</p>
+                  <p>{t('confirm.regenerateQueuedBody', { name: regenerating.key })}</p>
+                </div>
+              </section>
             )}
           </div>
 
@@ -827,6 +979,8 @@ export function ConfirmWorkspace(props: ConfirmWorkspaceProps) {
             frozen={isFrozen}
             canEdit={canEdit}
             canDecide={canConfirm}
+            canRegenerate={props.canRegenerate && !isFrozen}
+            regenerationRunning={regenerating !== null}
             reopened={reopened.has(selected.id)}
             dirty={dirty}
             pending={pending}
@@ -840,6 +994,7 @@ export function ConfirmWorkspace(props: ConfirmWorkspaceProps) {
             onDiscard={discard}
             onConfirm={() => void decide('confirmed', '')}
             onReject={(note) => void decide('rejected', note)}
+            onRegenerate={(restatedRule) => void regenerate(restatedRule)}
           />
         )}
       </div>
