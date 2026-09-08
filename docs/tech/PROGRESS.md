@@ -115,8 +115,8 @@
 ## Phase 13 — Cross-cutting hardening (`build-plan/phase-13-cross-cutting-hardening.md`)
 - [x] 13.1 Sentry: manual setup, release tagging, ops events, alerts
 - [x] 13.2 PostHog: client and server transports, reverse proxy, event catalogue, identity
-- [ ] 13.3 Security headers, CSP, cookies, secret scanning, dependency updates
-- [ ] 13.4 Rate-limit coverage, student-view invariants, PII redaction audit
+- [x] 13.3 Security headers, CSP, cookies, secret scanning, dependency updates
+- [x] 13.4 Rate-limit coverage, student-view invariants, PII redaction audit
 - [x] 13.5 Admin area, legal pages, error-page polish, copy review
 - [x] 13.6 Backups, restore drill, incident tooling, retention
 - [ ] 13.7 Impeccable app-wide passes: adapt, optimize, extract
