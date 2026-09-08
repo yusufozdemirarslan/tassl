@@ -108,10 +108,24 @@ describe('the seven generation prompts', () => {
     expect(PROMPTS.map((prompt) => prompt.name)).toEqual([...GENERATION_PROMPTS])
   })
 
+  // Pinned per prompt rather than derived, so a version bump is a deliberate edit here as well as in
+  // the prompt: the number travels to `llm_calls.prompt_version` and is the only thing that tells two
+  // wordings apart in the operations panel. Two are at 2 after step 14.4 bounded what they ask for
+  // (D-668).
+  const VERSIONS: Record<string, number> = {
+    'gen-reskin-brief-stakeholders': 1,
+    'gen-documents': 2,
+    'gen-answer-space-fields': 1,
+    'gen-claims-states': 3,
+    'gen-turn-probe': 1,
+    'gen-question-bank-counterfactual': 1,
+    'gen-readiness-items': 1,
+  }
+
   it('carry the name and version that travel to llm_calls', () => {
     for (const prompt of PROMPTS) {
-      expect(prompt.id).toBe(`${prompt.name}@1`)
-      expect(prompt.version).toBe(1)
+      expect(prompt.version).toBe(VERSIONS[prompt.name])
+      expect(prompt.id).toBe(`${prompt.name}@${String(prompt.version)}`)
       expect(prompt.purpose.length).toBeGreaterThan(20)
     }
   })

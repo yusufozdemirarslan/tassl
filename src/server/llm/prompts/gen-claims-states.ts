@@ -1,5 +1,22 @@
-// `gen-claims-states@1` — generation step 4 (docs/tech/11-llm-integration.md §2.1; AI-001, FR-191,
+// `gen-claims-states@3` — generation step 4 (docs/tech/11-llm-integration.md §2.1; AI-001, FR-191,
 // FR-193; PRD §7.4, §7.6, §7.8, §7.9, §7.18 (9), §12; D-032).
+//
+// **Version 2 (step 14.4)** bounds what it asks for. Version 1 said "at least six" claims and set no
+// length on any of the free-text fields each claim carries, and on the first real-provider run the
+// step ran past a 12,288-token ceiling and failed validation twice over — the largest single answer
+// anything in the library asks for. Six to nine claims with one-to-three-sentence fields is the
+// shape of the hand-written fixture and satisfies every composition rule of 10 §4 (D-668).
+//
+// **Version 3 (step 14.6)** adds the slate, and nothing else (D-675). Version 2 fixed the size —
+// measured at six to six-and-a-half thousand output tokens against a 12,288 ceiling, so no answer
+// is being cut off any more — and left the *shape* as nine separate requirements scattered through
+// the task, each of which the `superRefine` below refuses independently: one plant, exactly; every
+// other claim's family null; the same stance and the same path types in both variants; two
+// low-stakes sound claims; one accepted in both; one escalatable with a reply; one weakly sourced
+// with a stance-changing trace. A model satisfying those by reasoning about them all at once is
+// solving a constraint puzzle on every call, and it does not always solve it. The slate hands it
+// the solution: this claim is the plant, this one is the weakly sourced one, these two are the
+// low-stakes pair, the rest are ordinary. No rule changed, no schema loosened, no count moved.
 //
 // This is the answer key. The claims are what the assistant surfaces and what a student takes a
 // stance on; the per-variant states are what each claim *deserved* — sound or defective, the family
@@ -62,6 +79,8 @@ import {
   restatedRulesSection,
   section,
   untrustedText,
+  GEN_MAX_OUTPUT_TOKENS,
+  GEN_TIMEOUT_MS,
 } from '@/server/llm/prompts/gen'
 
 /** PRD §12: the build's single defect is a stale-evidence defect (D-083). */
@@ -263,7 +282,7 @@ const TASK = `THIS STEP
 Write the consequential claims and, for each, what it deserved in each of the two variants.
 
 THE CLAIMS
-- At least six. Each is one sentence the assistant could say, carrying a figure or an assertion the decision turns on. Write the claim as the assistant would say it, not as a question about it.
+- Six to nine of them. Each is one sentence the assistant could say, carrying a figure or an assertion the decision turns on. Write the claim as the assistant would say it, not as a question about it.
 - Every claim names where it comes from: a document key and the passage in that document, quoted exactly as the document has it.
 - Mark each claim load-bearing or supporting, give it a consequence level and the cost of checking it, and say whether it is weakly sourced or volatile. Give it a concept key from the declared set.
 - \`carriedValues\` lists the figures inside the claim, with the named field key when the figure answers one.
@@ -277,6 +296,15 @@ THE TWO VARIANTS
 - Every other claim warrants the same stance in both variants and returns the same result from every verification action in both. The two variants are one scenario apart from the plant; a sound claim whose Source Trace reads differently in each tells a student which variant they drew, and they did nothing to learn it.
 - Both variants offer the same set of actions on every claim, the planted one included. Author the same path types on both sides; what each returns is where the plant lives.
 
+THE SLATE
+Give the claims these parts, so that every rule above is met by construction rather than arrived at:
+- One is the plant. Load-bearing, above low consequence, inside the declared concept set, \`plantedTrue\` with its failure family named, and a Source Trace authored on both variants.
+- One is sound in both variants, weakly sourced or volatile, and carries a Source Trace whose result would change a reasonable stance.
+- One is sound in both variants, \`escalatable\`, and carries the colleague's reply.
+- Two are sound, low consequence, and warrant Accept in both variants, so that a Challenge on either is a false alarm.
+- The rest are ordinary supporting claims, sound in both variants.
+One claim may hold two of these parts — the weakly sourced one may also be the escalatable one — but every part must be held by some claim.
+
 THE WARRANTED STANCE
 Propose it by this table, and the authority will confirm or edit it:
 - sound, not load-bearing, low consequence and not weakly sourced: accept.
@@ -284,11 +312,15 @@ Propose it by this table, and the authority will confirm or edit it:
 - defective and inside the declared concept set: challenge, or reject when the family is \`unacceptable_route\`.
 - defective and outside what the concept set says the student is expected to know: escalate.
 
-\`rationale\` is what the claim deserved and why. It is shown to the student in the debrief after the run is scored and never before, so it may say plainly that the figure was superseded; nothing a student reads during the run may.`
+\`rationale\` is what the claim deserved and why, in one or two sentences. It is shown to the student in the debrief after the run is scored and never before, so it may say plainly that the figure was superseded; nothing a student reads during the run may.
+
+Write tightly throughout. Every free-text field here is one to three sentences — a rationale, an escalation reply, a trigger description, a source passage — and a claim written at length is a claim a student reads once.`
 
 export const genClaimsStatesPrompt = definePrompt<ClaimsStatesInput, ClaimsStatesOutput>({
   name: 'gen-claims-states',
-  version: 1,
+  version: 3,
+  maxOutputTokens: GEN_MAX_OUTPUT_TOKENS,
+  timeoutMs: GEN_TIMEOUT_MS,
   purpose:
     'Write the consequential claims and their per-variant states, including the one planted defect.',
   input: ClaimsStatesInputSchema,

@@ -448,7 +448,7 @@ Errors: none beyond global.
 | `listUsers(actor, { cursor, limit, q? })` | Platform admin; email prefix filter |
 | `setPlatformRole(actor, userId, role)` | Admin; audit `role.set`; revoke the user's sessions |
 | `listAuditLog(actor, { cursor, limit, orgId? })` | Admin |
-| `getFlags(actor)` | Admin; the three flags and `effectiveLlmProvider()` |
+| `getFlags(actor)` | Admin; the three flags, `effectiveLlmProvider()`, and `llmUsage` — calls, tokens and estimated cost for the UTC day and the calendar month against the two ceilings of D-065, counting what the budgets count (no mock rows, D-651). Asynchronous from step 14.5, because it reads `llm_calls` |
 | `audit(tx, { actorId, orgId, action, targetType, targetId, metadata })` | Helper used by every module; includes the request id |
 
 Errors: `ROLE_INVALID` (400).

@@ -49,7 +49,7 @@ export type NumericGuardResult = {
 }
 
 /**
- * The marker an unsourced figure is wrapped in, in the shape `assistant-reply@1` fixes for a claim.
+ * The marker an unsourced figure is wrapped in, in the shape `assistant-reply@5` fixes for a claim.
  *
  * The payload is the figure exactly as the model spelled it, so `1,200` stays `1,200` and the
  * sentence reads as it was written. An **empty** payload is `block` mode: the digits are gone from

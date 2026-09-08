@@ -36,6 +36,8 @@ import {
   listBlock,
   restatedRulesSection,
   section,
+  GEN_MAX_OUTPUT_TOKENS,
+  GEN_TIMEOUT_MS,
 } from '@/server/llm/prompts/gen'
 
 export const ReadinessItemsInputSchema = z.object({
@@ -136,6 +138,8 @@ WHAT AN ITEM MAY NOT DO
 export const genReadinessItemsPrompt = definePrompt<ReadinessItemsInput, ReadinessItemsOutput>({
   name: 'gen-readiness-items',
   version: 1,
+  maxOutputTokens: GEN_MAX_OUTPUT_TOKENS,
+  timeoutMs: GEN_TIMEOUT_MS,
   purpose:
     'Write the sixteen Readiness Check items, split six foundation, four defect concept, six AI behaviour.',
   input: ReadinessItemsInputSchema,

@@ -78,6 +78,22 @@ export const admin = {
   'admin.flags.constrainedMode':
     'AI features are running in constrained mode: every model call is answered by the built-in fixture provider, which is deterministic and costs nothing.',
 
+  // Model usage (NFR-016, D-065): the same sums the budget guardrail reads, on the same clock.
+  'admin.flags.usageTitle': 'Model usage',
+  'admin.flags.usageDescription':
+    'What this deployment has spent with a model provider. These are the sums the budget guard reads before every call, so a call refused for being over budget is refused against exactly these numbers. Calls the built-in fixture provider answered are not counted: nobody was billed for them.',
+  'admin.flags.usageCaption': 'Model calls, tokens and estimated cost, today and this month',
+  'admin.flags.usageColumnMeasure': 'Measure',
+  'admin.flags.usageColumnToday': 'Today (UTC)',
+  'admin.flags.usageColumnMonth': 'This month',
+  'admin.flags.usageCalls': 'Calls',
+  'admin.flags.usageTokens': 'Tokens',
+  'admin.flags.usageCost': 'Estimated cost',
+  'admin.flags.usageMonthlyBudget':
+    'The month has used {used} of the {budget} tokens in LLM_GLOBAL_MONTHLY_TOKEN_BUDGET, which is {share}. Past it, every model call is refused until the calendar month turns.',
+  'admin.flags.usageDailyBudget':
+    'LLM_USER_DAILY_TOKEN_BUDGET is {budget} tokens per person per UTC day. It is counted per person, so the platform-wide figure above is not measured against it.',
+
   // Audit log (UI-050, DATA-048)
   'admin.audit.title': 'Audit log',
   'admin.audit.description':

@@ -19,6 +19,7 @@ import { env } from '@/server/config'
 import { db } from '@/server/db/client'
 import { llmCalls } from '@/server/db/schema/platform'
 import { getLogger, getRequestContext } from '@/server/http/request-context'
+import { budgetUsageOf, type BudgetUsage } from '@/server/llm/guardrails/budgets'
 import { alertOps, countOps } from '@/server/logging/ops-events'
 import type {
   CompleteRequest,
@@ -49,6 +50,14 @@ export type LlmCallRecord = {
   outcome: LlmOutcome
   /** True when the primary's circuit was open and `guardrails/fallback.ts` answered (§1.1, D-103). */
   fallbackUsed?: boolean
+  /**
+   * The two budget sums as they stood *before* this call, when a budget check ran (D-662).
+   *
+   * Absent on the mock, which is not wrapped in budgets (D-651) and spends nothing. The ops event
+   * adds this call's own tokens to them, which is the "consumption after this call" 13 §6.3's two
+   * budget panels plot.
+   */
+  budgetBefore?: BudgetUsage
   context: CompleteRequest['context']
 }
 
@@ -96,6 +105,32 @@ const ALERTING_OUTCOMES: ReadonlySet<LlmOutcome> = new Set<LlmOutcome>([
 ])
 
 /**
+ * Budget consumption *after* this call, in tokens: what had been spent when the check ran, plus what
+ * this call then spent (13 §6.3, `Global monthly budget consumption` and `Per-user daily budget
+ * consumption`).
+ *
+ * Both are `undefined` when no budget check ran — the mock, which is not wrapped in budgets — and
+ * `userDaily` is `undefined` for a call with no person behind it. A job's tokens are not one
+ * student's day, and a zero on a panel broken down by distinct id would read as a quiet user rather
+ * than as no user at all. `safeOpsProperties` drops an undefined property, so neither is sent.
+ *
+ * On a refused call (`budget_exceeded`) the usage is empty and the two numbers are the sums that
+ * caused the refusal — which is exactly the point on the graph where the ceiling was met.
+ */
+export function budgetAfter(record: LlmCallRecord): {
+  userDaily: number | undefined
+  globalMonthly: number | undefined
+} {
+  const before = record.budgetBefore
+  if (before === undefined) return { userDaily: undefined, globalMonthly: undefined }
+  const spent = record.usage.inputTokens + record.usage.outputTokens
+  return {
+    userDaily: record.context.userId === undefined ? undefined : before.userDay + spent,
+    globalMonthly: before.globalMonth + spent,
+  }
+}
+
+/**
  * Writes the row, the operational counter, the analytics event and the debug digest.
  *
  * Never throws where a student could feel it: the insert is guarded, the ops helpers swallow, and
@@ -139,6 +174,16 @@ export async function recordLlmCall(
     'llm call',
   )
 
+  // 13 §5's instrumentation row and every panel of §6.3, which is why the property names here are
+  // the dashboard's rather than the catalogue's: `cost_estimate_usd` is what the cost panel sums and
+  // what the column is called, and the two `*_tokens_after` numbers are the budget-consumption
+  // panels. `prompt` and `version` are *not* `prompt_name` and `prompt_version`, because the runtime
+  // allowlist drops any key whose last word is `name` and would silently swallow the first (D-660).
+  //
+  // The distinct id is the hashed user, which is what makes the per-user daily consumption panel
+  // possible without a person ever being named; the `llm_call` product event below is `system` for
+  // the reason written there.
+  const after = budgetAfter(record)
   countOps(
     'ops_llm_call',
     {
@@ -151,7 +196,9 @@ export async function recordLlmCall(
       latency_ms: record.latencyMs,
       input_tokens: record.usage.inputTokens,
       output_tokens: record.usage.outputTokens,
-      cost_usd: Number(cost),
+      cost_estimate_usd: Number(cost),
+      user_daily_tokens_after: after.userDaily,
+      global_monthly_tokens_after: after.globalMonthly,
       run_id: record.context.runId ?? null,
       package_version_id: record.context.packageVersionId ?? null,
     },
@@ -190,17 +237,23 @@ export async function recordLlmCall(
     { userId: null, organizationId: getRequestContext()?.actor?.activeOrganizationId ?? null },
   )
 
+  // 13 §7's three LLM rules — `NFR-016 LLM errors`, `NFR-016 circuit open`, `NFR-016 budget
+  // exceeded` — match on the `ops` tag alone, and the three tags below are what an operator filters
+  // an issue's events by once it has fired. All three alerts carry the same four, `outcome`
+  // included: an alert that says which condition it is without saying which outcome produced it
+  // sends the reader back to the row to find out (D-663).
+  const tags = {
+    feature: record.feature,
+    prompt: record.promptName,
+    provider: record.provider,
+    outcome: record.outcome,
+  }
   if (ALERTING_OUTCOMES.has(record.outcome)) {
-    alertOps('llm_error', {
-      feature: record.feature,
-      prompt: record.promptName,
-      provider: record.provider,
-      outcome: record.outcome,
-    })
+    alertOps('llm_error', tags)
   } else if (record.outcome === 'budget_exceeded') {
-    alertOps('budget_exceeded', { feature: record.feature, provider: record.provider })
+    alertOps('budget_exceeded', tags)
   } else if (record.outcome === 'circuit_open') {
-    alertOps('circuit_open', { feature: record.feature, provider: record.provider })
+    alertOps('circuit_open', tags)
   }
 }
 
@@ -231,6 +284,9 @@ export function withCallLogging(provider: LlmProvider): LlmProvider {
     // `openai-compatible` with a Claude model on it — a row that reads as a mis-configuration and
     // hides the one thing an operator needs to see, which is that the fallback ran (D-103).
     const answered = LLM_PROVIDER_NAMES.find((name) => name === answeredBy) ?? provider.name
+    // What the budget wrapper read on the way down, if it ran at all (D-662). `req` is the same
+    // object all the way through the chain, which is what makes the lookup possible from out here.
+    const budgetBefore = budgetUsageOf(req)
     return recordLlmCall(
       {
         feature: req.feature,
@@ -242,6 +298,7 @@ export function withCallLogging(provider: LlmProvider): LlmProvider {
         latencyMs: Math.max(0, Math.round(performance.now() - startedAt)),
         outcome,
         fallbackUsed: answered !== provider.name,
+        ...(budgetBefore === undefined ? {} : { budgetBefore }),
         context: req.context,
       },
       req.messages,

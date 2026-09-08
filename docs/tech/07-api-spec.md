@@ -171,7 +171,7 @@ All routes require the run owner unless noted. Every response includes `run: Run
 | `POST /notifications/read-all` | Mark all read | S | — | `204` | — | write | — |
 | `GET /admin/users` | Users (SYS-006) | Adm | `?cursor&limit&q?` | `Page<AdminUser>` | — | read | — |
 | `PUT /admin/users/{userId}/platform-role` | Set platform role | Adm | `{ role }` | `AdminUser` | `ROLE_INVALID` | write | `{"role":"tassl_scenario_editor"}` |
-| `GET /admin/flags` | Flags and effective provider | Adm | — | `{ ai, sampleData, testControls, effectiveLlmProvider }` | — | read | — |
+| `GET /admin/flags` | Flags, effective provider, and model spend against the budgets | Adm | — | `{ ai, sampleData, testControls, effectiveLlmProvider, llmUsage: { today: { calls, tokens, costUsd }, month: { … }, budgets: { userDaily, globalMonthly } } }` | — | read | — |
 | `GET /admin/audit-log` | Audit log | Adm | `?cursor&limit&orgId?` | `Page<AuditEntry>` | — | read | — |
 
 Test-only (`APP_ENV=test`, excluded from OpenAPI, D-109): `POST /api/v1/test/runs/{runId}/advance-clock { ms }` → `RunSummary`. It moves the run's **whole timeline** back by `ms` — every timestamp column of `runs` and every `occurred_at` in its trace — and then materializes whatever that makes true, so the run it leaves is one production could have produced (D-364). The run's children keep their own instants; a test that needs a document open or a locked frame aged shifts it itself.

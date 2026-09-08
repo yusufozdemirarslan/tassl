@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { AdminNav } from '@/components/features/admin/admin-nav'
 import { FlagTable } from '@/components/features/admin/flag-table'
+import { LlmUsageTable } from '@/components/features/admin/llm-usage-table'
 import { PageHeader } from '@/components/layout/page-header'
 import { Panel } from '@/components/layout/panel'
 import { t } from '@/lib/i18n/t'
@@ -14,7 +15,7 @@ export const metadata: Metadata = { title: t('admin.flags.title') }
 // `LLM_PROVIDER` — with FEATURE_AI off the two disagree, and the one that decides is the first.
 export default async function AdminFlagsPage() {
   const { actor } = await getViewer()
-  const flags = getFlags(actor)
+  const flags = await getFlags(actor)
 
   return (
     <>
@@ -45,6 +46,17 @@ export default async function AdminFlagsPage() {
               {t('admin.flags.constrainedMode')}
             </p>
           )}
+        </Panel>
+        {/* Step 14.5: the flags say what this deployment is running with; this says what it has
+            cost. Both come from the server, and this one from the same two sums the budget
+            guardrail reads before every call (NFR-016, D-065). */}
+        <Panel
+          id="admin-llm-usage"
+          title={t('admin.flags.usageTitle')}
+          description={t('admin.flags.usageDescription')}
+          headingLevel={2}
+        >
+          <LlmUsageTable usage={flags.llmUsage} />
         </Panel>
       </div>
     </>

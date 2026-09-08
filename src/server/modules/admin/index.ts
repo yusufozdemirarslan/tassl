@@ -22,6 +22,8 @@ export {
   INSTITUTION_FILTER_LIMIT,
   listAuditLogSchema,
   listUsersSchema,
+  llmUsageSchema,
+  llmUsageWindowSchema,
   platformRoleSchema,
   setPlatformRoleSchema,
   type AdminFlags,
@@ -32,6 +34,8 @@ export {
   type InstitutionRef,
   type ListAuditLogInput,
   type ListUsersInput,
+  type LlmUsage,
+  type LlmUsageWindow,
   type PlatformRole,
   type SetPlatformRoleInput,
 } from './schema'

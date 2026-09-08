@@ -1,4 +1,4 @@
-// Step 7.2 — `assistant-reply@1` and `trigger-classify@1` (docs/tech/11-llm-integration.md §2.1, §3).
+// Step 7.2 — `assistant-reply@5` and `trigger-classify@1` (docs/tech/11-llm-integration.md §2.1, §3).
 //
 // A prompt is product surface: it is where FR-052 and FR-056 stop being intentions and start being
 // text a model reads. So the assertions here are about the promises, not the prose — that the rule
@@ -40,11 +40,11 @@ const userMessage = (input: unknown): string =>
 
 const countOf = (haystack: string, needle: string): number => haystack.split(needle).length - 1
 
-describe('assistant-reply@1 — the system message', () => {
+describe('assistant-reply@5 — the system message', () => {
   const system = assistantReplyPrompt.system
 
   it('is named and versioned for the llm_calls row', () => {
-    expect(assistantReplyPrompt.id).toBe('assistant-reply@1')
+    expect(assistantReplyPrompt.id).toBe('assistant-reply@5')
   })
 
   it('carries the UNTRUSTED sentence as its last paragraph', () => {
@@ -70,7 +70,7 @@ describe('assistant-reply@1 — the system message', () => {
   })
 })
 
-describe('assistant-reply@1 — rendering', () => {
+describe('assistant-reply@5 — rendering', () => {
   it('wraps the world, every document, every claim and the request', () => {
     const rendered = userMessage(INPUT)
     expect(countOf(rendered, UNTRUSTED_OPEN)).toBe(4)
@@ -136,7 +136,7 @@ describe('assistant-reply@1 — rendering', () => {
   })
 })
 
-describe('assistant-reply@1 — the marker contract', () => {
+describe('assistant-reply@5 — the marker contract', () => {
   it('renders and reads back the ids in order, duplicates kept', () => {
     expect(claimMarker('C3')).toBe('[[claim:C3]]')
     expect(

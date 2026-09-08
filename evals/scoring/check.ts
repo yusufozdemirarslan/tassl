@@ -37,7 +37,7 @@ import {
   type ReadPosition,
 } from '@/server/modules/scoring/reads'
 import { DIMENSIONS, currentRubric, type Dimension } from '@/server/modules/scoring/rubric'
-import { type EvalCaseResult, type EvalCheck, type EvalSuite } from '../config'
+import { outputHash, type EvalCaseResult, type EvalCheck, type EvalSuite } from '../config'
 
 const ROOT = process.cwd()
 const CASES_DIR = join(ROOT, 'evals', 'scoring', 'cases')
@@ -70,11 +70,30 @@ const EvalCaseSchema = z.object({
   /** FR-125: the run never reached its defense, which caps Ownership and nothing else. */
   defenseMissed: z.boolean().default(false),
   /**
-   * PRD §7.11: file the same words as a hold on a Turn that warranted none and as a revision on one
-   * that warranted one, and assert the two Adaptation bands are equal. The claim is about the rule,
-   * so the two runs have to differ in the direction alone.
+   * PRD §7.11, FR-139: run the fixture twice — once as a hold on a Turn that warranted none, once
+   * as a revision on one that warranted one — and assert the two Adaptation bands are equal.
    */
   holdEqualsRevision: z.boolean().default(false),
+  /**
+   * The justification the second run files (D-674).
+   *
+   * The two runs used to differ in the direction *alone*: the same sentence, filed as a hold and
+   * then as a revision. That is not the comparison FR-139 makes, and on a real provider it could
+   * not pass — the hold's justification argues that what arrived does not move the framed payback,
+   * and read as the reason for a revision it argues against the move it is attached to. Six runs of
+   * `band-read-adaptation` placed the hold `professional` and that pairing `developing`, six times
+   * out of six, which is a model reading a contradiction correctly rather than a model preferring a
+   * direction. `bands.ts` already guarantees the structural half — a response that matched its
+   * warrant is Proficient before anyone reads a word, and the read can only lift it — and
+   * `tests/unit/scoring/bands.test.ts` asserts that directly.
+   *
+   * So the second run files its own reason, of the same quality: it takes up the same sentence of
+   * the Turn and names the same framed assumption, and differs only in the move it justifies. What
+   * the check then proves is FR-139 as written — *holding with a stated reason scores exactly as
+   * highly as warranted revision* — rather than the stronger, unpromised claim that one sentence
+   * scores the same whatever it is attached to.
+   */
+  warrantedRevisionJustification: z.string().default(''),
   expect: z.object({
     bands: z.record(z.string(), BandSchema).default({}),
     unassessed: z.array(z.string()).default([]),
@@ -186,8 +205,11 @@ async function runPipeline(
   return { bands, facts, points }
 }
 
-/** The same run with the response and the Turn's warrant both moved to `revise` (PRD §7.11). */
-function asWarrantedRevision(input: GraphInput): GraphInput {
+/**
+ * The same run as a warranted revision (PRD §7.11): the Turn's warrant, the response, and the
+ * reason the student wrote for it, which is the one thing A.6 reads (D-674).
+ */
+function asWarrantedRevision(input: GraphInput, justification: string): GraphInput {
   return {
     ...input,
     packageVersion: {
@@ -199,7 +221,14 @@ function asWarrantedRevision(input: GraphInput): GraphInput {
     },
     events: input.events.map((event) =>
       event.type === 'turn_response_locked'
-        ? { ...event, payload: { ...event.payload, response: 'revise' } }
+        ? {
+            ...event,
+            payload: {
+              ...event.payload,
+              response: 'revise',
+              ...(justification === '' ? {} : { justification }),
+            },
+          }
         : event,
     ),
   }
@@ -300,7 +329,11 @@ async function runCase(testCase: ScoringEvalCase, provider: LlmProvider): Promis
   }
 
   if (testCase.holdEqualsRevision) {
-    const revised = await runPipeline(asWarrantedRevision(input), testCase, provider)
+    const revised = await runPipeline(
+      asWarrantedRevision(input, testCase.warrantedRevisionJustification),
+      testCase,
+      provider,
+    )
     checks.push(
       check(
         'holding with a reason bands exactly as warranted revision does',
@@ -337,7 +370,15 @@ async function runCase(testCase: ScoringEvalCase, provider: LlmProvider): Promis
     ),
   )
 
-  return { id: testCase.id, title: `${testCase.title} (${testCase.fixes})`, checks }
+  // What the model actually wrote for this case, as a digest (§5, D-661): the five rationales are
+  // the only prose a band read produces, so hashing them fingerprints the answer without printing a
+  // word of it. Everything above reports a band, a rate or a flag, which the model did not write.
+  return {
+    id: testCase.id,
+    title: `${testCase.title} (${testCase.fixes})`,
+    outputHash: outputHash(...DIMENSIONS.map((dimension) => bands[dimension].rationale)),
+    checks,
+  }
 }
 
 export const scoringSuite: EvalSuite = {

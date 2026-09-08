@@ -1,5 +1,12 @@
-// `gen-documents@1` — generation step 2 (docs/tech/11-llm-integration.md §2.1; AI-001, FR-191;
+// `gen-documents@2` — generation step 2 (docs/tech/11-llm-integration.md §2.1; AI-001, FR-191;
 // PRD §7.2, §7.18 (4); D-081).
+//
+// **Version 2 (step 14.4)** bounds what it asks for. Version 1 gave the model the ceilings — up to
+// twelve documents of up to 2,000 words — and no target, and MiMo wrote to them: the step returned
+// 5,541 output tokens and took over two minutes, and it was the step that made the whole authoring
+// suite fail on the first real-provider run. A room of 6 to 9 documents of 150 to 400 words is what
+// the hand-written fixture already is, it is what a student can read inside a twenty-five-minute
+// run, and it is about a third of the tokens (D-668).
 //
 // The Evidence Room is the scenario. Everything a student can check, they check here, so this is
 // the step whose output the rest of the package hangs off: a claim's Source Trace names a document
@@ -35,6 +42,8 @@ import {
   restatedRulesSection,
   section,
   untrustedText,
+  GEN_MAX_OUTPUT_TOKENS,
+  GEN_TIMEOUT_MS,
 } from '@/server/llm/prompts/gen'
 
 /** Enough of a stakeholder for a document to be written in their voice; not their blind spots. */
@@ -121,7 +130,7 @@ export const DocumentsOutputSchema = z
 export type DocumentsOutput = z.infer<typeof DocumentsOutputSchema>
 
 const TASK = `THIS STEP
-Write the Evidence Room: between 6 and 12 documents, each dated, attributed and at most 2,000 words.
+Write the Evidence Room: between 6 and 9 documents, each dated, attributed, and between 150 and 400 words. The hard limit is 2,000 words, but a student reads this room inside a twenty-five-minute run, so a document that runs past a page is a document nobody opens twice.
 
 - The room is a set of real working papers, not an essay in parts. A deck note, a finance memo, a quoted cost schedule, a capacity plan, a survey summary with its method, a dashboard extract, a cover note.
 - Every stakeholder you were given owns at least one document, written in their voice and consistent with the position they hold.
@@ -137,8 +146,10 @@ Write the Evidence Room: between 6 and 12 documents, each dated, attributed and 
 
 export const genDocumentsPrompt = definePrompt<DocumentsInput, DocumentsOutput>({
   name: 'gen-documents',
-  version: 1,
-  purpose: 'Write the Evidence Room for a scenario package: 6 to 12 dated, attributed documents.',
+  version: 2,
+  maxOutputTokens: GEN_MAX_OUTPUT_TOKENS,
+  timeoutMs: GEN_TIMEOUT_MS,
+  purpose: 'Write the Evidence Room for a scenario package: 6 to 9 dated, attributed documents.',
   input: DocumentsInputSchema,
   output: DocumentsOutputSchema,
   system: genSystem(TASK),

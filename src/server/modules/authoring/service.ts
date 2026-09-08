@@ -615,6 +615,16 @@ export async function runGenerationStep(
       // normalised by then, so this is the text the model actually read (D-265).
       promptInput: rendered.input,
       temperature: 0.2,
+      // The prompt's own budget, when it declares one (D-666). A generation step writes a package
+      // element inside a job, not a reply a student is watching for, so the environment's ceiling
+      // and timeout — sized for a delegation — are the wrong ones: 4,096 output tokens truncates an
+      // Evidence Room mid-document and sixty seconds cuts off a step that takes two minutes.
+      ...(definition.prompt.maxOutputTokens === undefined
+        ? {}
+        : { maxOutputTokens: definition.prompt.maxOutputTokens }),
+      ...(definition.prompt.timeoutMs === undefined
+        ? {}
+        : { timeoutMs: definition.prompt.timeoutMs }),
       schema: definition.prompt.output as ZodType<unknown>,
       schemaName: `${definition.prompt.name}-output`,
       context: { packageVersionId: versionId, requestId: run.id },

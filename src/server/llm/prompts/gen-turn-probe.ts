@@ -32,6 +32,8 @@ import {
   restatedRulesSection,
   section,
   untrustedText,
+  GEN_MAX_OUTPUT_TOKENS,
+  GEN_TIMEOUT_MS,
 } from '@/server/llm/prompts/gen'
 
 export const TurnProbeInputSchema = z.object({
@@ -125,6 +127,8 @@ THE PROBE
 export const genTurnProbePrompt = definePrompt<TurnProbeInput, TurnProbeOutput>({
   name: 'gen-turn-probe',
   version: 1,
+  maxOutputTokens: GEN_MAX_OUTPUT_TOKENS,
+  timeoutMs: GEN_TIMEOUT_MS,
   purpose:
     'Write the Turn the world sends mid-run and the Sycophancy Probe the assistant performs.',
   input: TurnProbeInputSchema,

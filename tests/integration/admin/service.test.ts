@@ -282,12 +282,22 @@ describe('admin service', () => {
   describe('getFlags', () => {
     it('answers the three flags and the provider the run loop would call', async () => {
       const config = await import('@/server/config')
-      const flags = admin.getFlags(actorOf(adminUser))
+      const flags = await admin.getFlags(actorOf(adminUser))
       expect(flags).toEqual({
         ai: config.env.FEATURE_AI,
         sampleData: config.env.FEATURE_SAMPLE_DATA,
         testControls: config.env.FEATURE_TEST_CONTROLS,
         effectiveLlmProvider: config.effectiveLlmProvider(),
+        // Step 14.5: nothing has been spent in this suite, and the two ceilings are the environment's
+        // (D-065). A mock call would not move these — the sums count what was billed (D-651).
+        llmUsage: {
+          today: { calls: 0, tokens: 0, costUsd: 0 },
+          month: { calls: 0, tokens: 0, costUsd: 0 },
+          budgets: {
+            userDaily: config.env.LLM_USER_DAILY_TOKEN_BUDGET,
+            globalMonthly: config.env.LLM_GLOBAL_MONTHLY_TOKEN_BUDGET,
+          },
+        },
       })
       // FEATURE_AI is off in the test environment, so the effective provider is the mock whatever
       // LLM_PROVIDER says — which is the whole reason the screen shows this and not the variable.

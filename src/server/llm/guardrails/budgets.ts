@@ -130,18 +130,39 @@ export const readBudgetUsage: BudgetReader = async (context, now) => {
 }
 
 /**
- * Reads both sums and throws `LLM_BUDGET_EXCEEDED` when either ceiling is reached.
+ * What the two sums were when this request's budget was checked, keyed by the request object.
  *
- * Exported on its own because the check is worth making outside a call as well — the flags page
- * reports the same two numbers (step 14.5) — and because the wrapper below is then three lines.
+ * The operations panel's two budget-consumption panels need "how much of the ceiling had been spent
+ * after this call" (13 §6.3), and the only place that number is known cheaply is here: the check has
+ * just read both sums, and the call's own tokens are added to them by the logging wrapper. The
+ * alternative was two more `sum()` queries per call, on the path a student is waiting on, for a
+ * number that is already in memory (D-662).
+ *
+ * A `WeakMap` keyed by the request rather than a field on it: the request belongs to the caller, the
+ * chain passes the same object down unchanged, and an entry disappears with the request it describes
+ * — no lifecycle to manage and nothing to clear between calls. Nothing outside `calls.ts` reads it.
  */
-export async function assertWithinBudget(
-  context: LlmCallContext,
+const usageSeen = new WeakMap<object, BudgetUsage>()
+
+/** The sums as they stood before this request's call, or `undefined` when no budget check ran. */
+export const budgetUsageOf = (request: object): BudgetUsage | undefined => usageSeen.get(request)
+
+/**
+ * Reads both sums, records them against the request, and throws `LLM_BUDGET_EXCEEDED` when either
+ * ceiling is reached.
+ *
+ * Exported on its own because the wrapper below is then three lines, and because the recording has
+ * to happen *before* the verdict: a call refused for being over budget is exactly the call whose
+ * consumption numbers an operator wants on the dashboard.
+ */
+export async function assertWithinBudget<R extends { context: LlmCallContext }>(
+  request: R,
   read: BudgetReader = readBudgetUsage,
   now: Date = new Date(),
 ): Promise<BudgetUsage> {
   const limits = budgetLimits()
-  const usage = await read(context, now)
+  const usage = await read(request.context, now)
+  usageSeen.set(request, usage)
   const scope = budgetVerdict(usage, limits)
   if (scope !== null) budgetExceeded(scope, usage, limits)
   return usage
@@ -163,17 +184,17 @@ export function withBudgets(
     name: provider.name,
 
     async complete(req: CompleteRequest) {
-      await assertWithinBudget(req.context, read)
+      await assertWithinBudget(req, read)
       return provider.complete(req)
     },
 
     async *stream(req: CompleteRequest) {
-      await assertWithinBudget(req.context, read)
+      await assertWithinBudget(req, read)
       yield* provider.stream(req)
     },
 
     async structured<T>(req: StructuredRequest<T>) {
-      await assertWithinBudget(req.context, read)
+      await assertWithinBudget(req, read)
       return provider.structured<T>(req)
     },
   }

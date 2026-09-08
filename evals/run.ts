@@ -18,12 +18,20 @@ const indent = (depth: number): string => '  '.repeat(depth)
 
 const percent = (ratio: number): string => `${(ratio * 100).toFixed(1)}%`
 
+/**
+ * One case's line, plus — when it failed — the checks that failed and the digest of the raw output.
+ *
+ * The digest and not the answer (§5). Everything printed here is a check name, an id, a count or a
+ * rule code; the model's words are represented by `output <sha256>` and nothing else, so this report
+ * can be pasted anywhere. `evals/README.md` says what to do with the digest.
+ */
 function reportCase(result: EvalCaseResult, ok: boolean): string[] {
   const lines = [`${indent(1)}${ok ? 'pass' : 'FAIL'}  ${result.id} — ${result.title}`]
   if (ok) return lines
   for (const check of result.checks.filter((entry) => !entry.ok)) {
     lines.push(`${indent(3)}✗ ${check.name}${check.detail ? `: ${check.detail}` : ''}`)
   }
+  lines.push(`${indent(3)}output ${result.outputHash ?? 'none (no answer was returned)'}`)
   return lines
 }
 
