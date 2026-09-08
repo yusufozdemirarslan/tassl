@@ -119,7 +119,7 @@
 - [x] 13.4 Rate-limit coverage, student-view invariants, PII redaction audit
 - [x] 13.5 Admin area, legal pages, error-page polish, copy review
 - [x] 13.6 Backups, restore drill, incident tooling, retention
-- [ ] 13.7 Impeccable app-wide passes: adapt, optimize, extract
+- [x] 13.7 Impeccable app-wide passes: adapt, optimize, extract
 - [ ] 13.8 Accessibility sweep and performance budgets in CI
 - [ ] Phase 13 exit criteria
 
