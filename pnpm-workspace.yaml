@@ -13,12 +13,15 @@ allowBuilds:
   msw: false
   unrs-resolver: false
 
-# Dependency audit (12 §3 A06, D-149). `tmp` is forced to its patched line; the extract-zip
-# advisory has no patched version and only affects @lhci/cli's browser-download path in CI.
+# Dependency audit (12 §3 A06, D-149). `tmp` is forced to its patched line; both extract-zip
+# advisories have no patched version and only affect @lhci/cli's browser-download path in CI —
+# a devDependency that unpacks a Chrome build on a runner and never reaches a deployed bundle.
 overrides:
   tmp: '>=0.2.6'
 auditConfig:
   ignoreGhsas:
     - GHSA-jmr9-qjv8-65gv
+    # Arbitrary file write through symlink archive entries; same package, same path, also unpatched.
+    - GHSA-7pqw-9j4j-h8q3
 minimumReleaseAgeExclude:
   - shadcn@4.20.1
