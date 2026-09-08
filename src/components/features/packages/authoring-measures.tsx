@@ -5,9 +5,19 @@ import type { AuthoringMeasures as AuthoringMeasuresView } from '@/server/module
 // the element decisions. They are the institution's own accounting of what building a scenario
 // costs — which is why a program lead sees this panel and nothing else on the screen (08 §4).
 //
-// Every figure says what it measures underneath it. A share of 0 on a version nobody has decided
-// anything on would otherwise read as "nothing was edited" rather than "nothing has happened yet",
-// so the two nullable measures name the state they are in instead of showing a dash.
+// Every figure says what it measures underneath it, and a measure with nothing behind it yet says
+// so in words rather than showing a dash or a zero. Which measures those are is decided by the
+// arithmetic in `authoring/measures.ts`, not by taste:
+//
+//   * `seedToConfirmedMs` is null until the version is frozen — there is no end of the span yet.
+//   * `reviewMsPerElement` is null until some element has been decided, and *that same fact* is
+//     what the edit rate and the rejected share have no answer for: both are shares of the
+//     version's elements, and both are 0 on a package nobody has opened. A screen that printed
+//     "0 %" there would be read as "nothing was edited" — PRD §11 watches this figure for exactly
+//     the opposite reading ("an edit rate near zero is approving rather than reviewing"), so the
+//     one state that must not be mistaken for it is the one where no review has happened at all.
+//   * `generationPasses` is a count of runs, and 0 is a true and complete answer: it means this
+//     version was written by hand or brought in as an export. Its help sentence says so.
 
 export type AuthoringMeasuresProps = {
   measures: AuthoringMeasuresView
@@ -42,6 +52,8 @@ function formatDuration(ms: number): string {
 type Measure = { label: string; figure: string | null; state: string; help: string }
 
 function measuresOf(measures: AuthoringMeasuresView): Measure[] {
+  // No element has been decided on: the two shares have no denominator anybody has touched yet.
+  const undecided = measures.reviewMsPerElement === null
   return [
     {
       label: t('packageVersion.seedToConfirmed'),
@@ -52,14 +64,14 @@ function measuresOf(measures: AuthoringMeasuresView): Measure[] {
     },
     {
       label: t('packageVersion.editRate'),
-      figure: PERCENT.format(measures.editRate),
-      state: '',
+      figure: undecided ? null : PERCENT.format(measures.editRate),
+      state: t('packageVersion.measureNoDecisions'),
       help: t('packageVersion.editRateHelp'),
     },
     {
       label: t('packageVersion.rejectedShare'),
-      figure: PERCENT.format(measures.rejectedShare),
-      state: '',
+      figure: undecided ? null : PERCENT.format(measures.rejectedShare),
+      state: t('packageVersion.measureNoDecisions'),
       help: t('packageVersion.rejectedShareHelp'),
     },
     {

@@ -19,13 +19,33 @@ import { t } from '@/lib/i18n/t'
 // 1,963 px long says everything still wrong in one place beside the button that was pressed, and
 // the concept entry's own notices are tied to the input rather than only shouted at the page.
 
-const actions = vi.hoisted(() => ({ createPackageFromSeedAction: vi.fn() }))
+const actions = vi.hoisted(() => ({
+  createPackageFromSeedAction: vi.fn(),
+  startGenerationAction: vi.fn(),
+}))
 const toasts = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }))
+const router = vi.hoisted(() => ({ push: vi.fn(), refresh: vi.fn() }))
 
 // A Server Action: importing the real module would pull the scenarios service, the database client
 // and `server-only` into jsdom.
 vi.mock('@/server/modules/scenarios/actions', () => ({
   createPackageFromSeedAction: actions.createPackageFromSeedAction,
+}))
+
+vi.mock('@/server/modules/authoring/actions', () => ({
+  startGenerationAction: actions.startGenerationAction,
+}))
+
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({
+    push: router.push,
+    refresh: router.refresh,
+    replace: vi.fn(),
+    prefetch: vi.fn(),
+    back: vi.fn(),
+    forward: vi.fn(),
+  }),
+  usePathname: () => '/packages/new',
 }))
 
 vi.mock('sonner', () => ({ toast: { success: toasts.success, error: toasts.error } }))
@@ -44,6 +64,7 @@ const licenseCheckbox = () =>
 const conceptInput = () => screen.getByLabelText(enUS['packageNew.conceptsLabel'])
 const seedTextArea = () => screen.getByLabelText(enUS['packageNew.seedTextLabel'])
 const submit = () => screen.getByRole('button', { name: enUS['packageNew.createSubmit'] })
+const generateSubmit = () => screen.getByRole('button', { name: enUS['packageNew.generateSubmit'] })
 
 type FillOptions = { concepts?: string[]; license?: boolean }
 
@@ -79,6 +100,7 @@ describe('SeedForm (UI-041)', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     actions.createPackageFromSeedAction.mockResolvedValue({ ok: true, data: CREATED })
+    actions.startGenerationAction.mockResolvedValue({ ok: true, data: { started: true } })
   })
 
   it('refuses to create until the license tick is made, and says so at the checkbox', async () => {
@@ -226,16 +248,61 @@ describe('SeedForm (UI-041)', () => {
     expect(screen.queryByText('Server sentence')).not.toBeInTheDocument()
   })
 
-  it('keeps “Create and generate” on the screen and says why it cannot act', () => {
-    renderForm()
+  it('creates the package, starts the pipeline, and lands on the progress screen', async () => {
+    const user = renderForm()
+    await fill(user)
 
-    const generate = screen.getByRole('button', { name: enUS['packageNew.generateSubmit'] })
-    expect(generate).toHaveAttribute('aria-disabled', 'true')
-    const reason = generate.getAttribute('aria-describedby')
-    expect(reason).not.toBeNull()
-    expect(document.getElementById(reason as string)).toHaveTextContent(
-      enUS['packageNew.generateUnavailable'],
+    await user.click(generateSubmit())
+
+    await waitFor(() => expect(actions.startGenerationAction).toHaveBeenCalled())
+    // The two calls are one gesture and in this order: the package has to exist to be generated
+    // into. The second is addressed to what the first answered.
+    expect(actions.createPackageFromSeedAction).toHaveBeenCalledTimes(1)
+    expect(actions.startGenerationAction.mock.calls[0]?.[0]).toEqual({
+      packageId: CREATED.packageId,
+      versionId: CREATED.versionId,
+    })
+    expect(router.push).toHaveBeenCalledWith(
+      `/packages/${CREATED.packageId}/versions/${CREATED.versionId}/generation`,
     )
+  })
+
+  it('keeps the package a refused generation created, and says what did not start', async () => {
+    const user = renderForm()
+    actions.startGenerationAction.mockResolvedValue({
+      ok: false,
+      error: {
+        code: 'GENERATION_ALREADY_RUNNING',
+        message: 'A step is already running.',
+        requestId: 'req_2',
+      },
+    })
+    await fill(user)
+
+    await user.click(generateSubmit())
+
+    // The package exists; nothing rolls it back, and the screen says both halves of what happened.
+    expect(
+      await screen.findByText(
+        t('packageNew.createdGenerationRefused', { message: 'A step is already running.' }),
+      ),
+    ).toBeInTheDocument()
+    expect(router.push).not.toHaveBeenCalled()
+    expect(screen.getByRole('link', { name: enUS['packageNew.createdGenerate'] })).toHaveAttribute(
+      'href',
+      `/packages/${CREATED.packageId}/versions/${CREATED.versionId}/generation`,
+    )
+  })
+
+  it('creates the package on its own without starting anything', async () => {
+    const user = renderForm()
+    await fill(user)
+
+    await user.click(submit())
+
+    await waitFor(() => expect(actions.createPackageFromSeedAction).toHaveBeenCalled())
+    expect(actions.startGenerationAction).not.toHaveBeenCalled()
+    expect(router.push).not.toHaveBeenCalled()
   })
 
   it('states what the new package holds instead of leaving the form filled in', async () => {

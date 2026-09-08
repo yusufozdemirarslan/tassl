@@ -142,6 +142,7 @@ export default async function PackageVersionPage({
 
   const basePath = `/packages/${packageId}/versions/${versionId}`
   const confirmHref = `${basePath}/confirm` as Route
+  const generationHref = `${basePath}/generation` as Route
 
   const packageDocument = version.restricted ? null : await loadExport(versionId)
 
@@ -192,7 +193,7 @@ export default async function PackageVersionPage({
 
   return (
     <>
-      <VersionHeader version={version} confirmHref={confirmHref} />
+      <VersionHeader version={version} confirmHref={confirmHref} generationHref={generationHref} />
 
       <div className="flex flex-col gap-6">
         {!version.restricted && (

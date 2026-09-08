@@ -101,7 +101,7 @@ export const packageConfirm = {
   'confirm.reopen': 'Reopen for editing',
   'confirm.rejectedTitle': 'Rejected, and waiting to be re-authored',
   'confirm.rejectedBody':
-    'A rejected element is queued for regeneration and keeps the version from being confirmed. Generation is not built yet, so this one has to be authored by hand: edit the fields below and save, which records the edit as its decision.',
+    'A rejected element keeps the version from being confirmed until it is re-authored. Ask for a new draft with Rewrite, or edit the fields below and save, which records the edit as its decision.',
   'confirm.rejectedNote': 'Note on the rejection: {note}',
   'confirm.frozenTitle': 'Frozen',
   'confirm.frozenBody':
@@ -112,7 +112,7 @@ export const packageConfirm = {
   // ---------------------------------------------------------------------------------------
   // The confirm bar
   // ---------------------------------------------------------------------------------------
-  'confirm.toolbarLabel': 'Decision on this element',
+  'confirm.toolbarLabel': 'Actions on this element',
   'confirm.save': 'Save edits',
   'confirm.savePending': 'Saving…',
   'confirm.saveNothing': 'Nothing has changed in this element yet.',
@@ -135,6 +135,51 @@ export const packageConfirm = {
   'confirm.rejectSubmit': 'Reject element',
   'confirm.rejectPending': 'Rejecting…',
   'confirm.rejectedToast': '{name} rejected.',
+  // One word for one state, and the author's nouns for it: a *new draft is being written*. The
+  // machinery behind it — a queue, a step, a job, a server — is Tassl's business, and an author
+  // waiting for a document does not need any of those five words to know what to do next.
+  'confirm.regenerate': 'Rewrite',
+  'confirm.regenerateTitle': 'Rewrite {name}',
+  'confirm.regenerateBody':
+    'A new draft is written for {scope}, this one included. Anything you have confirmed is kept exactly as it is; everything else in that set is written afresh — including work you have edited and saved but not confirmed — and needs a decision again.',
+  'confirm.regenerateRuleLabel': 'What the new draft has to get right (optional)',
+  'confirm.regenerateRuleHint':
+    'One or two sentences, in your own words. They are given as a rule the new draft has to satisfy, beside the package rules that are always checked.',
+  'confirm.regenerateSubmit': 'Rewrite {scope}',
+  'confirm.regeneratePending': 'Writing…',
+  'confirm.regenerateRuleCount': '{count} of {max} characters',
+  'confirm.regenerateRuleTooLong': 'At most {max} characters; there are {count}.',
+  'confirm.regenerateSettled': 'Reject this one first, and the new draft will replace it.',
+  'confirm.regenerateBusy':
+    'A new draft is being written. Nothing can be saved or decided on until it lands, so that no decision is recorded against values about to be replaced.',
+  'confirm.regenerateQueuedTitle': 'Writing a new draft',
+  'confirm.regenerateQueuedBody':
+    'A new draft of {name} and everything written with it is on its way; it usually takes about a minute. This screen picks it up on its own, and nothing you have confirmed changes.',
+  'confirm.regenerateDoneToast': 'The new draft of {name} is on the screen.',
+  'confirm.regenerateDoneDraftToast':
+    'A new draft of {name} arrived. Your unsaved edits are still on the screen; discard them to read it.',
+  'confirm.regenerateStopped':
+    'The new draft of {name} was not written, and nothing changed. Try again, or edit the element by hand.',
+  'confirm.regenerateQueuedToast': 'A new draft of {name} was asked for.',
+  'confirm.regenerateScope.brief': 'the brief, the stakeholders and the re-skin log',
+  'confirm.regenerateScope.document': 'every document in this version',
+  'confirm.regenerateScope.stakeholder': 'the brief, the stakeholders and the re-skin log',
+  'confirm.regenerateScope.answer_space_position': 'the answer space and the named fields',
+  'confirm.regenerateScope.named_field': 'the answer space and the named fields',
+  'confirm.regenerateScope.claim':
+    'every claim, both variant readings of each, and the general escalation reply',
+  'confirm.regenerateScope.variant_claim_state':
+    'every claim, both variant readings of each, and the general escalation reply',
+  'confirm.regenerateScope.general_escalation_reply':
+    'every claim, both variant readings of each, and the general escalation reply',
+  'confirm.regenerateScope.turn': 'the Turn, the probe, and the clock and difficulty',
+  'confirm.regenerateScope.probe': 'the Turn, the probe, and the clock and difficulty',
+  'confirm.regenerateScope.clock_and_difficulty':
+    'the Turn, the probe, and the clock and difficulty',
+  'confirm.regenerateScope.defense_question': 'the question bank and the counterfactual',
+  'confirm.regenerateScope.counterfactual': 'the question bank and the counterfactual',
+  'confirm.regenerateScope.readiness_item': 'every Readiness Check item',
+  'confirm.regenerateScope.seed_reskin': 'the brief, the stakeholders and the re-skin log',
   'confirm.cancel': 'Cancel',
   'confirm.unsavedBeforeDecide':
     'Save or discard the edits in this element before recording a decision on it.',

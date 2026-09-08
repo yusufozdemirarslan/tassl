@@ -39,15 +39,19 @@ export const packageNew = {
   'packageNew.createSubmit': 'Create the package',
   'packageNew.createPending': 'Creating…',
   'packageNew.generateSubmit': 'Create and generate',
-  'packageNew.generateUnavailable':
-    'Tassl cannot draft a package’s elements for you yet. Create the package, then write its elements in the confirmation workspace or bring in a package export.',
+  'packageNew.generatePending': 'Creating and starting…',
+  'packageNew.generateNote':
+    'Create and generate writes the package and then drafts its elements from the seed case in seven steps, which takes a minute or two. Nothing it writes is part of a package until you read every element and record a decision on it. Create the package on its own if you are bringing an export or writing the elements yourself.',
   'packageNew.errorSummaryTitle':
     'The package was not created. Put these right and create it again:',
   'packageNew.errorSummaryItem': '{label}: {message}',
   'packageNew.created': 'Created {title}.',
   'packageNew.createdTitle': '{title} is on the shelf',
   'packageNew.createdBody':
-    'Version 1 is a draft and holds nothing. Tassl cannot draft its elements for you yet, so write them in the confirmation workspace or bring in a package export. An assignment can only run on a version once every element is confirmed.',
+    'Version 1 is a draft and holds nothing yet. Draft its elements from the seed case, write them in the confirmation workspace, or bring in a package export. An assignment can only run on a version once every element is confirmed.',
+  'packageNew.createdGenerationRefused':
+    'The package was created. Generation did not start: {message}',
+  'packageNew.createdGenerate': 'Generate version 1',
   'packageNew.createdOpen': 'Open version 1',
   'packageNew.createdBack': 'All packages',
   'packageNew.validation.title': 'Give the package a title.',

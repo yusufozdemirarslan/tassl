@@ -868,7 +868,7 @@ Each `test()` is named by its UI id, signs in with the seat the screen needs (D-
 | UI-035 Course export | `/assignments/[assignmentId]/exports` | `instructor.spec.ts` | history with two versions |
 | UI-040 Packages list | `/packages` | `author.spec.ts` | list with warning badge |
 | UI-041 New package from seed | `/packages/new` | `author.spec.ts` | empty, validation error |
-| UI-042 Generation progress | `/packages/[packageId]/versions/[versionId]/generation` | `author.spec.ts` | running, failed step with retry |
+| UI-042 Generation progress | `/packages/[packageId]/versions/[versionId]/generation` | `author.spec.ts` | the seven step rows on a version nothing was generated into (a11y/author.spec.ts) and the complete state with every rule met and the workspace link (author/generate-and-confirm.spec.ts). The stopped-step state is not reachable in a browser on the mock provider (D-543) and is held as markup by `tests/unit/components/packages/generation-progress.test.tsx` |
 | UI-043 Element confirmation | `/packages/[packageId]/versions/[versionId]/confirm` | `author.spec.ts` | element list, edit form, reject dialog |
 | UI-044 Package version view | `/packages/[packageId]/versions/[versionId]` | `author.spec.ts` | confirmed version, measures panel |
 | UI-050 Admin | `/admin/users`, `/admin/flags`, `/admin/audit` | `admin.spec.ts` | each page, role change dialog |

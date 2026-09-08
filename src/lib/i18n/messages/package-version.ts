@@ -52,6 +52,7 @@ export const packageVersion = {
   'packageVersion.ruleElements': 'elements {keys}',
   'packageVersion.warningsTitle': 'Warnings',
   'packageVersion.openWorkspace': 'Open the confirmation workspace',
+  'packageVersion.openGeneration': 'Generation',
   'packageVersion.draftReadOnly':
     'Only an instructor or a scenario author edits and confirms the elements of a draft.',
   'packageVersion.durationSeconds': '{seconds} s',
@@ -159,7 +160,7 @@ export const packageVersion = {
   'packageVersion.rejectedShareHelp': 'The share of elements an author rejected at least once.',
   'packageVersion.generationPasses': 'Generation passes',
   'packageVersion.generationPassesHelp':
-    'How many times a generation step ran for this version. Tassl cannot draft elements for you yet, so a hand-written or imported version reads zero.',
+    'How many times a generation step ran for this version, retries counted. A version written by hand or brought in as an export reads zero.',
   'packageVersion.reviewPerElement': 'Review time per element',
   'packageVersion.reviewPerElementHelp':
     'The average time between opening an element and deciding on it.',

@@ -6,9 +6,10 @@
 // back what arrived — down to a single claim, its planted defect and the two paths a student could
 // have checked it by.
 //
-// Generation (AI-001) is Phase 12, so "Create the package" is the control this spec presses, and
-// the generate control is asserted to be exactly what UI-041 promises until then: present, named,
-// and unable to act, with the reason beside it.
+// "Create the package" is the control this spec presses: the package it makes holds nothing, which
+// is what the version view below has to say honestly. Its sibling "Create and generate" starts the
+// seven generation steps and is the subject of ./generate-and-confirm.spec.ts; here it is only
+// asserted to be present, able to act, and honest about what it does.
 //
 // The two packages this spec creates are named through `suiteName`, so they carry SUITE_PREFIX and
 // a purge can find them by name. Neither the product nor `tests/e2e/global-setup.ts` deletes a
@@ -173,13 +174,15 @@ test('an instructor starts a package from a seed case, imports one whole, and re
   await license.check()
   await expect(license).toBeChecked()
 
-  // Generation arrives in Phase 12. Until then the control is on the screen, reachable, and says
-  // why it cannot act — an absent control would tell an author nothing (UI-041).
+  // Both controls are live from step 12.3. This spec presses the one that creates a package and
+  // nothing else; the other — "Create and generate", which starts the seven steps and lands on the
+  // progress screen — is the whole subject of ./generate-and-confirm.spec.ts. What is asserted here
+  // is that it is present, able to act, and says what it does before it is pressed (UI-041).
   const generate = page.getByRole('button', { name: 'Create and generate' })
-  await expect(generate).toHaveAttribute('aria-disabled', 'true')
+  await expect(generate).not.toHaveAttribute('aria-disabled', 'true')
   await expect(
     page.getByText(
-      'Tassl cannot draft a package’s elements for you yet. Create the package, then write its elements in the confirmation workspace or bring in a package export.',
+      'Create and generate writes the package and then drafts its elements from the seed case in seven steps',
     ),
   ).toBeVisible()
 
@@ -190,7 +193,7 @@ test('an instructor starts a package from a seed case, imports one whole, and re
   ).toBeVisible()
   await expect(
     page.getByText(
-      'Version 1 is a draft and holds nothing. Tassl cannot draft its elements for you yet, so write them in the confirmation workspace or bring in a package export. An assignment can only run on a version once every element is confirmed.',
+      'Version 1 is a draft and holds nothing yet. Draft its elements from the seed case, write them in the confirmation workspace, or bring in a package export. An assignment can only run on a version once every element is confirmed.',
     ),
   ).toBeVisible()
 

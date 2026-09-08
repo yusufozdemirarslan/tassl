@@ -1,7 +1,7 @@
 import type { Locator } from '@playwright/test'
-// NFR-012: the authoring screens of Phase 5 — the package shelf, the form that starts a package
-// from a seed case, a package version with its claims and one claim object, and the workspace where
-// its elements are confirmed — carry no WCAG 2.1 A/AA violation.
+// NFR-012: the authoring screens — the package shelf, the form that starts a package from a seed
+// case, a package version with its claims and one claim object, the generation screen, and the
+// workspace where its elements are confirmed — carry no WCAG 2.1 A/AA violation.
 //
 // Every screen is scanned with something in it rather than empty: an empty table has no header
 // cells to associate and no rows to read, an untouched form has no chips, no counters and no
@@ -71,6 +71,21 @@ test('the Phase 5 authoring screens have no axe violations', async ({ page }) =>
   await page.goto(`${versionPath}?claim=C3`)
   await expect(page.getByRole('heading', { level: 2, name: 'Claim C3' })).toBeVisible()
   await expect(page.getByRole('heading', { level: 4, name: 'Defective variant' })).toBeVisible()
+  await axe(page)
+
+  // UI-042, the generation screen of a version nothing was generated into: the seven step rows, all
+  // of them waiting, and the sentence that says a confirmed version takes no generation. The
+  // *complete* state — seven rows done, the rules met, the way into the workspace — is scanned
+  // inside the package it belongs to, in ../author/generate-and-confirm.spec.ts, and the stopped
+  // state cannot be reached in a browser on the mock provider (D-543).
+  await page.goto(`${versionPath}/generation`)
+  await expect(page.getByRole('heading', { level: 2, name: 'The seven steps' })).toBeVisible()
+  await expect(
+    page.getByRole('list', { name: 'The seven steps' }).getByRole('heading', {
+      level: 3,
+      name: 'Claims and their variant states',
+    }),
+  ).toBeVisible()
   await axe(page)
 
   // UI-043, the confirmation workspace over a version that holds ninety-three elements: the tree
