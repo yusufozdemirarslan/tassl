@@ -16,6 +16,13 @@ impeccable-report.json
 # deploy tooling
 .vercel/
 
+# backups and incident evidence (docs/tech/15-cicd-deployment.md §8, 12-security.md §9.3): the
+# encrypted dump is an artifact, never a commit, and evidence exports stay beside the incident
+# record without entering history. The record itself (docs/incidents/*.md) is tracked.
+backups/
+docs/incidents/incident-*
+docs/incidents/evidence/
+
 # local environment (only .env.example is tracked)
 .env
 .env.*

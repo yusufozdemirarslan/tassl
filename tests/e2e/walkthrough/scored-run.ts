@@ -142,8 +142,14 @@ export async function myAssignment(
   return found as StudentAssignment
 }
 
-/** Steps 2 to 9 through the endpoints the screens call; returns the run, in `defense_pending`. */
-export async function reachDefense(api: APIRequestContext, assignmentId: string): Promise<string> {
+/**
+ * Steps 2 to 5 through the endpoints the screens call: start, acknowledge, answer every readiness
+ * item, submit, lock the frame. Returns the run, in `working`, with its clock running.
+ *
+ * Which option is chosen is arbitrary and must be: correctness is computed server-side and no
+ * response carries it (FR-012), so a caller does not know which key is right and does not need to.
+ */
+export async function reachWorking(api: APIRequestContext, assignmentId: string): Promise<string> {
   const { id: runId } = await post<{ id: string }>(
     api,
     `/api/v1/assignments/${assignmentId}/runs`,
@@ -166,6 +172,19 @@ export async function reachDefense(api: APIRequestContext, assignmentId: string)
   }
   await post(api, `/api/v1/runs/${runId}/readiness/submit`)
   await post(api, `/api/v1/runs/${runId}/frame`, FRAME)
+  return runId
+}
+
+/**
+ * Steps 6 to 9 on a run that is already in `working`: file the decision, meet the Turn, answer it.
+ *
+ * Split out of `reachDefense` so a spec that has something to do *while the run is in `working`*
+ * can do it and then carry the same run on — `tests/e2e/perf/web-vitals.spec.ts` reads the
+ * workspace's Core Web Vitals there and the debrief's once the run is scored, and one run answers
+ * for both (D-041 allows one per student per assignment, so two measurements cannot be two runs
+ * without two assignments).
+ */
+export async function continueToDefense(api: APIRequestContext, runId: string): Promise<void> {
   await post(api, `/api/v1/runs/${runId}/lock`, BRIEF)
 
   // The Turn falls due on the run's own clock; the shift is the only honest way to reach it (D-109).
@@ -180,6 +199,12 @@ export async function reachDefense(api: APIRequestContext, assignmentId: string)
   }
 
   await post(api, `/api/v1/runs/${runId}/turn/response`, TURN_RESPONSE)
+}
+
+/** Steps 2 to 9 through the endpoints the screens call; returns the run, in `defense_pending`. */
+export async function reachDefense(api: APIRequestContext, assignmentId: string): Promise<string> {
+  const runId = await reachWorking(api, assignmentId)
+  await continueToDefense(api, runId)
   return runId
 }
 
@@ -234,6 +259,15 @@ export async function driveRunToScored(
   assignmentId: string,
 ): Promise<string> {
   const runId = await reachDefense(api, assignmentId)
+  await completeDefenseAndScore(api, runId)
+  return runId
+}
+
+/** Steps 10 and 11 on a run in `defense_pending`: answer every question, finish, wait for the bands. */
+export async function completeDefenseAndScore(
+  api: APIRequestContext,
+  runId: string,
+): Promise<void> {
   await answerEveryQuestion(api, runId)
   await post(api, `/api/v1/runs/${runId}/defense/complete`)
 
@@ -253,6 +287,4 @@ export async function driveRunToScored(
       },
     )
     .toBe('scored/done')
-
-  return runId
 }

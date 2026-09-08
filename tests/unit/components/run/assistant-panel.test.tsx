@@ -281,6 +281,13 @@ describe('AssistantPanel (UI-023, FR-051)', () => {
     expect(await screen.findByRole('tooltip')).toHaveTextContent(
       enUS['workspace.unverifiedNumberTooltip'],
     )
+
+    // And the same sentence in the DOM, once, for the reader who can neither hover nor tab to it:
+    // Base UI opens a tooltip on `:focus-visible`, which a tap does not produce, so a marked reply
+    // says in text what the mark means (D-629). It is on this reply because this reply carries a
+    // mark; the sourced-figure test below asserts it is on no others.
+    const note = screen.getAllByText(enUS['workspace.unverifiedNumberTooltip'])
+    expect(note.some((element) => element.tagName === 'P')).toBe(true)
   })
 
   it('draws the mark with the figure gone when the guard blocked it', async () => {
@@ -331,6 +338,9 @@ describe('AssistantPanel (UI-023, FR-051)', () => {
     )
     expect(screen.queryByText(enUS['workspace.unverifiedNumberLabel'])).not.toBeInTheDocument()
     expect(screen.queryByText(enUS['workspace.unverifiedNumberWithheld'])).not.toBeInTheDocument()
+    // Nor the note that explains a mark: a reply with nothing marked has nothing to explain, and a
+    // standing sentence about unsourced figures under every reply would be noise (D-629).
+    expect(screen.queryByText(enUS['workspace.unverifiedNumberTooltip'])).not.toBeInTheDocument()
     expect(await screen.findByRole('article')).toHaveTextContent(CLAIM.text)
   })
 

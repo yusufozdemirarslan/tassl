@@ -15,3 +15,15 @@ export function formatDateTime(iso: string): string {
   if (Number.isNaN(date.getTime())) return '—'
   return t('ui.dateTime', { value: DATE_TIME.format(date) })
 }
+
+// A calendar date with no clock on it: the legal pages' "Last reviewed" (UI-006), where a time and
+// a zone would be noise. UTC for the same reason as above — one string on the server and after
+// hydration — and no `ui.dateTime` wrapper, because there is no zone to name on a date.
+const DATE = new Intl.DateTimeFormat('en-US', { dateStyle: 'long', timeZone: 'UTC' })
+
+/** `September 7, 2026` from an ISO date or timestamp; an unparsable value renders as an em dash. */
+export function formatDate(iso: string): string {
+  const date = new Date(iso)
+  if (Number.isNaN(date.getTime())) return '—'
+  return DATE.format(date)
+}

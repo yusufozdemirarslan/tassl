@@ -209,6 +209,21 @@ const OPERATION_IDS = [
   'answerDebrief',
   'previewMappingChange',
   'changeMapping',
+  // Step 13.5 (07 §9): the four platform screens of UI-050. 08 §4 decides all four on one row —
+  // "Platform roles, user list, flags view, audit log", which is "—" in every column but Admin — so
+  // the eight cells of each are the same eight: the platform admin, and nobody else.
+  //
+  // The `editor` seat is the one worth naming. A platform `tassl_scenario_editor` is the only other
+  // seat with a *platform* role at all, and 08 §4 gives it packages and nothing here;
+  // `requirePlatformRole(actor, 'admin')` admits `admin` alone (08 §5), so the editor is refused
+  // like every institution seat, with the same 403. And the student is refused by that same guard —
+  // 08 §4's "—" — rather than by the not-found the `/admin` layout draws for them: the API says
+  // FORBIDDEN because the endpoint is not a tenant-scoped resource whose existence could leak
+  // (08 §5 "Cross-tenant"), and the screen's 404 is a courtesy on top of it.
+  'adminListUsers',
+  'adminSetPlatformRole',
+  'adminGetFlags',
+  'adminListAuditLog',
 ] as const
 
 // ---------------------------------------------------------------------------------------------
@@ -382,6 +397,17 @@ let authoredVersionId: string
 let authoredClaimId: string
 /** The element `regenerateElement`'s row is answered about; nothing else on this fixture reads it. */
 let authoredReadinessItemId: string
+
+/**
+ * The account `adminSetPlatformRole` is answered about (07 §9).
+ *
+ * An account of its own rather than one of the seats: the endpoint refuses the actor's own row with
+ * `ROLE_INVALID` (D-571) — a 400, which this file would read as an *allow* — and every seat is
+ * something a later row depends on. This account holds no institution seat and no session, and the
+ * one row 08 §4 allows writes the role it already has, so the allowed cell proves the endpoint was
+ * reached without changing a fact any other row is answered from.
+ */
+let roleTarget: UserRow
 
 /** Stand-in `element_id` for a singleton element (`scenarios/schema.ts` `SINGLETON_ELEMENT_ID`). */
 const SINGLETON_ELEMENT_ID = '00000000-0000-0000-0000-000000000000'
@@ -567,6 +593,10 @@ describe('authorization matrix (08 §4)', () => {
     addable = await f.createUser('matrix-addable')
     await f.addMember(orgA, addable.id, 'student')
 
+    // The address `adminSetPlatformRole` names: no institution seat, no session, nothing else here
+    // reads it.
+    roleTarget = await f.createUser('matrix-role-target')
+
     const runsRepository = await import('@/server/modules/runs/repository')
     const removableBuilt: Partial<Record<Seat, UserRow>> = {}
     const runsBuilt: Partial<Record<Seat, string>> = {}
@@ -747,6 +777,11 @@ describe('authorization matrix (08 §4)', () => {
     const generation = await import('@/app/api/v1/package-versions/[versionId]/generation/route')
     const elementRegenerate =
       await import('@/app/api/v1/package-versions/[versionId]/elements/[elementType]/[elementId]/regenerate/route')
+    const adminUsersRoute = await import('@/app/api/v1/admin/users/route')
+    const adminPlatformRoleRoute =
+      await import('@/app/api/v1/admin/users/[userId]/platform-role/route')
+    const adminFlagsRoute = await import('@/app/api/v1/admin/flags/route')
+    const adminAuditLogRoute = await import('@/app/api/v1/admin/audit-log/route')
 
     operations = {
       listInstitutions: {
@@ -1596,6 +1631,40 @@ describe('authorization matrix (08 §4)', () => {
               mapping: { novice: 1, developing: 2, proficient: 3, professional: 4 },
               confirm: false,
             },
+          }),
+      },
+      // 07 §9, the platform screens of UI-050. Each is `requirePlatformRole(actor, 'admin')` as the
+      // first statement of its service function, so every denied row is answered before the input
+      // is used for anything and no row here depends on another.
+      adminListUsers: {
+        route: 'GET /admin/users',
+        run: async (seat) =>
+          call(adminUsersRoute.GET, { path: '/admin/users', session: await sessionFor(seat) }),
+      },
+      adminSetPlatformRole: {
+        route: 'PUT /admin/users/{userId}/platform-role',
+        // `none` is the role `roleTarget` already holds: the allowed seat proves it reached the
+        // endpoint, and the row leaves the fixture exactly as it found it.
+        run: async (seat) =>
+          call(adminPlatformRoleRoute.PUT, {
+            method: 'PUT',
+            path: `/admin/users/${roleTarget.id}/platform-role`,
+            session: await sessionFor(seat),
+            params: { userId: roleTarget.id },
+            body: { role: 'none' },
+          }),
+      },
+      adminGetFlags: {
+        route: 'GET /admin/flags',
+        run: async (seat) =>
+          call(adminFlagsRoute.GET, { path: '/admin/flags', session: await sessionFor(seat) }),
+      },
+      adminListAuditLog: {
+        route: 'GET /admin/audit-log',
+        run: async (seat) =>
+          call(adminAuditLogRoute.GET, {
+            path: '/admin/audit-log',
+            session: await sessionFor(seat),
           }),
       },
     }

@@ -7,6 +7,8 @@ import NotFound from '@/app/not-found'
 
 vi.mock('next/navigation', () => ({
   usePathname: () => '/home',
+  // Every boundary now mounts <ErrorShown />, which reads the route template from these two.
+  useParams: () => ({}),
   useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
 }))
 

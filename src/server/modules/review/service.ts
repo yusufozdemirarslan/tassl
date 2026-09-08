@@ -22,6 +22,8 @@
 import { AppError, isAppError } from '@/lib/errors'
 import { flagsFromEnv } from '@/lib/flags'
 import { t } from '@/lib/i18n/t'
+import { runContext } from '@/server/analytics/run-context'
+import { track } from '@/server/analytics/track'
 import { findSectionMembership } from '@/server/auth/queries'
 import {
   requireRunInstructor,
@@ -185,13 +187,27 @@ export async function getReplay(actor: SessionUser, runId: string): Promise<Repl
   const context = await repo.findRunContext(tenantId, runId)
   if (!context) runNotFound()
 
-  await repo.withTransaction(async (tx) => {
+  const { firstOpen } = await repo.withTransaction(async (tx) => {
     const run = await lockRunForMutation(tx, tenantId, runId)
-    await markReplayOpened(tx, run)
+    return markReplayOpened(tx, run)
   })
 
   const data = await repo.findReplayData(tenantId, runId)
   if (!data) runNotFound()
+
+  // AN-004 (17 §3.4), after the stamp above has committed. `first_open` is the same fact D-120 keeps
+  // in `flags.replay_first_opened_at`, which is what `run_confirmed.review_duration_ms` is measured
+  // from — so the event that says the review began and the column that dates it are written by one
+  // act and cannot disagree.
+  track(
+    'replay_opened',
+    {
+      ...runContext(data.run, context.variantKey),
+      first_open: firstOpen,
+      scoring_status: data.run.scoringStatus,
+    },
+    { userId: actor.id, organizationId: tenantId },
+  )
 
   const [events, bands, delegations, packageView, exports, claimIds] = await Promise.all([
     listEvents(actor, runId),
@@ -519,7 +535,7 @@ export async function decideBand(
   if (!context) runNotFound()
   const at = new Date()
 
-  return repo.withTransaction(async (tx) => {
+  const { result, report } = await repo.withTransaction(async (tx) => {
     const locked = await lockRunForMutation(tx, seat.organizationId, runId)
     assertDecidable(locked.state, seat.role)
     const before = await readBands(runId, tx)
@@ -534,7 +550,7 @@ export async function decideBand(
       band: write.band,
       note: write.note,
     })
-    const { bands } = await writeBandDecisions(tx, runId, context.mapping, [write])
+    const { bands, points } = await writeBandDecisions(tx, runId, context.mapping, [write])
     await audit(tx, {
       actorId: actor.id,
       orgId: seat.organizationId,
@@ -550,11 +566,20 @@ export async function decideBand(
       },
     })
 
-    const run = await settleConfirmation(tx, locked, bands, context, seat, actor, at)
+    const settled = await settleConfirmation(tx, locked, bands, context, seat, actor, at)
     const decided = bands.find((band) => band.dimension === dimension)
     if (!decided) runNotFound()
-    return { band: decided, run: toRunSummary(run) }
+    return {
+      result: { band: decided, run: toRunSummary(settled.run) },
+      report: decisionReport(locked, settled, at, [{ write, draft: current }], bands, points),
+    }
   })
+
+  trackDecisions(report, context.variantKey, {
+    userId: actor.id,
+    organizationId: seat.organizationId,
+  })
+  return result
 }
 
 /**
@@ -570,17 +595,21 @@ export async function confirmRemaining(actor: SessionUser, runId: string): Promi
   if (!context) runNotFound()
   const at = new Date()
 
-  return repo.withTransaction(async (tx) => {
+  const { summary, report } = await repo.withTransaction(async (tx) => {
     const locked = await lockRunForMutation(tx, seat.organizationId, runId)
     assertDecidable(locked.state, seat.role)
     const before = await readBands(runId, tx)
     if (before.length === 0) runNotScored(locked.state)
 
-    const writes: BandDecisionWrite[] = []
+    const planned: { write: BandDecisionWrite; draft: BandView }[] = []
     for (const band of before) {
       if (band.decision !== null) continue
-      writes.push(planDecision(band.dimension, { decision: 'confirmed' }, band, actor.id, at))
+      planned.push({
+        write: planDecision(band.dimension, { decision: 'confirmed' }, band, actor.id, at),
+        draft: band,
+      })
     }
+    const writes = planned.map((entry) => entry.write)
     for (const write of writes) {
       await append(tx, locked, 'band_decision', {
         dimension: write.dimension,
@@ -592,10 +621,10 @@ export async function confirmRemaining(actor: SessionUser, runId: string): Promi
     // Nothing left to confirm is not a decision: it writes no event, no audit row and — the one that
     // matters — no export. `settleConfirmation` re-exports whenever every dimension is decided,
     // which is right after a *re-decision* (D-087) and wrong after a button press that changed
-    // nothing at all.
-    if (writes.length === 0) return toRunSummary(locked)
+    // nothing at all. It emits no analytics either, for the same reason.
+    if (writes.length === 0) return { summary: toRunSummary(locked), report: null }
 
-    const { bands } = await writeBandDecisions(tx, runId, context.mapping, writes)
+    const { bands, points } = await writeBandDecisions(tx, runId, context.mapping, writes)
     await audit(tx, {
       actorId: actor.id,
       orgId: seat.organizationId,
@@ -604,9 +633,20 @@ export async function confirmRemaining(actor: SessionUser, runId: string): Promi
       targetId: runId,
       metadata: { dimensions: writes.map((write) => write.dimension), decision: 'confirmed' },
     })
-    const run = await settleConfirmation(tx, locked, bands, context, seat, actor, at)
-    return toRunSummary(run)
+    const settled = await settleConfirmation(tx, locked, bands, context, seat, actor, at)
+    return {
+      summary: toRunSummary(settled.run),
+      report: decisionReport(locked, settled, at, planned, bands, points),
+    }
   })
+
+  if (report) {
+    trackDecisions(report, context.variantKey, {
+      userId: actor.id,
+      organizationId: seat.organizationId,
+    })
+  }
+  return summary
 }
 
 /** 10 §12's state gate, with 08 §4's TA row folded into it. */
@@ -703,8 +743,8 @@ async function settleConfirmation(
   seat: Reviewer,
   actor: SessionUser,
   at: Date,
-): Promise<Awaited<ReturnType<typeof lockRunForMutation>>> {
-  if (!allDimensionsDecided(bands)) return locked
+): Promise<Settlement> {
+  if (!allDimensionsDecided(bands)) return { run: locked, justConfirmed: false }
   const wasConfirmed = CONFIRMED_STATES.has(locked.state)
 
   let run = locked
@@ -736,7 +776,132 @@ async function settleConfirmation(
       orgId: seat.organizationId,
     })
   }
-  return run
+  return { run, justConfirmed: !wasConfirmed }
+}
+
+/**
+ * What the settlement did, for the caller that has to say so afterwards.
+ *
+ * `justConfirmed` is the seventh decision *and the first time* it was the seventh: a re-decision on
+ * an already confirmed run writes a new export (D-087) and confirms nothing, so it is not a run
+ * being confirmed and AN-004 must not count it twice (17 §3.4).
+ */
+type Settlement = { run: Awaited<ReturnType<typeof lockRunForMutation>>; justConfirmed: boolean }
+
+// ---------------------------------------------------------------------------------------------
+// What the faculty seat reports to AN-004 (17 §3.4)
+// ---------------------------------------------------------------------------------------------
+
+/**
+ * Everything the two decision endpoints tell PostHog, gathered before their transaction commits.
+ *
+ * It is a value rather than a call because of 17 §1 rule 6: analytics fire after the commit, and the
+ * facts they are built from — the draft a decision was taken against, the flag the review clock runs
+ * from, the seven bands as they finally stand — are only legible inside it. A note travels as
+ * `hasNote` and never as itself: what an instructor wrote to a student about their run is theirs.
+ */
+type DecisionReport = {
+  run: Awaited<ReturnType<typeof lockRunForMutation>>
+  /** Read off the row as it was *locked*, before the confirmation could write over it (D-120). */
+  replayOpenedAt: string | undefined
+  at: Date
+  decided: {
+    dimension: Dimension
+    decision: BandDecisionWrite['decision']
+    draftStatus: 'drafted' | 'unassessed'
+    changedFromDraft: boolean
+    hasNote: boolean
+  }[]
+  /** Present only on the call that decided the seventh dimension for the first time. */
+  confirmed: { overrideCount: number; unassessedCount: number; pointsPresent: boolean } | null
+}
+
+function decisionReport(
+  locked: Awaited<ReturnType<typeof lockRunForMutation>>,
+  settled: Settlement,
+  at: Date,
+  planned: readonly { write: BandDecisionWrite; draft: BandView }[],
+  bands: readonly BandView[],
+  points: { confirmed: number | null; effective: number | null },
+): DecisionReport {
+  return {
+    run: settled.run,
+    replayOpenedAt: locked.flags.replay_first_opened_at,
+    at,
+    decided: planned.map(({ write, draft }) => ({
+      dimension: write.dimension,
+      decision: write.decision,
+      // The *draft* the reviewer was looking at, not the band they landed on: a dimension the
+      // pipeline could not place is the one FR-181 asks a seat to decide with the least to go on.
+      draftStatus: draft.band === null ? 'unassessed' : 'drafted',
+      changedFromDraft: write.band !== draft.band,
+      hasNote: write.note !== null,
+    })),
+    confirmed: settled.justConfirmed
+      ? {
+          overrideCount: bands.filter((band) => band.decision === 'overridden').length,
+          unassessedCount: bands.filter((band) => band.decision === 'unassessed').length,
+          // What a gradebook would actually receive: `trace.buildExport` files
+          // `points_effective ?? points_confirmed`, and a run whose seven dimensions are all
+          // unassessed has neither (FR-004) — a confirmation that carries no number is a real
+          // outcome and the flag is what says so.
+          pointsPresent: (points.effective ?? points.confirmed) !== null,
+        }
+      : null,
+  }
+}
+
+/** Fires the report, after the transaction it was gathered in has committed (17 §1 rule 6). */
+function trackDecisions(
+  report: DecisionReport,
+  variantKey: repo.ReviewRunContext['variantKey'],
+  actor: { userId: string; organizationId: string },
+): void {
+  const context = runContext(report.run, variantKey)
+  const sinceReplayOpened = msSince(report.replayOpenedAt, report.at)
+  for (const band of report.decided) {
+    track(
+      'band_decided',
+      {
+        ...context,
+        dimension: band.dimension,
+        decision: band.decision,
+        draft_status: band.draftStatus,
+        changed_from_draft: band.changedFromDraft,
+        has_note: band.hasNote,
+        ms_since_replay_opened: sinceReplayOpened,
+      },
+      actor,
+    )
+  }
+  if (!report.confirmed) return
+  track(
+    'run_confirmed',
+    {
+      ...context,
+      review_duration_ms: msSince(report.replayOpenedAt, report.run.confirmedAt ?? report.at),
+      override_count: report.confirmed.overrideCount,
+      unassessed_count: report.confirmed.unassessedCount,
+      points_present: report.confirmed.pointsPresent,
+      ms_since_scored: msSince(report.run.scoredAt, report.at),
+    },
+    actor,
+  )
+}
+
+/**
+ * Milliseconds from an instant to another, floored at zero.
+ *
+ * Zero where the "from" is missing, which is the API's own path rather than the screen's: 08 §4
+ * lets a seat `PUT` a band decision without ever having opened the replay, and there is then no
+ * first open for the review clock to run from. Zero says "no measured review", never a throw —
+ * analytics never changes control flow (17 §1 rule 6).
+ */
+function msSince(from: string | Date | null | undefined, to: Date): number {
+  if (!from) return 0
+  const start = typeof from === 'string' ? Date.parse(from) : from.getTime()
+  if (Number.isNaN(start)) return 0
+  return Math.max(0, to.getTime() - start)
 }
 
 /** Whether the student has already answered the debrief's two questions (FR-152). */
@@ -796,7 +961,7 @@ export async function neutralizeClaim(
   if (!context) runNotFound()
   const at = new Date()
 
-  return repo.withTransaction(async (tx) => {
+  const { view, run, raised } = await repo.withTransaction(async (tx) => {
     const locked = await lockRunForMutation(tx, tenantId, runId)
     // The run's state is asked for before the claim id, which is D-331's reading applied here: a run
     // with no bands to correct is refused *for the run*, not for the claim named on it. It also
@@ -876,19 +1041,47 @@ export async function neutralizeClaim(
     })
 
     return {
-      recompute: {
-        dimensions: result.dimensions,
-        bandsBefore: result.bandsBefore,
-        bandsAfter: result.bandsAfter,
-        bandsEffective: result.bandsEffective,
-        pointsBefore: result.pointsBefore,
-        pointsAfter: result.pointsAfter,
-        pointsEffective: result.pointsEffective,
+      view: {
+        recompute: {
+          dimensions: result.dimensions,
+          bandsBefore: result.bandsBefore,
+          bandsAfter: result.bandsAfter,
+          bandsEffective: result.bandsEffective,
+          pointsBefore: result.pointsBefore,
+          pointsAfter: result.pointsAfter,
+          pointsEffective: result.pointsEffective,
+        },
+        run: toRunSummary(run),
+        exportVersion,
       },
-      run: toRunSummary(run),
-      exportVersion,
+      run,
+      raised: result.dimensions.filter(
+        (dimension) => result.bandsEffective[dimension] !== result.bandsBefore[dimension],
+      ).length,
     }
   })
+
+  // AN-004 (17 §3.4), after the commit. The instructor's note is the one field of this act that says
+  // what they thought, and it does not travel — what does is how far the correction reached: how
+  // many dimensions were recomputed and how many of them the floor actually raised (FR-005).
+  track(
+    'claim_neutralized',
+    {
+      ...runContext(run, context.variantKey),
+      claim_id: claimId,
+      reason: input.reason,
+      credit_challenge: input.creditChallenge,
+      dimensions_recomputed: view.recompute.dimensions.length,
+      bands_raised_count: raised,
+      // FR-003's second half: every neutralization routes the scenario for review, because
+      // `flagVersionForReview` is on the one path through this function rather than behind a
+      // condition. The property is here so the day it becomes a choice, the event already asks.
+      review_requested: true,
+    },
+    { userId: actor.id, organizationId: tenantId },
+  )
+
+  return view
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -928,7 +1121,7 @@ export async function bandHeldRunManually(
     for (const band of drafted) {
       await append(tx, locked, 'draft_band', draftBandEventPayload(band))
     }
-    let run = await markScored(tx, locked, { at, actorId: actor.id })
+    const run = await markScored(tx, locked, { at, actorId: actor.id })
 
     const writes: BandDecisionWrite[] = drafted.map((band) => ({
       dimension: band.dimension,
@@ -956,8 +1149,12 @@ export async function bandHeldRunManually(
       metadata: { manual: true, dimensions: writes.map((write) => write.dimension) },
     })
 
-    run = await settleConfirmation(tx, run, bands, context, seat, actor, at)
-    return toRunSummary(run)
+    // No `band_decided` and no `run_confirmed` here: 17 §3.4 names `decideBand` and
+    // `confirmRemaining` as the triggers of both, and a hand-banded run is a different act — the
+    // seven placements are the reviewer supplying what nothing could read, not decisions taken on a
+    // draft. `export_written` still fires, from the one place that writes the file.
+    const settled = await settleConfirmation(tx, run, bands, context, seat, actor, at)
+    return toRunSummary(settled.run)
   })
 }
 

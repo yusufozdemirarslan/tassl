@@ -187,7 +187,10 @@ export function SignInForm({ next, googleEnabled }: SignInFormProps) {
 
       <div className="text-body flex flex-col">
         {/* A link that stands on its own is an action, so it carries the 40 px target of
-            DESIGN.md §Layout; the links inside a sentence below stay inline text. */}
+            DESIGN.md §Layout and is underlined only on hover, because nothing beside it could be
+            mistaken for it. A link *inside* a sentence is a different rule and takes the underline
+            at rest: teal on muted ink is a colour difference of 1.26:1, so colour alone does not
+            tell a reader where the link starts (WCAG 1.4.1, D-624). */}
         <Link
           href="/forgot-password"
           className="text-primary inline-flex min-h-10 w-fit items-center underline-offset-4 hover:underline"
@@ -196,7 +199,7 @@ export function SignInForm({ next, googleEnabled }: SignInFormProps) {
         </Link>
         <p className="text-ink-muted flex flex-wrap items-center gap-x-1.5">
           <span>{t('auth.signIn.noAccount')}</span>
-          <Link href="/sign-up" className="text-primary underline-offset-4 hover:underline">
+          <Link href="/sign-up" className="text-primary underline underline-offset-4">
             {t('auth.signIn.createAccount')}
           </Link>
         </p>

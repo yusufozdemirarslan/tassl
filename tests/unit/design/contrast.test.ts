@@ -99,10 +99,68 @@ describe('token contrast (WCAG 2.x)', () => {
     expect(contrast(token('--paper-raised'), token('--amber'))).toBeLessThan(4.5)
   })
 
-  it('matches the documented ratios within rounding', () => {
-    expect(contrast(token('--ink'), token('--paper'))).toBeCloseTo(16.25, 0)
-    expect(contrast(token('--primary'), token('--paper'))).toBeCloseTo(5.59, 1)
-    expect(contrast(token('--amber'), token('--paper'))).toBeCloseTo(3.4, 1)
-    expect(contrast(token('--ink'), token('--amber'))).toBeCloseTo(4.78, 1)
+  /**
+   * `--ink-faint` is the one token 16 §8.7 marks decorative: 3.10:1 on white, 2.89:1 on paper and
+   * 2.68:1 on sunken paper. It is a hairline and an icon fill and nothing else. Asserting it as
+   * text would be asserting a value it does not have, so what is asserted instead is the rule —
+   * that it is under the text threshold on every surface, so a future use of it as a text colour
+   * fails here rather than in front of a reader.
+   */
+  it.each(['--paper', '--paper-raised', '--paper-sunken'] as const)(
+    '--ink-faint is never text on %s (decorative only, 16 §8.7)',
+    (surface) => {
+      expect(contrast(token('--ink-faint'), token(surface))).toBeLessThan(4.5)
+    },
+  )
+
+  /**
+   * Disabled controls, both recipes (16 §8.7).
+   *
+   * A control that must stay discoverable by keyboard — the lock button while a claim is unstanced
+   * — is `aria-disabled`, not `disabled`, and draws `text-ink-muted` on `bg-paper-sunken`
+   * (`src/components/ui/button.tsx`). It is announced, it is focusable, and it therefore owes the
+   * full 4.5:1, which is the assertion below.
+   *
+   * A truly `disabled` control draws at `opacity-45`, which composites its ink to 2.84:1 on paper.
+   * WCAG 1.4.3 exempts inactive components from the contrast minimum, and the value is asserted
+   * here as what it is rather than left as a number in a document: 16 §8.7 recorded 4.6:1 for this
+   * recipe, which is not what 45 % alpha computes to, and the row was corrected to the measurement
+   * (D-641).
+   */
+  it('an aria-disabled control keeps text contrast (it is focusable and announced)', () => {
+    expect(contrast(token('--ink-muted'), token('--paper-sunken'))).toBeGreaterThanOrEqual(4.5)
   })
+
+  it('a disabled control draws ink at 45 % alpha, which is under the text minimum (1.4.3 exempt)', () => {
+    const shown = composite(hexToRgb(token('--ink')), 0.45, hexToRgb(token('--paper')))
+    const measured = ratio(luminanceRgb(shown), luminance(token('--paper')))
+    expect(Number(measured.toFixed(2))).toBe(2.84)
+  })
+
+  /**
+   * The §8.7 table itself, row by row, to the two decimals it prints.
+   *
+   * The assertions above are thresholds: they would go on passing if somebody moved a token to a
+   * different colour that happened to clear the same bar, and the table beside them would quietly
+   * become fiction. These are the numbers the palette actually has, so a changed token fails by
+   * name and the document is corrected in the same commit.
+   */
+  it.each([
+    ['ink on paper', '--ink', '--paper', 16.25],
+    ['primary on paper', '--primary', '--paper', 5.59],
+    ['amber on paper', '--amber', '--paper', 3.4],
+    ['red on paper', '--red', '--paper', 6.13],
+    ['white on primary', '--primary-ink', '--primary', 6],
+    ['green on paper', '--green', '--paper', 4.71],
+    ['white on red', '--paper-raised', '--red', 6.57],
+    ['white on green', '--paper-raised', '--green', 5.05],
+    ['ink on amber', '--ink', '--amber', 4.78],
+    ['white on amber', '--paper-raised', '--amber', 3.64],
+    ['paper on ink', '--paper', '--ink', 16.25],
+  ] as const)(
+    '16 §8.7 records %s at the ratio the tokens compute',
+    (_label, fg, bg, documented) => {
+      expect(Number(contrast(token(fg), token(bg)).toFixed(2))).toBe(documented)
+    },
+  )
 })

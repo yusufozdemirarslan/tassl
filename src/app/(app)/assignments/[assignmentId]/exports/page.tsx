@@ -122,58 +122,54 @@ export default async function AssignmentExportsPage({
             headingLevel={3}
           />
         ) : (
-          <div className="overflow-x-auto">
-            <Table className="min-w-3xl">
-              <TableCaption>{t('review.assignmentExportsCaption')}</TableCaption>
-              <TableHeader>
-                <TableRow>
-                  <TableHead scope="col">{t('review.assignmentExportsColumnStudent')}</TableHead>
-                  <TableHead scope="col">{t('review.exportsColumnVersion')}</TableHead>
-                  <TableHead scope="col">{t('review.exportsColumnReason')}</TableHead>
-                  <TableHead scope="col">{t('review.exportsColumnCreated')}</TableHead>
-                  <TableHead scope="col">{t('review.assignmentExportsColumnRun')}</TableHead>
-                  <TableHead scope="col">{t('review.exportsColumnFile')}</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {exports.items.map((row) => (
-                  <TableRow key={row.id}>
-                    <TableCell className="whitespace-normal">
-                      {seatOf.get(row.runId) ?? ''}
-                    </TableCell>
-                    <TableCell className="font-mono tabular-nums">{row.version}</TableCell>
-                    <TableCell className="whitespace-normal">{REASON_LABELS[row.reason]}</TableCell>
-                    <TableCell className="whitespace-normal">
-                      {formatDateTime(row.createdAt)}
-                    </TableCell>
-                    <TableCell>
-                      {assignment.canOpenRuns ? (
-                        <Link
-                          href={`/review/runs/${row.runId}` as Route}
-                          className="text-primary text-meta focus-visible:outline-focus inline-flex min-h-10 items-center rounded-sm underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2"
-                        >
-                          {t('review.assignmentExportsRunLink')}
-                        </Link>
-                      ) : (
-                        <span className="text-ink-muted text-meta">
-                          {t('review.assignmentExportsRunUnavailable')}
-                        </span>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <a
-                        href={`/api/v1/runs/${row.runId}/exports/${String(row.version)}`}
-                        className={buttonVariants({ variant: 'secondary', size: 'sm' })}
-                        download
+          <Table className="min-w-3xl">
+            <TableCaption>{t('review.assignmentExportsCaption')}</TableCaption>
+            <TableHeader>
+              <TableRow>
+                <TableHead scope="col">{t('review.assignmentExportsColumnStudent')}</TableHead>
+                <TableHead scope="col">{t('review.exportsColumnVersion')}</TableHead>
+                <TableHead scope="col">{t('review.exportsColumnReason')}</TableHead>
+                <TableHead scope="col">{t('review.exportsColumnCreated')}</TableHead>
+                <TableHead scope="col">{t('review.assignmentExportsColumnRun')}</TableHead>
+                <TableHead scope="col">{t('review.exportsColumnFile')}</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {exports.items.map((row) => (
+                <TableRow key={row.id}>
+                  <TableCell className="whitespace-normal">{seatOf.get(row.runId) ?? ''}</TableCell>
+                  <TableCell className="font-mono tabular-nums">{row.version}</TableCell>
+                  <TableCell className="whitespace-normal">{REASON_LABELS[row.reason]}</TableCell>
+                  <TableCell className="whitespace-normal">
+                    {formatDateTime(row.createdAt)}
+                  </TableCell>
+                  <TableCell>
+                    {assignment.canOpenRuns ? (
+                      <Link
+                        href={`/review/runs/${row.runId}` as Route}
+                        className="text-primary text-meta focus-visible:outline-focus inline-flex min-h-10 items-center rounded-sm underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2"
                       >
-                        {t('review.exportDownload', { version: row.version })}
-                      </a>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
+                        {t('review.assignmentExportsRunLink')}
+                      </Link>
+                    ) : (
+                      <span className="text-ink-muted text-meta">
+                        {t('review.assignmentExportsRunUnavailable')}
+                      </span>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    <a
+                      href={`/api/v1/runs/${row.runId}/exports/${String(row.version)}`}
+                      className={buttonVariants({ variant: 'secondary', size: 'sm' })}
+                      download
+                    >
+                      {t('review.exportDownload', { version: row.version })}
+                    </a>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
         )}
       </Panel>
     </>

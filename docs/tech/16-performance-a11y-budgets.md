@@ -21,7 +21,7 @@
 | B11 | Scoring job | p95 ≤ 3 min real, ≤ 5 s mock; alert at 8 min | `score_run` | `llm_calls.latency_ms`, job duration log; Sentry alert | `integration` job (mock only) | yes (mock) |
 | B12 | Run read query count | ≤ 4 queries | `getRunWorkspace`, `getReplay`, `getDebrief`, `getRecord` | `tests/integration/perf/query-count.test.ts` | `integration` job | yes |
 | B13 | Run-scoped query plans | no Seq Scan on `run_events`, `run_claims` at 10k rows | repository queries listed in §5.5 | `tests/integration/perf/query-plans.test.ts` | `integration` job | yes |
-| B14 | axe violations | zero serious or critical, tags through WCAG 2.2 AA | every UI-### screen | `@axe-core/playwright` 4.13.0 | `e2e` job, `tests/e2e/a11y/*` | yes |
+| B14 | axe violations | zero at any impact (D-644), tags through WCAG 2.2 AA | every UI-### screen | `@axe-core/playwright` 4.13.0 | `e2e` job, `tests/e2e/a11y/*` | yes |
 | B15 | Keyboard-only run | full run start to debrief without pointer events | student path | `tests/e2e/a11y/keyboard-only-run.spec.ts` | `e2e` job | yes |
 | B16 | Contrast | text ≥ 4.5:1, UI components ≥ 3:1 | D-025 palette | `tests/unit/design/contrast.test.ts` | `unit` job | yes |
 | B17 | Concurrency | 60 students, p95 within B8/B9 | one section | k6 `scripts/load/run-loop.js` | Phase 15 release step | release gate |
@@ -71,20 +71,20 @@ Authenticated-page lab values: `tests/e2e/perf/web-vitals.spec.ts` signs in as `
 
 ### 3.1 Numbers
 
-**The framework floor (D-187).** React 19 and the Next 16 App Router client runtime are charged to every route and no screen can trade against them: measured 130,897 bytes gzip on 2026-09-04, so a page with no client component of ours (`/`, `/_not-found`) totals 167,244. `scripts/bundle-budget.ts` therefore asserts the floor once (≤ 175,000) and then judges each route on what it adds. A framework upgrade fails one line instead of every route, and the per-route number stays a ceiling on the code we write.
+**The framework floor (D-187).** React 19 and the Next 16 App Router client runtime are charged to every route and no screen can trade against them: measured 132,164 bytes gzip on 2026-09-08, so a page with no client component of ours (`/`, `/_not-found`) totals 164,484. `scripts/bundle-budget.ts` therefore asserts the floor once (≤ 175,000) and then judges each route on what it adds. A framework upgrade fails one line instead of every route, and the per-route number stays a ceiling on the code we write.
 
 | Route group | Budget (gzip JavaScript the route adds to the floor) | Includes |
 |---|---|---|
-| Run routes: `/runs/[runId]/{start,readiness,readiness/result,work,locked,turn,defense,debrief}`, `/runs/[runId]`, `/review/runs/[runId]`, `/records/[runId]` | ≤ 130,000 bytes (measured max 101,128, `/runs/[runId]/work`) | root main files + `(app)` layout + run layout + page chunks |
-| Public pages: `/sign-in`, `/sign-up`, `/verify-email`, `/forgot-password`, `/reset-password`, `/privacy`, `/terms` | ≤ 110,000 bytes (measured max 103,058) | root main files + `(public)` layout + page chunks |
-| Every other route | ≤ 175,000 bytes (measured max 170,303, `/settings/security`) | root main files + ancestor layouts + page chunks |
+| Run routes: `/runs/[runId]/{start,readiness,readiness/result,work,locked,turn,defense,debrief}`, `/runs/[runId]`, `/review/runs/[runId]`, `/records/[runId]` | ≤ 130,000 bytes (measured max 124,210, `/review/runs/[runId]`) | root main files + `(app)` layout + run layout + page chunks |
+| Public pages: `/sign-in`, `/sign-up`, `/verify-email`, `/forgot-password`, `/reset-password`, `/privacy`, `/terms` | ≤ 110,000 bytes (measured max 103,724, `/sign-in`) | root main files + `(public)` layout + page chunks |
+| Every other route | ≤ 175,000 bytes (measured max 170,443, `/assignments/[assignmentId]`) | root main files + ancestor layouts + page chunks |
 
 "gzip" means `zlib.gzipSync(level 6)` of the emitted chunk files, which is at or above what Vercel serves (Vercel uses Brotli when the client accepts it). The `polyfills` chunk is excluded (it is loaded with `nomodule` and never executed by the supported browsers of NFR-010).
 
 ### 3.2 Rules that keep routes under budget
 
 - `recharts` 3.10.1 is imported only from `src/components/graphs/*` and only through `next/dynamic` (§3.3). It never appears in a layout, in `src/components/ui`, or in the run workspace. Routes that load it: `/runs/[runId]/debrief`, `/review/runs/[runId]`, `/records/[runId]`, `/review` (illustrative sample), `/dev/components`.
-- Client components build their schemas with `zod/mini`, importing named builders (`object`, `string`, `email`, `minLength`, `maxLength`, `trim`, `refine`); never `import { z } from 'zod'`, whose namespace object drags `toJSONSchema`, the locale table and every schema class into the page (94 KB gzip; D-184). `zodResolver` accepts a mini schema unchanged. Server modules keep classic Zod, so a client component that imports a module `schema.ts` still pays for it — `src/server/modules/identity/schema.ts` is why `/settings` carries 67,271 bytes of it.
+- Client components build their schemas with `zod/mini`, importing named builders (`object`, `string`, `email`, `minLength`, `maxLength`, `trim`, `refine`); never `import { z } from 'zod'`, whose namespace object drags `toJSONSchema`, the locale table and every schema class into the page (94 KB gzip; D-184). `zodResolver` accepts a mini schema unchanged. Server modules keep classic Zod, so a client component that imports a module `schema.ts` still pays for it — `src/server/modules/identity/schema.ts` is why `/settings` carries 67,271 bytes of it. The rule is the *kind* of import, not the file: `import type` from a module schema erases and is free, a value import is not. A control that needs only a constant from one pays the whole price for it — `/admin/audit`'s institution filter took `INSTITUTION_FILTER_LIMIT` that way and put both Zod chunks (90,656 bytes gzip) in the route, over the 175,000 ceiling. The fix is not `zod/mini` and not `next/dynamic`: the page is a Server Component that already reads the module, so it reads the constant and passes it down as a `limit` prop (D-600).
 - `better-auth/react` is reached only through the facade in `src/lib/auth-client.ts`, which imports it dynamically on the first call (D-185). No client component imports `better-auth/*` directly, so the client (11,883 bytes gzip) stays out of every route's entry chunks.
 - Icons: `lucide-react` 1.39.0 imported per icon (`import { Lock } from 'lucide-react'`); never `import * as icons`. Next.js applies `optimizePackageImports` to `lucide-react` and `recharts` by default, and the per-icon import keeps the graph the same under Turbopack.
 - `date-fns` 4.4.0 imported per function (`import { formatDistanceStrict } from 'date-fns'`).
@@ -144,7 +144,7 @@ import { gzipSync } from 'node:zlib'
 
 const NEXT = join(process.cwd(), '.next')
 
-/** React 19 + the Next 16 client runtime (`rootMainFiles`), 130,897 bytes gzip on 2026-09-04 (D-187). */
+/** React 19 + the Next 16 client runtime (`rootMainFiles`), 132,164 bytes gzip on 2026-09-08 (D-187). */
 const FRAMEWORK_FLOOR_MAX_BYTES = 175_000
 
 /** Named so the LHCI cross-check at the bottom of this file reads the same budget row. */
@@ -243,19 +243,21 @@ for (const pageKey of Object.keys(routes)
 // built here out of the budgets above plus three named allowances for what LHCI counts and this
 // script cannot see, and the run fails if lighthouserc.json disagrees.
 //
-// Measured on 2026-09-06 (`pnpm exec lhci autorun`, three runs, all identical): script 449,239 of
-// 530,000, total 947,699 of 1,060,000.
+// Measured on 2026-09-08 (`pnpm lhci`, three runs): script 473,353 of 530,000, total 976,299 of
+// 1,060,000.
 
 /** Chunks the page fetches that `entryJSFiles` does not list: the two `recharts` graphs behind
  *  `next/dynamic` (§3.3), `instrumentation-client`, and the per-request header bytes Lighthouse
- *  counts in a transfer size. Measured 131,702 across 31 script requests. */
+ *  counts in a transfer size. Measured 150,470 on 2026-09-08, which is over this allowance and
+ *  under the ceiling: the floor and the route budget above it are not spent to their caps, and it
+ *  is their sum LHCI asserts. */
 const GALLERY_DEFERRED_MAX_BYTES = 150_000
 
 /** All seven self-hosted woff2 faces: the gallery draws a type specimen, so it loads the Mono and
- *  Serif faces a product page never asks for (a real page loads four). Measured 445,064. */
+ *  Serif faces a product page never asks for (a real page loads four). Measured 447,339. */
 const GALLERY_FONT_MAX_BYTES = 460_000
 
-/** The HTML document and the two stylesheets. Measured 56,738. */
+/** The HTML document and the two stylesheets. Measured 55,607. */
 const GALLERY_DOCUMENT_MAX_BYTES = 70_000
 
 const galleryRouteBudget = budgets.find((b) => b.label === GALLERY_LABEL)!.maxBytes
@@ -466,12 +468,12 @@ Why these URLs: they are deterministic without a session. `/sign-in` is a real u
 
 `resource-summary:*:size` is transfer size, and `next start` gzips responses (`compress: true`, the default), so these numbers are in the same unit as §3.1 - a 322,941-byte chunk is counted at 95,721. The two files therefore describe one page in one unit, and the gallery pair is not written by hand: `scripts/bundle-budget.ts` computes it from the budgets in §3.1 and fails the `build` job (which runs before `lhci`) if `lighthouserc.json` disagrees (D-433).
 
-| `/dev/components` LHCI ceiling | Built from | Bytes | Measured 2026-09-06 |
+| `/dev/components` LHCI ceiling | Built from | Bytes | Measured 2026-09-08 |
 |---|---|---|---|
-| `resource-summary:script:size` | framework floor cap 175,000 + gallery route budget 205,000 + deferred allowance 150,000 | 530,000 | 449,239 |
-| `resource-summary:total:size` | the script ceiling + fonts 460,000 + document and stylesheets 70,000 | 1,060,000 | 947,699 |
+| `resource-summary:script:size` | framework floor cap 175,000 + gallery route budget 205,000 + deferred allowance 150,000 | 530,000 | 473,353 |
+| `resource-summary:total:size` | the script ceiling + fonts 460,000 + document and stylesheets 70,000 | 1,060,000 | 976,299 |
 
-The deferred allowance is what LHCI counts and the build manifests do not: the two `recharts` graphs behind `next/dynamic` (§3.3), `instrumentation-client`, and the per-request header bytes in a transfer size (measured 131,702 over 31 script requests). The font allowance is all seven self-hosted woff2 faces - the gallery draws a type specimen, so it loads the Mono and Serif faces a product page never asks for (measured 445,064; `/sign-in` loads four, 271,463). B6's 900,000 stays the rule for every page a user sees.
+The deferred allowance is what LHCI counts and the build manifests do not: the two `recharts` graphs behind `next/dynamic` (§3.3), `instrumentation-client`, and the per-request header bytes in a transfer size (measured 150,470 on 2026-09-08 — over the allowance and under the ceiling, because the floor and the route budget above it are not spent to their caps and it is their sum LHCI asserts). The font allowance is all seven self-hosted woff2 faces - the gallery draws a type specimen, so it loads the Mono and Serif faces a product page never asks for (measured 447,339; `/sign-in` loads four, 272,763). B6's 900,000 stays the rule for every page a user sees.
 
 ## 4. API latency (NFR-008, NFR-001, NFR-014)
 
@@ -614,7 +616,7 @@ The test runs in the `integration` project (`vitest.config.ts`, `fileParallelism
 
 ### 6.1 No raster images
 
-- The app ships no PNG, JPEG, GIF, or WebP. Icons are SVG from `lucide-react` (tree-shaken per import). The favicon is `public/favicon.svg`. Email templates use text and inline SVG only.
+- The app ships no PNG, JPEG, GIF, or WebP. Icons are SVG from `lucide-react` (tree-shaken per import). Email templates use text and inline SVG only. **There is no favicon of either extension** (D-602, D-610): no `src/app/icon.*`, no `public/favicon.*`, and no `icons` in the root metadata, so a browser with a fresh profile probes `/favicon.ico` and is answered 404. That 404 is the one deduction in Lighthouse's best-practices score on `/sign-in` — `errors-in-console`, worth 0.04, measured 0.96 against B7's 0.95 gate on 2026-09-08 (D-645). Shipping `public/favicon.svg` and declaring it would buy that point back and cost no raster byte.
 - `next/image` is not used; `<img>` is forbidden by `@next/next/no-img-element` (already in `eslint-config-next/core-web-vitals`).
 - Scored content is text by requirement (FR-211, NFR-013): documents, brief, frame, claims, defense. Any future scenario chart must carry a data table and description (FR-212) and would use the same `GraphFrame` (§9).
 
@@ -721,8 +723,8 @@ export const plexSerif = localFont({
 |---|---|---|---|
 | `/_next/static/*` (hashed chunks, CSS, `next/font` copies) | Vercel CDN | `public, max-age=31536000, immutable` | Next.js default |
 | `/fonts/*.woff2` | Vercel CDN from `public/` | `public, max-age=31536000, immutable` | `headers()` in `next.config.ts` (§7.2) |
-| `/favicon.svg` | Vercel CDN | `public, max-age=86400` | `headers()` |
-| Public pages: `/sign-in`, `/sign-up`, `/verify-email`, `/forgot-password`, `/reset-password`, `/privacy`, `/terms` | static, prerendered at build | Next.js default for static pages (CDN cached, revalidated on deploy) | no `dynamic` export in `(public)`; the signed-in redirect lives in `src/proxy.ts`, not in the page |
+| `/favicon.svg` | not shipped (D-602, D-610, §6.1); the rule returns with the file | `public, max-age=86400` | `headers()` |
+| Public pages: `/sign-in`, `/sign-up`, `/verify-email`, `/forgot-password`, `/reset-password`, `/privacy`, `/terms` | Node function, every request | `private, no-cache, no-store, max-age=0, must-revalidate` (Next.js default for dynamic pages) | `export const dynamic = 'force-dynamic'` in `src/app/layout.tsx` (D-611). **Not** static: the CSP of 12 §4 carries a per-request nonce, and Next can only stamp that onto its scripts while rendering a request — a prerendered page's script tags carry none, and `'strict-dynamic'` makes a browser ignore `'self'`, so every one of them is blocked. The signed-in redirect lives in `src/proxy.ts`, not in the page |
 | Authenticated RSC pages under `(app)` | Node function, every request | `private, no-cache, no-store, max-age=0, must-revalidate` (Next.js default for dynamic pages) | `export const dynamic = 'force-dynamic'` in `src/app/(app)/layout.tsx` |
 | `/dev/components` | dynamic (reads `APP_ENV`) | same as above | `dynamic = 'force-dynamic'` |
 | `/api/v1/*` | Node function | `no-store` | `defineRoute` on every response plus the `headers()` rule |
@@ -744,7 +746,7 @@ const config: NextConfig = {
   async headers() {
     return [
       { source: '/fonts/:path*', headers: [{ key: 'Cache-Control', value: 'public, max-age=31536000, immutable' }] },
-      { source: '/favicon.svg', headers: [{ key: 'Cache-Control', value: 'public, max-age=86400' }] },
+      // No `/favicon.svg` rule: the project ships no favicon (D-610, §6.1).
       { source: '/api/:path*', headers: [{ key: 'Cache-Control', value: 'no-store' }] },
     ]
   },
@@ -800,81 +802,94 @@ Target: WCAG 2.2 AA on every screen, with the run screens and the faculty replay
 
 ```ts
 import AxeBuilder from '@axe-core/playwright'
-import { expect, type Page, type TestInfo } from '@playwright/test'
-
-export const AXE_TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'] as const
-export const FAILING_IMPACTS: readonly string[] = ['serious', 'critical']
-
-export type AxeScope = { include?: string[]; exclude?: string[] }
+import { expect, test, type Page } from '@playwright/test'
 
 /**
- * Runs axe on the current page state. Fails on serious and critical violations.
- * No rule is disabled anywhere in the suite; minor and moderate findings are attached to the report.
+ * The tag set of B14: WCAG 2.0, 2.1 and 2.2, level A and AA. In axe-core 4.13.0 `wcag22aa` carries
+ * exactly one rule, `target-size` (2.5.8), which is the criterion §8.5 answers for by hand — every
+ * interactive target at least 24 x 24 CSS px. Running it is what turns that sentence into a check.
  */
-export async function expectNoAxeViolations(page: Page, testInfo: TestInfo, scope: AxeScope = {}) {
-  let builder = new AxeBuilder({ page }).withTags([...AXE_TAGS])
-  for (const selector of scope.include ?? []) builder = builder.include(selector)
-  for (const selector of scope.exclude ?? []) builder = builder.exclude(selector)
-  const results = await builder.analyze()
+export const AXE_TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'] as const
 
-  const summary = results.violations.map((v) => ({
-    id: v.id,
-    impact: v.impact ?? 'unknown',
-    help: v.helpUrl,
-    nodes: v.nodes.map((n) => n.target.join(' ')),
+/**
+ * Fails the test on any WCAG 2.0/2.1/2.2 A or AA violation on the current page (NFR-006, B14).
+ *
+ * Every violation, not only the serious and critical ones (D-644): on a product whose scored
+ * surface is entirely text, a "moderate" finding is a heading level or a landmark, and those are
+ * the ones a screen-reader user actually navigates by. No rule is disabled anywhere in the suite.
+ *
+ * The full result is attached to the report as `axe-violations.json` whether or not the scan passes
+ * (§10), so a red run says which node on which screen rather than only that a list was not empty.
+ * `test.info()` is used rather than a `testInfo` parameter so the sixty-odd call sites stay
+ * `axe(page)`.
+ */
+export async function axe(page: Page): Promise<void> {
+  const results = await new AxeBuilder({ page }).withTags([...AXE_TAGS]).analyze()
+
+  const detail = results.violations.map((violation) => ({
+    id: violation.id,
+    impact: violation.impact ?? 'unknown',
+    help: violation.helpUrl,
+    nodes: violation.nodes.map((node) => node.target.join(' ')),
   }))
-  await testInfo.attach('axe-violations.json', { body: JSON.stringify(summary, null, 2), contentType: 'application/json' })
+  await test.info().attach('axe-violations.json', {
+    body: JSON.stringify({ url: page.url(), violations: detail }, null, 2),
+    contentType: 'application/json',
+  })
 
-  const failing = summary.filter((v) => FAILING_IMPACTS.includes(v.impact))
-  expect(failing, JSON.stringify(failing, null, 2)).toEqual([])
-  return results
+  const summary = results.violations.map((v) => `${v.id}: ${v.help} (${v.nodes.length} nodes)`)
+  expect(summary, summary.join('
+')).toEqual([])
 }
 ```
 
-`disableRules` is never called. `exclude` is used only for third-party-rendered regions that are not part of the app (none in the build; the parameter exists so a future embed cannot be silently excluded without a diff).
+`disableRules` is never called, and no scan is scoped: the whole document is read every time, so a
+region cannot be silently excluded without a diff.
 
 ### 8.2 One axe test per screen
 
-Each `test()` is named by its UI id, signs in with the seat the screen needs (D-040 seed accounts, password `SEED_PASSWORD`), navigates, waits for `networkidle`, and calls `expectNoAxeViolations` in every listed state. All specs live in `tests/e2e/a11y/` and run in the `e2e` job on the chromium project (axe results do not vary by engine; the other projects run the walkthrough).
+Each spec signs in with the seat the screen needs (D-040 seed accounts, password `SEED_PASSWORD`), navigates, waits for the screen to be on the page, and calls `axe(page)` in every listed state. Paths in the Spec file column are relative to `tests/e2e`: most are in `tests/e2e/a11y/`, and four screens are scanned where they are reachable at all — the invitation in the flow that issues one, the 404 and the error boundary in `system/errors.spec.ts`, the run status in the standing-rules walkthrough, and UI-023's paused overlay inside the forced failure that causes it. CI runs the chromium project (D-126); axe results do not vary by engine, and the other two projects run the walkthrough locally.
+
+This table is not prose: `tests/e2e/a11y/coverage.test.ts` reads it and `tests/e2e/a11y/screens.json` and fails when the Spec file or States scanned column of either disagrees with the other (D-642). The register is the maintained one, so the states here are the states a spec actually scans, never the ones a plan hoped for.
 
 | Screen | Route | Spec file | States scanned |
 |---|---|---|---|
-| UI-001 Sign-in | `/sign-in` | `public.spec.ts` | empty, validation error, Google button hidden and shown |
-| UI-002 Sign-up | `/sign-up` | `public.spec.ts` | empty, validation error |
-| UI-003 Verify email | `/verify-email?state=sent`, `verified`, `expired` | `public.spec.ts` | three states |
-| UI-004 Forgot, reset password | `/forgot-password`, `/reset-password?token=x` | `public.spec.ts` | empty, submitted |
-| UI-005 Accept invitation | `/invitations/[id]` | `shell.spec.ts` | pending, email mismatch |
-| UI-006 Privacy, Terms | `/privacy`, `/terms` | `public.spec.ts` | rendered |
-| UI-007 Not found, error | `/does-not-exist`, `/dev/components/error` | `public.spec.ts` | 404; error boundary with request id |
-| UI-008 App shell | `/home` | `shell.spec.ts` | nav closed, institution switcher open, account menu open, notifications bell with unread |
-| UI-009 Home | `/home` | `shell.spec.ts` | student seat, instructor seat, editor seat |
-| UI-010 Account settings | `/settings/profile`, `/settings/security`, `/settings/data` | `shell.spec.ts` | each tab, delete-account dialog open |
-| UI-011 Notifications | `/notifications` | `shell.spec.ts` | empty, with items |
-| UI-020 Runs list | `/runs` | `student-run.spec.ts` | with walkthrough label |
-| UI-021 Policy display | `/runs/[runId]/start` | `student-run.spec.ts` | before Begin |
-| UI-022 Readiness Check, result | `/runs/[runId]/readiness`, `/readiness/result` | `student-run.spec.ts` | item 1, expiry with skip offered, result concept map |
-| UI-023 Run workspace | `/runs/[runId]/work` | `student-run.spec.ts` | framing (assistant locked), document reader open, frame form with error, working with claim cards, escalation dialog open, outside-tool declaration open, brief editor open, paused overlay |
-| UI-024 Lock refusal, confirmation, addendum | `/runs/[runId]/work`, `/runs/[runId]/locked` | `student-run.spec.ts` | refusal naming the claim, confirmation dialog, addendum dialog |
-| UI-025 Turn window | `/runs/[runId]/turn` | `student-run.spec.ts` | Turn arrived, response form, frozen record beside |
-| UI-026 Defense | `/runs/[runId]/defense` | `student-run.spec.ts` | question 1, follow-up shown, completion |
-| UI-027 Run status | `/runs/[runId]` | `student-run.spec.ts` | pending scoring, under review, scored |
-| UI-028 Debrief | `/runs/[runId]/debrief` | `student-run.spec.ts` | draft bands, confirmed bands with note, each graph in graph view and table view, unavailable graph |
-| UI-029 Judgment Record | `/records/[runId]` | `student-run.spec.ts` | record, illustrative trajectory with label |
-| UI-030 Courses | `/courses`, `/courses/[courseId]` | `instructor.spec.ts` | list, detail, mapping change preview |
-| UI-031 Roster | `/courses/[courseId]/sections/[sectionId]/roster` | `instructor.spec.ts` | list, add-by-email form |
-| UI-032 Assignment configuration | `/assignments/[assignmentId]` | `instructor.spec.ts` | form, runs list |
-| UI-033 Faculty replay | `/review/runs/[runId]` | `instructor.spec.ts` | trace, graphs (graph and table views), evidence drawer open, confirm/override control, void dialog, neutralize dialog, claim object view, test control |
-| UI-034 Review queue | `/review` | `instructor.spec.ts` | illustrative rows with label |
-| UI-035 Course export | `/assignments/[assignmentId]/exports` | `instructor.spec.ts` | history with two versions |
-| UI-040 Packages list | `/packages` | `author.spec.ts` | list with warning badge |
-| UI-041 New package from seed | `/packages/new` | `author.spec.ts` | empty, validation error |
-| UI-042 Generation progress | `/packages/[packageId]/versions/[versionId]/generation` | `author.spec.ts` | the seven step rows on a version nothing was generated into (a11y/author.spec.ts) and the complete state with every rule met and the workspace link (author/generate-and-confirm.spec.ts). The stopped-step state is not reachable in a browser on the mock provider (D-543) and is held as markup by `tests/unit/components/packages/generation-progress.test.tsx` |
-| UI-043 Element confirmation | `/packages/[packageId]/versions/[versionId]/confirm` | `author.spec.ts` | element list, edit form, reject dialog |
-| UI-044 Package version view | `/packages/[packageId]/versions/[versionId]` | `author.spec.ts` | confirmed version, measures panel |
-| UI-050 Admin | `/admin/users`, `/admin/flags`, `/admin/audit` | `admin.spec.ts` | each page, role change dialog |
-| UI-060 Component gallery | `/dev/components` | `gallery.spec.ts` | whole gallery, then `include` per section so a failure names the component |
+| UI-001 Sign-in | `/sign-in` | `a11y/public.spec.ts` | empty, validation error, Google button hidden and shown |
+| UI-002 Sign-up | `/sign-up` | `a11y/public.spec.ts` | empty, validation error |
+| UI-003 Verify email | `/verify-email?state=sent`, `verified`, `expired` | `a11y/public.spec.ts` | sent, verified, expired |
+| UI-004 Forgot, reset password | `/forgot-password`, `/reset-password?token=x` | `a11y/public.spec.ts` | empty, submitted, refusal with no token |
+| UI-005 Accept invitation | `/invitations/[id]` | `auth/invitation.spec.ts` | pending, email mismatch |
+| UI-006 Privacy, Terms | `/privacy`, `/terms` | `a11y/public.spec.ts` | rendered |
+| UI-007 Not found, error | `/does-not-exist`, `/dev/components/error` | `system/errors.spec.ts` | 404 at an unknown address; error boundary with a request id |
+| UI-008 App shell | `/home` | `a11y/shell.spec.ts` | nav, institution switcher, account menu, notifications bell |
+| UI-009 Home | `/home` | `a11y/shell.spec.ts` | student seat, instructor seat |
+| UI-010 Account settings | `/settings/profile`, `/settings/security`, `/settings/data` | `a11y/shell.spec.ts` | each tab, delete-account dialog open |
+| UI-011 Notifications | `/notifications` | `a11y/shell.spec.ts` | empty, with items |
+| UI-020 Runs list | `/runs` | `a11y/student-run.spec.ts` | with a startable assignment |
+| UI-021 Policy display | `/runs/[runId]/start` | `a11y/student-run.spec.ts` | before Begin |
+| UI-022 Readiness Check, result | `/runs/[runId]/readiness`, `/readiness/result` | `a11y/student-run.spec.ts` | item with a navigator, result concept map |
+| UI-023 Run workspace | `/runs/[runId]/work` | `a11y/student-run.spec.ts` | framing with a refused frame and a document open; working with claim cards, the actions menu, the escalation dialog and the outside-tool declaration; the paused overlay (walkthrough/07-forced-failure.spec.ts) |
+| UI-024 Lock refusal, confirmation, addendum | `/runs/[runId]/work`, `/runs/[runId]/locked` | `a11y/student-run.spec.ts` | filed brief, addendum dialog open |
+| UI-025 Turn window | `/runs/[runId]/turn` | `a11y/student-run.spec.ts` | Turn arrived, response form, frozen record beside |
+| UI-026 Defense | `/runs/[runId]/defense` | `a11y/student-run.spec.ts` | question with an answer typed, finish dialog open |
+| UI-027 Run status | `/runs/[runId]` | `walkthrough/17-standing-rules-a11y.spec.ts` | scored, with the debrief offered |
+| UI-028 Debrief | `/runs/[runId]/debrief` | `a11y/student-run.spec.ts` | draft bands, confirmed bands with note |
+| UI-029 Judgment Record | `/records/[runId]` | `a11y/student-run.spec.ts` | record with the four graphs and the illustrative trajectory |
+| UI-030 Courses | `/courses`, `/courses/[courseId]` | `a11y/instructor.spec.ts` | list, four sub-views, mapping change preview |
+| UI-031 Roster | `/courses/[courseId]/sections/[sectionId]/roster` | `a11y/instructor.spec.ts` | list, add-by-email form |
+| UI-032 Assignment configuration | `/assignments/[assignmentId]` | `a11y/instructor.spec.ts` | form, runs list |
+| UI-033 Faculty replay | `/review/runs/[runId]` | `a11y/instructor.spec.ts` | five tabs and the claim object, in `scored` and again in `confirmed` |
+| UI-034 Review queue | `/review` | `a11y/shell.spec.ts` | illustrative rows with the label |
+| UI-035 Course export | `/assignments/[assignmentId]/exports` | `a11y/instructor.spec.ts` | empty history; the filled table in wt-14 |
+| UI-040 Packages list | `/packages` | `a11y/author.spec.ts` | list with the seeded family |
+| UI-041 New package from seed | `/packages/new` | `a11y/author.spec.ts` | half-filled, validation error |
+| UI-042 Generation progress | `/packages/[packageId]/versions/[versionId]/generation` | `a11y/author.spec.ts` | the seven step rows on a version nothing was generated into (a11y/author.spec.ts) and the complete state with every rule met and the workspace link (author/generate-and-confirm.spec.ts). The stopped-step state is not reachable in a browser on the mock provider (D-543) and is held as markup by `tests/unit/components/packages/generation-progress.test.tsx` |
+| UI-043 Element confirmation | `/packages/[packageId]/versions/[versionId]/confirm` | `a11y/author.spec.ts` | element tree with one element's form open |
+| UI-044 Package version view | `/packages/[packageId]/versions/[versionId]` | `a11y/author.spec.ts` | confirmed version, measures panel, claim object |
+| UI-050 Admin | `/admin/users`, `/admin/flags`, `/admin/audit` | `a11y/admin.spec.ts` | each page, role change dialog |
+| UI-060 Component gallery | `/dev/components` | `a11y/dev-components.spec.ts` | whole gallery, 360 px, the four graphs |
 
-Fixture runs for the run screens are produced by `tests/e2e/a11y/fixtures.ts`, which drives the mock-provider walkthrough through the API once per worker and reuses the run ids (the `e2e` job runs with `fullyParallel: false`).
+Fixture runs for the run screens are driven through the documented endpoints by `tests/e2e/walkthrough/scored-run.ts` (`reachWorking`, `reachDefense`, `driveRunToScored`) on an assignment the spec makes for itself through `tests/e2e/instructor/api.ts`: D-041 allows one run per student per assignment, so a spec that shared one could not be run twice.
 
 ### 8.3 Keyboard-only run (FR-210)
 
@@ -926,15 +941,22 @@ Plus the 2.0 and 2.1 A and AA criteria checked by axe (§8.1) and the semantics 
 ```css
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
-    scroll-behavior: auto !important;
+    transition-duration: 0s !important;
+    animation-duration: 0s !important;
   }
+
+  /* The one exception (D-640): a pending spinner frozen at 0 s is a static mark that says nothing,
+     and it is the only sign a submitted form is still working. It keeps turning, slowly. */
+  .animate-spin { animation-duration: 1.2s !important; }
 }
 ```
 
-Motion in the design is 150 to 200 ms ease-out with no bounce (D-025); under reduced motion every transition and `tw-animate-css` animation collapses to an instant change. Charts never animate in any mode (`isAnimationActive={false}`), and the clock does not pulse: the 1:00 warning is a color change plus the live region, not an animation. `tests/e2e/a11y/reduced-motion.spec.ts` emulates `reducedMotion: 'reduce'`, opens the workspace and a dialog, and asserts `getComputedStyle(el).transitionDuration === '0.01ms'` on the dialog and the claim card.
+`0s`, not the `0.01ms` of the widely copied snippet, whose purpose is to keep a `transitionend`
+handler firing; nothing in this product waits on one (D-640). `animation-iteration-count` and
+`scroll-behavior` are not reset because nothing sets them: no animation in the design repeats, and
+`scroll-behavior` is never `smooth`.
+
+Motion in the design is 150 to 200 ms ease-out with no bounce (D-025); under reduced motion every transition and `tw-animate-css` animation collapses to an instant change. Charts never animate in any mode (`isAnimationActive={false}`), and the clock does not pulse: the 1:00 warning is a color change plus the live region, not an animation. `tests/e2e/a11y/reduced-motion.spec.ts` drives a run to `working`, raises a claim card and opens the escalation dialog over it, and then reads the same page twice through `page.emulateMedia`: under `no-preference` the workspace, the claim card and the dialog must each have at least one element that transitions — otherwise the assertion that follows proves nothing — and under `reduce` every element in all three must compute `transition-duration: 0s`, with the dialog and the claim card also asserted by name. The sweep is over every element rather than a list of components, because a rule written against `*` is either true of the whole page or false.
 
 ### 8.7 Contrast (D-025 palette)
 
@@ -958,7 +980,7 @@ Rules that follow from the table:
 
 - Amber `#B7791F` is never a text color on paper, at any size. The draft, provisional, and uncalibrated labels (FR-150, FR-185, FR-196, FR-203) render ink text on paper with a 2 px amber left border and an amber icon (UI contrast 3.40:1), or ink text on an amber-filled chip (4.78:1). White text is never placed on amber.
 - Placeholder text uses ink at 70 percent alpha over paper (computed 8.9:1) and is never the only label.
-- Disabled controls use ink at 45 percent alpha (4.6:1 computed) with `aria-disabled` rather than `disabled` where the control must remain discoverable by keyboard (the lock button while a claim is unstanced: focusable, announces the reason).
+- Disabled controls come in two recipes, and the difference is the point (D-641). A control that must remain discoverable by keyboard — the lock button while a claim is unstanced: focusable, announces the reason — is `aria-disabled`, and draws `--ink-muted` on `--paper-sunken` (6.55:1), because a control a reader can still reach owes the full text minimum. A control that is genuinely inert is `disabled` and draws at `opacity-45`, which composites its ink to 2.84:1 on paper; WCAG 1.4.3 exempts inactive components, and the 4.6:1 first written here was not a value 45 percent alpha can produce. `tests/unit/design/contrast.test.ts` asserts both numbers.
 - Non-text contrast: control borders are ink at 55 percent alpha (`--line-control`), which composites to 3.8:1 on paper and 3.9:1 on white (D-157; the 40 percent value first written here measured 2.5:1); the focus ring is primary (5.59:1).
 - Any second theme (the `next-themes` 0.4.6 dependency allows one) must ship its own version of this table and pass the same test before it is enabled; the build ships the light palette only.
 

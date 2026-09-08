@@ -39,6 +39,8 @@ import { graph } from './messages/graph'
 import { band } from './messages/band'
 import { review } from './messages/review'
 import { debrief } from './messages/debrief'
+import { admin } from './messages/admin'
+import { legal } from './messages/legal'
 
 export const enUS = {
   ...landing,
@@ -77,6 +79,8 @@ export const enUS = {
   ...record,
   ...review,
   ...debrief,
+  ...admin,
+  ...legal,
 } as const
 
 export type MessageKey = keyof typeof enUS

@@ -14,16 +14,18 @@
 import { createHash } from 'node:crypto'
 import { AppError, isAppError } from '@/lib/errors'
 import { hashUserId } from '@/server/analytics/distinct-id'
+import { track } from '@/server/analytics/track'
 import { env } from '@/server/config'
 import { db } from '@/server/db/client'
 import { llmCalls } from '@/server/db/schema/platform'
-import { getLogger } from '@/server/http/request-context'
+import { getLogger, getRequestContext } from '@/server/http/request-context'
 import { alertOps, countOps } from '@/server/logging/ops-events'
 import type {
   CompleteRequest,
   LlmFeature,
   LlmMessage,
   LlmProvider,
+  LlmProviderName,
   LlmUsage,
   StreamChunk,
   StructuredRequest,
@@ -38,7 +40,9 @@ export type LlmCallRecord = {
   feature: LlmFeature
   promptName: string
   promptVersion: number
-  provider: string
+  // The name, not a free string: `llm_calls.provider` is text, but the operations dashboard breaks
+  // down by exactly these three (17 §3.6) and a fourth spelling would be a series nobody reads.
+  provider: LlmProviderName
   model: string
   usage: LlmUsage
   latencyMs: number
@@ -90,7 +94,12 @@ const ALERTING_OUTCOMES: ReadonlySet<LlmOutcome> = new Set<LlmOutcome>([
 ])
 
 /**
- * Writes the row, the operational counter and the debug digest. Never throws.
+ * Writes the row, the operational counter, the analytics event and the debug digest.
+ *
+ * Never throws where a student could feel it: the insert is guarded, the ops helpers swallow, and
+ * `track` drops an invalid payload in preview and production. It throws only under
+ * `APP_ENV=local|test`, which is that rule's whole point (17 §1.6) — a property shape that does not
+ * match the catalogue is a developer's bug and is meant to fail a test loudly rather than ship.
  *
  * The insert runs on `db`, deliberately outside any caller transaction: a call that was made is a
  * fact, and a delegation that rolls back must not erase the tokens it spent.
@@ -145,6 +154,36 @@ export async function recordLlmCall(
       package_version_id: record.context.packageVersionId ?? null,
     },
     record.context.userId ? hashUserId(record.context.userId) : 'system',
+  )
+
+  // NFR-016 (17 §3.6): the same call as the counter above, in the typed catalogue that the
+  // `Tassl · Operations` dashboard's cost, latency and outcome panels are built from. It carries the
+  // *name* of the prompt and never a word of it — the same line D-066 draws through the row.
+  //
+  // No person. The distinct id is `system` even where `context.userId` is set, because a model call
+  // is an operational fact rather than something a student did: attaching one to a person would put
+  // a person profile behind every delegation and invite exactly the per-student reading of assistant
+  // use that the PRD forbids (17 §1.7). The counter beside it keeps the hashed id for support.
+  track(
+    'llm_call',
+    {
+      feature: record.feature,
+      prompt: record.promptName,
+      version: record.promptVersion,
+      provider: record.provider,
+      model: record.model,
+      outcome: record.outcome,
+      latency_ms: record.latencyMs,
+      input_tokens: record.usage.inputTokens,
+      output_tokens: record.usage.outputTokens,
+      cost_usd: Number(cost),
+      // The chain of §1.1 has no fallback wrapper yet — it lands in Phase 14 with the adapters it
+      // protects — so today no call can be one, and this is the fact rather than a placeholder.
+      fallback_used: false,
+      run_id: record.context.runId ?? null,
+      package_version_id: record.context.packageVersionId ?? null,
+    },
+    { userId: null, organizationId: getRequestContext()?.actor?.activeOrganizationId ?? null },
   )
 
   if (ALERTING_OUTCOMES.has(record.outcome)) {

@@ -53,7 +53,17 @@ function DialogContent({
         data-slot="dialog-content"
         className={cn(
           // Dialog recipe (DESIGN.md §Shapes, §Elevation): 10 px radius, hairline, float shadow, 24 px padding.
-          'bg-paper-raised text-ink border-line shadow-float data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95 text-body fixed top-1/2 left-1/2 z-50 grid w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-4 rounded-lg border p-6 duration-200 ease-out outline-none sm:max-w-sm',
+          //
+          // `max-h-[calc(100dvh-2rem)] overflow-y-auto` is the vertical twin of the
+          // `max-w-[calc(100%-2rem)]` beside it, and it belongs to the primitive rather than to
+          // the dialogs that remembered it (D-622). A `fixed` box centred with `-translate-y-1/2`
+          // and no height bound does not overflow its parent — it overflows the *viewport*, off
+          // both ends at once, and nothing scrolls: the read-back before the Decision Lock lists a
+          // recommendation, a rationale, three assumptions, a change-my-mind line, a confidence and
+          // the named figures, and on a 360 × 780 phone its "Lock it" button was below the bottom
+          // edge with no way to reach it. Five of the twenty-four dialogs in the app had written
+          // the guard by hand; the other nineteen had not.
+          'bg-paper-raised text-ink border-line shadow-float data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95 text-body fixed top-1/2 left-1/2 z-50 grid max-h-[calc(100dvh-2rem)] w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-4 overflow-y-auto rounded-lg border p-6 duration-200 ease-out outline-none sm:max-w-sm',
           className,
         )}
         {...props}
@@ -123,7 +133,9 @@ function DialogTitle({ className, ...props }: DialogPrimitive.Title.Props) {
   return (
     <DialogPrimitive.Title
       data-slot="dialog-title"
-      className={cn('text-h4 text-ink font-serif font-medium', className)}
+      // `pr-8` keeps the title clear of the close button above it: at 360 px the dialog is 328 px
+      // wide with 24 px of padding, and a title that wrapped ran under the X with 24 px of overlap.
+      className={cn('text-h4 text-ink pr-8 font-serif font-medium', className)}
       {...props}
     />
   )

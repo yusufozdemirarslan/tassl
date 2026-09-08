@@ -101,7 +101,7 @@ export function VoidDialog({ runId, variants, exported }: VoidDialogProps) {
           setOpen(next)
         }}
       >
-        <DialogContent className="max-h-[85dvh] overflow-y-auto sm:max-w-lg">
+        <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>{t('review.voidDialogTitle')}</DialogTitle>
             <DialogDescription>{t('review.voidDialogBody')}</DialogDescription>

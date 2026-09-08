@@ -1,3 +1,4 @@
+// @vitest-environment node
 // D-165: Next resolves `params` to undefined for routes without dynamic segments; the wrapper must
 // treat that as an empty object instead of crashing before its error envelope.
 import { describe, expect, it } from 'vitest'

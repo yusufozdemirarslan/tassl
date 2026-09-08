@@ -22,6 +22,7 @@ import {
   runs,
   scenarioClaims,
   scenarioPackageVersions,
+  scenarioVariants,
   variantClaimStates,
   type NamedField,
   type NewRunAction,
@@ -457,6 +458,29 @@ export async function findRunPackage(
     .from(runs)
     .where(and(eq(runs.organizationId, tenantId), eq(runs.id, runId)))
   return row
+}
+
+/**
+ * Which variant the run was given, as the analytics `R` group names it (17 §3.3).
+ *
+ * `runs.variant_id` is a uuid and the property is the key, so one indexed read stands between the
+ * two. It is copied from `runs/repository.ts` rather than reached through the runs module for the
+ * reason every other authored read here is copied (D-242): a repository may reach the database and
+ * `src/lib`, and a query is a smaller thing to repeat than a door to open.
+ *
+ * `null` when the variant row is gone, which the foreign key does not allow; the caller drops the
+ * event rather than sending a guessed variant, because `variant` is the breakdown almost every
+ * insight in 17 §8 splits on.
+ */
+export async function findVariantKey(
+  variantId: string,
+  dbx: DbOrTx = db,
+): Promise<'defective' | 'sound' | null> {
+  const [row] = await dbx
+    .select({ key: scenarioVariants.key })
+    .from(scenarioVariants)
+    .where(eq(scenarioVariants.id, variantId))
+  return row?.key ?? null
 }
 
 /**

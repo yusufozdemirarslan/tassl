@@ -113,14 +113,14 @@
 - [ ] Phase 12 exit criteria
 
 ## Phase 13 — Cross-cutting hardening (`build-plan/phase-13-cross-cutting-hardening.md`)
-- [ ] 13.1 Sentry: manual setup, release tagging, ops events, alerts
-- [ ] 13.2 PostHog: client and server transports, reverse proxy, event catalogue, identity
-- [ ] 13.3 Security headers, CSP, cookies, secret scanning, dependency updates
-- [ ] 13.4 Rate-limit coverage, student-view invariants, PII redaction audit
-- [ ] 13.5 Admin area, legal pages, error-page polish, copy review
-- [ ] 13.6 Backups, restore drill, incident tooling, retention
-- [ ] 13.7 Impeccable app-wide passes: adapt, optimize, extract
-- [ ] 13.8 Accessibility sweep and performance budgets in CI
+- [x] 13.1 Sentry: manual setup, release tagging, ops events, alerts
+- [x] 13.2 PostHog: client and server transports, reverse proxy, event catalogue, identity
+- [x] 13.3 Security headers, CSP, cookies, secret scanning, dependency updates
+- [x] 13.4 Rate-limit coverage, student-view invariants, PII redaction audit
+- [x] 13.5 Admin area, legal pages, error-page polish, copy review
+- [x] 13.6 Backups, restore drill, incident tooling, retention
+- [x] 13.7 Impeccable app-wide passes: adapt, optimize, extract
+- [x] 13.8 Accessibility sweep and performance budgets in CI
 - [ ] Phase 13 exit criteria
 
 ## Phase 14 — LLM integration (`build-plan/phase-14-llm-integration.md`)

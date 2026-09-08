@@ -1,14 +1,14 @@
 'use client'
 
 import { useEffect } from 'react'
+import { ErrorShown } from '@/components/layout/error-shown'
 import { ErrorState } from '@/components/layout/error-state'
 import { Button } from '@/components/ui/button'
 import { t } from '@/lib/i18n/messages/error'
 
 // UI-007: the root error boundary replaces the segment layouts, so it carries its own main
 // landmark and h1 like not-found.tsx. `error.digest` is the reference the server logged with the
-// request id; the body only asks the reader to quote it when it exists. Phase 13 forwards the
-// error to Sentry.
+// request id; the body only asks the reader to quote it when it exists.
 export default function RouteError({
   error,
   reset,
@@ -17,6 +17,8 @@ export default function RouteError({
   reset: () => void
 }) {
   useEffect(() => {
+    // The server already reported this to Sentry with the request id; the browser copy would be a
+    // second issue for one incident, so the boundary only records that a person saw an error page.
     console.error(error)
   }, [error])
 
@@ -27,6 +29,7 @@ export default function RouteError({
       className="bg-paper text-ink flex min-h-dvh flex-col items-center justify-center px-4 py-12 outline-none"
     >
       {/* ErrorState carries the 24 px vertical padding, so the card matches not-found's p-6. */}
+      <ErrorShown />
       <div className="border-line bg-paper-raised w-full max-w-md rounded-md border px-6">
         <ErrorState
           headingLevel={1}

@@ -75,6 +75,10 @@ async function collect(): Promise<Collected[]> {
     for (const method of METHODS) {
       const spec = getRouteSpec(mod[method.toUpperCase()])
       if (!spec) continue
+      // `documented: false` means the committed document already says something this generator
+      // cannot: `POST /runs/{runId}/delegations` answers `text/event-stream`, and regenerating it
+      // as `application/json` would replace a true description with a false one (D-273, D-613).
+      if (spec.documented === false) continue
       const { docPath, servers } = toDocPath(url)
       out.push({ docPath, method, spec, ...(servers ? { servers } : {}) })
     }

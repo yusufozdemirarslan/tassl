@@ -1,6 +1,7 @@
 // defineAction(): docs/tech/10-backend-spec.md §2 and 08-auth-authz.md §3.
 // Same context, session, validation, and error mapping as defineRoute; never throws to the client.
 // Module files that export actions start with 'use server'.
+import * as Sentry from '@sentry/nextjs'
 import type { Logger } from 'pino'
 import { revalidatePath } from 'next/cache'
 import { headers } from 'next/headers'
@@ -10,6 +11,7 @@ import { requireSession } from '@/server/auth/session'
 import type { SessionUser } from '@/server/auth/types'
 import { toErrorParts } from '@/server/http/errors'
 import { runWithContext, type RequestContext } from '@/server/http/request-context'
+import { routeGroup } from '@/server/http/route-group'
 import { createRequestLogger, hashId } from '@/server/logging/logger'
 import { getOrCreateRequestId } from '@/server/logging/request-id'
 
@@ -45,6 +47,11 @@ export function defineAction<I, O>(
     const logger = createRequestLogger({ requestId, route: name, method: 'ACTION' })
     const store: RequestContext = { requestId, actor: null, logger, startedAt }
 
+    // The action's own name, never its input: an action argument is the student's free text
+    // (13 §2.3). `route_group: action` is the tag the NFR-008 write-latency rule matches (13 §7).
+    Sentry.setTag('request_id', requestId)
+    Sentry.setTag('route_group', routeGroup(name, 'ACTION'))
+
     return runWithContext(store, async () => {
       try {
         const actor = await requireSession(hdrs)
@@ -53,6 +60,8 @@ export function defineAction<I, O>(
           userId: hashId(actor.id),
           ...(actor.activeOrganizationId ? { orgId: actor.activeOrganizationId } : {}),
         })
+        Sentry.setUser({ id: hashId(actor.id) })
+        if (actor.activeOrganizationId) Sentry.setTag('org_id', actor.activeOrganizationId)
 
         const parsed = schema.safeParse(rawInput)
         if (!parsed.success) {
@@ -61,7 +70,9 @@ export function defineAction<I, O>(
           })
         }
 
-        const outcome = await handler(parsed.data, { requestId, actor, logger: store.logger })
+        const outcome = await Sentry.startSpan({ name, op: 'function.server_action' }, () =>
+          handler(parsed.data, { requestId, actor, logger: store.logger }),
+        )
         for (const path of outcome.revalidate ?? []) revalidatePath(path)
 
         store.logger.info(
@@ -73,7 +84,7 @@ export function defineAction<I, O>(
         const parts = toErrorParts(error, requestId)
         const durationMs = Date.now() - startedAt
         if (parts.status >= 500) {
-          // Phase 13: Sentry.captureException(error) with the request id as a tag.
+          Sentry.captureException(error, { tags: { error_code: parts.code } })
           store.logger.error(
             {
               event: 'http_request',

@@ -36,7 +36,7 @@ export function InstitutionSwitcher({ institutions, activeId }: InstitutionSwitc
     return (
       <span className="text-ink-muted text-meta inline-flex min-w-0 items-center gap-2 whitespace-nowrap">
         <Building2 aria-hidden="true" className="size-4 shrink-0" />
-        <span className="min-w-0 truncate md:max-w-[40ch]" title={t('shell.noInstitution')}>
+        <span className="max-w-[40ch] min-w-0 truncate" title={t('shell.noInstitution')}>
           {t('shell.noInstitution')}
         </span>
       </span>
@@ -49,7 +49,7 @@ export function InstitutionSwitcher({ institutions, activeId }: InstitutionSwitc
       <span className="text-ink text-meta inline-flex min-w-0 items-center gap-2 font-medium whitespace-nowrap">
         <Building2 aria-hidden="true" className="size-4 shrink-0" />
         <span className="sr-only">{t('shell.institution')}</span>
-        <span className="min-w-0 truncate md:max-w-[40ch]" title={name}>
+        <span className="max-w-[40ch] min-w-0 truncate" title={name}>
           {name}
         </span>
       </span>

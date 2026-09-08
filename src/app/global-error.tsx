@@ -1,5 +1,6 @@
 'use client'
 
+import * as Sentry from '@sentry/nextjs'
 import { useEffect } from 'react'
 import { plexMono, plexSans, plexSerif } from '@/app/fonts'
 import { cn } from '@/lib/cn'
@@ -7,7 +8,12 @@ import { cn } from '@/lib/cn'
 // UI-007: the last-resort boundary replaces the root layout, so it carries its own html and body,
 // loads the Plex faces itself (next/font hashes family names, so a literal family never resolves),
 // and styles inline with the raw token values because globals.css may not have loaded. Phase 13
-// adds Sentry.captureException; until then the error is logged to the console.
+// adds the one import this page can afford: `Sentry.captureException`, the only report of a failure
+// the root layout could not survive (13 §3.5). It is a no-op without a DSN (D-098).
+//
+// `<ErrorShown />`, which the two `error.tsx` boundaries mount to fire `error_shown`, is
+// deliberately *not* here: it would pull `next/navigation` and the analytics client into this
+// entry, for an event about a page that only renders when everything above it has already failed.
 // Inline because globals.css is not loaded on this page.
 const FOCUS_CSS = 'button:focus-visible{outline:2px solid #0F6E74;outline-offset:2px}'
 
@@ -34,7 +40,7 @@ export default function GlobalError({
   reset: () => void
 }) {
   useEffect(() => {
-    console.error(error)
+    Sentry.captureException(error)
   }, [error])
 
   return (

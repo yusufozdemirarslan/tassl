@@ -27,7 +27,13 @@
 // the run is about. A component failure therefore credits nothing on resume, and says so
 // (`runs.resumeRun`, 10 §10).
 //
-// Two imports need a word.
+// Three imports need a word.
+//
+//   * `analytics` — the events of 17 §3.3 are sent from here, always after the transaction that
+//     wrote the trace has committed (17 §1.6), and always as ids, enums, counts and durations. The
+//     request, the reply, the why line, the claim texts and the purpose of an outside-tool
+//     declaration are on none of them: analytics is a lossy mirror of the trace, and the parts of
+//     the run that are the student's own words are the parts it drops (17 §1.3, §6).
 //
 //   * `runs/clock.ts` — `in_turn_window` and the clock reading a delegation row stores are facts
 //     about the run's clock (D-042), and the module that owns the clock is `runs`. Importing that
@@ -43,6 +49,8 @@
 import { randomUUID } from 'node:crypto'
 import { AppError, isAppError } from '@/lib/errors'
 import { t } from '@/lib/i18n/t'
+import { claimContext, runContext, type RunContext } from '@/server/analytics/run-context'
+import { track } from '@/server/analytics/track'
 import { requireRunOwner, requireRunReviewer } from '@/server/auth/permissions'
 import type { SessionUser } from '@/server/auth/types'
 import { getLogger, getRequestContext } from '@/server/http/request-context'
@@ -197,6 +205,107 @@ function llmContext(actor: SessionUser, runId: string, versionId: string): LlmCa
     // directly does not, and the call log's column is not nullable, so one is minted rather than
     // letting an observability write decide whether a student gets an answer.
     requestId: getRequestContext()?.requestId ?? randomUUID(),
+  }
+}
+
+// ---------------------------------------------------------------------------------------------
+// The analytics groups (17 §3.3)
+// ---------------------------------------------------------------------------------------------
+
+/** The locked, timer-materialized run row every mutation here writes against. */
+type LockedRun = Awaited<ReturnType<typeof lockRunForMutation>>
+
+/**
+ * The `R` group of a run, built from the row the mutation held (17 §3.3).
+ *
+ * The variant key is the one property that is not on the run row, so it costs one indexed read.
+ * `null` — a variant row the foreign key says exists and does not — drops the event rather than
+ * sending a guessed key: `variant` is the breakdown nearly every insight in 17 §8 splits on, and a
+ * wrong one there is worse than a missing row. Analytics never changes what the run does, so a
+ * dropped event is the end of it.
+ */
+async function runGroup(run: LockedRun): Promise<RunContext | null> {
+  const variantKey = await repo.findVariantKey(run.variantId)
+  return variantKey ? runContext(run, variantKey) : null
+}
+
+/** What the outcome of one delegation contributes to `delegation_made` (17 §3.3). */
+type DelegationOutcome = {
+  failed: boolean
+  claimsSurfaced: number
+  unverifiedNumbersCount: number
+  latencyMs: number
+}
+
+/**
+ * `delegation_made`, fired for exactly the delegations the `delegation` trace event is written for:
+ * the answered one, the forced failure, and the provider failure.
+ *
+ * A reply discarded because the run moved on while the model was answering (D-280) is in neither.
+ * That is one rule rather than two: the trace is the record, the discard deliberately leaves it
+ * untouched — no event, no clock, nothing the Delegation band can see — and analytics is a mirror of
+ * the trace (17 §1.8), so a mirror showing a delegation the record does not would be the only place
+ * in the product where our latency cost the student something.
+ *
+ * The request text is not a property, and neither is the reply. What travels is the shape of the
+ * act: which delegation, how many claims it raised, how many figures the numeric guard could not
+ * source, whether it failed, and how long the student waited.
+ */
+function trackDelegationMade(
+  actor: SessionUser,
+  prepared: PreparedDelegation,
+  group: RunContext,
+  outcome: DelegationOutcome,
+): void {
+  track(
+    'delegation_made',
+    {
+      ...group,
+      delegation_id: prepared.delegationId,
+      seq: prepared.seq,
+      claims_surfaced: outcome.claimsSurfaced,
+      in_turn_window: prepared.inTurnWindow,
+      unverified_numbers_count: outcome.unverifiedNumbersCount,
+      failed: outcome.failed,
+      // Read from the row as this delegation wrote it, which is the honest answer and always
+      // `false`: the why line is the student's later sentence about a delegation they made, and
+      // `updateDelegation` is the only thing that writes it (FR-060, D-272).
+      has_why: prepared.why !== null,
+      latency_ms: outcome.latencyMs,
+      before_any_document_open: prepared.beforeAnyDocumentOpen,
+    },
+    { userId: actor.id, organizationId: prepared.organizationId },
+  )
+}
+
+/**
+ * `claim_marked_used` for the claims one act marked relied on (17 §3.3, FR-084).
+ *
+ * One event per claim the act *recorded* — the same set the `claim_used` trace events name, which is
+ * why an already-marked claim produces neither. The `C` group is read from `scenario_claims` rather
+ * than taken off the claim card, because a card carries neither the importance nor the consequence
+ * level in any state (12 §8), and an analytics group is not a reason to put them on one.
+ */
+async function trackClaimsMarkedUsed(options: {
+  actor: SessionUser
+  organizationId: string
+  group: RunContext
+  claimIds: readonly string[]
+  via: 'log_mark' | 'turn_window'
+  inTurnWindow: boolean
+}): Promise<void> {
+  if (options.claimIds.length === 0) return
+  const claims = await repo.listClaimContexts(options.claimIds)
+  for (const claim of claims) {
+    track(
+      'claim_marked_used',
+      {
+        ...options.group,
+        ...claimContext(claim, options.inTurnWindow),
+        via: options.via,
+      },
+      { userId: options.actor.id, organizationId: options.organizationId },
+    )
   }
 }
 
@@ -406,6 +515,19 @@ type PreparedDelegation = {
   state: string
   /** True when `flags.forced_failure_armed` was set and consumed (FR-118). */
   forcedFailure: boolean
+  /** The locked run as phase 1 left it: the `R` group of every event this delegation sends. */
+  run: LockedRun
+  organizationId: string
+  /** The why line on the row as it was inserted (17 §3.3 `has_why`); the request carries none. */
+  why: string | null
+  /**
+   * Whether the Evidence Room was still untouched when the request was sent (FR-022, AN-003).
+   *
+   * Read inside phase 1's transaction, under the run's row lock, because the student may open a
+   * document while the model is answering — and `before_any_document_open` is a fact about the
+   * instant they asked, not about the instant the reply landed.
+   */
+  beforeAnyDocumentOpen: boolean
 }
 
 /** The `delegation` event, minus the parts only the outcome decides. */
@@ -431,7 +553,7 @@ type DelegationEventBase = {
  */
 async function failWithin(
   tx: repo.Tx,
-  run: Awaited<ReturnType<typeof lockRunForMutation>>,
+  run: LockedRun,
   base: DelegationEventBase,
   actorId: string,
 ): Promise<void> {
@@ -532,6 +654,10 @@ export async function delegate(
   runId: string,
   input: DelegateInput,
 ): Promise<AsyncIterable<DelegationChunk>> {
+  // The student pressed send here, as far as this process can tell, so `latency_ms` is measured
+  // from here: what it reports is the wait, guards and database round trips included, rather than
+  // the provider's own time, which `llm_call` already carries (17 §3.6).
+  const requestedAt = Date.now()
   const scope = await requireRunOwner(actor, runId)
   const tenantId = scope.organizationId
   const request = parseRequest(input.request)
@@ -546,6 +672,7 @@ export async function delegate(
     const run = await noteFirstDelegation(tx, locked, now)
     const inTurnWindow = isInTurnWindow(run)
     const clockRemainingMs = inTurnWindow ? remainingWindowMs(run, now) : remainingMs(run, now)
+    const openedBefore = await repo.hasOpenedDocument(runId, tx)
 
     const row = await repo.insertDelegation(
       runId,
@@ -587,6 +714,10 @@ export async function delegate(
       inTurnWindow,
       state: run.state,
       forcedFailure: armed,
+      run,
+      organizationId: run.organizationId,
+      why: row.why,
+      beforeAnyDocumentOpen: !openedBefore,
     }
   })
 
@@ -599,8 +730,20 @@ export async function delegate(
   }
 
   // The transaction above already failed the delegation and paused the run; the refusal is thrown
-  // here so those writes commit rather than rolling back with it.
-  if (prepared.forcedFailure) assistantUnavailable(prepared.delegationId)
+  // here so those writes commit rather than rolling back with it — and the event goes with them,
+  // because a forced failure is a delegation the student made and the trace records as failed.
+  if (prepared.forcedFailure) {
+    const group = await runGroup(prepared.run)
+    if (group) {
+      trackDelegationMade(actor, prepared, group, {
+        failed: true,
+        claimsSurfaced: 0,
+        unverifiedNumbersCount: 0,
+        latencyMs: Date.now() - requestedAt,
+      })
+    }
+    assistantUnavailable(prepared.delegationId)
+  }
 
   // Phase 2 — matching, the prompt, and the provider. No lock is held.
   const [candidates, world, opened, probe] = await Promise.all([
@@ -659,6 +802,17 @@ export async function delegate(
         'delegation discarded: the run moved on while the assistant was answering',
       )
       assistantLocked(moved)
+    }
+    // The failure is in the trace, so it is in the mirror: the student asked, waited, and got
+    // nothing, and `latency_ms` is what that wait was.
+    const group = await runGroup(prepared.run)
+    if (group) {
+      trackDelegationMade(actor, prepared, group, {
+        failed: true,
+        claimsSurfaced: 0,
+        unverifiedNumbersCount: 0,
+        latencyMs: Date.now() - requestedAt,
+      })
     }
     assistantUnavailable(prepared.delegationId)
   }
@@ -747,6 +901,16 @@ export async function delegate(
     return {
       segments: assembled.segments,
       views: new Map(surfaced.map((claim) => [claim.id, toClaimCard(claim)])),
+      claimsSurfaced: surfaced.length,
+      unverifiedNumbersCount: assembled.unverified.length,
+      probeClaimId: probeFires && probe ? probe.claimId : null,
+      // The claims this delegation put in front of the student inside the Turn window, which the
+      // window marked relied on as it surfaced them (D-077). `surfaceClaims` answers which ones it
+      // *recorded*, so a claim already marked produces no second event, exactly as it produces no
+      // second `claim_used` in the trace.
+      windowMarkedClaimIds: surfaced
+        .filter((claim) => claim.reliedOnByWindow)
+        .map((claim) => claim.id),
     } as const
   })
 
@@ -758,6 +922,38 @@ export async function delegate(
       'delegation discarded: the run moved on while the assistant was answering',
     )
     assistantLocked(written.discarded)
+  }
+
+  // AN-003 (17 §3.3), after phase 3 has committed. Three events at most and one read between them:
+  // the delegation itself, the probe when the reversal was spliced in, and one `claim_marked_used`
+  // per claim the Turn window marked relied on as this reply surfaced it. `probe_fired` is a
+  // reviewer's fact in the trace and stays one here — it says a probe fired on this run, never that
+  // a claim is the defective one, and no student-facing surface reads PostHog (17 §1.7).
+  const group = await runGroup(prepared.run)
+  if (group) {
+    trackDelegationMade(actor, prepared, group, {
+      failed: false,
+      claimsSurfaced: written.claimsSurfaced,
+      unverifiedNumbersCount: written.unverifiedNumbersCount,
+      latencyMs: Date.now() - requestedAt,
+    })
+    if (written.probeClaimId) {
+      track(
+        'probe_fired',
+        { ...group, claim_id: written.probeClaimId },
+        { userId: actor.id, organizationId: tenantId },
+      )
+    }
+    await trackClaimsMarkedUsed({
+      actor,
+      organizationId: tenantId,
+      group,
+      claimIds: written.windowMarkedClaimIds,
+      via: 'turn_window',
+      // The mark exists because the run was inside the window when the claim was surfaced, so the
+      // `C` group's `in_turn_window` is true by construction here rather than read back.
+      inTurnWindow: true,
+    })
   }
 
   return toChunks(written.segments, written.views, prepared.delegationId)
@@ -1042,7 +1238,7 @@ export async function updateDelegation(
   const scope = await requireRunOwner(actor, runId)
   const tenantId = scope.organizationId
 
-  await repo.withTransaction(async (tx) => {
+  const marked = await repo.withTransaction(async (tx) => {
     const run = await lockRunForMutation(tx, tenantId, runId)
     assertLogWritable(run.state)
 
@@ -1053,6 +1249,7 @@ export async function updateDelegation(
       await repo.updateDelegation(runId, delegationId, { why: input.why ?? null }, tx)
     }
 
+    const recorded: string[] = []
     if (input.usedClaimIds && input.usedClaimIds.length > 0) {
       const carried = new Set(delegation.claimIds)
       const unknown = input.usedClaimIds.filter((claimId) => !carried.has(claimId))
@@ -1060,15 +1257,33 @@ export async function updateDelegation(
 
       const now = new Date()
       for (const claimId of input.usedClaimIds) {
-        await markClaimUsed(tx, run, claimId, 'log_mark', {
+        const { recorded: first } = await markClaimUsed(tx, run, claimId, 'log_mark', {
           delegationId,
           usedMarked: true,
           actorId: actor.id,
           at: now,
         })
+        if (first) recorded.push(claimId)
       }
     }
+    return { run, claimIds: recorded, inTurnWindow: isInTurnWindow(run) }
   })
+
+  // AN-003 (17 §3.3), after the commit. The why line writes no event here for the reason it writes
+  // no trace event: it edits a row, it is the student's own sentence, and free text is on no
+  // analytics property anywhere (17 §1.3). A used mark is a different thing — it is the student
+  // saying they leaned on a claim, which is what the Decision Lock's gate reads (FR-084).
+  const group = await runGroup(marked.run)
+  if (group) {
+    await trackClaimsMarkedUsed({
+      actor,
+      organizationId: tenantId,
+      group,
+      claimIds: marked.claimIds,
+      via: 'log_mark',
+      inTurnWindow: marked.inTurnWindow,
+    })
+  }
 
   const [rows, claims] = await Promise.all([
     repo.listDelegations(runId),
@@ -1139,7 +1354,7 @@ export async function declareOutsideTool(
   const scope = await requireRunOwner(actor, runId)
   const tenantId = scope.organizationId
 
-  await repo.withTransaction(async (tx) => {
+  const declared = await repo.withTransaction(async (tx) => {
     const run = await lockRunForMutation(tx, tenantId, runId)
     if (!DECLARATION_STATES.includes(run.state)) assistantLocked(run.state)
 
@@ -1150,5 +1365,22 @@ export async function declareOutsideTool(
       { purpose: input.purpose },
       { actorId: actor.id, occurredAt: new Date() },
     )
+    return run
   })
+
+  // AN-003 (17 §3.3), after the commit. **The purpose the student typed is not on it and never will
+  // be**: the property list is the run's context and the policy the course set, which is what makes
+  // the event answer the only question worth asking of it — whether students declare more often
+  // under one policy than another (FR-062). The trace keeps the sentence; the mirror does not.
+  const [group, policy] = await Promise.all([
+    runGroup(declared),
+    repo.findCoursePolicy(tenantId, runId),
+  ])
+  if (group && policy) {
+    track(
+      'outside_tool_declared',
+      { ...group, course_policy: policy },
+      { userId: actor.id, organizationId: tenantId },
+    )
+  }
 }

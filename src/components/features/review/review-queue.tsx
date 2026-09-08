@@ -75,50 +75,48 @@ export function ReviewQueue({ illustrative, runs }: ReviewQueueProps) {
           />
         ) : (
           <div className="flex flex-col gap-4">
-            <div className="overflow-x-auto">
-              <Table className="min-w-3xl">
-                <TableCaption>{t('review.queueCaption')}</TableCaption>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead scope="col">{t('review.queueColumnStudent')}</TableHead>
-                    <TableHead scope="col">{t('review.queueColumnAttempt')}</TableHead>
-                    <TableHead scope="col">{t('review.queueColumnState')}</TableHead>
-                    <TableHead scope="col">{t('review.queueColumnDecisions')}</TableHead>
-                    <TableHead scope="col">{t('review.queueColumnExport')}</TableHead>
-                    <TableHead scope="col">
-                      <span className="sr-only">{t('review.queueColumnOpen')}</span>
-                    </TableHead>
+            <Table className="min-w-3xl">
+              <TableCaption>{t('review.queueCaption')}</TableCaption>
+              <TableHeader>
+                <TableRow>
+                  <TableHead scope="col">{t('review.queueColumnStudent')}</TableHead>
+                  <TableHead scope="col">{t('review.queueColumnAttempt')}</TableHead>
+                  <TableHead scope="col">{t('review.queueColumnState')}</TableHead>
+                  <TableHead scope="col">{t('review.queueColumnDecisions')}</TableHead>
+                  <TableHead scope="col">{t('review.queueColumnExport')}</TableHead>
+                  <TableHead scope="col">
+                    <span className="sr-only">{t('review.queueColumnOpen')}</span>
+                  </TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {runs.map((run) => (
+                  <TableRow key={run.id}>
+                    <TableCell className="whitespace-normal">{run.studentName}</TableCell>
+                    <TableCell className="font-mono tabular-nums">{run.attemptNo}</TableCell>
+                    <TableCell>
+                      <RunStateChip state={run.state} />
+                    </TableCell>
+                    <TableCell className="font-mono tabular-nums">
+                      {t('review.queueDecisions', { made: run.decisionsMade })}
+                    </TableCell>
+                    <TableCell className="font-mono tabular-nums">
+                      {run.latestExportVersion === null
+                        ? t('review.queueNoExport')
+                        : t('review.queueExportVersion', { version: run.latestExportVersion })}
+                    </TableCell>
+                    <TableCell>
+                      <Link
+                        href={`/review/runs/${run.id}` as Route}
+                        className="text-primary text-meta focus-visible:outline-focus inline-flex min-h-10 items-center rounded-sm underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2"
+                      >
+                        {t('review.queueOpen', { student: run.studentName })}
+                      </Link>
+                    </TableCell>
                   </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {runs.map((run) => (
-                    <TableRow key={run.id}>
-                      <TableCell className="whitespace-normal">{run.studentName}</TableCell>
-                      <TableCell className="font-mono tabular-nums">{run.attemptNo}</TableCell>
-                      <TableCell>
-                        <RunStateChip state={run.state} />
-                      </TableCell>
-                      <TableCell className="font-mono tabular-nums">
-                        {t('review.queueDecisions', { made: run.decisionsMade })}
-                      </TableCell>
-                      <TableCell className="font-mono tabular-nums">
-                        {run.latestExportVersion === null
-                          ? t('review.queueNoExport')
-                          : t('review.queueExportVersion', { version: run.latestExportVersion })}
-                      </TableCell>
-                      <TableCell>
-                        <Link
-                          href={`/review/runs/${run.id}` as Route}
-                          className="text-primary text-meta focus-visible:outline-focus inline-flex min-h-10 items-center rounded-sm underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2"
-                        >
-                          {t('review.queueOpen', { student: run.studentName })}
-                        </Link>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
+                ))}
+              </TableBody>
+            </Table>
             <p className="text-ink-muted text-body max-w-measure">{t('review.queueVariantNote')}</p>
           </div>
         )}

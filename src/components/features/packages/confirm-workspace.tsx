@@ -936,15 +936,24 @@ export function ConfirmWorkspace(props: ConfirmWorkspaceProps) {
         </div>
       </Panel>
 
-      <div className="grid gap-6 lg:grid-cols-[20rem_minmax(0,1fr)] lg:items-start">
-        {/* Where there is room for it the tree stays in view: the editor beside it is sixteen rows
-            long for a claim and forty for a document, and a list that scrolls away with the form
-            makes every decision a round trip to find the next element. */}
+      {/* The split is at `xl`, and the tree track is 18 rem, because both numbers are the editor's
+          (D-628). Where there is room for it the tree stays in view: the editor beside it is
+          sixteen rows long for a claim and forty for a document, and a list that scrolls away with
+          the form makes every decision a round trip to find the next element. But it had been
+          splitting at `lg` against a 20 rem track, and one pixel of window then cost the editor
+          344 of them — 751 px at 1023 and 407 at 1024 — which put the author's own writing surface
+          at about 42 characters a line, well under DESIGN.md's measure, and made the window wider
+          to make the work narrower. That is the shape D-310 ruled a bug rather than a breakpoint,
+          on the run workspace, for the same reason. `xl` with an 18 rem tree is the first
+          arrangement where the editor still clears the ~682 px its measure and its padding need:
+          1280 - 224 (rail) - 48 (gutter) - 288 (tree) - 24 (gap) = 696. Below it the tree is the
+          native select `ElementList` already draws, and the editor runs full width. */}
+      <div className="grid gap-6 xl:grid-cols-[18rem_minmax(0,1fr)] xl:items-start">
         <Panel
           id="element-list"
           title={t('confirm.listTitle')}
           headingLevel={2}
-          className="lg:sticky lg:top-6"
+          className="xl:sticky xl:top-6"
         >
           <ElementList
             nodes={nodes}

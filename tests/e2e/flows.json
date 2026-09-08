@@ -201,8 +201,7 @@
       "id": "admin",
       "source": "testing-strategy-3",
       "title": "Platform administration",
-      "specs": ["admin/admin.spec.ts"],
-      "pending": "13.5"
+      "specs": ["admin/admin.spec.ts"]
     }
   ]
 }

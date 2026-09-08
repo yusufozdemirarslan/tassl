@@ -84,7 +84,7 @@ export function NewAssignmentDialog({
       <DialogTrigger render={<Button variant="secondary" />}>
         {t('courses.newAssignment')}
       </DialogTrigger>
-      <DialogContent className="max-h-[85dvh] overflow-y-auto sm:max-w-lg">
+      <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>{t('courses.newAssignment')}</DialogTitle>
           <DialogDescription>{t('courses.newAssignmentDescription')}</DialogDescription>

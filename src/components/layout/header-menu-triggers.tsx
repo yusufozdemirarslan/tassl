@@ -23,7 +23,13 @@ export function InstitutionTriggerContent({ name, busy }: { name: string; busy: 
       ) : (
         <Building2 aria-hidden="true" className="size-4 shrink-0" />
       )}
-      <span className="min-w-0 truncate md:max-w-[16ch] lg:max-w-[32ch]" title={name}>
+      {/* One cap at every width (D-627). It used to be `md:max-w-[16ch] lg:max-w-[32ch]` with
+          nothing below `md`, which made the tenant name *narrower* as the window grew: at 767 px
+          the flex row gave it about 24 characters, at 768 the clamp cut it to 16, and it did not
+          get back past that until 1024. A cap is here to stop a long name spreading across an
+          empty header, so it is the same cap wherever there is room for it; `min-w-0 truncate` in
+          a shrinking row is what handles the widths where there is not. */}
+      <span className="max-w-[32ch] min-w-0 truncate" title={name}>
         {name}
       </span>
       <span className="sr-only">{t('shell.switchInstitution')}</span>

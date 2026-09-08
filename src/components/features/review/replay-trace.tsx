@@ -1,5 +1,6 @@
 import type { Route } from 'next'
 import Link from 'next/link'
+import { RecordDisclosure } from '@/components/layout/record-disclosure'
 import { TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { t } from '@/lib/i18n/t'
 import type { RunEventTypeValue } from '@/server/modules/trace/schema'
@@ -247,20 +248,11 @@ export function ReplayTrace({ events, action, filter, total }: ReplayTraceProps)
                       {summary}
                     </TableCell>
                     <TableCell>
-                      {Object.keys(event.payload).length === 0 ? (
-                        <span className="text-ink-muted text-meta">
-                          {t('review.traceNoRecord')}
-                        </span>
-                      ) : (
-                        <details>
-                          <summary className="text-primary text-meta focus-visible:outline-focus inline-flex min-h-10 cursor-pointer list-none items-center rounded-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-2 [&::-webkit-details-marker]:hidden">
-                            {t('review.traceOpenRecord')}
-                          </summary>
-                          <pre className="bg-paper-sunken text-ink text-mono-sm mt-2 w-full max-w-lg overflow-x-auto rounded-md p-3 font-mono break-words whitespace-pre-wrap">
-                            {JSON.stringify(event.payload, null, 2)}
-                          </pre>
-                        </details>
-                      )}
+                      <RecordDisclosure
+                        record={event.payload}
+                        label={t('review.traceOpenRecord')}
+                        emptyLabel={t('review.traceNoRecord')}
+                      />
                     </TableCell>
                   </TableRow>
                 )

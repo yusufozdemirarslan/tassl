@@ -1,0 +1,23 @@
+# Dependency updates (docs/tech/12-security.md §5.3). Every Dependabot pull request runs the full
+# PR gate in `.github/workflows/pr.yml`; a major bump updates the pin table in
+# `docs/tech/04-repo-structure.md` §8 in the same pull request.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    groups:
+      # One pull request a week for everything that is not a major bump, so the gate runs once
+      # rather than five times on changes that are reviewed together anyway. Majors stay
+      # ungrouped: each one is read on its own against 04 §8.
+      minor-and-patch:
+        update-types: [minor, patch]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday

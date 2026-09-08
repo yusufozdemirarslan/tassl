@@ -22,6 +22,8 @@
 //     have not seen.
 import { AppError, isAppError } from '@/lib/errors'
 import { t } from '@/lib/i18n/t'
+import { runContext } from '@/server/analytics/run-context'
+import { track } from '@/server/analytics/track'
 import { requireRunOwner, requireRunReviewer } from '@/server/auth/permissions'
 import { assertNoForbiddenKeys } from '@/server/auth/student-view'
 import type { SessionUser } from '@/server/auth/types'
@@ -145,7 +147,24 @@ export async function getDebrief(actor: SessionUser, runId: string): Promise<Deb
   if (!DEBRIEF_STATES.has(data.run.state)) debriefNotAvailable(data.run.state)
 
   const version = CONFIRMED_STATES.has(data.run.state) ? 'confirmed' : 'draft'
-  if (reader.viewer === 'owner') await recordFirstOpen(tenantId, runId, version)
+  const firstOpen =
+    reader.viewer === 'owner' ? await recordFirstOpen(tenantId, runId, version) : false
+
+  // AN-003 (17 §3.3), after the write above has committed. It fires on *every* render, not only the
+  // one that wrote the trace event, because the question it answers is how often a result is read
+  // rather than whether it was read once; `first_open` is exactly "this render wrote the event", so
+  // it is true only for the owner and only once per version — a reviewer opening the same page
+  // consumes nobody's first open (D-444).
+  track(
+    'debrief_opened',
+    {
+      ...runContext(data.run, context.variantKey),
+      bands_status: version,
+      first_open: firstOpen,
+      ms_since_scored: msSince(data.run.scoredAt),
+    },
+    { userId: actor.id, organizationId: tenantId },
+  )
 
   const [graphs, bandViews, authored, documents, turnStandard, probeEvents] = await Promise.all([
     readGraphsForOwner(runId),
@@ -207,23 +226,38 @@ export async function getDebrief(actor: SessionUser, runId: string): Promise<Deb
 /**
  * `debrief_opened { version }`, written once per version (10 §13).
  *
- * Its own transaction, taken on the run's row like every other write in the product, and answered
- * with nothing: the page does not change because the event was written, and a reader whose open was
- * the second one is reading the same document as the reader whose open was the first.
+ * Its own transaction, taken on the run's row like every other write in the product. The page does
+ * not change because the event was written — a reader whose open was the second one is reading the
+ * same document as the reader whose open was the first — so what it answers is not the document but
+ * whether *this* render was the one that wrote: the analytics event's `first_open` is that fact and
+ * cannot be recovered afterwards, because by then the row exists either way.
  */
 async function recordFirstOpen(
   tenantId: string,
   runId: string,
   version: 'draft' | 'confirmed',
-): Promise<void> {
-  if (await repo.hasDebriefOpened(runId, version)) return
-  await repo.withTransaction(async (tx) => {
+): Promise<boolean> {
+  if (await repo.hasDebriefOpened(runId, version)) return false
+  return repo.withTransaction(async (tx) => {
     const locked = await lockRunForMutation(tx, tenantId, runId)
     // Asked again inside the lock: two tabs opening the same debrief at once would otherwise both
     // pass the check above and write two events for one version.
-    if (await repo.hasDebriefOpened(runId, version, tx)) return
+    if (await repo.hasDebriefOpened(runId, version, tx)) return false
     await append(tx, locked, 'debrief_opened', { version })
+    return true
   })
+}
+
+/**
+ * Milliseconds from an instant the run has already passed, floored at zero.
+ *
+ * Null where the column is not stamped, which none of the callers below can reach — the debrief
+ * exists from `scored` and its first open precedes its answer — and zero rather than a throw if that
+ * ever stops being true: analytics never changes control flow (17 §1 rule 6).
+ */
+function msSince(from: Date | null | undefined, to: Date = new Date()): number {
+  if (!from) return 0
+  return Math.max(0, to.getTime() - from.getTime())
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -250,7 +284,7 @@ export async function answerDebrief(
   const scope = await requireRunOwner(actor, runId)
   const at = new Date()
 
-  return repo.withTransaction(async (tx) => {
+  const answered = await repo.withTransaction(async (tx) => {
     const locked = await lockRunForMutation(tx, scope.organizationId, runId)
     if (!DEBRIEF_STATES.has(locked.state)) debriefNotAvailable(locked.state)
     if ((await repo.findDebriefAnswer(runId, tx)) !== null) debriefAnswered()
@@ -272,11 +306,27 @@ export async function answerDebrief(
       { actorId: actor.id, occurredAt: at },
     )
 
-    const run = CONFIRMED_STATES.has(locked.state)
+    return CONFIRMED_STATES.has(locked.state)
       ? await markRecorded(tx, locked, { at, actorId: actor.id })
       : locked
-    return toRunSummary(run)
   })
+
+  // AN-003 (17 §3.3), after the commit. The two sentences the student wrote are the whole of what
+  // this act produces and none of it travels: what is reported is how long the page was open before
+  // they answered, measured from the first `debrief_opened` of either version — the instant the
+  // result was first put in front of them.
+  const [openedAt] = await repo.listEventsOfType(runId, 'debrief_opened')
+  const variantKey = (await repo.findVariantKey(answered.variantId)) ?? 'defective'
+  track(
+    'debrief_answered',
+    {
+      ...runContext(answered, variantKey),
+      ms_since_first_open: msSince(openedAt?.occurredAt, at),
+    },
+    { userId: actor.id, organizationId: scope.organizationId },
+  )
+
+  return toRunSummary(answered)
 }
 
 // ---------------------------------------------------------------------------------------------

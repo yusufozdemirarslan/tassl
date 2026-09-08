@@ -47,7 +47,10 @@ function AlertDialogContent({
         data-size={size}
         className={cn(
           // Dialog recipe (DESIGN.md §Shapes, §Elevation): 10 px radius, hairline, float shadow, 24 px padding.
-          'group/alert-dialog-content bg-paper-raised text-ink border-line shadow-float data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95 text-body fixed top-1/2 left-1/2 z-50 grid w-full -translate-x-1/2 -translate-y-1/2 gap-4 rounded-lg border p-6 duration-200 ease-out outline-none data-[size=default]:max-w-xs data-[size=sm]:max-w-xs data-[size=default]:sm:max-w-sm',
+          // The height bound is the primitive's, for the reason `./dialog.tsx` gives at length: a
+          // `fixed` box centred with `-translate-y-1/2` overflows the viewport off both ends and
+          // nothing scrolls, so a tall alert loses its own confirm button (D-622).
+          'group/alert-dialog-content bg-paper-raised text-ink border-line shadow-float data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95 text-body fixed top-1/2 left-1/2 z-50 grid max-h-[calc(100dvh-2rem)] w-full -translate-x-1/2 -translate-y-1/2 gap-4 overflow-y-auto rounded-lg border p-6 duration-200 ease-out outline-none data-[size=default]:max-w-xs data-[size=sm]:max-w-xs data-[size=default]:sm:max-w-sm',
           className,
         )}
         {...props}

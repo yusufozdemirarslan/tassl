@@ -70,10 +70,15 @@ function coverageRows(): { id: string; tests: string[] }[] {
 }
 
 /** Every `| UI-### Name | route | spec | states |` row of 16 §8.2, in order. */
-function budgetRows(): { id: string; name: string }[] {
-  return [...read(BUDGETS_MD).matchAll(/^\| (UI-\d{3}) ([^|]+)\|/gm)].map((match) => ({
+function budgetRows(): { id: string; name: string; spec: string; states: string }[] {
+  return [
+    ...read(BUDGETS_MD).matchAll(/^\| (UI-\d{3}) ([^|]+)\|([^|]*)\|([^|]*)\|([^|]*)\|$/gm),
+  ].map((match) => ({
     id: match[1] as string,
     name: (match[2] ?? '').trim(),
+    // The Spec file cell is written in backticks; the register holds the bare path.
+    spec: (match[4] ?? '').trim().replace(/^`|`$/g, ''),
+    states: (match[5] ?? '').trim(),
   }))
 }
 
@@ -158,6 +163,34 @@ test.describe('axe screen coverage (14 §3)', () => {
     for (const screen of screens) {
       expect(byId.get(screen.id), `${screen.id} is not in 16 §8.2`).toBeDefined()
       expect(screen.name, `${screen.id} is named differently in 16 §8.2`).toBe(byId.get(screen.id))
+    }
+  })
+
+  /**
+   * The states column, tied to the document that publishes it (D-642).
+   *
+   * `states` was the one field of this register nothing checked, and a field nothing checks is a
+   * field that drifts: 16 §8.2 was written before the screens were built and still listed states no
+   * spec had ever scanned — a void dialog, an editor's home, a readiness expiry — beside states that
+   * had been renamed twice since. A register that claims coverage it does not have is worse than no
+   * register, because it answers the question nobody then goes and asks.
+   *
+   * So the two now have to agree, exactly, and the register is the one that is maintained: it names
+   * the specs, and the test above proves those specs exist, are the ones COVERAGE.md names for the
+   * screen, and run an axe scan. A state added here without a scan behind it is a lie somebody has
+   * to write into two files, and one that is scanned and not recorded fails the same way.
+   */
+  test('the spec and the states of every screen are the ones 16 §8.2 publishes', () => {
+    const byId = new Map(budgetRows().map((row) => [row.id, row]))
+    for (const screen of screens) {
+      const published = byId.get(screen.id)
+      expect(published, `${screen.id} is not in 16 §8.2`).toBeDefined()
+      expect(published?.spec, `${screen.id} is scanned by a different spec in 16 §8.2`).toBe(
+        screen.spec,
+      )
+      expect(published?.states, `${screen.id} lists different states in 16 §8.2`).toBe(
+        screen.states,
+      )
     }
   })
 

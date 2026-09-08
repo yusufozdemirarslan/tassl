@@ -18,7 +18,8 @@ expect_status() { # path expected-status
 expect_redirect() { # path expected-location-prefix
   local code location
   code="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 20 "$BASE$1")"
-  location="$(curl -sSI --max-time 20 "$BASE$1" | tr -d '' | awk 'tolower($1) == "location:" { print $2 }')"
+  location="$(curl -sSI --max-time 20 "$BASE$1" | tr -d '
+' | awk 'tolower($1) == "location:" { print $2 }')"
   case "$code" in
     30[1278]) ;;
     *) echo "FAIL $1 -> $code (expected a redirect)"; exit 1 ;;
@@ -37,6 +38,10 @@ expect_status /api/ready 200
 expect_redirect / /sign-in
 expect_status /sign-in 200
 expect_redirect /home /sign-in
+# The two pages a person may read with no account at all (UI-006, SYS-007). They are the release
+# checklist's row 11, so a deploy that lost them is a deploy that lost the privacy notice.
+expect_status /privacy 200
+expect_status /terms 200
 curl -sS --max-time 20 "$BASE/api/health" | grep -q '"status":"ok"' || { echo "FAIL /api/health body"; exit 1; }
 curl -sS --max-time 20 "$BASE/api/ready" | grep -q '"status":"ready"' || { echo "FAIL /api/ready body"; exit 1; }
 

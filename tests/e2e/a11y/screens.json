@@ -4,6 +4,10 @@
     {
       "route": "/",
       "reason": "09 §1: `/` is a signpost, not a screen — it renders nothing and redirects to /home or /sign-in, so there is no document for axe to read."
+    },
+    {
+      "route": "/admin",
+      "reason": "UI-050's screens are /admin/users, /admin/flags and /admin/audit; the bare prefix renders nothing and redirects to the first of them, so there is no document for axe to read."
     }
   ],
   "screens": [
@@ -47,8 +51,7 @@
       "name": "Privacy, Terms",
       "routes": ["/privacy", "/terms"],
       "spec": "a11y/public.spec.ts",
-      "states": "rendered",
-      "pending": "13.5"
+      "states": "rendered"
     },
     {
       "id": "UI-007",
@@ -112,7 +115,7 @@
       "name": "Run workspace",
       "routes": ["/runs/[runId]/work"],
       "spec": "a11y/student-run.spec.ts",
-      "states": "framing with a refused frame and a document open, working with claim cards and the actions menu"
+      "states": "framing with a refused frame and a document open; working with claim cards, the actions menu, the escalation dialog and the outside-tool declaration; the paused overlay (walkthrough/07-forced-failure.spec.ts)"
     },
     {
       "id": "UI-024",
@@ -217,7 +220,7 @@
       "name": "Generation progress",
       "routes": ["/packages/[packageId]/versions/[versionId]/generation"],
       "spec": "a11y/author.spec.ts",
-      "states": "the seven step rows on a version nothing was generated into (a11y/author.spec.ts) and the complete state with every rule met and the workspace link (author/generate-and-confirm.spec.ts)"
+      "states": "the seven step rows on a version nothing was generated into (a11y/author.spec.ts) and the complete state with every rule met and the workspace link (author/generate-and-confirm.spec.ts). The stopped-step state is not reachable in a browser on the mock provider (D-543) and is held as markup by `tests/unit/components/packages/generation-progress.test.tsx`"
     },
     {
       "id": "UI-043",
@@ -238,8 +241,7 @@
       "name": "Admin",
       "routes": ["/admin/users", "/admin/flags", "/admin/audit"],
       "spec": "a11y/admin.spec.ts",
-      "states": "each page, role change dialog",
-      "pending": "13.5"
+      "states": "each page, role change dialog"
     },
     {
       "id": "UI-060",

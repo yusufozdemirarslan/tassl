@@ -28,13 +28,17 @@
 // (D-400).
 import { performance } from 'node:perf_hooks'
 import { randomUUID } from 'node:crypto'
+import type { EventProps } from '@/lib/analytics/events'
 import { MANUAL_BAND_RATIONALE } from '@/lib/band-prose'
 import { AppError, isAppError } from '@/lib/errors'
+import { runContext, type VariantKey } from '@/server/analytics/run-context'
+import { track } from '@/server/analytics/track'
 import { requireRunReviewer } from '@/server/auth/permissions'
 import { findRunContext } from '@/server/auth/queries'
 import type { SessionUser } from '@/server/auth/types'
 import { t } from '@/lib/i18n/t'
 import { getLogger, getRequestContext } from '@/server/http/request-context'
+import type { LlmProviderName } from '@/server/llm/provider'
 import { getProvider } from '@/server/llm/registry'
 import { alertOps, countOps } from '@/server/logging/ops-events'
 import { notify } from '@/server/modules/notifications'
@@ -42,8 +46,9 @@ import { lockRunForMutation, markScored } from '@/server/modules/runs'
 import { append, readEvents } from '@/server/modules/trace'
 import { DIMENSION_GRAPHS, draftBands, type DraftBand } from './bands'
 import { runNotFound, runNotScorable } from './errors'
-import { categoricalFacts } from './facts'
-import { buildGraphs, type GraphEvent, type GraphInput } from './graphs'
+import { categoricalFacts, type CategoricalFacts } from './facts'
+import { buildGraphs, type GraphEvent, type GraphInput, type RunGraphs } from './graphs'
+import { eventsOfType, firstOfType, rate3 } from './graphs/types'
 import { computePoints, higherPoints, type BandMapping } from './points'
 import {
   recomputeAfterNeutralization,
@@ -258,6 +263,8 @@ type ScoringLoad = {
   defense: ReadDefenseEntry[]
   positions: repo.ScoringPositionRow[]
   documents: repo.ScoringDocumentRow[]
+  /** `defective` or `sound` — the `R` group's `variant` and nothing the pipeline itself reads. */
+  variantKey: VariantKey
 }
 
 /**
@@ -278,16 +285,20 @@ async function loadRun(runId: string): Promise<ScoringLoad> {
   const run = await repo.findRunForScoring(tenantId, runId)
   if (!run) runNotFound()
 
-  const [events, authored, variantStates, defenseRows, flaggedDelegationIds] = await Promise.all([
-    readEvents(runId),
-    repo.findPackageForScoring(tenantId, run.packageVersionId),
-    repo.listVariantStates(run.variantId),
-    repo.listDefenseForScoring(runId),
-    // FR-055, D-481: the exchanges a reviewer marked out of scenario, read from `run_delegations`
-    // beside the package and the variant states because that is where a mark added after the fact
-    // lives — the `delegation` event was written when the exchange happened (D-272).
-    repo.listFlaggedDelegationIds(runId),
-  ])
+  const [events, authored, variantStates, defenseRows, flaggedDelegationIds, variantKey] =
+    await Promise.all([
+      readEvents(runId),
+      repo.findPackageForScoring(tenantId, run.packageVersionId),
+      repo.listVariantStates(run.variantId),
+      repo.listDefenseForScoring(runId),
+      // FR-055, D-481: the exchanges a reviewer marked out of scenario, read from `run_delegations`
+      // beside the package and the variant states because that is where a mark added after the fact
+      // lives — the `delegation` event was written when the exchange happened (D-272).
+      repo.listFlaggedDelegationIds(runId),
+      // Analytics only (17 §3.5). It rides in this batch rather than beside the `track` call so a
+      // dashboard property never costs the scored run a round trip of its own.
+      repo.findVariantKey(run.variantId),
+    ])
   if (!authored) runNotFound()
 
   const graphEvents: GraphEvent[] = events.map((event) => ({
@@ -345,6 +356,9 @@ async function loadRun(runId: string): Promise<ScoringLoad> {
     defense,
     positions: authored.positions,
     documents: authored.documents,
+    // A variant row is a NOT NULL foreign key, so `null` here is a database nobody can reach; the
+    // fallback keeps a missing key from throwing inside a job whose work is otherwise finished.
+    variantKey: variantKey ?? 'defective',
   }
 }
 
@@ -402,7 +416,7 @@ export async function scoreRun(runId: string): Promise<ScoreRunResult> {
   const provider = getProvider()
   const logger = getLogger()
 
-  const { run, input, defense, positions, documents } = await loadRun(runId)
+  const { run, input, defense, positions, documents, variantKey } = await loadRun(runId)
   if (ALREADY_SCORED.has(run.state)) {
     return {
       runId,
@@ -421,10 +435,22 @@ export async function scoreRun(runId: string): Promise<ScoreRunResult> {
   const graphs = buildGraphs(input)
   const facts = categoricalFacts(input, graphs)
 
+  // Everything AN-005 measures, gathered once at the point both endings can still see it (17 §3.5).
+  // A held run fires the same event as a scored one — a run that could not be banded is a fact the
+  // dashboard needs, and a gap where the run should be reads as a run that never happened (FR-140).
+  const measures: ScoredMeasures = {
+    run,
+    variantKey,
+    graphs,
+    facts,
+    events: input.events,
+    providerName: provider.name,
+  }
+
   // FR-087's larger loss: more than a third of the consequential claims lost their stance record, so
   // what the run did with its claims cannot be read either way and no band would mean anything.
   if (facts.stanceRecordLoss === 'unscoreable') {
-    return holdRun(run, 'record_lost', startedAt, provider.name)
+    return holdRun(measures, 'record_lost', startedAt)
   }
 
   const readContext: ReadContext = {
@@ -466,7 +492,7 @@ export async function scoreRun(runId: string): Promise<ScoreRunResult> {
       { runId, dimensions: unreadable, failures: failures.map((failure) => failure.code) },
       'band reads did not place every dimension',
     )
-    return holdRun(run, reason, startedAt, provider.name)
+    return holdRun(measures, reason, startedAt)
   }
 
   const pointsDraft = computePoints(
@@ -553,6 +579,14 @@ export async function scoreRun(runId: string): Promise<ScoreRunResult> {
     unassessed_dimensions: DIMENSIONS.filter((d) => bands[d].status === 'unassessed').length,
     reads_failed: failures.length,
   })
+  // AN-005 (17 §3.5), after the commit and only on the attempt that actually wrote: the job that
+  // found the run already scored has measured nothing, and a second `run_scored` would double every
+  // average on the dashboard. No actor, because there is none — `scoreRun` runs behind a queue, not
+  // behind a seat, so the event is the `system` distinct id and creates no person (17 §5.4).
+  track('run_scored', runScoredProps(measures, bands, scoredAt), {
+    userId: null,
+    organizationId: run.organizationId,
+  })
   if (durationMs > SCORING_SLOW_MS) {
     alertOps('scoring_slow', { run_id: runId, duration_ms: durationMs, provider: provider.name })
   }
@@ -576,11 +610,11 @@ export async function scoreRun(runId: string): Promise<ScoreRunResult> {
  * lock: a run already `held` is left exactly as it is.
  */
 async function holdRun(
-  run: repo.ScoringRunRow,
+  measures: ScoredMeasures,
   reason: HoldReason,
   startedAt: number,
-  providerName: string,
 ): Promise<ScoreRunResult> {
+  const { run, providerName } = measures
   const held = await withTransaction(async (tx) => {
     const locked = await lockRunForMutation(tx, run.organizationId, run.id)
     // The same lock and the same reading as the scoring transaction: a run another job has already
@@ -621,6 +655,14 @@ async function holdRun(
     held: true,
     hold_reason: reason,
   })
+  // FR-140 on the dashboard (17 §3.5): `held: true`, seven unassessed bands, no shares. The counts
+  // still travel — how many claims, checks and escalations the run made is a fact about the run and
+  // not about the scoring that could not finish. The hold *reason* does not: it is an operational
+  // detail, it is on `ops_run_held` beside this, and it is not a property of the event.
+  track('run_scored', runScoredProps(measures, null, new Date()), {
+    userId: null,
+    organizationId: run.organizationId,
+  })
   alertOps('run_held', { run_id: run.id, reason })
 
   return { runId: run.id, outcome: 'held', holdReason: reason, durationMs, provider: providerName }
@@ -628,6 +670,116 @@ async function holdRun(
 
 const elapsed = (startedAt: number): number =>
   Math.max(0, Math.round(performance.now() - startedAt))
+
+// ---------------------------------------------------------------------------------------------
+// AN-005: the per-run measures at scoring (17 §3.5)
+// ---------------------------------------------------------------------------------------------
+
+/**
+ * What both endings of the job hand the `run_scored` projection.
+ *
+ * It is gathered before the fork rather than at the two `track` calls because a held run and a
+ * scored run measured different amounts of the same pipeline, and the only way the two events can
+ * be compared on one dashboard is if they were read from the same objects.
+ */
+type ScoredMeasures = {
+  run: repo.ScoringRunRow
+  variantKey: VariantKey
+  graphs: RunGraphs
+  facts: CategoricalFacts
+  events: readonly GraphEvent[]
+  providerName: LlmProviderName
+}
+
+/** Whole milliseconds between two instants; 0 when either end was never recorded. */
+function spanMs(from: string | Date | null, to: Date | null): number {
+  if (from === null || to === null) return 0
+  const start = typeof from === 'string' ? Date.parse(from) : from.getTime()
+  if (Number.isNaN(start)) return 0
+  return Math.max(0, Math.round(to.getTime() - start))
+}
+
+/**
+ * The `run_scored` payload (17 §3.5), projected from the pipeline's own outputs.
+ *
+ * `bands` is `null` for the held ending, and that null is the whole difference between the two
+ * events: every dimension reports `unassessed`, the three shares and the accuracy report null, and
+ * `held` is true. Nothing is estimated to fill the gap (FR-004) — a share this run cannot support is
+ * absent, not zero, because a zero would sit in the cohort average as a real measurement.
+ *
+ * Everything else is a count, a duration, an enum or a boolean read off the run's own record. No
+ * claim text, no band rationale, no defense answer and no quote reaches this object: what a
+ * dashboard is owed about a run is its shape, and D-066 is the same rule here as on `llm_calls`.
+ */
+function runScoredProps(
+  measures: ScoredMeasures,
+  bands: Record<Dimension, DraftBand> | null,
+  finishedAt: Date,
+): EventProps<'run_scored'> {
+  const { run, variantKey, graphs, facts, events, providerName } = measures
+  // A `const` alias so the null check narrows inside the closures below, which a parameter does not.
+  const drafted = bands
+  const matrix = graphs.stance_matrix
+  // The D-107 denominator the FCR and the matched share already use: every consequential claim in
+  // the variant, neutralized ones excluded, met or not. `accept_share` shares it so the three
+  // numbers on one dashboard row are three readings of one population.
+  const live = matrix.rows.filter((row) => !row.neutralized)
+  const bandOf = (dimension: Dimension): EventProps<'run_scored'>['band_framing'] =>
+    drafted === null ? 'unassessed' : (drafted[dimension].band ?? 'unassessed')
+  const everyBandIs = (band: Band): boolean =>
+    drafted !== null && DIMENSIONS.every((dimension) => drafted[dimension].band === band)
+  // `defense_completed_at` anchors both durations. It is nullable on the row and never null on a run
+  // that reached this job, so a null here is a broken record rather than a measurement: 0 says "not
+  // measured" in a property that has no null.
+  const completedAt = run.defenseCompletedAt
+
+  return {
+    ...runContext(run, variantKey),
+    false_challenge_rate: drafted === null ? null : facts.fcr,
+    matched_stance_share: drafted === null ? null : facts.matchedShare,
+    accept_share:
+      drafted === null
+        ? null
+        : rate3(live.filter((row) => row.stance_taken === 'accept').length, live.length),
+    unassessed_count:
+      drafted === null
+        ? DIMENSIONS.length
+        : DIMENSIONS.filter((dimension) => drafted[dimension].status === 'unassessed').length,
+    provisional_count:
+      drafted === null
+        ? 0
+        : DIMENSIONS.filter((dimension) => drafted[dimension].provisional).length,
+    scoring_latency_ms: spanMs(completedAt, finishedAt),
+    rubric_version: CURRENT_RUBRIC,
+    provider: providerName,
+    consequential_claims_count: matrix.consequential_claim_count,
+    surfaced_claims_count: live.filter((row) => row.surfaced).length,
+    // Every exchange the run made, the flagged ones included: FR-055 removes an exchange from the
+    // *rubric*, and how much a student delegated is a fact about the run either way.
+    delegations_count: facts.delegationCount + facts.flaggedDelegationCount,
+    actions_count: facts.actionCount,
+    escalations_count: facts.escalationCount,
+    // Distinct documents, not opens: re-reading the same memo four times is one document read.
+    documents_opened_count: new Set(
+      eventsOfType(events, 'document_open').map((event) => event.payload.document_id),
+    ).size,
+    duration_ms: spanMs(firstOfType(events, 'frame_locked')?.occurredAt ?? null, completedAt),
+    confidence_at_frame: facts.confidence.frame,
+    confidence_at_lock: facts.confidence.lock,
+    confidence_after_turn: facts.confidence.turn,
+    accuracy_at_lock: drafted === null ? null : facts.accuracyAtLock,
+    band_framing: bandOf('framing'),
+    band_delegation: bandOf('delegation'),
+    band_verification: bandOf('verification'),
+    band_calibration: bandOf('calibration'),
+    band_decision_quality: bandOf('decision_quality'),
+    band_adaptation: bandOf('adaptation'),
+    band_ownership: bandOf('ownership'),
+    all_novice: everyBandIs('novice'),
+    all_professional: everyBandIs('professional'),
+    held: drafted === null,
+  }
+}
 
 /** `numeric(p,s)` columns are written as strings; `null` stays null rather than becoming "0.000". */
 const numeric = (value: number | null, scale: number): string | null =>

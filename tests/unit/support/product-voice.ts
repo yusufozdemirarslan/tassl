@@ -29,12 +29,38 @@ function namespaceStrings(catalogue: Record<string, string>): { path: string; te
   ])
 }
 
+/**
+ * Every forbidden word in a namespace, as `path → word → rule`.
+ *
+ * `vocabularies` narrows the reading, never the list: `tests/unit/copy/never-accuses.test.ts` asks
+ * this same walker about the four words FR-006 names, and gets them from `MISCONDUCT`'s own entries
+ * rather than from a second list that could disagree with it.
+ */
 export function scan(
   catalogue: Record<string, string>,
+  vocabularies: readonly Vocabulary[] = VOCABULARIES,
 ): { path: string; word: string; rule: string }[] {
   return namespaceStrings(catalogue).flatMap(({ path, text }) =>
-    voiceHits(text).map((hit) => ({ path, ...hit })),
+    voiceHits(text, vocabularies).map((hit) => ({ path, ...hit })),
   )
+}
+
+/** Every namespace module under `src/lib/i18n/messages`, so one added later is scanned too. */
+export function everyCatalogue(
+  modules: Record<string, Record<string, unknown>>,
+): { file: string; catalogue: Record<string, string> }[] {
+  return Object.entries(modules)
+    .flatMap(([file, module]) =>
+      Object.values(module)
+        .filter(
+          (value): value is Record<string, string> =>
+            typeof value === 'object' &&
+            value !== null &&
+            Object.values(value).every((entry) => typeof entry === 'string'),
+        )
+        .map((catalogue) => ({ file: file.slice(file.lastIndexOf('/') + 1), catalogue })),
+    )
+    .sort((a, b) => a.file.localeCompare(b.file))
 }
 
 /**

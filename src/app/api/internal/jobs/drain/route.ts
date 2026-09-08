@@ -4,7 +4,7 @@
 // within the route's 300 s budget.
 import { z } from 'zod'
 import { defineRoute } from '@/server/http/define-route'
-import { drainQueues, scheduleDailyMaintenance, type DrainResult } from '@/server/jobs/drain'
+import { drainDaily, scheduleDailyMaintenance, type DrainResult } from '@/server/jobs/drain'
 import { registerAllHandlers } from '@/server/jobs/handlers/register'
 
 export const runtime = 'nodejs'
@@ -20,10 +20,13 @@ const output = z.object({
   durationMs: z.number().int(),
 })
 
+// `drainDaily` wraps the drain in the Sentry cron monitor `jobs-drain-daily` (13 §7): both verbs
+// of this route are the daily sweep — Vercel Cron calls GET, an operator calls POST — and a sweep
+// that did not run is exactly what the monitor's missed check-in reports.
 async function drainAndMaintain(): Promise<DrainResult> {
   await registerAllHandlers()
   await scheduleDailyMaintenance()
-  return drainQueues({ maxMs: DRAIN_BUDGET_MS })
+  return drainDaily(DRAIN_BUDGET_MS)
 }
 
 export const GET = defineRoute(

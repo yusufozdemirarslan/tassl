@@ -227,6 +227,48 @@ export async function findRecordContext(
   return row
 }
 
+/** The `R` property group's columns for one run of the tenant (17 §3), variant key resolved. */
+export type RunAnalyticsRow = {
+  id: string
+  assignmentId: string
+  packageVersionId: string
+  mode: 'guided' | 'standard' | 'open'
+  attemptNo: number
+  isWalkthrough: boolean
+  variantKey: 'defective' | 'sound'
+}
+
+/**
+ * The seven values every run-scoped analytics event carries, in one read.
+ *
+ * Its own function rather than six more columns on `findRecordContext`: that type is the Judgment
+ * Record's, and a field on it is a field FR-172's guard has to be taught about. This one is read by
+ * nothing a reader ever sees — `writeCourseExport` has only the three columns its caller held, and
+ * the record read has no attempt number — and every column of it is an id, an enum or a count
+ * (17 §1 rule 3). Read and never written, like the two reads above it.
+ */
+export async function findRunAnalytics(
+  tenantId: string,
+  runId: string,
+  dbx: DbOrTx = db,
+): Promise<RunAnalyticsRow | undefined> {
+  const [row] = await dbx
+    .select({
+      id: runs.id,
+      assignmentId: runs.assignmentId,
+      packageVersionId: runs.packageVersionId,
+      mode: runs.mode,
+      attemptNo: runs.attemptNo,
+      isWalkthrough: runs.isWalkthrough,
+      variantKey: scenarioVariants.key,
+    })
+    .from(runs)
+    .innerJoin(scenarioVariants, eq(scenarioVariants.id, runs.variantId))
+    .where(and(eq(runs.organizationId, tenantId), eq(runs.id, runId)))
+    .limit(1)
+  return row
+}
+
 /**
  * The section an assignment belongs to, the course above it, and the institution all three sit in.
  *

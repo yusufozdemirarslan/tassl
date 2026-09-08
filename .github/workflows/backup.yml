@@ -1,0 +1,63 @@
+name: backup
+
+on:
+  schedule:
+    - cron: '30 3 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# A manual dispatch during the nightly window must not run a second pg_dump against production
+# beside the first; the later run waits instead of being cancelled (D-583).
+concurrency:
+  group: backup
+  cancel-in-progress: false
+
+jobs:
+  dump:
+    name: dump
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      NEXT_PUBLIC_SENTRY_DSN: ${{ vars.NEXT_PUBLIC_SENTRY_DSN }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: Sentry cron check-in (in_progress)
+        run: bash scripts/sentry-checkin.sh nightly-backup in_progress '30 3 * * *' 30 60
+
+      # Official PostgreSQL apt repository (postgresql.org/download/linux/ubuntu); pg_dump 17 matches Neon's Postgres 17 (D-036).
+      - name: Install postgresql-client-17
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends curl ca-certificates
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl --fail -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          . /etc/os-release
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt ${VERSION_CODENAME}-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends postgresql-client-17
+          pg_dump --version
+
+      # scripts/backup.sh keeps the connection string out of the log and out of backups/, and leaves
+      # only the ciphertext and its checksum behind for the upload below.
+      - name: Dump and encrypt
+        id: dump
+        env:
+          PRODUCTION_DATABASE_URL_UNPOOLED: ${{ secrets.PRODUCTION_DATABASE_URL_UNPOOLED }}
+          BACKUP_ENCRYPTION_KEY: ${{ secrets.BACKUP_ENCRYPTION_KEY }}
+        run: |
+          bash scripts/backup.sh backups
+          echo "date=$(date -u +%Y-%m-%d)" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: tassl-backup-${{ steps.dump.outputs.date }}
+          path: backups/
+          retention-days: 30
+          if-no-files-found: error
+      - name: Sentry cron check-in (ok)
+        run: bash scripts/sentry-checkin.sh nightly-backup ok
+      - name: Sentry cron check-in (error)
+        if: failure()
+        run: bash scripts/sentry-checkin.sh nightly-backup error

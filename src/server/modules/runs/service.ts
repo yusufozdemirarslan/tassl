@@ -27,7 +27,9 @@
 import { randomUUID } from 'node:crypto'
 import { isAppError } from '@/lib/errors'
 import { flagsFromEnv } from '@/lib/flags'
-import { track } from '@/server/analytics/track'
+import { countWords } from '@/lib/words'
+import { claimContext, runContext, type RunContext } from '@/server/analytics/run-context'
+import { track, type TrackActor } from '@/server/analytics/track'
 import {
   requireRunInstructor,
   requireRunOwner,
@@ -40,6 +42,7 @@ import { env } from '@/server/config'
 import { audit } from '@/server/modules/admin'
 import { getAssignment, getPolicyDisplay } from '@/server/modules/courses'
 import { getLogger } from '@/server/http/request-context'
+import { onCommit } from '@/server/jobs/after-commit'
 import {
   findReliedOn,
   findUnstancedReliedOn,
@@ -47,6 +50,7 @@ import {
   markReliedOnFromNamedFields,
   surfaceClaims,
   surfaceDocumentClaims,
+  type NamedFieldMark,
 } from '@/server/modules/reliance'
 import { getStudentScenario } from '@/server/modules/scenarios'
 import { getInstitutionSettings, listMyInstitutions } from '@/server/modules/tenancy'
@@ -55,6 +59,7 @@ import {
   credit,
   isInTurnWindow,
   pause as clockPause,
+  remainingMs,
   remainingWindowMs,
   resume as clockResume,
   type ClockRun,
@@ -95,7 +100,7 @@ import {
   workspaceNotOpen,
   type FrameInvalidReason,
 } from './errors'
-import { READINESS_MS } from './limits'
+import { READINESS_MS, TURN_WINDOW_MS as TURN_WINDOW } from './limits'
 
 // The Turn window's length, re-exported so the module's public index can hand it to the screen
 // that names it in prose (`decision.turnBody`, D-327). An index may reach this file and `schema`
@@ -142,7 +147,6 @@ import type {
   PauseCauseValue,
   ReadinessResult,
   ReadinessView,
-  RunRowForSummary,
   RunStateValue,
   RunStatus,
   RunSummary,
@@ -150,7 +154,6 @@ import type {
   RunsQuery,
   TurnResponseInput,
   TurnView,
-  VariantKeyValue,
   VoidRunInput,
   VoidRunResult,
 } from './schema'
@@ -697,6 +700,32 @@ async function closeReadiness(
   await append(tx, run, 'lifecycle', moved.payload, { actorId, occurredAt: at })
   const next = await repo.updateRun(tenantId, run.id, moved.patch, tx)
   if (!next) runNotFound()
+
+  // AN-003 (17 §3.3), queued for the commit: the check closed, and the three ways it can close are
+  // told apart by the two booleans rather than by three events. `duration_ms` runs from
+  // `readiness_started_at`, the instant the policy display was acknowledged and the eight minutes
+  // began — the transition that opens the check stamps it, so a run in `readiness` always has one.
+  // What travels is the concept map's shape, never a concept's name or a student's answer (FR-012).
+  const analytics = await runAnalytics(tx, next, run.studentId)
+  const answered = new Set(answers.map((answer) => answer.itemId)).size
+  const byStatus = (status: ReadinessConceptResult['status']) =>
+    plan.concepts.filter((concept) => concept.status === status).length
+  onCommit(tx, () =>
+    track(
+      'readiness_submitted',
+      {
+        ...analytics.context,
+        skipped: plan.skipped,
+        expired: mode === 'expired',
+        answered_count: answered,
+        held_count: byStatus('held'),
+        not_held_count: byStatus('not_held'),
+        unknown_count: byStatus('unknown'),
+        duration_ms: msBetween(run.readinessStartedAt, at),
+      },
+      analytics.actor,
+    ),
+  )
   return next
 }
 
@@ -1128,6 +1157,34 @@ async function closeOneOpen(
     },
     { actorId, occurredAt: at },
   )
+
+  // AN-003 (17 §3.3): a reading, mirrored at the close because that is where its length is known.
+  // Every close reaches this — the student's own, the one the next open sends, and the one the frame
+  // lock sends — so the measure counts readings rather than the subset a client remembered to end.
+  //
+  // `document_role` is read separately and reaches nothing but PostHog (12 §8.2, D-117), and a role
+  // that cannot be read means a document outside the run's room, which the open it belongs to makes
+  // impossible; no event is invented for it.
+  const role = await repo.findDocumentRole(run.organizationId, run.id, open.documentId, tx)
+  if (!role) return
+  const openIndex = await repo.countDocumentOpens(run.id, open.openedAt, tx)
+  const analytics = await runAnalytics(tx, run, run.studentId)
+  onCommit(tx, () =>
+    track(
+      'document_opened',
+      {
+        ...analytics.context,
+        document_id: open.documentId,
+        document_role: role,
+        open_index: openIndex,
+        before_first_delegation: open.beforeFirstDelegation,
+        in_turn_window: open.inTurnWindow,
+        skim,
+        duration_ms: durationMs,
+      },
+      analytics.actor,
+    ),
+  )
 }
 
 /**
@@ -1377,6 +1434,33 @@ export async function lockFrame(
       tx,
     )
     if (!next) runNotFound()
+
+    // AN-003 (17 §3.3). `ms_since_room_opened` runs from the instant the Evidence Room opened, which
+    // is the instant the check closed and the run entered `framing` — no column of `runs` names it,
+    // so it is read off the result row that transition writes: `submitted_at` for a submit and for
+    // an expiry, and for a skip, which files no submission, the row's own `created_at` from the same
+    // transaction. `words_total` counts the frame the student actually filed, markup already gone
+    // (D-075); the words themselves stay here.
+    const openedCount = await repo.countDocumentOpens(runId, now, tx)
+    const readiness = await repo.findReadinessResult(runId, tx)
+    const roomOpenedAt = readiness ? (readiness.submittedAt ?? readiness.createdAt) : null
+    const analytics = await runAnalytics(tx, next, actor.id)
+    onCommit(tx, () =>
+      track(
+        'frame_locked',
+        {
+          ...analytics.context,
+          confidence: frame.confidence,
+          ms_since_room_opened: msBetween(roomOpenedAt, now),
+          documents_opened_count: openedCount,
+          words_total:
+            countWords(frame.decision) +
+            countWords(frame.position) +
+            frame.assumptions.reduce((total, line) => total + countWords(line), 0),
+        },
+        analytics.actor,
+      ),
+    )
     return next
   })
 
@@ -1574,6 +1658,26 @@ export async function lockDecision(
         actorId: actor.id,
         occurredAt: now,
       })
+      // AN-003 (17 §3.3). Only FR-084's refusal has an analytics shape: the event names the claim
+      // the lock was refused over and counts the relied-on claims with no stance, and a brief that
+      // broke a word limit has neither of those — inventing a claim id for it would make the count
+      // of "locks refused over an unstanced claim" wrong, which is the whole reading. The refused
+      // brief is not lost either: the `lock_refused` trace event carries the field it broke.
+      if (plan.outcome === 'unstanced') {
+        const analytics = await runAnalytics(tx, run, actor.id)
+        onCommit(tx, () =>
+          track(
+            'lock_refused',
+            {
+              ...analytics.context,
+              claim_id: plan.claim.claimId,
+              unstanced_relied_on_count: plan.unstanced.length,
+              clock_remaining_ms: Math.round(remainingMs(run, now) ?? 0),
+            },
+            analytics.actor,
+          ),
+        )
+      }
       return { kind: 'refused', plan }
     }
     return {
@@ -1586,11 +1690,21 @@ export async function lockDecision(
   return toRunSummary(outcome.run)
 }
 
-/** The two effects the gate performs, bound to this transaction's run (see `./lock.ts`). */
+/**
+ * The two effects the gate performs, bound to this transaction's run (see `./lock.ts`).
+ *
+ * The marking is where `claim_marked_used` is earned, and it is here rather than in the brief's
+ * autosave because here is where FR-101's reliance is actually recorded: a draft is a scratchpad
+ * until the Decision Lock, and the figures in it become reliance at the gate, once, for the
+ * student's lock and for the clock's auto-lock alike (17 §3.3, `via: named_field`).
+ */
 function lockSteps(tx: repo.Tx, run: repo.Run, actorId: string | null, at: Date) {
   return {
-    markNamedFields: (namedValues: Record<string, number>) =>
-      markReliedOnFromNamedFields(tx, run, namedValues, { actorId, at }),
+    markNamedFields: async (namedValues: Record<string, number>) => {
+      const marks = await markReliedOnFromNamedFields(tx, run, namedValues, { actorId, at })
+      await trackNamedFieldMarks(tx, run, marks)
+      return marks
+    },
     findUnstanced: () => findUnstancedReliedOn(tx, run),
   }
 }
@@ -1704,6 +1818,30 @@ async function commitDecisionLock(
     tx,
   )
   if (!next) runNotFound()
+
+  // AN-003 (17 §3.3): one event for both ways in, `auto_locked` being the field that tells them
+  // apart, exactly as the trace's `auto` does. `clock_remaining_ms` is read off the run *before* the
+  // transition, while it still has a working clock, and it is signed: an auto-lock materialized long
+  // after the clock ran out reports how far past zero the read arrived (D-042). The brief's words
+  // are not here — only how many of its fields were left empty.
+  const analytics = await runAnalytics(tx, next, run.studentId)
+  onCommit(tx, () =>
+    track(
+      'decision_locked',
+      {
+        ...analytics.context,
+        auto_locked: auto,
+        speed_outlier: speedOutlier,
+        elapsed_ms: elapsedMs,
+        confidence: brief.confidence,
+        relied_on_count: relied.length,
+        unstanced_count: plan.unstanced.length,
+        empty_fields_count: emptyBriefFields(brief),
+        clock_remaining_ms: Math.round(remainingMs(run, at) ?? 0),
+      },
+      analytics.actor,
+    ),
+  )
   return next
 }
 
@@ -1860,7 +1998,20 @@ export async function addAddendum(
     const row = await repo.insertAddendum(runId, text, tx)
     if (!row) addendumExists()
 
-    await append(tx, run, 'addendum', { text }, { actorId: actor.id, occurredAt: new Date() })
+    const now = new Date()
+    await append(tx, run, 'addendum', { text }, { actorId: actor.id, occurredAt: now })
+
+    // AN-003 (17 §3.3): how long after filing the decision the student came back to it, which is
+    // FR-107's whole measure. The fifty words are not sent, here or anywhere.
+    // `addendumOpen` has just proved `decision_locked_at` is set.
+    const analytics = await runAnalytics(tx, run, actor.id)
+    onCommit(tx, () =>
+      track(
+        'addendum_added',
+        { ...analytics.context, ms_since_lock: msBetween(run.decisionLockedAt, now) },
+        analytics.actor,
+      ),
+    )
   })
 }
 
@@ -1945,6 +2096,21 @@ async function deliverTurn(tx: repo.Tx, run: repo.Run, at: Date, now: Date): Pro
   if (!next) runNotFound()
 
   await surfaceClaims(tx, next, turn.windowClaimIds, 'turn', turn.id, plan.deliveredAt)
+
+  // AN-003 (17 §3.3), and NFR-002's own measure: `lag_ms` is how long the Turn waited between
+  // falling due and a read noticing — `at` is `turn_due_at` for this branch, because that is the
+  // instant `nextTimer` fired on. A lag past the window's own twelve minutes means the student was
+  // away rather than the server late, which is the reading `delivered_offline` names and the reason
+  // the window starts at the read (FR-115, D-043). The Turn's text and its voice stay in the trace.
+  const lagMs = msBetween(at, now)
+  const analytics = await runAnalytics(tx, next, next.studentId)
+  onCommit(tx, () =>
+    track(
+      'turn_delivered',
+      { ...analytics.context, lag_ms: lagMs, delivered_offline: lagMs > TURN_WINDOW },
+      analytics.actor,
+    ),
+  )
   return next
 }
 
@@ -2023,6 +2189,28 @@ async function lockTurnResponse(
     tx,
   )
   if (!next) runNotFound()
+
+  // AN-003 (17 §3.3): one event for the response and for the implicit hold, `implicit` being the
+  // field that tells them apart. `window_claims_count` is the Turn's authored window claims — how
+  // many claims the student was asked to hold a position on, not how many they did — and
+  // `ms_since_delivered` runs from `turn_delivered_at`, which every run in `turn_open` has. The
+  // justification never travels.
+  const turn = await repo.findRunTurn(tenantId, run.id, tx)
+  const analytics = await runAnalytics(tx, next, run.studentId)
+  onCommit(tx, () =>
+    track(
+      'turn_response_locked',
+      {
+        ...analytics.context,
+        response: fields.response,
+        implicit: fields.implicit,
+        confidence: fields.confidence,
+        ms_since_delivered: msBetween(run.turnDeliveredAt, at),
+        window_claims_count: turn?.windowClaimIds.length ?? 0,
+      },
+      analytics.actor,
+    ),
+  )
   return next
 }
 
@@ -2203,6 +2391,19 @@ export async function voidRun(
     )
     if (!movedRun) runNotFound()
 
+    // AN-004 (17 §3.4), filed under the instructor: a void is the faculty seat's act (FR-008). The
+    // state is read from the run as the void found it, which is the whole point of the property —
+    // a run voided in `working` and one voided after its bands were confirmed are different events.
+    // The reason is the enum; the note the instructor wrote stays in the trace (D-120).
+    const analytics = await runAnalytics(tx, movedRun, actor.id)
+    onCommit(tx, () =>
+      track(
+        'run_voided',
+        { ...analytics.context, state_at_void: stateAtVoid(run.state), reason: input.reason },
+        analytics.actor,
+      ),
+    )
+
     const next =
       reofferId === null
         ? null
@@ -2317,6 +2518,19 @@ async function reofferRun(
       actorId: options.actorId,
       occurredAt: options.at,
     },
+  )
+
+  // AN-004 (17 §3.4). The `R` group is the **new** run's, matching the trace event this mirrors: the
+  // re-offer is the first thing that happens to the replacement, and reading it against the run that
+  // was discarded would file a second attempt under the attempt that failed. `same_variant` is the
+  // one thing a reviewer wants back from it — whether the student met new material (FR-183).
+  const analytics = await runAnalytics(tx, next, options.actorId)
+  onCommit(tx, () =>
+    track(
+      'run_reoffered',
+      { ...analytics.context, from_run_id: from.id, same_variant: variantId === from.variantId },
+      analytics.actor,
+    ),
   )
   return next
 }
@@ -2444,6 +2658,15 @@ export type PauseOptions = {
   creditMs?: number
   actorId?: string | null
   at?: Date
+  /**
+   * Whether the outage was the armed test control rather than a real failure (FR-118, 17 §3.3).
+   *
+   * The caller is the only one who can say. `consumeForcedAssistantFailure` clears the flag before
+   * the failure branch runs, so by the time a pause is written the run no longer records that it was
+   * armed — and it must not, or one arming would keep explaining every later outage. It defaults to
+   * false, which is the honest reading of a pause nobody said anything about: a component failed.
+   */
+  forcedByTestControl?: boolean
 }
 
 /**
@@ -2765,6 +2988,24 @@ export async function pauseRun(
     tx,
   )
   if (!updated) runNotFound()
+
+  // AN-003 (17 §3.3), and the operations dashboard's `run_paused by cause`: one event per outage,
+  // written here rather than in each module that can fail, for the same reason the pause itself is.
+  // It is queued on the caller's transaction, which is usually another module's, and fires only if
+  // that transaction commits — a delegation that rolled back paused nothing.
+  const analytics = await runAnalytics(tx, updated, updated.studentId)
+  onCommit(tx, () =>
+    track(
+      'run_paused',
+      {
+        ...analytics.context,
+        pause_id: pause.id,
+        cause,
+        forced_by_test_control: options.forcedByTestControl === true,
+      },
+      analytics.actor,
+    ),
+  )
   return updated
 }
 
@@ -2820,6 +3061,23 @@ export async function resumeRun(actor: SessionUser, runId: string): Promise<RunS
       tx,
     )
     if (!next) runNotFound()
+
+    // AN-003 (17 §3.3): what the outage cost. `paused_ms` is the wall time the run spent frozen and
+    // `credited_ms` is the charge the failed act had already taken, which the resume gives back —
+    // zero for a delegation, which charges no clock at all (10 §7).
+    const analytics = await runAnalytics(tx, next, actor.id)
+    onCommit(tx, () =>
+      track(
+        'run_resumed',
+        {
+          ...analytics.context,
+          pause_id: pause.id,
+          paused_ms: Math.max(0, Math.round(pausedMs)),
+          credited_ms: creditedMs,
+        },
+        analytics.actor,
+      ),
+    )
     return next
   })
 
@@ -2892,26 +3150,124 @@ export async function advanceRunClock(
   return toRunSummary(updated)
 }
 
-/** The `R` property group every run event carries (17 §3). */
-function runContext(
-  run: RunRowForSummary & { packageVersionId: string },
-  variantKey: VariantKeyValue,
-): {
-  run_id: string
-  assignment_id: string
-  package_version_id: string
-  variant: VariantKeyValue
-  mode: RunSummary['mode']
-  attempt_no: number
-  is_walkthrough: boolean
-} {
+// ---------------------------------------------------------------------------------------------
+// Analytics (17 §3.3, §3.4, §5.4)
+//
+// Three rules, and they are the reason this is four helpers rather than eighteen inline `track`
+// calls.
+//
+//   1. **After the commit, never inside it.** Most of what a run records is written by a helper
+//      several frames below the service function that started it — `closeReadiness`, `closeOneOpen`,
+//      `commitDecisionLock`, `deliverTurn`, `pauseRun` — and three of those run inside a transaction
+//      another module opened. `onCommit` is the seam that already answers this: it queues the call
+//      on the transaction object and `withTransaction` runs it once the commit has returned and
+//      drops it on a rollback (10 §6, D-165). So the event is written beside the row that earns it
+//      and still fires only if that row survived.
+//   2. **The event mirrors the trace, so it fires where the trace event is appended.** One place per
+//      event, whichever way in reached it: the student's Decision Lock and the clock's auto-lock are
+//      one `decision_locked`, the response and the implicit hold are one `turn_response_locked`, and
+//      the submit, the skip and the expiry are one `readiness_submitted`. A branch that writes no
+//      trace event fires nothing, which is what keeps the timer cascade from mirroring a transition
+//      twice (17 §1 rule 8).
+//   3. **Ids, enums, counts, durations, booleans.** Nothing below reads a brief, a claim's text, a
+//      justification, a void note or a name. `runContext` and `claimContext` are the shared
+//      projections and they are the only shape a run event travels in (17 §6).
+// ---------------------------------------------------------------------------------------------
+
+/** The `R` group and the person a run event belongs to, read inside the write that earned it. */
+type RunAnalytics = { context: RunContext; actor: TrackActor }
+
+/**
+ * Builds the `R` group for a run, plus the actor the event is filed under.
+ *
+ * The variant key is read rather than carried on the row: `runs.variant_id` names the variant and
+ * the student's own views stopped resolving it (D-254). One indexed row, taken only on the
+ * transactions that actually fire an event.
+ *
+ * `actorId` is *whose event this is*, which is not always who was holding the request. A timer
+ * materializes on whatever read notices it — the student's poll, or a reviewer's — so the clock's
+ * own acts are filed under the run's student, and filing an auto-lock under the reviewer who
+ * happened to be watching would put one person's run on another person's timeline. The trace's
+ * `actor_id` stays null for those events, because nobody performed them; the distinct id answers a
+ * different question. The faculty seat's two events (`run_voided`, `run_reoffered`) are filed under
+ * the instructor, because AN-004 measures the reviewer's work.
+ */
+async function runAnalytics(
+  dbx: repo.DbOrTx,
+  run: repo.Run,
+  actorId: string,
+): Promise<RunAnalytics> {
+  // The column is `not null` and references `scenario_variants`, so the fallback is unreachable;
+  // it is here because an event with no variant is worth less than one filed under the family the
+  // run was almost certainly drawn from, and `track` would otherwise refuse the whole payload.
+  const variantKey = (await repo.findVariantKey(run.variantId, dbx)) ?? 'defective'
   return {
-    run_id: run.id,
-    assignment_id: run.assignmentId,
-    package_version_id: run.packageVersionId,
-    variant: variantKey,
-    mode: run.mode,
-    attempt_no: run.attemptNo,
-    is_walkthrough: run.isWalkthrough,
+    context: runContext(run, variantKey),
+    actor: { userId: actorId, organizationId: run.organizationId },
+  }
+}
+
+/**
+ * The five run states `run_voided.state_at_void` does not carry (17 §3.4), and why none can appear.
+ *
+ * `voided` is refused by the transition table before the void is written, so no run is ever voided
+ * twice; the other four are 10 §9's future states, which no transition in this build reaches. The
+ * narrowing is therefore a statement about the machine rather than a hope about the data — and if
+ * one of them ever became reachable, `track` refuses the payload in local and test (17 §5.4), which
+ * is where that change would be made.
+ */
+type VoidableState = Exclude<
+  RunStateValue,
+  'voided' | 'abandoned' | 'defense_missed' | 'under_appeal' | 'expired'
+>
+
+const stateAtVoid = (state: RunStateValue): VoidableState => state as VoidableState
+
+/** A duration between two instants, floored at zero: an event's `*_ms` is never negative (17 §5.1). */
+function msBetween(from: Date | null, to: Date): number {
+  return from ? Math.max(0, to.getTime() - from.getTime()) : 0
+}
+
+/**
+ * How many of the brief's seven fields the lock recorded empty (17 §3.3 `empty_fields_count`).
+ *
+ * The seven FR-100 asks a student to fill — recommendation, rationale, the three assumptions, the
+ * change-my-mind line, and the confidence — and not `named_values`, which a brief may legitimately
+ * name none of and whose absence says nothing about an unfinished brief. A student's lock is always
+ * zero, because `BriefSchema` refuses an empty field; the number is a reading of what the clock
+ * caught at an auto-lock (FR-105).
+ */
+function emptyBriefFields(brief: BriefFields): number {
+  const written = [brief.recommendation, brief.rationale, ...brief.assumptions, brief.changeMyMind]
+  return written.filter((field) => field.trim() === '').length + (brief.confidence === null ? 1 : 0)
+}
+
+/**
+ * AN-003 (17 §3.3): the claims the brief's own figures turned into reliance (FR-101, `named_field`).
+ *
+ * Only the marks that recorded. `markClaimUsed` answers `recorded: false` for a claim already relied
+ * on by this route, so a second lock attempt over the same figures writes no second `claim_used`
+ * event and fires no second analytics event — the event means "this claim newly became one the
+ * student leaned on", which happens once.
+ */
+async function trackNamedFieldMarks(
+  tx: repo.Tx,
+  run: repo.Run,
+  marks: readonly NamedFieldMark[],
+): Promise<void> {
+  const recorded = marks.filter((mark) => mark.recorded).map((mark) => mark.claimId)
+  if (recorded.length === 0) return
+
+  const claims = await repo.listClaimFacts(run.organizationId, run.id, recorded)
+  const inTurnWindow = isInTurnWindow(run)
+  const analytics = await runAnalytics(tx, run, run.studentId)
+  for (const claim of claims) {
+    onCommit(tx, () =>
+      track(
+        'claim_marked_used',
+        { ...analytics.context, ...claimContext(claim, inTurnWindow), via: 'named_field' },
+        analytics.actor,
+      ),
+    )
   }
 }

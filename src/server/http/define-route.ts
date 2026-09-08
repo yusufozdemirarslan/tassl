@@ -3,6 +3,7 @@
 // → handler → receipt → output validation → JSON with x-request-id and Cache-Control: no-store →
 // error envelope.
 import { createHash, timingSafeEqual } from 'node:crypto'
+import * as Sentry from '@sentry/nextjs'
 import type { Logger } from 'pino'
 import { z, type ZodType } from 'zod'
 import { AppError } from '@/lib/errors'
@@ -23,6 +24,7 @@ import {
   type RouteAuth,
 } from '@/server/http/openapi-registry'
 import { runWithContext, type RequestContext } from '@/server/http/request-context'
+import { routeGroup } from '@/server/http/route-group'
 import { createRequestLogger, hashId } from '@/server/logging/logger'
 import { getOrCreateRequestId } from '@/server/logging/request-id'
 import { enforceRateLimit } from '@/server/rate-limit/enforce'
@@ -158,12 +160,20 @@ export function defineRoute<P = undefined, Q = undefined, B = undefined, O = unk
     const url = new URL(request.url)
     // Next resolves `params` to undefined for routes without dynamic segments (D-165).
     const rawParams = (await routeCtx?.params) ?? {}
+    const pattern = routePattern(url.pathname, rawParams)
     const logger = createRequestLogger({
       requestId,
-      route: routePattern(url.pathname, rawParams),
+      route: pattern,
       method: request.method,
     })
     const store: RequestContext = { requestId, actor: null, logger, startedAt }
+
+    // The Next SDK gives every request its own isolation scope, so these tags belong to this
+    // request alone and reach the transaction the SDK already opened for it (13 §2.5). Only the
+    // route *template* and the request id travel: a concrete path carries ids, and a query string
+    // can carry a verification token.
+    Sentry.setTag('request_id', requestId)
+    Sentry.setTag('route_group', routeGroup(pattern, request.method))
 
     return runWithContext(store, async () => {
       try {
@@ -178,6 +188,9 @@ export function defineRoute<P = undefined, Q = undefined, B = undefined, O = unk
             userId: hashId(actor.id),
             ...(actor.activeOrganizationId ? { orgId: actor.activeOrganizationId } : {}),
           })
+          // The hashed id and nothing else: no email, no name, no IP (13 §3, `sendDefaultPii` off).
+          Sentry.setUser({ id: hashId(actor.id) })
+          if (actor.activeOrganizationId) Sentry.setTag('org_id', actor.activeOrganizationId)
         }
 
         // CSRF: cookie-authenticated mutations must carry X-Requested-With: tassl (08 §2.7).
@@ -234,7 +247,14 @@ export function defineRoute<P = undefined, Q = undefined, B = undefined, O = unk
           store.logger.info({ event: 'idempotent_replay' }, 'idempotency key replayed')
           result = original
         } else {
-          result = await handler(ctx)
+          // One span per handler, named by its operation id: the transaction the SDK opened covers
+          // auth, validation, and rate limiting too, and this is the part a service owns (13 §5).
+          // Postgres spans nest under it from the SDK's postgres-js instrumentation, which records
+          // the parameterized statement and — with `sendDefaultPii` off — none of its values.
+          result = await Sentry.startSpan(
+            { name: registered.operationId, op: 'function.handler' },
+            () => handler(ctx),
+          )
           // The receipt is written only now, so a refusal leaves nothing to replay. It is never a
           // reason to fail a request that already succeeded: the resource exists either way, and a
           // lost receipt only costs the next retry its replay.
@@ -275,7 +295,8 @@ export function defineRoute<P = undefined, Q = undefined, B = undefined, O = unk
         const parts = toErrorParts(error, requestId)
         const durationMs = Date.now() - startedAt
         if (parts.status >= 500) {
-          // Phase 13: Sentry.captureException(error) with the request id as a tag.
+          // 4xx is a refusal the client can act on and never reaches Sentry (02 §7); 5xx is ours.
+          Sentry.captureException(error, { tags: { error_code: parts.code } })
           store.logger.error(
             {
               event: 'http_request',

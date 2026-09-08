@@ -530,10 +530,12 @@ const advanceClockJson = defineRoute(
  *
  * Two things make it safe to have in the tree at all.
  *
- * It is **not documented**: unlike every other handler here it is not passed through
- * `attachRouteSpec`, so `scripts/openapi-generate.ts` — which reads the spec off the exported
- * handler — cannot see it, and `docs/tech/openapi.yaml` never gains an operation for a route that
- * exists only in a test process.
+ * It is **not documented**: `documented: false` on the spec below keeps
+ * `scripts/openapi-generate.ts` away, so `docs/tech/openapi.yaml` never gains an operation for a
+ * route that exists only in a test process. Until Step 13.4 that was said by attaching no spec at
+ * all — which also hid the route from `tests/integration/rate-limit/coverage.test.ts`, so the one
+ * endpoint in the product that moves a student's clock declared no bucket anywhere a sweep could
+ * read it, while enforcing `write` through `advanceClockJson` (D-613).
  *
  * And it is **closed before anything else runs**: the environment is checked here, ahead of the
  * session lookup `defineRoute` would do first, so outside a test process the path answers the same
@@ -541,11 +543,14 @@ const advanceClockJson = defineRoute(
  * `advanceRunClock` checks the same gate again before it touches a row, because a guard that lives
  * only in a route is a guard one refactor away from being gone.
  */
-export const advanceClockRoute: RouteHandler = async (request, routeCtx) => {
-  try {
-    assertTestEnvironment()
-  } catch (error) {
-    return toErrorResponse(error, getOrCreateRequestId(request.headers))
-  }
-  return advanceClockJson(request, routeCtx)
-}
+export const advanceClockRoute: RouteHandler = attachRouteSpec(
+  async (request, routeCtx) => {
+    try {
+      assertTestEnvironment()
+    } catch (error) {
+      return toErrorResponse(error, getOrCreateRequestId(request.headers))
+    }
+    return advanceClockJson(request, routeCtx)
+  },
+  { ...specOf(advanceClockJson), documented: false },
+)
