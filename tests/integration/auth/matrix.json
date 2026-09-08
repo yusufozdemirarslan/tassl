@@ -3038,5 +3038,165 @@
     "operationId": "regenerateElement",
     "role": "outsider",
     "expected": "deny"
+  },
+  {
+    "operationId": "adminListUsers",
+    "role": "student",
+    "expected": "deny"
+  },
+  {
+    "operationId": "adminListUsers",
+    "role": "instructor",
+    "expected": "deny"
+  },
+  {
+    "operationId": "adminListUsers",
+    "role": "ta",
+    "expected": "deny"
+  },
+  {
+    "operationId": "adminListUsers",
+    "role": "author",
+    "expected": "deny"
+  },
+  {
+    "operationId": "adminListUsers",
+    "role": "program_lead",
+    "expected": "deny"
+  },
+  {
+    "operationId": "adminListUsers",
+    "role": "editor",
+    "expected": "deny"
+  },
+  {
+    "operationId": "adminListUsers",
+    "role": "admin",
+    "expected": "allow"
+  },
+  {
+    "operationId": "adminListUsers",
+    "role": "outsider",
+    "expected": "deny"
+  },
+  {
+    "operationId": "adminSetPlatformRole",
+    "role": "student",
+    "expected": "deny"
+  },
+  {
+    "operationId": "adminSetPlatformRole",
+    "role": "instructor",
+    "expected": "deny"
+  },
+  {
+    "operationId": "adminSetPlatformRole",
+    "role": "ta",
+    "expected": "deny"
+  },
+  {
+    "operationId": "adminSetPlatformRole",
+    "role": "author",
+    "expected": "deny"
+  },
+  {
+    "operationId": "adminSetPlatformRole",
+    "role": "program_lead",
+    "expected": "deny"
+  },
+  {
+    "operationId": "adminSetPlatformRole",
+    "role": "editor",
+    "expected": "deny"
+  },
+  {
+    "operationId": "adminSetPlatformRole",
+    "role": "admin",
+    "expected": "allow"
+  },
+  {
+    "operationId": "adminSetPlatformRole",
+    "role": "outsider",
+    "expected": "deny"
+  },
+  {
+    "operationId": "adminGetFlags",
+    "role": "student",
+    "expected": "deny"
+  },
+  {
+    "operationId": "adminGetFlags",
+    "role": "instructor",
+    "expected": "deny"
+  },
+  {
+    "operationId": "adminGetFlags",
+    "role": "ta",
+    "expected": "deny"
+  },
+  {
+    "operationId": "adminGetFlags",
+    "role": "author",
+    "expected": "deny"
+  },
+  {
+    "operationId": "adminGetFlags",
+    "role": "program_lead",
+    "expected": "deny"
+  },
+  {
+    "operationId": "adminGetFlags",
+    "role": "editor",
+    "expected": "deny"
+  },
+  {
+    "operationId": "adminGetFlags",
+    "role": "admin",
+    "expected": "allow"
+  },
+  {
+    "operationId": "adminGetFlags",
+    "role": "outsider",
+    "expected": "deny"
+  },
+  {
+    "operationId": "adminListAuditLog",
+    "role": "student",
+    "expected": "deny"
+  },
+  {
+    "operationId": "adminListAuditLog",
+    "role": "instructor",
+    "expected": "deny"
+  },
+  {
+    "operationId": "adminListAuditLog",
+    "role": "ta",
+    "expected": "deny"
+  },
+  {
+    "operationId": "adminListAuditLog",
+    "role": "author",
+    "expected": "deny"
+  },
+  {
+    "operationId": "adminListAuditLog",
+    "role": "program_lead",
+    "expected": "deny"
+  },
+  {
+    "operationId": "adminListAuditLog",
+    "role": "editor",
+    "expected": "deny"
+  },
+  {
+    "operationId": "adminListAuditLog",
+    "role": "admin",
+    "expected": "allow"
+  },
+  {
+    "operationId": "adminListAuditLog",
+    "role": "outsider",
+    "expected": "deny"
   }
 ]
