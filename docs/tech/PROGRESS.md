@@ -129,7 +129,7 @@
 - [x] 14.3 Prompt hardening and injection evals
 - [x] 14.4 Evals against the real provider (local)
 - [x] 14.5 LLM observability panel and alerts
-- [ ] 14.6 Rollout to preview, then production
+- [x] 14.6 Rollout to preview, then production
 - [ ] Phase 14 exit criteria
 
 ## Phase 15 — Release and walkthrough (`build-plan/phase-15-release.md`)
