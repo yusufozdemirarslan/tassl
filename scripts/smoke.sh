@@ -18,8 +18,11 @@ expect_status() { # path expected-status
 expect_redirect() { # path expected-location-prefix
   local code location
   code="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 20 "$BASE$1")"
-  location="$(curl -sSI --max-time 20 "$BASE$1" | tr -d '
-' | awk 'tolower($1) == "location:" { print $2 }')"
+  # `tr -d ''` with the escape, never a literal carriage return in the source: this line was
+  # written with one, an editor normalised it to a newline, and `tr -d` then deleted every
+  # newline instead — collapsing the whole header block onto one line, so awk never saw a
+  # `location:` field and every redirect check reported an empty location (D-679).
+  location="$(curl -sSI --max-time 20 "$BASE$1" | tr -d '' | awk 'tolower($1) == "location:" { print $2 }')"
   case "$code" in
     30[1278]) ;;
     *) echo "FAIL $1 -> $code (expected a redirect)"; exit 1 ;;
