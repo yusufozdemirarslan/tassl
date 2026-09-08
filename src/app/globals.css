@@ -155,6 +155,21 @@
      prose surface (D-317). */
   --container-measure: 60ch;
 
+  /* The page cap (DESIGN.md §Layout). `main` in the app shell grew with the window and nothing
+     stopped it: at 2560 px the dense screens — the replay's trace, the roster, the claims table,
+     the confirmation workspace's editor — ran 2288 px edge to edge, and a reader's eye travelled
+     the whole of it to get from a row's key to its last column. The prose was already clamped by
+     `--container-measure`, so the widths that stretched were exactly the ones a measure does not
+     govern.
+
+     96rem is the `2xl` breakpoint, and that is not a coincidence: `2xl` is the width the writing
+     screens split at because it is the first at which a two-column layout still holds the full
+     reading measure (D-310), so it is also the widest arrangement this product has anything to
+     put in. Past it the columns only get longer. In rem rather than px so it scales with browser
+     text zoom the way `--container-measure` does; the cap therefore binds at a 1808 px viewport at
+     100 % and proportionally later as text grows (D-620). */
+  --container-page: 96rem;
+
   --radius-sm: 2px;
   --radius-md: 6px;
   --radius-lg: 10px;

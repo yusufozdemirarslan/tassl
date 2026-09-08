@@ -310,7 +310,7 @@ export function ActionResultSheet({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="overflow-y-auto">
+      <SheetContent side="right">
         <SheetHeader>
           <SheetTitle>
             {t('workspace.actionResultTitle', {

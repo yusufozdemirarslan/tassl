@@ -171,7 +171,7 @@ export function NotificationList({ initial, initialCursor }: NotificationListPro
                 {item.link !== null && (
                   <Link
                     href={item.link as Route}
-                    className="text-primary text-meta focus-visible:outline-focus rounded-sm font-medium underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2"
+                    className="text-primary text-meta focus-visible:outline-focus inline-flex min-h-10 items-center rounded-sm font-medium underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2"
                   >
                     {t('notifications.open')}
                   </Link>

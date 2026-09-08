@@ -4,6 +4,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { Loader2Icon } from 'lucide-react'
 import { EmptyState } from '@/components/layout/empty-state'
+import { RecordDisclosure } from '@/components/layout/record-disclosure'
 import { Button, buttonVariants } from '@/components/ui/button'
 import {
   Table,
@@ -121,18 +122,11 @@ export function AuditTable({
                 {row.requestId}
               </TableCell>
               <TableCell className="align-top whitespace-normal">
-                {Object.keys(row.metadata).length === 0 ? (
-                  <span className="text-ink-muted text-meta">{t('admin.audit.noRecord')}</span>
-                ) : (
-                  <details>
-                    <summary className="text-primary text-meta focus-visible:outline-focus inline-flex min-h-10 cursor-pointer list-none items-center rounded-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-2 [&::-webkit-details-marker]:hidden">
-                      {t('admin.audit.openRecord')}
-                    </summary>
-                    <pre className="bg-paper-sunken text-ink text-mono-sm mt-2 w-full max-w-lg overflow-x-auto rounded-md p-3 font-mono break-words whitespace-pre-wrap">
-                      {JSON.stringify(row.metadata, null, 2)}
-                    </pre>
-                  </details>
-                )}
+                <RecordDisclosure
+                  record={row.metadata}
+                  label={t('admin.audit.openRecord')}
+                  emptyLabel={t('admin.audit.noRecord')}
+                />
               </TableCell>
             </TableRow>
           ))}

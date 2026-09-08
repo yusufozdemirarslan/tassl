@@ -329,7 +329,11 @@ export function ElementEditor(props: ElementEditorProps) {
         {/* A claim has eighteen fields, half of them a date, an enum or a tick. Two columns from
             `xl` puts the short ones side by side and keeps the writing at one measure: a body, a
             brief and a seed text stay full width, where the 72ch measure can hold. */}
-        <div className="grid gap-x-8 gap-y-5 xl:grid-cols-2">
+        {/* Two field columns from `2xl` and not `xl` (D-630). This grid is the right-hand track of
+          the confirmation workspace's own split (D-628), so its container is about 400 px narrower
+          than the window suggests: at `xl` the two columns were 316 px each, which is a label, a
+          hint and a `min-w-56` select with 90 px to spare. At `2xl` the same split leaves 444 px. */}
+        <div className="grid gap-x-8 gap-y-5 2xl:grid-cols-2">
           {specs.map((spec) => (
             <div key={spec.name} className={cn('min-w-0', !isNarrow(spec) && 'xl:col-span-2')}>
               <EditorField

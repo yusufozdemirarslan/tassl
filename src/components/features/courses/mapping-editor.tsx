@@ -296,48 +296,44 @@ export function MappingEditor({ courseId, mapping, readOnly = false }: MappingEd
                   total: preview.affected.length,
                 })}
               </p>
-              <div className="overflow-x-auto">
-                <Table className="min-w-2xl">
-                  <TableCaption>{t('courses.mappingPreviewCaption')}</TableCaption>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead scope="col">
-                        {t('courses.mappingPreviewColumnAssignment')}
-                      </TableHead>
-                      <TableHead scope="col">{t('courses.mappingPreviewColumnNow')}</TableHead>
-                      <TableHead scope="col">{t('courses.mappingPreviewColumnAfter')}</TableHead>
-                      <TableHead scope="col">{t('courses.mappingPreviewColumnChange')}</TableHead>
-                      <TableHead scope="col">{t('courses.mappingPreviewColumnRun')}</TableHead>
+              <Table className="min-w-2xl">
+                <TableCaption>{t('courses.mappingPreviewCaption')}</TableCaption>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead scope="col">{t('courses.mappingPreviewColumnAssignment')}</TableHead>
+                    <TableHead scope="col">{t('courses.mappingPreviewColumnNow')}</TableHead>
+                    <TableHead scope="col">{t('courses.mappingPreviewColumnAfter')}</TableHead>
+                    <TableHead scope="col">{t('courses.mappingPreviewColumnChange')}</TableHead>
+                    <TableHead scope="col">{t('courses.mappingPreviewColumnRun')}</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {preview.affected.map((row) => (
+                    <TableRow key={row.runId}>
+                      <TableCell className="whitespace-normal">{row.assignmentLabel}</TableCell>
+                      <TableCell className="font-mono tabular-nums">
+                        {points(row.pointsNow)}
+                      </TableCell>
+                      <TableCell className="font-mono tabular-nums">
+                        {points(row.pointsAfter)}
+                      </TableCell>
+                      <TableCell className="whitespace-normal">
+                        {row.changed
+                          ? t('courses.mappingPreviewChanged')
+                          : t('courses.mappingPreviewUnchanged')}
+                      </TableCell>
+                      <TableCell>
+                        <Link
+                          href={`/review/runs/${row.runId}` as Route}
+                          className="text-primary text-meta focus-visible:outline-focus inline-flex min-h-10 items-center rounded-sm underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2"
+                        >
+                          {t('courses.mappingPreviewOpenRun')}
+                        </Link>
+                      </TableCell>
                     </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {preview.affected.map((row) => (
-                      <TableRow key={row.runId}>
-                        <TableCell className="whitespace-normal">{row.assignmentLabel}</TableCell>
-                        <TableCell className="font-mono tabular-nums">
-                          {points(row.pointsNow)}
-                        </TableCell>
-                        <TableCell className="font-mono tabular-nums">
-                          {points(row.pointsAfter)}
-                        </TableCell>
-                        <TableCell className="whitespace-normal">
-                          {row.changed
-                            ? t('courses.mappingPreviewChanged')
-                            : t('courses.mappingPreviewUnchanged')}
-                        </TableCell>
-                        <TableCell>
-                          <Link
-                            href={`/review/runs/${row.runId}` as Route}
-                            className="text-primary text-meta focus-visible:outline-focus inline-flex min-h-10 items-center rounded-sm underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2"
-                          >
-                            {t('courses.mappingPreviewOpenRun')}
-                          </Link>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
+                  ))}
+                </TableBody>
+              </Table>
               <p className="text-ink-muted text-body max-w-measure">
                 {t('courses.mappingPreviewSeatNote')}
               </p>

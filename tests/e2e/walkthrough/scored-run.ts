@@ -142,8 +142,14 @@ export async function myAssignment(
   return found as StudentAssignment
 }
 
-/** Steps 2 to 9 through the endpoints the screens call; returns the run, in `defense_pending`. */
-export async function reachDefense(api: APIRequestContext, assignmentId: string): Promise<string> {
+/**
+ * Steps 2 to 5 through the endpoints the screens call: start, acknowledge, answer every readiness
+ * item, submit, lock the frame. Returns the run, in `working`, with its clock running.
+ *
+ * Which option is chosen is arbitrary and must be: correctness is computed server-side and no
+ * response carries it (FR-012), so a caller does not know which key is right and does not need to.
+ */
+export async function reachWorking(api: APIRequestContext, assignmentId: string): Promise<string> {
   const { id: runId } = await post<{ id: string }>(
     api,
     `/api/v1/assignments/${assignmentId}/runs`,
@@ -166,6 +172,12 @@ export async function reachDefense(api: APIRequestContext, assignmentId: string)
   }
   await post(api, `/api/v1/runs/${runId}/readiness/submit`)
   await post(api, `/api/v1/runs/${runId}/frame`, FRAME)
+  return runId
+}
+
+/** Steps 2 to 9 through the endpoints the screens call; returns the run, in `defense_pending`. */
+export async function reachDefense(api: APIRequestContext, assignmentId: string): Promise<string> {
+  const runId = await reachWorking(api, assignmentId)
   await post(api, `/api/v1/runs/${runId}/lock`, BRIEF)
 
   // The Turn falls due on the run's own clock; the shift is the only honest way to reach it (D-109).

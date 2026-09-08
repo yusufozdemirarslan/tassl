@@ -385,9 +385,10 @@ export function ElementList({
         <p className="text-ink-muted text-body py-4">{t('confirm.onlyUndecidedEmpty')}</p>
       ) : (
         <>
-          {/* Under lg the tree is a select: one control, sixty options, and the platform's own
-              picker on a touch screen. */}
-          <div className="lg:hidden">
+          {/* Under `xl` the tree is a select: one control, sixty options, and the platform's own
+              picker on a touch screen. `xl` and not `lg` because that is where the workspace's
+              two columns start, and the two have to be the same width (D-628). */}
+          <div className="xl:hidden">
             <label htmlFor="confirm-element-select" className="text-meta text-ink font-medium">
               {t('confirm.selectLabel')}
             </label>
@@ -419,7 +420,7 @@ export function ElementList({
           <ul
             role="tree"
             aria-label={t('confirm.treeLabel')}
-            className="hidden max-h-[70vh] flex-col overflow-y-auto lg:flex"
+            className="hidden max-h-[70vh] flex-col overflow-y-auto xl:flex"
           >
             {renderNodes(shown, 1)}
           </ul>

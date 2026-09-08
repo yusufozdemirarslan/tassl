@@ -70,6 +70,9 @@ function claimHref(basePath: string, key: string): Route {
 // is a pseudo-element rather than `border-r`: a border on a sticky cell of a `border-collapse`
 // table is painted with the table and scrolls away with it. The column is capped narrow enough to
 // leave the variants reachable on a 360 px screen, and widens to its reading measure from `sm` up.
+// 10 rem is that cap, measured rather than guessed (D-630): the scroll region at 360 px is 296 px
+// wide, so the 15 rem it used to be left 56 px of it — about one chip — for the six columns the
+// scroll exists to reveal.
 const STICKY_CLAIM_COLUMN =
   "bg-paper-raised sticky left-0 z-10 after:absolute after:inset-y-0 after:right-0 after:w-px after:bg-line after:content-['']"
 
@@ -139,7 +142,7 @@ export function ClaimsTable({ claims, variantKeys, basePath }: ClaimsTableProps)
               <TableCell
                 className={cn(
                   STICKY_CLAIM_COLUMN,
-                  'max-w-[15rem] align-top whitespace-normal sm:max-w-[52ch]',
+                  'max-w-40 align-top whitespace-normal sm:max-w-[52ch]',
                 )}
               >
                 {/* The link's own text is its accessible name (WCAG 2.5.3): the key and the claim,

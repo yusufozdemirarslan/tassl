@@ -135,7 +135,7 @@ export function SignUpForm() {
 
       <p className="text-ink-muted text-body flex flex-wrap items-center gap-x-1.5">
         <span>{t('auth.signUp.haveAccount')}</span>
-        <Link href="/sign-in" className="text-primary underline-offset-4 hover:underline">
+        <Link href="/sign-in" className="text-primary underline underline-offset-4">
           {t('auth.signUp.signIn')}
         </Link>
       </p>

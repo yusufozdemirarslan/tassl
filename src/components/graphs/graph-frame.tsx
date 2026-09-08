@@ -70,8 +70,15 @@ export type GraphFrameProps = {
    * Reserved height of the graph region in px, so a deferred chart causes no layout shift. It
    * applies to a chart only: a graph whose `children` is a node rather than a render function is
    * prose (frame beside decision), and prose that has to fit a box is prose that gets cut off.
+   *
+   * `'auto'` is a chart that reserves nothing, and the reservation's own reason is why it exists:
+   * the box is here so the space a `next/dynamic` chunk will fill is already the right size when
+   * the page paints. A chart that is server-rendered arrives with the HTML, shifts nothing, and is
+   * only *squeezed* by a fixed box — which is what happened to the stance matrix at 360 px, where
+   * a five-by-five grid meeting a 320 px box scaled itself to 0.61 and set its labels at seven
+   * pixels. `'auto'` lets such a chart state its own size (D-621).
    */
-  height?: number
+  height?: number | 'auto'
   defaultView?: 'graph' | 'table'
   /**
    * Element for the visible heading. The default is the rung below a `Panel` title, so the
@@ -162,7 +169,7 @@ export function GraphFrame({
       {available ? (
         <div
           ref={region}
-          style={isChart ? { height } : undefined}
+          style={isChart && height !== 'auto' ? { height } : undefined}
           hidden={view !== 'graph'}
           className="min-w-0"
         >

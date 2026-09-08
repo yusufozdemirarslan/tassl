@@ -81,6 +81,9 @@ const REQUEST_MAX_CHARS = 2000
  */
 const FIGURE_MARKER = /\[\[figure:([^\]]*)\]\]/g
 
+/** The marker's opening, for a stateless check: `FIGURE_MARKER` is global and therefore stateful. */
+const FIGURE_MARK = '[[figure:'
+
 /** The panel's one copy of the stance hint; every radio group inside it points here (D-314). */
 const STANCE_HINT_ID = 'assistant-stance-hint'
 
@@ -158,6 +161,18 @@ export function AssistantProse({ text, className }: AssistantProseProps) {
           {proseParts(paragraph)}
         </p>
       ))}
+      {/* What the marks above mean, once, in the DOM (D-629).
+          Each mark carries a tooltip, and a tooltip is a hover-and-keyboard-focus surface: Base UI
+          opens it on `:focus-visible`, which a tap does not produce on a non-typeable element, so a
+          sighted touch reader met an amber chip with a warning triangle and no way to learn what it
+          was warning about. The sentence that matters most is the second one — the mark is about
+          where a figure came from, not about whether it is right (FR-056, D-281) — and a student
+          who reads it as "the assistant is wrong here" has been told something untrue by an
+          interface that would not explain itself. So it is said in text, to every reader, on the
+          replies that carry a mark and on no others. */}
+      {text.includes(FIGURE_MARK) && (
+        <p className="text-ink-muted text-body">{t('workspace.unverifiedNumberTooltip')}</p>
+      )}
     </div>
   )
 }

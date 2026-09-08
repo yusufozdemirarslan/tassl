@@ -62,11 +62,19 @@ export function AppShell({
       <div className="flex flex-1 md:flex-row">
         <Rail items={rail} />
         {/* Under md the bottom padding clears the fixed bottom bar (57 px with its hairline) by the
-            page's own 24 px gutter; it equals the html scroll-padding-bottom in globals.css. */}
+            page's own 24 px gutter; it equals the html scroll-padding-bottom in globals.css.
+
+            `max-w-page` is the cap the shell never had (D-620). `flex-1` alone let `main` grow with
+            the window, so on a 2560 px monitor the dense screens ran 2288 px edge to edge — the
+            prose was clamped by `max-w-measure`, but the trace, the roster and the claims table,
+            which a measure does not govern, were not. The column is centred in what is left rather
+            than pinned beside the rail: `mx-auto` on a flex item puts the free space in the margins,
+            and a capped column hugging the rail with 750 px of blank paper on one side reads as an
+            unfinished page rather than a composed one. */}
         <main
           id="main"
           tabIndex={-1}
-          className="min-w-0 flex-1 px-4 py-6 pb-20 outline-none md:px-6 md:pb-8"
+          className="max-w-page mx-auto min-w-0 flex-1 px-4 py-6 pb-20 outline-none md:px-6 md:pb-8"
         >
           <FocusOnRouteChange />
           {children}

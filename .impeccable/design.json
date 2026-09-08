@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-09-03T09:53:17.758Z",
+  "generatedAt": "2026-09-08T00:00:00.000Z",
   "title": "Design System: Tassl",
   "extensions": {
     "colorMeta": {
@@ -148,7 +148,7 @@
       },
       "reading": {
         "displayName": "Reading",
-        "purpose": "Everything the student writes and reads at length; 72ch max."
+        "purpose": "Everything the student writes and reads at length; clamped by max-w-measure to about 72 characters."
       },
       "body": {
         "displayName": "Body",
@@ -178,7 +178,7 @@
       {
         "name": "ease-out",
         "value": "cubic-bezier(0.2, 0, 0, 1)",
-        "purpose": "The only easing; Tailwind’s ease-out utility maps to it. No bounce or elastic."
+        "purpose": "The only easing; Tailwind\u2019s ease-out utility maps to it. No bounce or elastic."
       },
       {
         "name": "dur-fast",
@@ -212,6 +212,22 @@
       {
         "name": "xl",
         "value": "1280px"
+      },
+      {
+        "name": "2xl",
+        "value": "1536px"
+      }
+    ],
+    "containers": [
+      {
+        "name": "measure",
+        "value": "60ch",
+        "purpose": "The reading measure: about 72 characters in IBM Plex Sans, at every step of the type scale. Applied as max-w-measure on every prose surface; never a hand-written max-w-[72ch] (D-317)."
+      },
+      {
+        "name": "page",
+        "value": "96rem",
+        "purpose": "The cap on main in the app shell, centred in what is left beside the rail, so the dense screens a measure does not govern stop growing with the window (D-620)."
       }
     ]
   },
@@ -268,7 +284,7 @@
       "name": "Stance Chip",
       "kind": "chip",
       "refersTo": "chip-stance",
-      "description": "Pill radio chip specified in 09-frontend-spec.md §2.3 for the run workspace (not yet in src/components): selected state fills with the stance wash and colors the border and icon; the text stays ink.",
+      "description": "Pill radio chip specified in 09-frontend-spec.md \u00a72.3 for the run workspace (not yet in src/components): selected state fills with the stance wash and colors the border and icon; the text stays ink.",
       "html": "<button class=\"ds-chip-stance is-selected\" role=\"radio\" aria-checked=\"true\"><svg aria-hidden=\"true\" width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"m8 11 2 2 4-4\"/><circle cx=\"11\" cy=\"11\" r=\"8\"/><path d=\"m21 21-4.3-4.3\"/></svg>Verify</button>",
       "css": ".ds-chip-stance { display: inline-flex; align-items: center; gap: 6px; height: 40px; padding: 6px 12px; background: var(--paper-raised, #FFFFFF); color: var(--ink, #141A26); border: 1px solid var(--line, #D5DAE2); border-radius: 999px; font: 500 13px/20px 'IBM Plex Sans', system-ui, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif; cursor: default; transition: background-color 150ms cubic-bezier(0.2, 0, 0, 1), border-color 150ms cubic-bezier(0.2, 0, 0, 1); } .ds-chip-stance:hover { background: var(--paper-sunken, #ECEFF3); } .ds-chip-stance.is-selected { background: var(--primary-soft, #DDEFF0); border-color: var(--stance-verify, #0F6E74); } .ds-chip-stance.is-selected svg { color: var(--stance-verify, #0F6E74); } .ds-chip-stance:focus-visible { outline: 2px solid var(--focus, #0F6E74); outline-offset: 2px; }"
     },
@@ -289,7 +305,7 @@
       "IBM Plex throughout: Serif for headings, Sans for the UI and writing, Mono with tabular figures for trace data and the clock.",
       "One accent (deep teal) for actions and selection; semantic colors are rare and always redundant with a label or icon.",
       "Hairline borders and whitespace instead of elevation; cards never nest.",
-      "Motion is short (150–200 ms), ease-out, and removed entirely under prefers-reduced-motion."
+      "Motion is short (150\u2013200 ms), ease-out, and removed entirely under prefers-reduced-motion."
     ],
     "rules": [
       {
@@ -314,8 +330,23 @@
       },
       {
         "name": "The Reading Measure Rule",
-        "body": "Student writing surfaces use 16/26 Sans at a 72ch maximum; UI chrome stays at 14/22.",
+        "body": "Student writing surfaces use 16/26 Sans at a 72-character maximum, applied as the max-w-measure utility (--container-measure: 60ch, which renders about 72 characters in IBM Plex Sans) and never as a hand-written max-w-[72ch]; UI chrome stays at 14/22.",
         "section": "typography"
+      },
+      {
+        "name": "The Descending-Heading Rule",
+        "body": "Below a panel's Title the levels step down in size only, never in colour: h3 is Subtitle (Serif 500, 20/28), h4 is Serif 500 at the reading size (16/26), h5 is Sans 600, 14/22, in ink. A heading is never --ink-muted and never smaller than the prose it introduces. The rung below h5 is a bold-body paragraph, not a heading.",
+        "section": "typography"
+      },
+      {
+        "name": "The Underlined-In-Prose Rule",
+        "body": "A link inside a sentence is underlined at rest: teal on muted ink is a colour difference of 1.26:1, so colour alone does not tell a reader where a link starts. A link that stands on its own \u2014 its own row, list item or line \u2014 may take the underline on hover and carries the 40 px target instead.",
+        "section": "typography"
+      },
+      {
+        "name": "The Monotonic-Width Rule",
+        "body": "No element is narrower at a wider viewport than at a narrower one. A max-w that appears at a breakpoint and is smaller than the width the layout already gave the element below it is a bug; a cap exists to stop an element spreading where there is room, so it is the same cap wherever there is room, and min-w-0 truncate inside a shrinking row handles the widths where there is not.",
+        "section": "layout"
       },
       {
         "name": "The One-Layer Rule",
@@ -324,7 +355,7 @@
       }
     ],
     "dos": [
-      "Do use the token variables (--paper, --ink, --primary …) and the Tailwind color names that map to them; never a raw hex in a component.",
+      "Do use the token variables (--paper, --ink, --primary \u2026) and the Tailwind color names that map to them; never a raw hex in a component.",
       "Do keep one accent per screen: teal for the action the visitor is there to take.",
       "Do pair every stance and semantic color with a text label and an icon.",
       "Do separate sections with whitespace and hairlines; one panel level only.",

@@ -35,7 +35,12 @@ export type StanceMatrixPayload = {
 
 export type StanceMatrixProps = {
   payload: StanceMatrixPayload
-  height?: number
+  /**
+   * `'auto'` by default, and it is the only value any caller passes: this graph is server-rendered
+   * (D-388), so there is no deferred chunk for a reserved box to hold a place for, and the box only
+   * ever compressed it. See `MIN_SCALE` below.
+   */
+  height?: number | 'auto'
   headingLevel?: 2 | 3 | 4
 }
 
@@ -47,7 +52,8 @@ const STANCE_LABELS = [
   stanceT('stance.escalate'),
 ]
 
-// The grid, in user units. The SVG scales to its box; these numbers only fix the proportions.
+// The grid, in user units. The SVG scales to its box; these numbers fix the proportions and, with
+// the two scale bounds below, the sizes the drawing is allowed to be.
 const LABEL_W = 92
 const HEADER_H = 34
 const CELL_W = 74
@@ -56,7 +62,24 @@ const PAD = 22
 const WIDTH = LABEL_W + CELL_W * 5 + PAD
 const HEIGHT = HEADER_H + CELL_H * 5 + PAD
 
-export function StanceMatrix({ payload, height = 320, headingLevel = 3 }: StanceMatrixProps) {
+// **The matrix never draws below 1:1, and never above 1.25** (D-621).
+//
+// The floor is the fix. `preserveAspectRatio="…meet"` scales the whole drawing to whatever box it
+// is given, and at 360 px the box was 296 px wide against 484 user units — 0.61, which set the
+// stance labels at seven pixels and the counts at nine. The text in this plot *is* the plot (16
+// §9.2: matrix cells carry text), so a scale below 1 is a graph that has stopped saying anything.
+// Below 484 px the figure therefore keeps its size and its own region scrolls sideways instead; the
+// page does not, and the SVG already carries `tabIndex` from `GraphFrame`, so the arrow keys of a
+// keyboard user reach the scroll container through the element inside it without a second tab stop.
+//
+// The ceiling is what the old fixed 320 px box was doing by accident, kept on purpose: a box of
+// 320 against 256 user units capped the drawing at 1.25 however wide the panel was, and past that a
+// five-by-five grid of two-digit counts is a poster rather than an instrument. So the rendering at
+// every width from 484 px up is byte-for-byte the one this screen had before.
+const MIN_SCALE = 1
+const MAX_SCALE = 1.25
+
+export function StanceMatrix({ payload, height = 'auto', headingLevel = 3 }: StanceMatrixProps) {
   const percentOf = (share: number | null): number => (share === null ? 0 : Math.round(share * 100))
 
   return (
@@ -71,13 +94,18 @@ export function StanceMatrix({ payload, height = 320, headingLevel = 3 }: Stance
       headingLevel={headingLevel}
     >
       {(chart) => (
-        <div className="flex h-full min-h-0 flex-col gap-3">
-          <div className="min-h-0 flex-1">
+        <div className="flex flex-col gap-3">
+          <div className="overflow-x-auto">
             <svg
               {...chart}
               viewBox={`0 0 ${String(WIDTH)} ${String(HEIGHT)}`}
               preserveAspectRatio="xMinYMin meet"
-              className="h-full w-full"
+              style={{
+                minWidth: WIDTH * MIN_SCALE,
+                maxWidth: WIDTH * MAX_SCALE,
+                aspectRatio: `${String(WIDTH)} / ${String(HEIGHT)}`,
+              }}
+              className="block h-auto w-full"
             >
               {/* Column heads: the stance the claim warranted. */}
               <text

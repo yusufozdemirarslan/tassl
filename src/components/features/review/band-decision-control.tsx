@@ -344,7 +344,7 @@ export function ConfirmRemaining({
             `data-[size=default]:sm:max-w-sm` is a class-plus-attribute selector and outranks a
             plain modifier, so the wider clamp has to match its specificity or the dialog renders at
             384 px with seven dimension rows in it. */}
-        <AlertDialogContent className="max-h-[85dvh] overflow-y-auto data-[size=default]:sm:max-w-lg">
+        <AlertDialogContent className="data-[size=default]:sm:max-w-lg">
           <AlertDialogHeader>
             <AlertDialogTitle>
               {t('review.confirmRemainingDialogTitle', { count: open.length })}

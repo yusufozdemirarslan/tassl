@@ -56,7 +56,12 @@ function SheetContent({
         data-side={side}
         className={cn(
           // Sheet recipe (DESIGN.md §Elevation): raised paper, hairline edge, float shadow, 200 ms ease-out.
-          'bg-paper-raised text-ink border-line shadow-float text-body fixed z-50 flex flex-col gap-4 bg-clip-padding transition duration-200 ease-out data-ending-style:opacity-0 data-starting-style:opacity-0 data-[side=bottom]:inset-x-0 data-[side=bottom]:bottom-0 data-[side=bottom]:h-auto data-[side=bottom]:border-t data-[side=bottom]:data-ending-style:translate-y-[2.5rem] data-[side=bottom]:data-starting-style:translate-y-[2.5rem] data-[side=left]:inset-y-0 data-[side=left]:left-0 data-[side=left]:h-full data-[side=left]:w-3/4 data-[side=left]:border-r data-[side=left]:data-ending-style:translate-x-[-2.5rem] data-[side=left]:data-starting-style:translate-x-[-2.5rem] data-[side=right]:inset-y-0 data-[side=right]:right-0 data-[side=right]:h-full data-[side=right]:w-3/4 data-[side=right]:border-l data-[side=right]:data-ending-style:translate-x-[2.5rem] data-[side=right]:data-starting-style:translate-x-[2.5rem] data-[side=top]:inset-x-0 data-[side=top]:top-0 data-[side=top]:h-auto data-[side=top]:border-b data-[side=top]:data-ending-style:translate-y-[-2.5rem] data-[side=top]:data-starting-style:translate-y-[-2.5rem] data-[side=left]:sm:max-w-sm data-[side=right]:sm:max-w-sm',
+          //
+          // `overflow-y-auto` belongs to the primitive for the reason `./dialog.tsx` gives: an
+          // edge-anchored `fixed` panel of `h-full` does not overflow a parent, it overflows the
+          // viewport, and a sheet taller than a phone in landscape loses its own footer. One call
+          // site had written the class by hand; every sheet needs it (D-622).
+          'bg-paper-raised text-ink border-line shadow-float text-body fixed z-50 flex flex-col gap-4 overflow-y-auto bg-clip-padding transition duration-200 ease-out data-ending-style:opacity-0 data-starting-style:opacity-0 data-[side=bottom]:inset-x-0 data-[side=bottom]:bottom-0 data-[side=bottom]:h-auto data-[side=bottom]:border-t data-[side=bottom]:data-ending-style:translate-y-[2.5rem] data-[side=bottom]:data-starting-style:translate-y-[2.5rem] data-[side=left]:inset-y-0 data-[side=left]:left-0 data-[side=left]:h-full data-[side=left]:w-3/4 data-[side=left]:border-r data-[side=left]:data-ending-style:translate-x-[-2.5rem] data-[side=left]:data-starting-style:translate-x-[-2.5rem] data-[side=right]:inset-y-0 data-[side=right]:right-0 data-[side=right]:h-full data-[side=right]:w-3/4 data-[side=right]:border-l data-[side=right]:data-ending-style:translate-x-[2.5rem] data-[side=right]:data-starting-style:translate-x-[2.5rem] data-[side=top]:inset-x-0 data-[side=top]:top-0 data-[side=top]:h-auto data-[side=top]:border-b data-[side=top]:data-ending-style:translate-y-[-2.5rem] data-[side=top]:data-starting-style:translate-y-[-2.5rem] data-[side=left]:sm:max-w-sm data-[side=right]:sm:max-w-sm',
           className,
         )}
         {...props}
@@ -65,7 +70,16 @@ function SheetContent({
         {showCloseButton && (
           <SheetPrimitive.Close
             data-slot="sheet-close"
-            render={<Button variant="ghost" className="absolute top-3 right-3" size="icon-sm" />}
+            // 32 px is the visual size the corner wants and 40 px is DESIGN.md §Layout's minimum
+            // target; `after:-inset-1` grows the hit area by 4 px on every edge without moving a
+            // pixel of the button, exactly as `./dialog.tsx` does with the same control (D-626).
+            render={
+              <Button
+                variant="ghost"
+                className="absolute top-3 right-3 after:absolute after:-inset-1"
+                size="icon-sm"
+              />
+            }
           >
             <XIcon />
             <span className="sr-only">{t('ui.close')}</span>
@@ -96,7 +110,9 @@ function SheetTitle({ className, ...props }: SheetPrimitive.Title.Props) {
   return (
     <SheetPrimitive.Title
       data-slot="sheet-title"
-      className={cn('text-h4 text-ink font-serif font-medium', className)}
+      // `pr-8` keeps the title clear of the close button in the corner above it: the sheet is
+      // 3/4 of a 360 px viewport, and a two-line title ran under the X with 28 px of overlap.
+      className={cn('text-h4 text-ink pr-8 font-serif font-medium', className)}
       {...props}
     />
   )
