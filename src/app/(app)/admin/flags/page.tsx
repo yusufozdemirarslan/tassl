@@ -37,6 +37,14 @@ export default async function AdminFlagsPage() {
               {t('admin.flags.providerMockNote')}
             </p>
           )}
+          {/* 11 §3's constrained-mode sentence, keyed on the flag itself rather than on the
+              effective provider: a deployment with FEATURE_AI on and LLM_PROVIDER=mock is a
+              deliberate choice about which model to call, not a degradation (D-655). */}
+          {!flags.ai && (
+            <p className="text-ink-muted text-body max-w-measure mt-3">
+              {t('admin.flags.constrainedMode')}
+            </p>
+          )}
         </Panel>
       </div>
     </>

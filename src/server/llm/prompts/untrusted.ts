@@ -11,6 +11,15 @@
 //     UNTRUSTED>>>` is escaped, so the block closes where the renderer says it closes.
 //   - The escape is applied to the text, never to the label, and the label is stripped of anything
 //     that could close the opening tag.
+//
+// **This is also where `redactPii` runs** (§3, D-066, D-650). Every untrusted field of every prompt
+// in the library passes through `untrusted()` on its way into a message, so applying the redactor
+// here makes "no student's e-mail address, no telephone number and no credential reaches a third
+// party" a property of the renderer rather than a rule each prompt author has to remember. Nothing
+// about the *decision* changes with it: the redactor is deliberately blind to quantities, and the
+// mock reads `promptInput` rather than the rendered text, so `FEATURE_AI=false` answers exactly what
+// it answered before.
+import { redactPii } from '@/server/llm/guardrails/redact'
 
 /** The sentence §2 requires in every system prompt; `definePrompt` appends it (D-067). */
 export const UNTRUSTED_INSTRUCTION =
@@ -61,7 +70,7 @@ const sanitizeLabel = (label: string): string =>
  * the same fields, so what a prompt hands on as its validated input is what it rendered.
  */
 export function untrusted(label: string, text: string): string {
-  const body = escapeUntrusted(normalizeUntrustedText(text))
+  const body = escapeUntrusted(redactPii(normalizeUntrustedText(text)))
   return [`${UNTRUSTED_OPEN} label="${sanitizeLabel(label)}">>>`, body, UNTRUSTED_CLOSE].join('\n')
 }
 

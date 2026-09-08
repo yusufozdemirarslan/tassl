@@ -149,7 +149,7 @@ describe('assistant-reply@1 — the marker contract', () => {
   })
 })
 
-describe('trigger-classify@1', () => {
+describe('trigger-classify@2', () => {
   const input = {
     request: 'how hard is the line running',
     candidates: [
@@ -163,7 +163,7 @@ describe('trigger-classify@1', () => {
   }
 
   it('is named and versioned for the llm_calls row', () => {
-    expect(triggerClassifyPrompt.id).toBe('trigger-classify@1')
+    expect(triggerClassifyPrompt.id).toBe('trigger-classify@2')
     expect(triggerClassifyPrompt.system.endsWith(UNTRUSTED_INSTRUCTION)).toBe(true)
   })
 
@@ -176,9 +176,12 @@ describe('trigger-classify@1', () => {
     const rendered = triggerClassifyPrompt.render(input).messages.at(-1)?.content ?? ''
     expect(rendered).toContain('id: C3')
     expect(rendered).toContain('Raised when the student asks what the premium tier returns.')
-    expect(rendered).toContain('"premium payback"')
+    expect(rendered).toContain('premium payback')
     expect(rendered).toContain('(none given)')
-    expect(countOf(rendered, UNTRUSTED_OPEN)).toBe(1)
+    // Step 14.3 (D-654): the request, plus a block for each candidate's description, plus one for
+    // C3's example wordings. C7 has none, so it renders the sentence rather than an empty block.
+    expect(countOf(rendered, UNTRUSTED_OPEN)).toBe(4)
+    expect(countOf(rendered, UNTRUSTED_OPEN)).toBe(countOf(rendered, UNTRUSTED_CLOSE))
   })
 
   it('accepts only a list of ids back, and defaults an absent list to empty', () => {

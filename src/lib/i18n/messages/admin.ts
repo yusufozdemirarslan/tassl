@@ -70,6 +70,13 @@ export const admin = {
     'The provider the run loop would actually call right now, which is the mock whenever FEATURE_AI is off.',
   'admin.flags.providerMockNote':
     'This deployment answers the assistant from a fixture: no run text reaches a model provider.',
+  // 11 §3's constrained-mode sentence, on the one screen it belongs on (D-655). It is written for an
+  // operator asking what this deployment is running with, and it is deliberately absent from every
+  // student surface: with FEATURE_AI off the product is whole (D-029), and a banner telling a
+  // student their assistant is "constrained" would describe a degradation they are not in and would
+  // be a change that `FEATURE_AI=false` is not allowed to make.
+  'admin.flags.constrainedMode':
+    'AI features are running in constrained mode: every model call is answered by the built-in fixture provider, which is deterministic and costs nothing.',
 
   // Audit log (UI-050, DATA-048)
   'admin.audit.title': 'Audit log',

@@ -7,7 +7,14 @@ import { z } from 'zod'
 
 const bool = z.enum(['true', 'false']).transform((v) => v === 'true')
 
-const ServerEnvSchema = z
+/**
+ * Exported so a test can ask what a *different* environment would do without a second process.
+ *
+ * `env` below is parsed once at import from `process.env` and never re-read — which is the point of
+ * it — so "`LLM_API_KEY` is required for `openai-compatible` in production" is a property of this
+ * schema rather than of the loaded object, and `tests/unit/llm/registry.test.ts` asserts it here.
+ */
+export const ServerEnvSchema = z
   .object({
     APP_ENV: z.enum(['local', 'test', 'preview', 'production']).default('local'),
     NEXT_PUBLIC_APP_URL: z.string().url().default('http://localhost:3000'),

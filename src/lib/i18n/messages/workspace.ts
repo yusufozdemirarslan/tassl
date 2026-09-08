@@ -170,7 +170,16 @@ export const workspace = {
   //     cost them nothing. It is deliberately not `logFailed`, which promises a pause and a credit
   //     that a locked run never had.
   // ---------------------------------------------------------------------------------------------
+  //   * `assistantBudget` is 11 §3's budget sentence (D-065). It is separate from the registry's
+  //     `ASSISTANT_UNAVAILABLE` message because the two outages ask for different next acts: a
+  //     provider that failed is waited out and the request repeated, and a usage limit that has been
+  //     reached will still have been reached in thirty seconds. It says nothing about whose limit or
+  //     how much of it is left — that is the operator's number, not a student's — and it does not
+  //     apologise for the request, which would be the assistant characterising what was asked
+  //     (FR-056). The run is Paused and the clock credited either way (FR-001).
   'workspace.assistantNoCommentary': 'The assistant could not add commentary on this request.',
+  'workspace.assistantBudget':
+    'The assistant is unavailable: usage limit reached. Your clock stopped, and the run is paused.',
   'workspace.assistantPaused':
     'The run is paused, so the assistant is not answering. Resume the run and ask again.',
   'workspace.assistantBeforeFrame':

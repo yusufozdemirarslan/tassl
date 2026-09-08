@@ -814,7 +814,10 @@ export async function delegate(
         latencyMs: Date.now() - requestedAt,
       })
     }
-    assistantUnavailable(prepared.delegationId)
+    // 11 §3's ladder: the run is Paused and the clock credited either way, and the sentence the
+    // student reads says which of the two happened — a component that failed, or a usage limit that
+    // has been reached and will not clear by trying again (D-065).
+    assistantUnavailable(prepared.delegationId, error)
   }
   const ordinary = assembleReply(reply, matched, allowedFor(matched, request, documents))
 

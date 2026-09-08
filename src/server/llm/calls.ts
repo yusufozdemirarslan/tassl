@@ -30,7 +30,7 @@ import type {
   StreamChunk,
   StructuredRequest,
 } from '@/server/llm/provider'
-import { defaultModelFor, messagesText } from '@/server/llm/provider'
+import { LLM_PROVIDER_NAMES, defaultModelFor, messagesText } from '@/server/llm/provider'
 
 /** `llm_calls.outcome` (06 §3.6); the vocabulary §4 and the analytics event share. */
 export type LlmOutcome =
@@ -47,6 +47,8 @@ export type LlmCallRecord = {
   usage: LlmUsage
   latencyMs: number
   outcome: LlmOutcome
+  /** True when the primary's circuit was open and `guardrails/fallback.ts` answered (§1.1, D-103). */
+  fallbackUsed?: boolean
   context: CompleteRequest['context']
 }
 
@@ -177,9 +179,11 @@ export async function recordLlmCall(
       input_tokens: record.usage.inputTokens,
       output_tokens: record.usage.outputTokens,
       cost_usd: Number(cost),
-      // The chain of §1.1 has no fallback wrapper yet — it lands in Phase 14 with the adapters it
-      // protects — so today no call can be one, and this is the fact rather than a placeholder.
-      fallback_used: false,
+      // Step 14.2: the chain has a fallback wrapper, so this is now a fact about the call rather
+      // than a constant. It is true only when the primary's circuit was open and the second provider
+      // answered (D-103), which is exactly what the operations panel needs to tell a slow day from
+      // a MiMo outage.
+      fallback_used: record.fallbackUsed === true,
       run_id: record.context.runId ?? null,
       package_version_id: record.context.packageVersionId ?? null,
     },
@@ -220,21 +224,29 @@ export function withCallLogging(provider: LlmProvider): LlmProvider {
     outcome: LlmOutcome,
     usage: LlmUsage,
     model: string,
-  ): Promise<void> =>
-    recordLlmCall(
+    answeredBy: string = provider.name,
+  ): Promise<void> => {
+    // Which provider actually answered, not which one was asked. The chain's declared name is the
+    // primary's, and a call the Anthropic fallback served would otherwise write a row saying
+    // `openai-compatible` with a Claude model on it — a row that reads as a mis-configuration and
+    // hides the one thing an operator needs to see, which is that the fallback ran (D-103).
+    const answered = LLM_PROVIDER_NAMES.find((name) => name === answeredBy) ?? provider.name
+    return recordLlmCall(
       {
         feature: req.feature,
         promptName: req.promptName,
         promptVersion: req.promptVersion,
-        provider: provider.name,
+        provider: answered,
         model,
         usage,
         latencyMs: Math.max(0, Math.round(performance.now() - startedAt)),
         outcome,
+        fallbackUsed: answered !== provider.name,
         context: req.context,
       },
       req.messages,
     )
+  }
 
   return {
     name: provider.name,
@@ -243,7 +255,7 @@ export function withCallLogging(provider: LlmProvider): LlmProvider {
       const startedAt = performance.now()
       try {
         const result = await provider.complete(req)
-        await log(req, startedAt, 'ok', result.usage, result.model)
+        await log(req, startedAt, 'ok', result.usage, result.model, result.provider)
         return result
       } catch (error) {
         await log(req, startedAt, outcomeOf(error), EMPTY_USAGE, fallbackModel)
@@ -255,6 +267,7 @@ export function withCallLogging(provider: LlmProvider): LlmProvider {
       const startedAt = performance.now()
       let usage: LlmUsage | undefined
       let model = fallbackModel
+      let answeredBy: string = provider.name
       let streamed = 0
       let outcome: LlmOutcome = 'ok'
       try {
@@ -263,6 +276,7 @@ export function withCallLogging(provider: LlmProvider): LlmProvider {
           else {
             usage = chunk.usage
             model = chunk.model
+            answeredBy = chunk.provider
           }
           yield chunk satisfies StreamChunk
         }
@@ -279,6 +293,7 @@ export function withCallLogging(provider: LlmProvider): LlmProvider {
           outcome,
           usage ?? { inputTokens: 0, outputTokens: Math.ceil(streamed / 4) },
           model,
+          answeredBy,
         )
       }
     },
@@ -287,7 +302,14 @@ export function withCallLogging(provider: LlmProvider): LlmProvider {
       const startedAt = performance.now()
       try {
         const result = await provider.structured(req)
-        await log(req, startedAt, result.repaired ? 'repaired' : 'ok', result.usage, result.model)
+        await log(
+          req,
+          startedAt,
+          result.repaired ? 'repaired' : 'ok',
+          result.usage,
+          result.model,
+          result.provider,
+        )
         return result
       } catch (error) {
         const usage =
