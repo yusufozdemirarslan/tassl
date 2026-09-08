@@ -32,6 +32,30 @@ export type GenerationRunStatusValue = Parsed<typeof GenerationRunStatusSchema>
 /** 10 §5: exactly one retry per step, with the failed rules restated in the prompt input. */
 export const MAX_GENERATION_PASSES = 2
 
+/**
+ * How long an unfinished `generation_runs` row may sit before it is treated as abandoned (D-550).
+ *
+ * A step that dies after claiming — a recycled instance, a function killed at Vercel's
+ * `maxDuration`, a job the queue expired at `expireInSeconds` — leaves a `running` row nothing else
+ * clears, and a crash between the pipeline's COMMIT and its `boss.send` leaves a `queued` row with
+ * no job behind it. Either wedges the version: `findUnfinishedGenerationRun` then refuses every
+ * later start and the progress screen polls for ever.
+ *
+ * The number is three times the longest a single attempt can live. `maxDuration` is 300 seconds and
+ * the queue expires a job at 280, so no worker exists past 300 seconds after it claimed; a window
+ * of 900 leaves two whole invocation lifetimes of margin before a row is called dead. It is not the
+ * whole retry chain, because every redelivery re-claims through `claimStep` and stamps a fresh
+ * `started_at` — the clock restarts with each attempt.
+ *
+ * `tests/unit/authoring/schema.test.ts` pins it against the queue's own `expireInSeconds`, so the
+ * two cannot drift; this file may import `src/lib` and nothing else (04 §2), which is why the
+ * relation is asserted there rather than computed here.
+ */
+export const GENERATION_RUN_STALE_AFTER_MS = 900_000
+
+/** `generation_runs.error` on a row the staleness sweep closed out; not a rule failure (D-550). */
+export const GENERATION_RUN_ABANDONED = 'GENERATION_ABANDONED'
+
 // ---------------------------------------------------------------------------------------------
 // Inputs
 // ---------------------------------------------------------------------------------------------

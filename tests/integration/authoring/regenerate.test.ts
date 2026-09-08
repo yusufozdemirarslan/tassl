@@ -221,3 +221,156 @@ describe('regenerating a document', () => {
     TEST_MS,
   )
 })
+
+// ---------------------------------------------------------------------------------------------
+// A confirmed claim state whose claim the next pass does not name (D-552)
+// ---------------------------------------------------------------------------------------------
+//
+// A claim state is a confirmable element in its own right — the workspace addresses it as
+// `defective:C3` — so an author can confirm a state while the claim it hangs on is still
+// unconfirmed. `writeClaims` deleted the states of every dropped claim, and their confirmation
+// rows, without consulting `ctx.confirmedIds`: the one write path in the file that did not. That
+// destroyed reviewed work silently *and* erased the rejection history `rejectedShare` counts, which
+// is exactly the loss D-532 was written to prevent.
+//
+// The precondition is built rather than provoked, because the mock's keys are a function of the
+// seed and so a second claims pass reproduces them. A real provider is under no such obligation:
+// nothing in the step's output schema pins a key across passes, and a retry carrying
+// `restatedRules` is asked for the whole step again. So the claim the pass drops is planted here.
+
+/**
+ * Copies a row of `table`, overriding the given columns; the copy is a row of the same version.
+ *
+ * Through a temp table rather than a column list, so a column added to either table later is
+ * carried across rather than silently dropped to its default — and rather than through
+ * `jsonb_populate_record`, which refuses a row carrying an array column.
+ */
+const copyRow = async (
+  table: 'scenario_claims' | 'variant_claim_states',
+  id: string,
+  overrides: Record<string, string | number>,
+): Promise<void> => {
+  const literal = (value: string | number) =>
+    typeof value === 'number' ? String(value) : `'${value.replace(/'/g, "''")}'`
+  const assignments = Object.entries(overrides)
+    .map(([column, value]) => `${column} = ${literal(value)}`)
+    .join(', ')
+  // One `unsafe` call so every statement runs on one connection: a temp table is the session's.
+  await testSql
+    .unsafe(
+      `create temp table _row_copy as select * from ${table} where id = ${literal(id)};
+       update _row_copy set ${assignments};
+       insert into ${table} select * from _row_copy;
+       drop table _row_copy;`,
+    )
+    .simple()
+}
+
+/** A claim nothing is planted on, so a copy of it does not make a second plant. */
+const soundClaim = async (): Promise<{ id: string; key: string } | undefined> => {
+  const rows = await testSql<{ id: string; key: string }[]>`
+    select c.id, c.key from scenario_claims c
+     where c.package_version_id = ${fx.versionId}
+       and not exists (select 1 from variant_claim_states s where s.claim_id = c.id and s.planted)
+     order by c.position limit 1`
+  return rows[0]
+}
+
+describe('regenerating the claims of a version', () => {
+  it(
+    'keeps a claim whose state the author confirmed, and keeps the confirmation',
+    async () => {
+      const claims = await testSql<{ id: string; key: string }[]>`
+        select id, key from scenario_claims where package_version_id = ${fx.versionId}
+         order by position`
+      const model = await soundClaim()
+      if (!model) throw new Error('the generated package has no unplanted claim')
+      const unconfirmed = claims.find((claim) => claim.id !== model.id)
+      if (!unconfirmed) throw new Error('the generated package has too few claims')
+
+      // A claim the next pass will not name, copied whole — both variants' states — so the package
+      // it is added to still satisfies every rule step 4 is held to. What is being proved is what
+      // the pass does to a confirmed state, not what it does to a broken package.
+      const orphanId = crypto.randomUUID()
+      await copyRow('scenario_claims', model.id, { id: orphanId, key: 'C99', position: 99 })
+      const modelStates = await testSql<{ id: string; key: string }[]>`
+        select s.id, v.key from variant_claim_states s
+          join scenario_variants v on v.id = s.variant_id
+         where v.package_version_id = ${fx.versionId} and s.claim_id = ${model.id}
+         order by v.key`
+      let orphanStateId = ''
+      for (const state of modelStates) {
+        const copyId = crypto.randomUUID()
+        await copyRow('variant_claim_states', state.id, { id: copyId, claim_id: orphanId })
+        if (state.key === 'defective') orphanStateId = copyId
+      }
+      if (orphanStateId === '') throw new Error('the model claim has no defective state')
+
+      // The author confirms the *state*, and leaves the claim itself undecided.
+      await scenarios.decideElement(fx.author, fx.versionId, 'variant_claim_state', orphanStateId, {
+        decision: 'confirmed',
+        note: '',
+        openedAt: OPENED_AT,
+      })
+
+      await authoring.regenerateElement(fx.author, fx.versionId, 'claim', unconfirmed.id, {})
+      await drain()
+
+      // The state, its claim and the confirmation are all still there. Before the fix the pass
+      // dropped `C99` as stale and took all three with it, silently.
+      const survivingState = await testSql<{ id: string }[]>`
+        select id from variant_claim_states where id = ${orphanStateId}`
+      expect(survivingState, 'the confirmed claim state survived').toHaveLength(1)
+      const survivingClaim = await testSql<{ id: string }[]>`
+        select id from scenario_claims where id = ${orphanId}`
+      expect(survivingClaim, 'the claim its state hangs on survived').toHaveLength(1)
+      const confirmations = await testSql<{ decision: string }[]>`
+        select decision from element_confirmations
+         where package_version_id = ${fx.versionId} and element_id = ${orphanStateId}`
+      expect(confirmations.map((row) => row.decision)).toEqual(['confirmed'])
+
+      // And the claims the pass did name were rewritten as usual: this is not a step that stopped.
+      const runs = await testSql<{ step: string; status: string }[]>`
+        select step, status from generation_runs
+         where package_version_id = ${fx.versionId} and step = 'claims_and_states'
+         order by created_at, id`
+      expect(runs[runs.length - 1]).toEqual({ step: 'claims_and_states', status: 'succeeded' })
+    },
+    TEST_MS,
+  )
+
+  it(
+    'still drops a claim nobody decided anything about, with its states and their rows',
+    async () => {
+      // The other half: without this the fix above could be "never delete anything", which would
+      // leave every superseded draft in the package for ever (10 §5).
+      const model = await soundClaim()
+      if (!model) throw new Error('the generated package has no unplanted claim')
+
+      const orphanId = crypto.randomUUID()
+      await copyRow('scenario_claims', model.id, { id: orphanId, key: 'C98', position: 98 })
+      const modelStates = await testSql<{ id: string }[]>`
+        select s.id from variant_claim_states s
+          join scenario_variants v on v.id = s.variant_id
+         where v.package_version_id = ${fx.versionId} and s.claim_id = ${model.id}`
+      for (const state of modelStates) {
+        await copyRow('variant_claim_states', state.id, {
+          id: crypto.randomUUID(),
+          claim_id: orphanId,
+        })
+      }
+
+      await authoring.regenerateElement(fx.author, fx.versionId, 'claim', model.id, {})
+      await drain()
+
+      expect(
+        await testSql<{ id: string }[]>`select id from scenario_claims where id = ${orphanId}`,
+      ).toHaveLength(0)
+      expect(
+        await testSql<{ id: string }[]>`
+          select id from variant_claim_states where claim_id = ${orphanId}`,
+      ).toHaveLength(0)
+    },
+    TEST_MS,
+  )
+})

@@ -520,40 +520,144 @@ describe('B. nothing about the planted claim marks it out inside its own variant
   })
 
   it.each(cases)('never names the answer key in a string a student reads, in %s', (_name, doc) => {
-    // The vocabulary of the answer key. `rationale` and `expectedAnswerNotes` are excluded: FR-151
-    // shows the rationale in the debrief *after* the run is scored, and the bank is never returned
-    // to a student at all (D-117), so both are entitled to say plainly that a figure was superseded.
-    const forbidden = [
-      'planted',
-      'defective',
-      'evidence status',
-      'failure family',
-      'warranted stance',
-      'sound variant',
-      'stale_evidence',
-      'answer key',
-    ]
-    const studentReads = [
-      doc.version.brief,
-      doc.version.generalEscalationReply,
-      doc.version.debriefCounterfactual,
-      ...doc.documents.flatMap((entry) => [entry.title, entry.author, entry.body]),
-      ...doc.claims.flatMap((claim) => [claim.text, claim.escalationReply ?? '']),
-      ...doc.stakeholders.map((stakeholder) => stakeholder.positionStatement),
-      doc.turn?.text ?? '',
-      doc.probe?.originalPosition ?? '',
-      doc.probe?.scriptedReversal ?? '',
-      ...doc.defenseQuestions.flatMap((question) => [question.template, question.followUp]),
-      ...doc.readinessItems.flatMap((item) => [
-        item.stem,
-        ...item.options.map((option) => option.text),
-      ]),
-      ...doc.namedFields.map((named) => named.label),
-    ].join('\n')
-
-    const hits = forbidden.filter((word) => studentReads.toLowerCase().includes(word))
+    const scanned = studentVisibleStrings(doc)
+    const hits = ANSWER_KEY_WORDS.filter((word) =>
+      scanned.some((entry) => entry.text.toLowerCase().includes(word)),
+    )
     expect(hits).toEqual([])
-    // The scan can still fail, or it would be proving nothing.
-    expect(`${studentReads}\nthe planted claim`.toLowerCase()).toContain('planted')
+  })
+
+  // The two controls the old assertion did not give. It appended the probe word *to the corpus*
+  // (`expect(`${studentReads}\nthe planted claim`)…`), so it proved the matcher and nothing about
+  // what was fed to it: the same line passes against an empty corpus. So the matcher is exercised
+  // against a corpus with one string swapped, and the corpus itself is checked for being the thing
+  // it claims to be — every family present, every family non-empty.
+
+  it.each(cases)('would catch the word wherever it appeared, in %s', (_name, doc) => {
+    const scanned = studentVisibleStrings(doc)
+    for (const family of SCANNED_FAMILIES) {
+      const index = scanned.findIndex((entry) => entry.family === family)
+      expect(index, `nothing scanned from ${family}`).toBeGreaterThanOrEqual(0)
+      // One string of this family says "planted"; the scan must report it and no other family.
+      const tampered = scanned.map((entry, position) =>
+        position === index ? { ...entry, text: `${entry.text} the planted claim` } : entry,
+      )
+      const caught = ANSWER_KEY_WORDS.filter((word) =>
+        tampered.some((entry) => entry.text.toLowerCase().includes(word)),
+      )
+      expect(caught, `a planted word in ${family} went unseen`).toEqual(['planted'])
+    }
+  })
+
+  it.each(cases)('scans every family of authored student-visible prose, in %s', (_name, doc) => {
+    const scanned = studentVisibleStrings(doc)
+    const byFamily = new Map<string, string[]>()
+    for (const entry of scanned) {
+      byFamily.set(entry.family, [...(byFamily.get(entry.family) ?? []), entry.text])
+    }
+    expect([...byFamily.keys()].sort()).toEqual([...SCANNED_FAMILIES].sort())
+    for (const family of SCANNED_FAMILIES) {
+      const texts = byFamily.get(family) ?? []
+      expect(texts.length, `${family} contributed no string`).toBeGreaterThan(0)
+      expect(
+        texts.filter((text) => text.trim().length > 0).length,
+        `${family} contributed only empty strings`,
+      ).toBeGreaterThan(0)
+    }
   })
 })
+
+// ---------------------------------------------------------------------------------------------
+// The corpus the scan above runs over
+// ---------------------------------------------------------------------------------------------
+
+/**
+ * The vocabulary of the answer key.
+ *
+ * `rationale` and `expectedAnswerNotes` are not scanned: FR-151 shows the rationale in the debrief
+ * *after* the run is scored, and the bank is never returned to a student at all (D-117), so both are
+ * entitled to say plainly that a figure was superseded.
+ */
+const ANSWER_KEY_WORDS = [
+  'planted',
+  'defective',
+  'evidence status',
+  'failure family',
+  'warranted stance',
+  'sound variant',
+  'stale_evidence',
+  'answer key',
+] as const
+
+/**
+ * Every family of authored prose a student can read, named so the scan can say which one leaked and
+ * so an empty family is a failure rather than a silent gap.
+ *
+ * Three of these were missing and are the largest additions:
+ *
+ *   * **`verificationPath`** — the result text inside `variant_claim_states.verification_paths`:
+ *     a Source Trace's passage and author, a Replication Check's result, every step of a
+ *     Decomposition Check. `student-view.ts` says a student receives a path's result the moment they
+ *     run the action (FR-151), which makes this the largest body of authored student-visible prose
+ *     in the package — and it was outside the scan entirely.
+ *   * **`claimSourcePassage`** — `claims[].sourcePassage`, rendered in the debrief.
+ *   * **`position`** — `answerSpacePositions[].summary` and `.ignoredEvidence`, read after scoring.
+ */
+const SCANNED_FAMILIES = [
+  'brief',
+  'escalationReply',
+  'counterfactual',
+  'document',
+  'claim',
+  'claimSourcePassage',
+  'verificationPath',
+  'stakeholder',
+  'turn',
+  'probe',
+  'defenseQuestion',
+  'readinessItem',
+  'namedField',
+  'position',
+] as const
+
+type ScannedString = { family: (typeof SCANNED_FAMILIES)[number]; text: string }
+
+function studentVisibleStrings(doc: PackageExport): ScannedString[] {
+  const out: ScannedString[] = []
+  const add = (family: ScannedString['family'], ...texts: (string | null | undefined)[]) => {
+    for (const text of texts) if (text !== null && text !== undefined) out.push({ family, text })
+  }
+
+  add('brief', doc.version.brief)
+  add('escalationReply', doc.version.generalEscalationReply)
+  add('counterfactual', doc.version.debriefCounterfactual)
+  for (const entry of doc.documents) add('document', entry.title, entry.author, entry.body)
+  for (const claim of doc.claims) {
+    add('claim', claim.text, claim.escalationReply ?? '')
+    add('claimSourcePassage', claim.sourcePassage)
+  }
+  for (const variant of doc.variants) {
+    for (const state of variant.claimStates) {
+      const paths = state.verificationPaths ?? {}
+      add('verificationPath', paths.source_trace?.passage, paths.source_trace?.author)
+      add('verificationPath', paths.replication_check?.result)
+      for (const step of paths.decomposition_check?.steps ?? []) {
+        add('verificationPath', step.label, step.result)
+      }
+    }
+  }
+  for (const stakeholder of doc.stakeholders) add('stakeholder', stakeholder.positionStatement)
+  add('turn', doc.turn?.text ?? '')
+  add('probe', doc.probe?.originalPosition ?? '', doc.probe?.scriptedReversal ?? '')
+  for (const question of doc.defenseQuestions) {
+    add('defenseQuestion', question.template, question.followUp)
+  }
+  for (const item of doc.readinessItems) {
+    add('readinessItem', item.stem, ...item.options.map((option) => option.text))
+  }
+  for (const named of doc.namedFields) add('namedField', named.label)
+  for (const position of doc.answerSpacePositions) {
+    add('position', position.summary, position.ignoredEvidence)
+  }
+  return out
+}

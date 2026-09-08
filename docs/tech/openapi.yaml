@@ -9935,6 +9935,7 @@ paths:
                   pattern: ^[a-z0-9-]{3,60}$
                 conceptSet:
                   minItems: 4
+                  maxItems: 40
                   type: array
                   items:
                     type: string
@@ -13144,6 +13145,7 @@ paths:
                     properties:
                       conceptSet:
                         minItems: 4
+                        maxItems: 40
                         type: array
                         items:
                           type: string

@@ -24,7 +24,9 @@ import {
   GEN_READINESS_ITEM_TOTAL,
   GEN_READINESS_OPTION_COUNT,
   cappedUntrustedText,
+  conceptList,
   genConceptKey,
+  genConceptSet,
   genKey,
   genParagraph,
   genPosition,
@@ -37,9 +39,9 @@ import {
 } from '@/server/llm/prompts/gen'
 
 export const ReadinessItemsInputSchema = z.object({
-  conceptSet: z.array(genConceptKey).default([]),
+  conceptSet: genConceptSet,
   /** The concepts the planted defect turns on; the four `defect_concept` items are about these. */
-  defectConcepts: z.array(genConceptKey).default([]),
+  defectConcepts: genConceptSet,
   /** The families this package actually uses, so the items test the reasoning the run needs. */
   failureFamiliesUsed: z.array(z.string().trim().min(1).max(60)).default([]),
   /**
@@ -144,11 +146,11 @@ export const genReadinessItemsPrompt = definePrompt<ReadinessItemsInput, Readine
       restatedRulesSection(input.restatedRules),
       section(
         'THE CONCEPTS THIS COURSE DECLARED',
-        keyList(input.conceptSet, 'The course declared no concept set.'),
+        conceptList(input.conceptSet, 'The course declared no concept set.'),
       ),
       section(
         'THE CONCEPTS THE PLANTED DEFECT TURNS ON',
-        keyList(input.defectConcepts, 'No defect concept was recorded.'),
+        conceptList(input.defectConcepts, 'No defect concept was recorded.'),
       ),
       section(
         'THE FAILURE FAMILIES THIS PACKAGE USES',

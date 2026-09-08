@@ -45,8 +45,10 @@ import {
   GEN_VERIFICATION_COSTS,
   GenVerificationPathsSchema,
   cappedUntrustedText,
+  conceptList,
   field,
   genConceptKey,
+  genConceptSet,
   genFieldKey,
   genKey,
   genLineText,
@@ -98,7 +100,7 @@ export const ClaimsStatesInputSchema = z.object({
   namedFields: z
     .array(z.object({ key: genFieldKey, label: untrustedText.default(''), unit: z.string() }))
     .default([]),
-  conceptSet: z.array(genConceptKey).default([]),
+  conceptSet: genConceptSet,
   failureFamilies: z.array(z.enum(GEN_FAILURE_FAMILIES)).default([...GEN_FAILURE_FAMILIES]),
   plantedFamily: z.enum(GEN_FAILURE_FAMILIES).default(DEFAULT_PLANTED_FAMILY),
   restatedRules: genRestatedRules,
@@ -297,7 +299,7 @@ export const genClaimsStatesPrompt = definePrompt<ClaimsStatesInput, ClaimsState
       restatedRulesSection(input.restatedRules),
       section(
         'THE CONCEPTS THIS COURSE DECLARED',
-        keyList(input.conceptSet, 'The course declared no concept set.'),
+        conceptList(input.conceptSet, 'The course declared no concept set.'),
       ),
       section(
         'THE FAILURE FAMILIES AVAILABLE, AND THE ONE TO PLANT',

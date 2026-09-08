@@ -57,6 +57,7 @@ export const VALIDATION_RULE_CODES = [
   'VARIANTS_DIFFER_BEYOND_PLANT',
   'VARIANT_ACTIONS_DIFFER',
   'PLANTED_PATH_MISSING',
+  'TRACE_DOCUMENT_MISSING',
   'DEFECT_OUTSIDE_CONCEPTS',
   'DEFECT_NOT_CONSEQUENTIAL',
   'NO_STANCE_CHANGING_TRACE',
@@ -924,6 +925,38 @@ const RULES: readonly Rule[] = [
         message: replicable
           ? `The planted claim ${planted.claim.key} has neither a Source Trace nor a Replication Check path; a defect in the ${planted.state.failureFamily} family needs one of them.`
           : `The planted claim ${planted.claim.key} has no Source Trace path; the student must be able to catch the defect.`,
+      }
+    },
+  },
+  {
+    // 10 §4: every state's Source Trace names a document of this version, not only the plant's.
+    //
+    // `PLANTED_PATH_MISSING` checks the trace it can see, and it can see one claim. A Source Trace
+    // is what a student is handed the moment they spend the action (FR-151), and `verification_paths`
+    // is jsonb — no foreign key refuses a stale id — so a documents regeneration that drops a
+    // document leaves every other claim's trace pointing at nothing, and the claim card answers a
+    // spent action with an empty passage. The rule reads both variants, because a student is on one
+    // of them and there is no telling which (D-555).
+    code: 'TRACE_DOCUMENT_MISSING',
+    check: ({ version, documentById, claimById }) => {
+      const dangling: { stateId: string; claimKey: string; variantKey: string }[] = []
+      for (const variant of version.variants) {
+        for (const state of variant.claimStates) {
+          const trace = state.verificationPaths.source_trace
+          if (!trace || documentById.has(trace.document_id)) continue
+          dangling.push({
+            stateId: state.id,
+            claimKey: claimById.get(state.claimId)?.key ?? state.claimId,
+            variantKey: variant.key,
+          })
+        }
+      }
+      if (dangling.length === 0) return null
+      return {
+        elementIds: dangling.map((row) => row.stateId),
+        message: `${dangling.length === 1 ? 'The Source Trace on' : 'The Source Traces on'} ${joinList(
+          dangling.map((row) => `${row.claimKey} in the ${row.variantKey} variant`),
+        )} ${dangling.length === 1 ? 'points' : 'point'} at a document that is not in the Evidence Room; a student who spends the action must be shown what the trace names.`,
       }
     },
   },

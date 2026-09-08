@@ -12,9 +12,11 @@
 //   4. **Which rules it is held to.** Its subset of `validatePackage`'s table. A step that breaks
 //      one of them is re-enqueued once with the rule's own sentence restated in the prompt input.
 //
-// The seven subsets partition the thirty-one rules exactly: every code appears in one step and no
-// code appears twice, which `tests/unit/authoring/steps.test.ts` asserts against
-// `VALIDATION_RULE_CODES` so a rule added to the validator cannot go unowned.
+// The seven subsets partition `validatePackage`'s rules exactly: every code appears in one step and
+// no code appears twice, which `tests/unit/authoring/steps.test.ts` asserts against
+// `VALIDATION_RULE_CODES` so a rule added to the validator cannot go unowned. The count is left to
+// that assertion rather than written out here — the sentence said thirty-one while the table held
+// thirty-two, which is what a hand-copied number does.
 //
 // This file is pure. It reads no database and calls no provider: the rows are read and written by
 // `service.ts`, because an internal module file may not reach a repository (04 §2). What it takes
@@ -196,6 +198,7 @@ export const GENERATION_STEP_DEFINITIONS: Record<GenerationStepValue, StepDefini
       'VARIANTS_DIFFER_BEYOND_PLANT',
       'VARIANT_ACTIONS_DIFFER',
       'PLANTED_PATH_MISSING',
+      'TRACE_DOCUMENT_MISSING',
       'DEFECT_OUTSIDE_CONCEPTS',
       'DEFECT_NOT_CONSEQUENTIAL',
       'NO_STANCE_CHANGING_TRACE',

@@ -306,3 +306,212 @@ describe('a second concurrent start', () => {
     expect(rows.filter((row) => row.step === 'documents' && row.pass_number === 1)).toHaveLength(1)
   })
 })
+
+// ---------------------------------------------------------------------------------------------
+// A duplicate job on a step that already stopped (D-551: "a duplicate job is a no-op", all four)
+// ---------------------------------------------------------------------------------------------
+
+describe('a redelivered job whose step has already finished', () => {
+  it('does not re-run a failed step, so the retry stays one retry', async () => {
+    // `claimStep` skipped `running` and `succeeded` and claimed the other two, so a redelivery of a
+    // pass whose row said `failed` re-ran it: a third `documents` pass, another provider call,
+    // another element set over the author's, a second `generation_failed`, and a breach of
+    // `MAX_GENERATION_PASSES`. D-531 stated the guarantee for four statuses and kept it for two
+    // (D-551).
+    process.env.MOCK_GEN_FAIL_ONCE = 'documents:always'
+    await authoring.startGeneration(fx.author, fx.versionId)
+    await drain()
+
+    const before = await runRows(fx.versionId)
+    expect(
+      before
+        .filter((row) => row.step === 'documents')
+        .map((row) => `${row.pass_number}:${row.status}`),
+    ).toEqual(['1:failed', '2:failed'])
+    const callsBefore = calls.length
+    const noticesBefore = (await notificationRows(fx.authorId)).length
+    expect(noticesBefore).toBe(1)
+
+    // The redelivery pg-boss would make: the same payload, for the pass that failed.
+    for (const passNumber of [1, 2]) {
+      await enqueue(
+        'generate_package_step',
+        {
+          packageVersionId: fx.versionId,
+          organizationId: fx.orgId,
+          step: 'documents',
+          passNumber,
+          restatedRules: [],
+        },
+        { drain: false },
+      )
+    }
+    await drain()
+
+    // Nothing moved: no new run row, no new pass, no provider call, no second notice.
+    expect(await runRows(fx.versionId)).toEqual(before)
+    expect(calls.length).toBe(callsBefore)
+    expect((await notificationRows(fx.authorId)).length).toBe(noticesBefore)
+  })
+
+  it('does not re-run a succeeded step either', async () => {
+    await authoring.startGeneration(fx.author, fx.versionId)
+    await drain()
+    const before = await runRows(fx.versionId)
+    const callsBefore = calls.length
+
+    await enqueue(
+      'generate_package_step',
+      {
+        packageVersionId: fx.versionId,
+        organizationId: fx.orgId,
+        step: 'claims_and_states',
+        passNumber: 1,
+        restatedRules: [],
+      },
+      { drain: false },
+    )
+    await drain()
+
+    expect(await runRows(fx.versionId)).toEqual(before)
+    expect(calls.length).toBe(callsBefore)
+  })
+})
+
+// ---------------------------------------------------------------------------------------------
+// A step that died after claiming (D-550: the wedge, and both doors into it)
+// ---------------------------------------------------------------------------------------------
+
+/** The state a killed invocation leaves: one row, claimed, with nothing behind it any more. */
+const wedge = async (
+  versionId: string,
+  values: { step: string; status: 'queued' | 'running'; agoMs: number },
+): Promise<void> => {
+  const at = new Date(Date.now() - values.agoMs)
+  await testSql`
+    insert into generation_runs (package_version_id, step, pass_number, status, started_at, created_at)
+    values (${versionId}, ${values.step}::generation_step, 1, ${values.status}::job_status,
+            ${values.status === 'running' ? at : null}, ${at})`
+}
+
+describe('a generation run whose worker no longer exists', () => {
+  it('does not shut every door on the version for ever', async () => {
+    // Door one: the process died between `claimStep` and `recordOutcome`. Nothing redelivers past
+    // the retry limit, `claimStep` skipped a `running` row, and `scheduleDailyMaintenance` sweeps
+    // nothing — so the row stood for ever and with it `GENERATION_ALREADY_RUNNING` on every start,
+    // `running` on every status read, and a retry button the screen kept disabled.
+    await wedge(fx.versionId, {
+      step: 'claims_and_states',
+      status: 'running',
+      agoMs: 3 * 86_400_000,
+    })
+    expect(await codeOf(authoring.startGeneration(fx.author, fx.versionId))).toBe('no error')
+    await drain()
+
+    const status = await authoring.getGenerationStatus(fx.author, fx.versionId)
+    expect(status.state).toBe('complete')
+    const abandoned = (await runRows(fx.versionId)).filter(
+      (row) => row.error === 'GENERATION_ABANDONED',
+    )
+    expect(abandoned).toHaveLength(1)
+    expect(abandoned[0]).toMatchObject({ step: 'claims_and_states', status: 'failed' })
+    // It is closed out as a failure with no rules, not as a rule the package broke (DATA-027).
+    expect(abandoned[0]?.failed_rules).toEqual([])
+  })
+
+  it('is cleared by the status screen the author is already looking at', async () => {
+    // The screen polls this read every few seconds, so it is the reading that is certainly made
+    // about a wedged version — and it must not keep saying `running` about a step nobody is running.
+    await wedge(fx.versionId, { step: 'documents', status: 'running', agoMs: 3 * 86_400_000 })
+    expect(await authoring.getGenerationStatus(fx.author, fx.versionId)).toMatchObject({
+      state: 'failed',
+    })
+    const rows = await runRows(fx.versionId)
+    expect(rows).toHaveLength(1)
+    expect(rows[0]).toMatchObject({ status: 'failed', error: 'GENERATION_ABANDONED' })
+  })
+
+  it('clears a queued row whose enqueue never happened', async () => {
+    // Door two: `enqueueAfterCommit` is not transactional with the row it follows, so a crash
+    // between COMMIT and `boss.send` commits a `queued` row with no job behind it. No redelivery
+    // will ever arrive for it, so a reclaim on redelivery alone would not have reached this one.
+    await wedge(fx.versionId, { step: 'turn_and_probe', status: 'queued', agoMs: 3 * 86_400_000 })
+    expect(
+      await codeOf(authoring.regenerateElement(fx.author, fx.versionId, 'brief', '', {})),
+    ).toBe('no error')
+    const rows = await runRows(fx.versionId)
+    expect(rows.find((row) => row.step === 'turn_and_probe')).toMatchObject({
+      status: 'failed',
+      error: 'GENERATION_ABANDONED',
+    })
+  })
+
+  it('leaves a run that is merely young alone', async () => {
+    // The other half of the property: a step claimed a minute ago has a worker and is not swept, so
+    // the window can never make two workers race for one step.
+    await wedge(fx.versionId, { step: 'documents', status: 'running', agoMs: 60_000 })
+    expect(await codeOf(authoring.startGeneration(fx.author, fx.versionId))).toBe(
+      'GENERATION_ALREADY_RUNNING',
+    )
+    expect(await authoring.getGenerationStatus(fx.author, fx.versionId)).toMatchObject({
+      state: 'running',
+    })
+  })
+
+  it('lets a late redelivery re-take an abandoned claim rather than skipping it', async () => {
+    await wedge(fx.versionId, {
+      step: 'reskin_brief_stakeholders',
+      status: 'running',
+      agoMs: 3 * 86_400_000,
+    })
+    await enqueue(
+      'generate_package_step',
+      {
+        packageVersionId: fx.versionId,
+        organizationId: fx.orgId,
+        step: 'reskin_brief_stakeholders',
+        passNumber: 1,
+        restatedRules: [],
+      },
+      { drain: false },
+    )
+    await drain()
+
+    const rows = await runRows(fx.versionId)
+    const reskin = rows.filter((row) => row.step === 'reskin_brief_stakeholders')
+    expect(reskin).toHaveLength(1)
+    expect(reskin[0]).toMatchObject({ status: 'succeeded', pass_number: 1 })
+    // And it carried the pipeline on, because it really did claim the step.
+    expect(rows.some((row) => row.step === 'documents')).toBe(true)
+  })
+})
+
+// ---------------------------------------------------------------------------------------------
+// What "complete" means (D-553: the latest run of each step, not any run ever)
+// ---------------------------------------------------------------------------------------------
+
+describe('the pipeline state after a rewrite that stopped', () => {
+  it('does not report complete when the last thing that ran failed', async () => {
+    await authoring.startGeneration(fx.author, fx.versionId)
+    await drain()
+    expect((await authoring.getGenerationStatus(fx.author, fx.versionId)).state).toBe('complete')
+
+    // A standalone document rewrite that fails both passes, on a version whose step 7 succeeded
+    // once. `pipelineState` answered on "did the last step ever succeed", so the screen printed
+    // "your draft is ready" over a row saying the rewrite stopped.
+    process.env.MOCK_GEN_FAIL_ONCE = 'documents:always'
+    const document = await testSql<{ id: string }[]>`
+      select id from scenario_documents where package_version_id = ${fx.versionId}
+       order by position limit 1`
+    const documentId = document[0]?.id
+    if (documentId === undefined) throw new Error('the generated package has no documents')
+    await authoring.regenerateElement(fx.author, fx.versionId, 'document', documentId, {})
+    await drain()
+
+    const status = await authoring.getGenerationStatus(fx.author, fx.versionId)
+    expect(status.steps.find((step) => step.step === 'documents')?.status).toBe('failed')
+    expect(status.state).toBe('failed')
+    // The last step's own row still says it succeeded — the state is about the pipeline, not it.
+    expect(status.steps.find((step) => step.step === 'readiness_items')?.status).toBe('succeeded')
+  })
+})

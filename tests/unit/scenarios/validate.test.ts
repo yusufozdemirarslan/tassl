@@ -503,6 +503,7 @@ describe('the rule table', () => {
       'VARIANTS_DIFFER_BEYOND_PLANT',
       'VARIANT_ACTIONS_DIFFER',
       'PLANTED_PATH_MISSING',
+      'TRACE_DOCUMENT_MISSING',
       'DEFECT_OUTSIDE_CONCEPTS',
       'DEFECT_NOT_CONSEQUENTIAL',
       'NO_STANCE_CHANGING_TRACE',
@@ -592,7 +593,10 @@ describe('DOCUMENT_COUNT', () => {
     const version = validVersion()
     version.documents = version.documents.filter((document) => document.key !== 'D6')
 
-    expect(codes(version)).toEqual(['DOCUMENT_COUNT'])
+    // `TRACE_DOCUMENT_MISSING` comes with it, and that is the point of that rule: the document the
+    // planted claim's Source Trace names has just left the room, so the trace now renders nothing
+    // to a student who spends the action (D-555). Removing a document is exactly how that happens.
+    expect(codes(version)).toEqual(['DOCUMENT_COUNT', 'TRACE_DOCUMENT_MISSING'])
     expect(failure(version, 'DOCUMENT_COUNT')).toMatchObject({
       elementIds: [],
       message: 'The Evidence Room holds 5 documents; it must hold between 6 and 12.',
@@ -1170,13 +1174,61 @@ describe('PLANTED_PATH_MISSING', () => {
     if (!trace) throw new Error('the planted claim should start with a Source Trace')
     trace.document_id = 'doc-elsewhere'
 
-    expect(codes(version)).toEqual(['PLANTED_PATH_MISSING'])
+    expect(codes(version)).toEqual(['PLANTED_PATH_MISSING', 'TRACE_DOCUMENT_MISSING'])
     expect(failure(version, 'PLANTED_PATH_MISSING')).toMatchObject({
       elementIds: ['claim-1'],
       message:
         'The Source Trace on the planted claim C1 points at a document that is not in the ' +
         'Evidence Room; the student must be able to open what the trace names.',
     })
+  })
+})
+
+describe('TRACE_DOCUMENT_MISSING', () => {
+  it('passes a package whose every Source Trace names a document of the room', () => {
+    expect(codes(validVersion())).toEqual([])
+  })
+
+  it('fails a dangling Source Trace on a claim that is not the plant', () => {
+    // The hole this rule closes: `PLANTED_PATH_MISSING` reads one claim's trace, and
+    // `verification_paths` is jsonb with no foreign key, so a documents regeneration that drops a
+    // document leaves every other claim's trace pointing at nothing and no rule said so. A student
+    // who spends a Source Trace on such a claim is shown an empty passage (D-555).
+    const version = validVersion()
+    const sound = state(version, 'sound', 'C2')
+    sound.verificationPaths = {
+      source_trace: {
+        document_id: 'doc-that-left-the-room',
+        passage: 'A passage from a document nobody can open.',
+        dated_on: '2026-02-01',
+        author: 'A. Nother',
+      },
+    }
+
+    expect(codes(version)).toContain('TRACE_DOCUMENT_MISSING')
+    expect(failure(version, 'TRACE_DOCUMENT_MISSING')).toMatchObject({
+      elementIds: [sound.id],
+    })
+    expect(failure(version, 'TRACE_DOCUMENT_MISSING').message).toContain('C2 in the sound variant')
+  })
+
+  it('names every dangling trace, in both variants, in one failure', () => {
+    const version = validVersion()
+    for (const variantKey of ['defective', 'sound'] as const) {
+      const row = state(version, variantKey, 'C3')
+      row.verificationPaths = {
+        source_trace: {
+          document_id: 'doc-that-left-the-room',
+          passage: 'A passage from a document nobody can open.',
+          dated_on: '2026-02-01',
+          author: 'A. Nother',
+        },
+      }
+    }
+    const reported = failure(version, 'TRACE_DOCUMENT_MISSING')
+    expect(reported.elementIds).toHaveLength(2)
+    expect(reported.message).toContain('C3 in the defective variant')
+    expect(reported.message).toContain('C3 in the sound variant')
   })
 })
 

@@ -26,8 +26,9 @@ import {
   GEN_RESKIN_LOG_MIN_ENTRIES,
   GEN_STAKEHOLDER_COUNT_MIN,
   cappedUntrustedText,
+  conceptList,
   field,
-  genConceptKey,
+  genConceptSet,
   genKey,
   genLineText,
   genOptionalParagraph,
@@ -35,7 +36,6 @@ import {
   genRestatedRules,
   genShortText,
   genSystem,
-  keyList,
   restatedRulesSection,
   section,
   untrustedText,
@@ -51,7 +51,7 @@ export const ReskinBriefStakeholdersInputSchema = z.object({
   /** The licensed case, verbatim. The least trusted string in the product. */
   seedText: untrustedText.pipe(z.string().min(1).max(SEED_TEXT_MAX_CHARS)),
   /** The concepts the course declared; every claim and defect must stay inside them (PRD §7.18 (3)). */
-  conceptSet: z.array(genConceptKey).default([]),
+  conceptSet: genConceptSet,
   /** What the licence permits, as the author recorded it (FR-028). */
   licenseTerms: cappedUntrustedText(LICENSE_TERMS_MAX_CHARS).default(''),
   restatedRules: genRestatedRules,
@@ -143,7 +143,7 @@ export const genReskinBriefStakeholdersPrompt = definePrompt<
       restatedRulesSection(input.restatedRules),
       section(
         'THE CONCEPTS THIS COURSE DECLARED',
-        keyList(input.conceptSet, 'The course declared no concept set.'),
+        conceptList(input.conceptSet, 'The course declared no concept set.'),
       ),
       section(
         'WHAT THE LICENCE PERMITS',

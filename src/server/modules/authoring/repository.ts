@@ -275,6 +275,34 @@ export async function updateGenerationRun(
   return rows[0]
 }
 
+/**
+ * Closes a run out **only if it is still the claim the caller took** (D-550).
+ *
+ * `started_at` is the claim's fence token: `claimStep` writes a fresh timestamp every time it takes
+ * or re-takes a step, so a worker whose claim was reclaimed as abandoned updates nothing here and
+ * learns that it did. Without the fence, a step reclaimed after the staleness window could be
+ * closed out twice — the second close-out enqueuing a step the first already enqueued.
+ */
+export async function closeClaimedGenerationRun(
+  id: string,
+  claimedAt: Date,
+  patch: GenerationRunPatch,
+  dbx: DbOrTx = db,
+): Promise<GenerationRun | undefined> {
+  const rows = await dbx
+    .update(generationRuns)
+    .set(patch)
+    .where(
+      and(
+        eq(generationRuns.id, id),
+        eq(generationRuns.status, 'running'),
+        eq(generationRuns.startedAt, claimedAt),
+      ),
+    )
+    .returning()
+  return rows[0]
+}
+
 /** Every step run of the version, newest first (the status view groups them by step and pass). */
 export async function listGenerationRuns(
   versionId: string,
@@ -360,7 +388,13 @@ export async function findUnfinishedGenerationRun(
   return rows[0]
 }
 
-/** The one row for a `(version, step, pass)`, which is how a job finds the work it was sent for. */
+/**
+ * The one row for a `(version, step, pass)`, which is how a job finds the work it was sent for.
+ *
+ * `created_at` alone is not a total order — two rows written in one transaction share `now()` — so
+ * the id breaks the tie, exactly as `listGenerationRuns` orders. Which row an ambiguous pair
+ * resolved to decided whether a job ran or skipped, and nothing said which it would be.
+ */
 export async function findGenerationRun(
   versionId: string,
   step: GenerationRun['step'],
@@ -377,9 +411,44 @@ export async function findGenerationRun(
         eq(generationRuns.passNumber, passNumber),
       ),
     )
-    .orderBy(desc(generationRuns.createdAt))
+    .orderBy(desc(generationRuns.createdAt), desc(generationRuns.id))
     .limit(1)
   return rows[0]
+}
+
+/**
+ * Closes out every unfinished run of the version whose worker cannot still exist (D-550).
+ *
+ * A `running` row is abandoned when the invocation that claimed it died — a recycled instance, a
+ * function killed at `maxDuration`, a job the queue expired — and a `queued` row is abandoned when
+ * the `boss.send` behind it never happened, which `enqueueAfterCommit` cannot make atomic with the
+ * row's own insert. Both leave a version that refuses every later start with
+ * `GENERATION_ALREADY_RUNNING` and a screen that polls for ever, and nothing else in the system
+ * clears either.
+ *
+ * `staleBefore` is the caller's cut: a row whose clock (`started_at` for a claim, `created_at` for
+ * a queued row) is older than it. The caller must hold the version row's lock, so this and
+ * `claimStep` cannot disagree about one row.
+ */
+export async function failAbandonedGenerationRuns(
+  versionId: string,
+  staleBefore: Date,
+  error: string,
+  dbx: DbOrTx = db,
+): Promise<GenerationRun[]> {
+  return dbx
+    .update(generationRuns)
+    .set({ status: 'failed', error, finishedAt: new Date() })
+    .where(
+      and(
+        eq(generationRuns.packageVersionId, versionId),
+        inArray(generationRuns.status, ['queued', 'running']),
+        // The bound value is an ISO string with an explicit cast: a raw `Date` in a `sql` template
+        // reaches postgres-js untyped and the driver refuses it.
+        sql`coalesce(${generationRuns.startedAt}, ${generationRuns.createdAt}) < ${staleBefore.toISOString()}::timestamptz`,
+      ),
+    )
+    .returning()
 }
 
 /**
@@ -454,15 +523,33 @@ export async function deleteElements(
   return deleted.length
 }
 
-/** Claim states of claims a regenerated claim set dropped; step 4 owns both tables (10 §5). */
-export async function deleteClaimStatesForClaims(
-  claimIds: readonly string[],
+/**
+ * Claim states a regenerated claim set dropped; step 4 owns both tables (10 §5).
+ *
+ * Named by state id and scoped by version. Its predecessor deleted by *claim* id with no version
+ * scope at all — the one function in this file that took neither — which made a caller that passed
+ * an id it had not first read out of this version a cross-tenant delete waiting to be written.
+ */
+export async function deleteClaimStates(
+  versionId: string,
+  stateIds: readonly string[],
   dbx: DbOrTx = db,
 ): Promise<number> {
-  if (claimIds.length === 0) return 0
+  if (stateIds.length === 0) return 0
   const deleted = await dbx
     .delete(variantClaimStates)
-    .where(inArray(variantClaimStates.claimId, [...claimIds]))
+    .where(
+      and(
+        inArray(variantClaimStates.id, [...stateIds]),
+        inArray(
+          variantClaimStates.variantId,
+          dbx
+            .select({ id: scenarioVariants.id })
+            .from(scenarioVariants)
+            .where(eq(scenarioVariants.packageVersionId, versionId)),
+        ),
+      ),
+    )
     .returning({ id: variantClaimStates.id })
   return deleted.length
 }

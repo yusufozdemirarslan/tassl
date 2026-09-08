@@ -24,6 +24,16 @@
 //   5. **The seed case stays wrapped.** Nothing here interpolates a seed, a document body or a
 //      claim text into a string. Every one of them reaches the model through a prompt's own input
 //      schema, which wraps it in an `untrusted()` block (11 §2, §3, D-522).
+//   6. **No package is wedged for ever by an instance that recycled.** A step that dies after
+//      claiming leaves a `running` row, and a crash between a transaction's COMMIT and its
+//      `boss.send` leaves a `queued` row with no job: either refuses every later start with
+//      `GENERATION_ALREADY_RUNNING` and leaves the progress screen polling for ever. A row whose
+//      worker cannot still exist — older than `GENERATION_RUN_STALE_AFTER_MS`, which is three
+//      invocation lifetimes — is closed out as `failed` under the version lock by whichever of the
+//      three doors an author next opens: `startGeneration`, `regenerateElement` or the status read
+//      UI-042 polls. `claimStep` reads the same window, so a late redelivery re-takes an abandoned
+//      step instead of skipping it, and the close-out is fenced on the claim's own timestamp so no
+//      two workers can both finish one step (D-550).
 //
 // The module depends on `scenarios` through its `repository`, `validate`, `units` and `schema` and
 // never through its `index.ts` or `service.ts`, because `scenarios.getPackageVersion` reads this
@@ -62,6 +72,8 @@ import {
 import { computeMeasures, type AuthoringMeasureValues } from './measures'
 import * as repo from './repository'
 import {
+  GENERATION_RUN_ABANDONED,
+  GENERATION_RUN_STALE_AFTER_MS,
   GENERATION_STEPS,
   GenerationStepSchema,
   MAX_GENERATION_PASSES,
@@ -191,6 +203,33 @@ export async function listGenerationRunsForVersion(
 }
 
 // ---------------------------------------------------------------------------------------------
+// Abandoned runs (D-550)
+// ---------------------------------------------------------------------------------------------
+
+/** The instant before which an unfinished run's worker cannot still exist (`schema.ts`). */
+const staleBefore = (): Date => new Date(Date.now() - GENERATION_RUN_STALE_AFTER_MS)
+
+/**
+ * Closes out the version's abandoned runs, under the lock the caller already holds.
+ *
+ * Rule 6 of this file. Every door into the pipeline passes through here first — the two starts and
+ * the status read — so a version whose step died mid-flight is unwedged by the next thing an author
+ * does to it, rather than by a sweep that would have to be scheduled, given a queue and a handler,
+ * and then trusted to have run. It is the same shape the run clock takes (PRD §7.11, and the
+ * standing rule in CLAUDE.md): the state is a server timestamp materialised lazily on read.
+ *
+ * The row is closed as `failed`, never re-enqueued. A re-enqueue driven by a page refresh is an
+ * unbounded retry of work that may be failing deterministically, and D-541 already shipped the
+ * control an author presses next: the stopped row's "Run generation again".
+ */
+async function reclaimAbandonedRuns(
+  versionId: string,
+  tx: scenarioRepo.Tx,
+): Promise<repo.GenerationRun[]> {
+  return repo.failAbandonedGenerationRuns(versionId, staleBefore(), GENERATION_RUN_ABANDONED, tx)
+}
+
+// ---------------------------------------------------------------------------------------------
 // startGeneration (AI-001, FR-191)
 // ---------------------------------------------------------------------------------------------
 
@@ -217,6 +256,8 @@ export async function startGeneration(
     const seed = await scenarioRepo.findVersionFull(scope.tenantId, versionId, tx)
     if (!seed?.seedRecord) seedMissing()
 
+    // Rule 6: a step whose worker died left a row that refuses this start for ever (D-550).
+    await reclaimAbandonedRuns(versionId, tx)
     const unfinished = await repo.findUnfinishedGenerationRun(versionId, tx)
     if (unfinished) {
       generationAlreadyRunning({ step: unfinished.step, passNumber: unfinished.passNumber })
@@ -292,6 +333,7 @@ export async function regenerateElement(
     if (!locked) notFound('package version')
     if (locked.status !== 'draft') versionFrozen()
 
+    await reclaimAbandonedRuns(versionId, tx)
     const unfinished = await repo.findUnfinishedGenerationRun(versionId, tx)
     if (unfinished) {
       generationAlreadyRunning({ step: unfinished.step, passNumber: unfinished.passNumber })
@@ -339,7 +381,20 @@ export async function getGenerationStatus(
   // 07 §6 gives this row to "Auth, Editor" and nobody else: it reports which package rules the
   // draft still breaks, which is where the defects are.
   const scope = await requireGenerationAuthor(actor, versionId)
-  const runs = (await repo.listGenerationRuns(versionId)).map(toRunView)
+
+  // Rule 6 (D-550). UI-042 polls this every few seconds while a pipeline runs, so it is the one
+  // read that is certainly made about a wedged version — and the write is taken only when there is
+  // something to close out, which keeps the poll a pure read on every ordinary pass.
+  let rows = await repo.listGenerationRuns(versionId)
+  if (rows.some(isAbandoned)) {
+    await repo.withTransaction(async (tx) => {
+      const locked = await repo.lockVersionForGeneration(scope.tenantId, versionId, tx)
+      if (!locked) return
+      await reclaimAbandonedRuns(versionId, tx)
+    })
+    rows = await repo.listGenerationRuns(versionId)
+  }
+  const runs = rows.map(toRunView)
 
   // Newest first from the repository, so the last row per step is the one to show.
   const latestByStep = new Map<GenerationStepValue, GenerationRunView>()
@@ -373,12 +428,33 @@ export async function getGenerationStatus(
   }
 }
 
+/** A `queued` or `running` row whose worker cannot still exist (D-550). */
+function isAbandoned(run: repo.GenerationRun): boolean {
+  if (run.status !== 'queued' && run.status !== 'running') return false
+  return (run.startedAt ?? run.createdAt).getTime() < staleBefore().getTime()
+}
+
+/**
+ * The pipeline's state, from the *latest* run of each step.
+ *
+ * "Any run of the last step ever succeeded" was the old reading, and it answered `complete` on a
+ * version whose most recent work stopped: a full pipeline followed by a document rewrite that
+ * failed both passes reported `complete` while the documents row said `failed` and the rule report
+ * said `ok: false`, so UI-042 printed "your draft is ready" over a row saying it was not. A screen
+ * that says a thing arrived when it did not is worse than one that says nothing (D-549, D-553).
+ */
 function pipelineState(runs: readonly GenerationRunView[]): GenerationStatusView['state'] {
   if (runs.length === 0) return 'not_started'
   if (runs.some((run) => run.status === 'queued' || run.status === 'running')) return 'running'
-  const last = GENERATION_STEP_ORDER[GENERATION_STEP_ORDER.length - 1]
-  if (runs.some((run) => run.step === last && run.status === 'succeeded')) return 'complete'
-  return 'failed'
+
+  // Newest first from the repository, so the first row seen per step is that step's latest.
+  const latestByStep = new Map<GenerationStepValue, GenerationRunView>()
+  for (const run of runs) if (!latestByStep.has(run.step)) latestByStep.set(run.step, run)
+
+  const last = GENERATION_STEP_ORDER.at(-1)
+  if (last === undefined || latestByStep.get(last)?.status !== 'succeeded') return 'failed'
+  for (const run of latestByStep.values()) if (run.status !== 'succeeded') return 'failed'
+  return 'complete'
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -516,6 +592,7 @@ export async function runGenerationStep(
   }
   const run = claimed.run
   const version = claimed.version
+  const claimedAt = claimed.claimedAt
 
   let failedRules: string[] = []
   let failedMessages: string[] = []
@@ -562,6 +639,7 @@ export async function runGenerationStep(
     versionId,
     step,
     run,
+    claimedAt,
     passNumber: payload.passNumber,
     standalone: payload.standalone === true,
     failedRules,
@@ -607,16 +685,35 @@ function providerName(value: string): 'mock' | 'openai-compatible' | 'anthropic'
 }
 
 type ClaimResult =
-  | { kind: 'claimed'; run: repo.GenerationRun; version: scenarioRepo.VersionFull }
+  | {
+      kind: 'claimed'
+      run: repo.GenerationRun
+      version: scenarioRepo.VersionFull
+      /** The fence this claim wrote; `recordOutcome` closes the row out only while it stands. */
+      claimedAt: Date
+    }
   | { kind: 'skipped' }
 
 /**
  * Takes the step's `generation_runs` row under the version's write lock.
  *
  * This is the whole of what makes a second job for the same step harmless: the loser of the race
- * finds a row that is already `running` or `succeeded` and returns without calling the provider or
- * writing an element. `singletonKeyFor` does not do this — D-400 — and neither does the unique
- * index on `(package_version_id, step, pass_number)`, which is not unique.
+ * finds a row it may not claim and returns without calling the provider or writing an element.
+ * `singletonKeyFor` does not do this — D-400 — and neither does the unique index on
+ * `(package_version_id, step, pass_number)`, which is not unique.
+ *
+ * Exactly one status is claimable, and the reason each of the other three is not is different:
+ *
+ *   * `queued` — the work this job was sent for. Claim it.
+ *   * `running` — another worker holds it, *unless* the row is abandoned: a claim older than
+ *     `GENERATION_RUN_STALE_AFTER_MS` cannot have a worker behind it (D-550), so a redelivery that
+ *     arrives after the window re-takes the step rather than skipping it for ever.
+ *   * `succeeded` — done. A duplicate job must not run it again.
+ *   * `failed` — **also done.** 10 §5 gives a step one automatic retry and no more, and the retry is
+ *     its own row at `passNumber + 1`. Re-claiming a failed row gave a redelivered job a third pass:
+ *     another provider call, another element set written over the author's, another
+ *     `generation_failed` notice and e-mail, and `MAX_GENERATION_PASSES` breached. D-531's
+ *     guarantee — "a duplicate job is a no-op" — held for two of the four statuses (D-551).
  */
 async function claimStep(
   tenantId: string,
@@ -634,7 +731,7 @@ async function claimStep(
     // sit on "running" for a pipeline that can never move again.
     if (version.status !== 'draft') {
       const queued = await repo.findGenerationRun(versionId, step, passNumber, tx)
-      if (queued && queued.status === 'queued') {
+      if (queued && (queued.status === 'queued' || queued.status === 'running')) {
         await repo.updateGenerationRun(
           queued.id,
           { status: 'failed', error: 'VERSION_FROZEN', finishedAt: new Date() },
@@ -645,18 +742,22 @@ async function claimStep(
     }
 
     const existing = await repo.findGenerationRun(versionId, step, passNumber, tx)
-    if (existing && (existing.status === 'running' || existing.status === 'succeeded')) {
+    if (existing && existing.status !== 'queued' && !isAbandoned(existing)) {
       return { kind: 'skipped' }
     }
     const startedAt = new Date()
     const run = existing
-      ? await repo.updateGenerationRun(existing.id, { status: 'running', startedAt }, tx)
+      ? await repo.updateGenerationRun(
+          existing.id,
+          { status: 'running', startedAt, finishedAt: null, error: null, failedRules: [] },
+          tx,
+        )
       : await repo.insertGenerationRun(
           { packageVersionId: versionId, step, passNumber, status: 'running', startedAt },
           tx,
         )
     if (!run) return { kind: 'skipped' }
-    return { kind: 'claimed', run, version }
+    return { kind: 'claimed', run, version, claimedAt: startedAt }
   })
 }
 
@@ -665,6 +766,8 @@ type RecordOutcomeInput = {
   versionId: string
   step: GenerationStepValue
   run: repo.GenerationRun
+  /** The fence `claimStep` wrote; the close-out is refused if the claim no longer stands (D-550). */
+  claimedAt: Date
   passNumber: number
   standalone: boolean
   failedRules: string[]
@@ -684,18 +787,25 @@ type RecordOutcomeInput = {
  * what keeps `findUnfinishedGenerationRun` true for the whole pipeline: without it there is a
  * window between two steps in which a second `startGeneration` would be admitted.
  */
-async function recordOutcome(
-  input: RecordOutcomeInput,
-): Promise<Exclude<GenerationStepOutcome['outcome'], 'skipped'>> {
+async function recordOutcome(input: RecordOutcomeInput): Promise<GenerationStepOutcome['outcome']> {
   const { tenantId, versionId, step, run, passNumber } = input
   const finishedAt = new Date()
-  const failed = input.failedRules.length > 0 || input.error !== null
   const following = nextStep(step)
 
   return repo.withTransaction(async (tx) => {
-    await repo.lockVersionForGeneration(tenantId, versionId, tx)
-    await repo.updateGenerationRun(
+    const locked = await repo.lockVersionForGeneration(tenantId, versionId, tx)
+
+    // The version can be confirmed between the write and this close-out, and `markGenerated` writes
+    // a column the `package_frozen` trigger family defends: the trigger would roll this whole
+    // transaction back, leaving the row `running` for ever and feeding exactly the wedge rule 6
+    // exists to prevent. So the freeze is read here, under the lock, and closes the row out as the
+    // failure it is (D-550).
+    const frozen = locked !== undefined && locked.status !== 'draft'
+    const failed = frozen || input.failedRules.length > 0 || input.error !== null
+
+    const closed = await repo.closeClaimedGenerationRun(
       run.id,
+      input.claimedAt,
       {
         status: failed ? 'failed' : 'succeeded',
         provider: input.provider === '' ? null : input.provider,
@@ -703,16 +813,22 @@ async function recordOutcome(
         promptVersion: String(GENERATION_STEP_DEFINITIONS[step].prompt.version),
         inputTokens: input.usage.inputTokens,
         outputTokens: input.usage.outputTokens,
-        failedRules: input.failedRules,
+        failedRules: frozen ? [] : input.failedRules,
         // A rule failure is reported by its rules and nothing else, so the generation screen shows
         // the author what the package needs rather than the sentence the runner threw. `error` is
         // for the failures that have no rule to name: a provider that did not answer, an output the
         // schema refused, a version confirmed underneath the step (DATA-027).
-        error: input.failedRules.length > 0 ? null : input.error,
+        error: frozen ? 'VERSION_FROZEN' : input.failedRules.length > 0 ? null : input.error,
         finishedAt,
       },
       tx,
     )
+
+    // The claim was reclaimed as abandoned while this worker was in the provider call, and another
+    // one holds the step now. Closing it out from here would enqueue a step twice.
+    if (!closed) return 'skipped'
+    // A frozen version's pipeline stops where it is: no `markGenerated`, no next step, no notice.
+    if (frozen) return 'failed'
 
     if (!failed) {
       // 10 §5: step 1 is where the version learns which model wrote it (07 §6 `authoringRecord`).
@@ -969,12 +1085,18 @@ function planKeys(
   ctx: WriteContext,
   existing: readonly KeyedRow[],
   generatedKeys: readonly string[],
+  /**
+   * Ids to protect as though they were confirmed themselves. Step 4 passes the claims whose *state*
+   * an author confirmed: a claim state is its own confirmable element (`defective:C3`) and it
+   * cannot outlive its claim, so a claim carrying a confirmed state is confirmed work too (D-552).
+   */
+  alsoProtected: ReadonlySet<string> = new Set(),
 ): KeyPlan {
   const idByKey = new Map<string, string>()
   const confirmedKeys = new Set<string>()
   for (const row of existing) {
     idByKey.set(row.key, row.id)
-    if (ctx.confirmedIds.has(row.id)) confirmedKeys.add(row.key)
+    if (ctx.confirmedIds.has(row.id) || alsoProtected.has(row.id)) confirmedKeys.add(row.key)
   }
   for (const key of generatedKeys) {
     if (!idByKey.has(key)) idByKey.set(key, crypto.randomUUID())
@@ -1307,10 +1429,24 @@ async function writeClaims(
   output: { claims: GeneratedClaim[]; generalEscalationReply: string },
 ): Promise<void> {
   const documentIdByKey = new Map(ctx.version.documents.map((row) => [row.key, row.id]))
+
+  // A claim state is a confirmable element in its own right (`defective:C3`), so an author can
+  // confirm a state while the claim it belongs to is still unconfirmed — and a state cannot outlive
+  // its claim, because dropping the claim drops every state of it. Read against
+  // `plan.staleIds` alone, that made a claims pass which happened not to reproduce a key delete a
+  // confirmed state, its `element_confirmations` rows and the rejection history `rejectedShare`
+  // counts: the exact loss D-532 was written to prevent, on the one write path in this file that
+  // did not consult `ctx.confirmedIds`. A claim with a confirmed state is therefore protected the
+  // way a confirmed claim is (D-552).
+  const states = await repo.listClaimStates(ctx.versionId, ctx.tx)
+  const claimsWithConfirmedState = new Set(
+    states.filter((state) => ctx.confirmedIds.has(state.id)).map((state) => state.claimId),
+  )
   const plan = planKeys(
     ctx,
     ctx.version.claims,
     output.claims.map((row) => row.key),
+    claimsWithConfirmedState,
   )
 
   for (const row of output.claims) {
@@ -1345,17 +1481,17 @@ async function writeClaims(
     })
   }
 
-  // The states of claims the new set dropped go with them; step 4 owns both tables (10 §5).
-  const states = await repo.listClaimStates(ctx.versionId, ctx.tx)
+  // The states of claims the new set dropped go with them; step 4 owns both tables (10 §5). Every
+  // such state is unconfirmed by construction — a confirmed one protected its claim above — and the
+  // filter says so locally rather than leaving it to be re-derived by a reader.
   const staleClaimIds = new Set(plan.staleIds)
-  const orphanStates = states.filter((state) => staleClaimIds.has(state.claimId))
+  const orphanStates = states.filter(
+    (state) => staleClaimIds.has(state.claimId) && !ctx.confirmedIds.has(state.id),
+  )
   if (orphanStates.length > 0) {
-    await repo.deleteConfirmationsForElements(
-      ctx.versionId,
-      orphanStates.map((state) => state.id),
-      ctx.tx,
-    )
-    await repo.deleteClaimStatesForClaims([...staleClaimIds], ctx.tx)
+    const orphanIds = orphanStates.map((state) => state.id)
+    await repo.deleteConfirmationsForElements(ctx.versionId, orphanIds, ctx.tx)
+    await repo.deleteClaimStates(ctx.versionId, orphanIds, ctx.tx)
   }
   await removeStale(ctx, 'claim', plan.staleIds)
 

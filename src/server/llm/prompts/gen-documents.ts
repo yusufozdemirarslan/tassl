@@ -23,15 +23,15 @@ import {
   GEN_DOCUMENT_ROLES,
   GEN_DOCUMENT_WORD_LIMIT,
   cappedUntrustedText,
+  conceptList,
   field,
-  genConceptKey,
+  genConceptSet,
   genIsoDate,
   genKey,
   genPosition,
   genRestatedRules,
   genShortText,
   genSystem,
-  keyList,
   restatedRulesSection,
   section,
   untrustedText,
@@ -58,7 +58,7 @@ export const DocumentsInputSchema = z.object({
       }),
     )
     .default([]),
-  conceptSet: z.array(genConceptKey).default([]),
+  conceptSet: genConceptSet,
   restatedRules: genRestatedRules,
 })
 export type DocumentsInput = z.infer<typeof DocumentsInputSchema>
@@ -147,7 +147,7 @@ export const genDocumentsPrompt = definePrompt<DocumentsInput, DocumentsOutput>(
       restatedRulesSection(input.restatedRules),
       section(
         'THE CONCEPTS THIS COURSE DECLARED',
-        keyList(input.conceptSet, 'The course declared no concept set.'),
+        conceptList(input.conceptSet, 'The course declared no concept set.'),
       ),
       section('THE BRIEF THE STUDENT READS', field('brief', input.brief)),
       section(
