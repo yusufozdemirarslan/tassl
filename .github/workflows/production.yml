@@ -51,6 +51,10 @@ jobs:
           # from GitHub secrets and the deployment uses the Vercel production values.
           BETTER_AUTH_SECRET: ${{ secrets.BETTER_AUTH_SECRET_PRODUCTION }}
           CRON_SECRET: ${{ secrets.CRON_SECRET_PRODUCTION }}
+          # The build validates the whole server env, and `openai-compatible` requires a key
+          # (`config.ts` superRefine). `vercel pull` writes a Secret as the literal
+          # `[SENSITIVE]`, so the key comes from a GitHub secret like the two above (D-160).
+          LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
           APP_ENV: production
           SEED_PASSWORD: ${{ secrets.SEED_PASSWORD }}
           # vercel pull writes sensitive variables as the literal "[SENSITIVE]"; the build evaluates the
