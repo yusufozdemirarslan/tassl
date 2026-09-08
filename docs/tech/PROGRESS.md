@@ -127,8 +127,8 @@
 - [x] 14.1 OpenAI-compatible (MiMo) and Anthropic adapters
 - [x] 14.2 Guardrails: redaction, budgets, timeouts, retries, circuit breaker, fallback, degradation
 - [x] 14.3 Prompt hardening and injection evals
-- [ ] 14.4 Evals against the real provider (local)
-- [ ] 14.5 LLM observability panel and alerts
+- [x] 14.4 Evals against the real provider (local)
+- [x] 14.5 LLM observability panel and alerts
 - [ ] 14.6 Rollout to preview, then production
 - [ ] Phase 14 exit criteria
 
