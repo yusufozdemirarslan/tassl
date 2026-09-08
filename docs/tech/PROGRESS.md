@@ -120,7 +120,7 @@
 - [x] 13.5 Admin area, legal pages, error-page polish, copy review
 - [x] 13.6 Backups, restore drill, incident tooling, retention
 - [x] 13.7 Impeccable app-wide passes: adapt, optimize, extract
-- [ ] 13.8 Accessibility sweep and performance budgets in CI
+- [x] 13.8 Accessibility sweep and performance budgets in CI
 - [ ] Phase 13 exit criteria
 
 ## Phase 14 — LLM integration (`build-plan/phase-14-llm-integration.md`)
