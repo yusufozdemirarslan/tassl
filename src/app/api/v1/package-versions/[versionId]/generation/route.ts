@@ -9,5 +9,7 @@ export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 // 07 §1 "Timeouts": 300 s for the generation start. The enqueue is instant, but
 // JOBS_DRAIN_ON_ENQUEUE lets this invocation drain the queue it just wrote to (D-012), and the work
-// on the other side of that queue is a model call per step.
+// on the other side of that queue is a model call per step. The GET is on the same budget for the
+// same reason: seven model calls do not fit in one invocation, so the status poll drains too and
+// each poll is what carries the pipeline to its next step (D-683).
 export const maxDuration = 300

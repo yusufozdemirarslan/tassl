@@ -17,6 +17,12 @@
 //   * **A second start is refused, and the refusal is the row lock.** Two `startGeneration` calls
 //     raced against each other produce one pipeline — and the same test shows the queue's singleton
 //     key does *not* deduplicate under the `standard` policy (D-400), so the lock is doing it.
+//   * **A start after a stopped pipeline resumes it.** A pipeline that stopped partway is the
+//     ordinary case in production, not the exceptional one: the drain cannot outlive its invocation
+//     and seven model calls do not fit in one. Starting again has to continue from the first step
+//     that has not succeeded, because re-running step 1 deletes stakeholders that step 2's documents
+//     reference `on delete no action` — a foreign key violation that leaves the version with no way
+//     forward and no way back (D-683).
 // @db:truncate
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { testSql, truncateAll } from '@tests/setup/integration'
@@ -175,6 +181,50 @@ describe('startGeneration on the mock provider', () => {
        where id = ${fx.versionId}`
     expect(await codeOf(authoring.startGeneration(fx.author, fx.versionId))).toBe('VERSION_FROZEN')
     expect(await runRows(fx.versionId)).toEqual([])
+  })
+})
+
+// ---------------------------------------------------------------------------------------------
+// Resuming a pipeline that stopped partway (D-683)
+// ---------------------------------------------------------------------------------------------
+
+describe('startGeneration after a pipeline stopped partway', () => {
+  it('resumes at the first step that has not succeeded rather than rewriting step 1', async () => {
+    await authoring.startGeneration(fx.author, fx.versionId)
+    await drain()
+
+    // Rewind to the state a killed invocation leaves: steps 1 and 2 done, the rest never run. This
+    // is what production produces on a real seed case, where the drain's budget runs out mid-run.
+    await testSql`
+      delete from generation_runs
+       where package_version_id = ${fx.versionId}
+         and step not in ('reskin_brief_stakeholders', 'documents')`
+
+    const stakeholdersBefore = await testSql<{ id: string }[]>`
+      select id from stakeholders where package_version_id = ${fx.versionId} order by id`
+    expect(stakeholdersBefore.length).toBeGreaterThan(0)
+
+    expect(await authoring.startGeneration(fx.author, fx.versionId)).toEqual({ started: true })
+    await drain()
+
+    // It picked up at step 3. Step 1 was not re-run, so nothing tried to delete a stakeholder a
+    // document points at — the delete this used to attempt is what raised the foreign key error.
+    const steps = (await runRows(fx.versionId)).map((row) => `${row.step}:${row.status}`)
+    expect(steps.filter((row) => row.startsWith('reskin_brief_stakeholders'))).toEqual([
+      'reskin_brief_stakeholders:succeeded',
+    ])
+    expect(steps).toContain('answer_space_fields:succeeded')
+    expect(steps).toContain('readiness_items:succeeded')
+    for (const row of await runRows(fx.versionId)) expect(row.error, row.step).toBeNull()
+
+    // The stakeholders the documents were attributed to are the same rows, not replacements.
+    const stakeholdersAfter = await testSql<{ id: string }[]>`
+      select id from stakeholders where package_version_id = ${fx.versionId} order by id`
+    expect(stakeholdersAfter.map((row) => row.id)).toEqual(stakeholdersBefore.map((row) => row.id))
+
+    const status = await authoring.getGenerationStatus(fx.author, fx.versionId)
+    expect(status.state).toBe('complete')
+    expect(status.validation).toEqual({ ok: true, failures: [] })
   })
 })
 

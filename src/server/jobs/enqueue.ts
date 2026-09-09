@@ -55,6 +55,22 @@ async function kickDrain(): Promise<void> {
   await drainSafely(INLINE_DRAIN_MS)
 }
 
+/**
+ * The same kick as an enqueue's, for a *read* that knows work is outstanding (10 §7).
+ *
+ * A drain lives inside the invocation that started it, and on this platform that is 300 s with a
+ * 240 s budget. One enqueue therefore drains as much as fits and no more: the authoring pipeline's
+ * seven model calls do not fit, so the invocation that started it dies mid-step and nothing
+ * re-drives the queue until the nightly sweep. Polling is what the client already does while a
+ * pipeline runs (UI-042), so the poll is the pump — each one arrives in a fresh invocation with a
+ * fresh budget, and pg-boss's own fetch lock is what keeps concurrent polls from working the same
+ * job twice, so a poll arriving while a step runs finds nothing and costs a query (D-683).
+ */
+export async function pumpQueues(): Promise<void> {
+  if (!env.JOBS_DRAIN_ON_ENQUEUE) return
+  await kickDrain()
+}
+
 /** Sends one job; resolves with the pg-boss job id, or null when the singleton key deduplicated it. */
 export async function enqueue<Q extends QueueName>(
   queue: Q,
