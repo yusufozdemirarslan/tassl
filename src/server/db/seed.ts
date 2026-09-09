@@ -199,13 +199,16 @@ async function ensureSectionMembership(
 const SEED_PACKAGE_FAMILY_KEY = 'meridian-roast'
 
 /** 06 §5 item 5. The auto-lock assignment's short clock is what makes a lock observable in a demo. */
+// All three are walkthrough assignments (PRD §12 takes every one of them in the walkthrough), so a
+// rehearsal run on any of them can be deleted from the assignment page and the seat is free again
+// (D-104; before this only the first was flagged, and a run on the other two could only be voided).
 const SEED_ASSIGNMENTS = [
   { label: 'Decision Run 1 (walkthrough)', variant: 'defective', isWalkthrough: true },
-  { label: 'Decision Run 1 (sound)', variant: 'sound', isWalkthrough: false },
+  { label: 'Decision Run 1 (sound)', variant: 'sound', isWalkthrough: true },
   {
     label: 'Auto-lock test run',
     variant: 'defective',
-    isWalkthrough: false,
+    isWalkthrough: true,
     workingClockSeconds: 120,
   },
 ] as const
@@ -365,13 +368,14 @@ async function shutdown(): Promise<void> {
 if (invokedDirectly) {
   runSeed()
     .then(async (summary) => {
-      console.log(
-        `seed: ${Object.keys(summary.users).length} seat accounts, course ${summary.courseId}`,
+      log.info(
+        { seats: Object.keys(summary.users).length, courseId: summary.courseId },
+        'seed complete',
       )
       await shutdown()
     })
     .catch(async (error: unknown) => {
-      console.error(error instanceof Error ? error.message : error)
+      log.error({ err: error instanceof Error ? error.message : String(error) }, 'seed failed')
       await shutdown()
       process.exit(1)
     })

@@ -275,8 +275,11 @@ export const run = {
   'run.reviewDeleted': 'The walkthrough run was deleted.',
   /** The confirmation is fetched on the press that opens it (B4); this is the press it never reached. */
   'run.reviewDeleteUnavailable': 'The confirmation could not be loaded. Try the delete again.',
+  'run.reviewColumnReplay': 'Replay',
+  'run.reviewOpenReplay': 'Open the replay',
+  'run.reviewOpenReplayName': 'Open the replay for {name}',
   'run.reviewReplayNote':
-    'The replay of a scored run, with its trace and its band decisions, arrives with the review screens.',
+    'The replay shows a run’s trace as it is written, its test controls while it is live, and its band decisions once it is scored.',
 
   // ---------------------------------------------------------------------------------------------
   // UI-009 the home panel (Your runs)

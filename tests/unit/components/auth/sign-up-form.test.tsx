@@ -124,6 +124,17 @@ describe('SignUpForm (UI-002)', () => {
     )
   })
 
+  it('in demo mode lands on /home: the account is confirmed and signed in already (D-692)', async () => {
+    auth.signUpEmail.mockResolvedValue({ data: { user: {} }, error: null })
+    render(<SignUpForm demoMode />)
+    const user = await fillForm()
+
+    await user.click(submitButton())
+
+    await waitFor(() => expect(router.push).toHaveBeenCalledWith('/home'))
+    expect(router.push).not.toHaveBeenCalledWith(expect.stringContaining('/verify-email'))
+  })
+
   it('lands on that same screen when the address is already in use (no enumeration)', async () => {
     auth.signUpEmail.mockResolvedValue({
       data: null,

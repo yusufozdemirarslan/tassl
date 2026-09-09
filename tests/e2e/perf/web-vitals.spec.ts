@@ -109,10 +109,10 @@ test('core web vitals on the workspace, the debrief and the faculty replay', asy
   request,
   browserName,
 }, testInfo) => {
-  test.skip(
-    browserName !== 'chromium',
-    'largest-contentful-paint and layout-shift are Chromium entry types (16 §2.4)',
-  )
+  // largest-contentful-paint and layout-shift are Chromium entry types (16 §2.4), so this spec
+  // belongs to the chromium project alone by configuration (playwright.config.ts `testIgnore`),
+  // not by a skip inside the test.
+  if (browserName !== 'chromium') throw new Error('the perf spec runs on the chromium project only')
   test.setTimeout(600_000)
   recorded.length = 0 // A retry re-measures rather than appending to what the first attempt saw.
 

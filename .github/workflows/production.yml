@@ -100,6 +100,18 @@ jobs:
       - name: Smoke
         run: pnpm smoke "${{ steps.url.outputs.prod_url }}"
 
+      # The browser smoke (docs/prompts/02-qa-and-guides.md Part B): the sign-in page with its
+      # headers, both demo seats signing in, one screen per persona, the two probes, and the
+      # assistant mode the deployment answers with. Read-only against the live URL.
+      - name: Post-deploy browser smoke
+        env:
+          PLAYWRIGHT_BASE_URL: ${{ steps.url.outputs.prod_url }}
+          SEED_PASSWORD: ${{ secrets.SEED_PASSWORD }}
+          SMOKE_EXPECT_VERSION: ${{ github.sha }}
+        run: |
+          pnpm exec playwright install --with-deps chromium
+          pnpm test:smoke
+
       # `set_commits: skip` because the action's default is `auto`, which runs
       # `sentry-cli releases set-commits <sha> --auto` and exits 1 when the Sentry organisation has
       # no repository integration configured. That is a nicety — it is what puts "suspect commits"

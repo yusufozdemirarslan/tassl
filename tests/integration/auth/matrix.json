@@ -3160,6 +3160,46 @@
     "expected": "deny"
   },
   {
+    "operationId": "adminSetAiMode",
+    "role": "student",
+    "expected": "deny"
+  },
+  {
+    "operationId": "adminSetAiMode",
+    "role": "instructor",
+    "expected": "deny"
+  },
+  {
+    "operationId": "adminSetAiMode",
+    "role": "ta",
+    "expected": "deny"
+  },
+  {
+    "operationId": "adminSetAiMode",
+    "role": "author",
+    "expected": "deny"
+  },
+  {
+    "operationId": "adminSetAiMode",
+    "role": "program_lead",
+    "expected": "deny"
+  },
+  {
+    "operationId": "adminSetAiMode",
+    "role": "editor",
+    "expected": "deny"
+  },
+  {
+    "operationId": "adminSetAiMode",
+    "role": "admin",
+    "expected": "allow"
+  },
+  {
+    "operationId": "adminSetAiMode",
+    "role": "outsider",
+    "expected": "deny"
+  },
+  {
     "operationId": "adminListAuditLog",
     "role": "student",
     "expected": "deny"

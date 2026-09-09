@@ -1,6 +1,8 @@
 'use client'
 
 import { useState } from 'react'
+import type { Route } from 'next'
+import Link from 'next/link'
 import { Trash2Icon } from 'lucide-react'
 import { FormAlert } from '@/components/features/account/form-feedback'
 import { RunStateChip } from '@/components/features/run/run-state-chip'
@@ -41,9 +43,10 @@ const loadDialog = () => import('./assignment-run-delete-dialog')
 // a student who reads "sound" can accept every claim and band Professional without doing the work
 // the run measures (12 §8, D-228).
 //
-// **The replay link.** UI-032 offers one and `/review/runs/[runId]` is Phase 11's screen. A link
-// into a route that does not exist is a 404 with the instructor's name on it, so the column says
-// where the replay will be instead, once, under the table.
+// **The replay link** is here, one per run (UI-032): `/review/runs/[runId]` is the reviewer's
+// only door into a live run's test controls and a scored run's bands, and until this column
+// existed a confirmed run — which has left the review queue — could be reached only by typing its
+// id into the address bar.
 
 export type AssignmentRunRow = {
   id: string
@@ -92,6 +95,7 @@ export function AssignmentRunsTable({ runs, canDelete }: AssignmentRunsTableProp
             <TableHead scope="col">{t('run.reviewColumnState')}</TableHead>
             <TableHead scope="col">{t('run.reviewColumnDecisions')}</TableHead>
             <TableHead scope="col">{t('run.reviewColumnExport')}</TableHead>
+            <TableHead scope="col">{t('run.reviewColumnReplay')}</TableHead>
             {canDelete && <TableHead scope="col">{t('run.reviewColumnActions')}</TableHead>}
           </TableRow>
         </TableHeader>
@@ -112,6 +116,15 @@ export function AssignmentRunsTable({ runs, canDelete }: AssignmentRunsTableProp
                 ) : (
                   t('run.reviewExportVersion', { version: row.latestExportVersion })
                 )}
+              </TableCell>
+              <TableCell>
+                <Link
+                  href={`/review/runs/${row.id}` as Route}
+                  className="text-primary underline-offset-4 hover:underline"
+                  aria-label={t('run.reviewOpenReplayName', { name: row.studentName })}
+                >
+                  {t('run.reviewOpenReplay')}
+                </Link>
               </TableCell>
               {canDelete && (
                 <TableCell>

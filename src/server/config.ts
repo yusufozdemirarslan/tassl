@@ -33,6 +33,9 @@ export const ServerEnvSchema = z
     FEATURE_AI: bool.default(false),
     FEATURE_SAMPLE_DATA: bool.default(true),
     FEATURE_TEST_CONTROLS: bool.default(true),
+    // The judged demo (D-692): sign-ups are auto-confirmed and signed in, the email transport is the
+    // console whatever `EMAIL_TRANSPORT` says, and the seeded accounts are the demo logins.
+    DEMO_MODE: bool.default(false),
     LLM_PROVIDER: z.enum(['mock', 'openai-compatible', 'anthropic']).default('mock'),
     LLM_BASE_URL: z.string().url().default('https://token-plan-sgp.xiaomimimo.com/v1'),
     LLM_MODEL: z.string().default('mimo-v2.5-pro'),

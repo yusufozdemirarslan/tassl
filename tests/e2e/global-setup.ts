@@ -110,10 +110,23 @@ export async function walkthroughOrganizationId(): Promise<string> {
  * foreign key in 06 §3.2 or §3.4 cascades.
  */
 export async function purgeSuiteData(organizationId: string): Promise<void> {
+  await purgeNamed(organizationId, SUITE_PREFIX, SUITE_INVITE_PREFIX)
+}
+
+/**
+ * The purge itself, for one name prefix: the courses named with it (and everything under them),
+ * the invitations sent to addresses with `invitePrefix`, and the packages titled with it. The
+ * suite purge above and the guide reset below are the two callers.
+ */
+async function purgeNamed(
+  organizationId: string,
+  prefix: string,
+  invitePrefix: string,
+): Promise<void> {
   const courseRows = await db
     .select({ id: courses.id })
     .from(courses)
-    .where(and(eq(courses.organizationId, organizationId), like(courses.name, `${SUITE_PREFIX}%`)))
+    .where(and(eq(courses.organizationId, organizationId), like(courses.name, `${prefix}%`)))
   const courseIds = courseRows.map((row) => row.id)
 
   if (courseIds.length > 0) {
@@ -146,11 +159,11 @@ export async function purgeSuiteData(organizationId: string): Promise<void> {
     .where(
       and(
         eq(invitation.organizationId, organizationId),
-        like(invitation.email, `${SUITE_INVITE_PREFIX}%`),
+        like(invitation.email, `${invitePrefix}%`),
       ),
     )
 
-  await purgeSuitePackages(organizationId)
+  await purgeSuitePackages(organizationId, prefix)
 }
 
 /**
@@ -272,14 +285,14 @@ async function purgeRuns(assignmentIds: readonly string[]): Promise<void> {
  * is set, and the version itself cannot go while those elements still point at it. `thaw` below
  * breaks that circle for the suite's own versions and nothing else.
  */
-async function purgeSuitePackages(organizationId: string): Promise<void> {
+async function purgeSuitePackages(organizationId: string, prefix: string): Promise<void> {
   const packageRows = await db
     .select({ id: scenarioPackages.id })
     .from(scenarioPackages)
     .where(
       and(
         eq(scenarioPackages.organizationId, organizationId),
-        like(scenarioPackages.title, `${SUITE_PREFIX}%`),
+        like(scenarioPackages.title, `${prefix}%`),
       ),
     )
   const packageIds = packageRows.map((row) => row.id)
@@ -429,9 +442,59 @@ export async function ensureFixturePackage(organizationId: string): Promise<Seed
   return seeded
 }
 
+/**
+ * The guide-driven suite's reset (tests/e2e/guides, docs/prompts/02-qa-and-guides.md Part B).
+ *
+ * Those specs do what the guides describe, and the guides describe the seeded data: the student
+ * seat starts "Decision Run 1 (walkthrough)" on the seeded section, the instructor seat creates
+ * rows named with GUIDE_PREFIX. Both leave state behind that refuses the next run — one live run
+ * per student per assignment (D-041), one family key per package — so before a run this takes
+ * the previous run's rows out: every run on the seeded section's assignments, the seats' stale
+ * notifications, and the "Guide …" courses and packages, through the same purge as above.
+ *
+ * It deliberately does what `assertSeededCourseUntouched` forbids the suite purge from doing —
+ * deleting runs on the seeded assignments — and says so here rather than loosening that guard:
+ * in the test database those runs are rehearsals of the guide, which is exactly what
+ * `pnpm demo:reset` clears on the demo machine, and nothing else in this file touches them.
+ */
+export const GUIDE_PREFIX = 'Guide'
+
+export async function resetGuideData(organizationId: string): Promise<void> {
+  const [course] = await db
+    .select({ id: courses.id })
+    .from(courses)
+    .where(and(eq(courses.organizationId, organizationId), eq(courses.name, SEED_COURSE_NAME)))
+  if (course) {
+    const sectionRows = await db
+      .select({ id: sections.id })
+      .from(sections)
+      .where(eq(sections.courseId, course.id))
+    const sectionIds = sectionRows.map((row) => row.id)
+    if (sectionIds.length > 0) {
+      const assignmentRows = await db
+        .select({ id: assignments.id })
+        .from(assignments)
+        .where(inArray(assignments.sectionId, sectionIds))
+      const assignmentIds = assignmentRows.map((row) => row.id)
+      // Migration 0012 cascades every child of a run, so the runs delete alone empties the trace,
+      // the claims, the bands, the scores, the exports and the records that hung off them.
+      if (assignmentIds.length > 0) {
+        await db
+          .update(runs)
+          .set({ reOfferedFromRunId: null, reOfferedToRunId: null })
+          .where(inArray(runs.assignmentId, assignmentIds))
+        await db.delete(runs).where(inArray(runs.assignmentId, assignmentIds))
+      }
+    }
+  }
+  // The guide's own rows: courses, sections, assignments, runs and packages named "Guide …".
+  await purgeNamed(organizationId, GUIDE_PREFIX, 'guide-')
+}
+
 export default async function globalSetup(): Promise<void> {
   const organizationId = await walkthroughOrganizationId()
   await purgeSuiteData(organizationId)
+  await resetGuideData(organizationId)
   await ensureFixturePackage(organizationId)
   // The connection is left open on purpose: the runner process shares this client with
   // ./global-teardown.ts, which closes it once the last worker has finished.

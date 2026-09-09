@@ -27,6 +27,7 @@ env:
   FEATURE_AI: 'false'
   FEATURE_SAMPLE_DATA: 'true'
   FEATURE_TEST_CONTROLS: 'true'
+  DEMO_MODE: 'false'
   LLM_PROVIDER: mock
   LLM_BASE_URL: https://token-plan-sgp.xiaomimimo.com/v1
   LLM_MODEL: mimo-v2.5-pro
@@ -149,6 +150,40 @@ jobs:
         if: always()
         with:
           name: playwright-report
+          path: playwright-report/
+          retention-days: 14
+          if-no-files-found: ignore
+
+  # The guide-driven suite (docs/prompts/02-qa-and-guides.md Part B): the guides and their specs
+  # are one artifact, so the coverage gate runs before and after the three serialised browser
+  # projects. It runs beside `e2e` rather than after it because the two share nothing but the build.
+  guides:
+    name: guides
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: tassl
+          POSTGRES_PASSWORD: tassl
+          POSTGRES_DB: tassl_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U tassl -d tassl_test"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup
+      - run: pnpm exec playwright install --with-deps chromium firefox webkit
+      - run: pnpm test:guides
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: playwright-report-guides
           path: playwright-report/
           retention-days: 14
           if-no-files-found: ignore

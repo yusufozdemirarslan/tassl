@@ -223,6 +223,9 @@ const OPERATION_IDS = [
   'adminListUsers',
   'adminSetPlatformRole',
   'adminGetFlags',
+  // The runtime assistant switch (D-691): the same eight cells as the four above — a platform
+  // setting, and 08 §4 gives platform settings to the admin and to nobody else.
+  'adminSetAiMode',
   'adminListAuditLog',
 ] as const
 
@@ -781,6 +784,7 @@ describe('authorization matrix (08 §4)', () => {
     const adminPlatformRoleRoute =
       await import('@/app/api/v1/admin/users/[userId]/platform-role/route')
     const adminFlagsRoute = await import('@/app/api/v1/admin/flags/route')
+    const adminAiModeRoute = await import('@/app/api/v1/admin/settings/ai-mode/route')
     const adminAuditLogRoute = await import('@/app/api/v1/admin/audit-log/route')
 
     operations = {
@@ -1658,6 +1662,19 @@ describe('authorization matrix (08 §4)', () => {
         route: 'GET /admin/flags',
         run: async (seat) =>
           call(adminFlagsRoute.GET, { path: '/admin/flags', session: await sessionFor(seat) }),
+      },
+      adminSetAiMode: {
+        route: 'PUT /admin/settings/ai-mode',
+        // `live` is what no row means, so the allowed seat leaves the fixture exactly as it found
+        // it. Under this suite's `FEATURE_AI=false` the service answers `CONFLICT` — a 409, which
+        // this file reads as the endpoint having been reached, which is all a cell asks (D-691).
+        run: async (seat) =>
+          call(adminAiModeRoute.PUT, {
+            method: 'PUT',
+            path: '/admin/settings/ai-mode',
+            session: await sessionFor(seat),
+            body: { mode: 'live' },
+          }),
       },
       adminListAuditLog: {
         route: 'GET /admin/audit-log',

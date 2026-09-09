@@ -15,9 +15,15 @@ export const runtime = 'nodejs'
 // wants every response traceable, and the probe is the response an operator reads first when
 // something is wrong. So it does the one thing the proxy did for it, with the same helper, so an
 // inbound id is echoed and a missing one is minted exactly as everywhere else.
+// `SENTRY_RELEASE` is inlined at build time by next.config.ts (`env`), so it is the SHA the deploy
+// was built from even though production.yml detaches `.git` before `vercel deploy` and Vercel
+// therefore sets no `VERCEL_GIT_COMMIT_SHA` at runtime — before this, production answered "dev".
+const version = (): string =>
+  process.env.SENTRY_RELEASE || process.env.VERCEL_GIT_COMMIT_SHA || 'dev'
+
 export function GET(request: Request) {
   return Response.json(
-    { status: 'ok', version: process.env.VERCEL_GIT_COMMIT_SHA ?? 'dev' },
+    { status: 'ok', version: version() },
     {
       headers: {
         'cache-control': 'no-store',

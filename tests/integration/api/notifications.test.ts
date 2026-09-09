@@ -258,3 +258,26 @@ describe('POST /notifications/read-all', () => {
     expect(codeOf(called)).toBe('UNAUTHENTICATED')
   })
 })
+
+describe('GET /notifications/unread-count', () => {
+  // The bell's number (UI-011): the actor's own unread rows and nobody else's, read through the
+  // route rather than the service, so the wiring of the one endpoint the shell polls is proven.
+  it('answers the actor’s unread count and 401 without a session', async () => {
+    const unreadRoute = await import('@/app/api/v1/notifications/unread-count/route')
+    const [read = ''] = await seed(student.id, 1)
+    await seed(student.id, 2)
+    await seed(classmate.id, 4)
+    await testSql`update notifications set read_at = now() where id = ${read}`
+    const session = await asUser(student.id, { activeOrganizationId: orgId })
+
+    const counted = await call(unreadRoute.GET, { path: '/notifications/unread-count', session })
+    expect(counted.status).toBe(200)
+    expect(counted.body).toMatchObject({ count: 2 })
+
+    const anonymous = await call(unreadRoute.GET, {
+      path: '/notifications/unread-count',
+      session: null,
+    })
+    expect(anonymous.status).toBe(401)
+  })
+})

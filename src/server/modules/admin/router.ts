@@ -16,9 +16,10 @@ import {
   auditEntryPageSchema,
   listAuditLogSchema,
   listUsersSchema,
+  setAiModeSchema,
   setPlatformRoleBodySchema,
 } from './schema'
-import { getFlags, listAuditLog, listUsers, setPlatformRole } from './service'
+import { getFlags, listAuditLog, listUsers, setAiMode, setPlatformRole } from './service'
 
 const TAGS = ['admin']
 
@@ -69,6 +70,21 @@ export const adminGetFlags = defineRoute(
     },
   },
   async (ctx) => getFlags(actorOf(ctx)),
+)
+
+/**
+ * `PUT /admin/settings/ai-mode` — the runtime assistant switch (07 §9, 11 §6, D-691). Answers the
+ * flags as they stand after the write, so the caller needs no second read to see the effect.
+ */
+export const adminSetAiMode = defineRoute(
+  {
+    auth: 'session',
+    input: { body: setAiModeSchema },
+    output: adminFlagsSchema,
+    rateLimit: { bucket: 'write' },
+    openapi: { operationId: 'adminSetAiMode', summary: 'Set the assistant mode', tags: TAGS },
+  },
+  async (ctx) => setAiMode(actorOf(ctx), ctx.input.body),
 )
 
 /** `GET /admin/audit-log` — the platform audit log, optionally one institution's (07 §9). */

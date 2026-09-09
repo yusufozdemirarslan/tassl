@@ -188,6 +188,11 @@ export const workspace = {
     'No answer reached you. The run had moved on by the time the assistant replied, so the reply was discarded and nothing from it was recorded against your run.',
 
   'workspace.assistantTitle': 'AI assistant',
+  // The chip in the panel header (D-691): which assistant is answering, as a plain fact. It is
+  // informational and never a warning — with the scripted assistant the product is whole (D-029),
+  // and a chip that read as a degradation would describe one the student is not in (D-655).
+  'workspace.assistantModeLive': 'Live model',
+  'workspace.assistantModeScripted': 'Scripted assistant',
   'workspace.assistantLockedBody':
     'The assistant unlocks the moment you lock your frame. It stays locked until then so that the position you write is yours.',
   'workspace.briefEditorTitle': 'Your decision brief',

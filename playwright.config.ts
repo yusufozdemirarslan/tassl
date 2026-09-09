@@ -37,10 +37,50 @@ export default defineConfig({
     baseURL: process.env.PLAYWRIGHT_BASE_URL ?? 'http://localhost:3000',
     trace: 'retain-on-failure',
   },
+  // Two families of projects.
+  //
+  // The three engine projects run every spec except the guide-driven ones. The perf spec measures
+  // Largest Contentful Paint and layout shift, which are Chromium-only entry types (16 §2.4), so it
+  // belongs to the chromium project by configuration rather than skipping itself inside the test.
+  //
+  // The guide-driven specs (tests/e2e/guides, docs/prompts/02-qa-and-guides.md Part B) take the
+  // seeded student seat through the seeded assignments — the run a real student takes — so two
+  // engines cannot take it at once (one live run per student per assignment, D-041). They run as
+  // three projects chained by `dependencies`, which serialises them; `pnpm test:guides` names the
+  // three, and the guides' own setup deletes the previous engine's runs before it starts.
   projects: [
-    { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
-    { name: 'firefox', use: { ...devices['Desktop Firefox'] } },
-    { name: 'webkit', use: { ...devices['Desktop Safari'] } },
+    {
+      name: 'chromium',
+      use: { ...devices['Desktop Chrome'] },
+      testIgnore: /guides\//,
+    },
+    {
+      name: 'firefox',
+      use: { ...devices['Desktop Firefox'] },
+      testIgnore: [/guides\//, /perf\//],
+    },
+    {
+      name: 'webkit',
+      use: { ...devices['Desktop Safari'] },
+      testIgnore: [/guides\//, /perf\//],
+    },
+    {
+      name: 'guides-chromium',
+      use: { ...devices['Desktop Chrome'] },
+      testMatch: /guides\/.*\.spec\.ts$/,
+    },
+    {
+      name: 'guides-firefox',
+      use: { ...devices['Desktop Firefox'] },
+      testMatch: /guides\/.*\.spec\.ts$/,
+      dependencies: ['guides-chromium'],
+    },
+    {
+      name: 'guides-webkit',
+      use: { ...devices['Desktop Safari'] },
+      testMatch: /guides\/.*\.spec\.ts$/,
+      dependencies: ['guides-firefox'],
+    },
   ],
   webServer: {
     command: 'pnpm db:reset && pnpm build && pnpm start',
@@ -52,6 +92,10 @@ export default defineConfig({
       FEATURE_AI: 'false',
       EMAIL_TRANSPORT: 'console',
       APP_ENV: 'test',
+      // The forced-failure spec and every scored/done poll depend on these two; pinned here so a
+      // local .env that differs cannot change what the suite proves.
+      FEATURE_TEST_CONTROLS: 'true',
+      JOBS_DRAIN_ON_ENQUEUE: 'true',
       DATABASE_URL: TEST_DATABASE_URL,
       DATABASE_URL_UNPOOLED: TEST_DATABASE_URL,
     },

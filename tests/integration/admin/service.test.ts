@@ -109,6 +109,7 @@ describe('admin service', () => {
             admin.setPlatformRole(actor, { userId: student.id, role: 'tassl_scenario_editor' }),
           ),
         ).toBe('FORBIDDEN')
+        expect(await codeOf(() => admin.setAiMode(actor, { mode: 'mock' }))).toBe('FORBIDDEN')
       }
     })
   })
@@ -287,7 +288,12 @@ describe('admin service', () => {
         ai: config.env.FEATURE_AI,
         sampleData: config.env.FEATURE_SAMPLE_DATA,
         testControls: config.env.FEATURE_TEST_CONTROLS,
+        demoMode: config.env.DEMO_MODE,
         effectiveLlmProvider: config.effectiveLlmProvider(),
+        // D-691: no row has been written, so the switch reads `live`; the *effect* is still
+        // scripted, because the environment wins and this suite runs with the flag off.
+        aiMode: 'live',
+        assistantMode: 'scripted',
         // Step 14.5: nothing has been spent in this suite, and the two ceilings are the environment's
         // (D-065). A mock call would not move these — the sums count what was billed (D-651).
         llmUsage: {
@@ -303,6 +309,22 @@ describe('admin service', () => {
       // LLM_PROVIDER says — which is the whole reason the screen shows this and not the variable.
       expect(flags.ai).toBe(false)
       expect(flags.effectiveLlmProvider).toBe('mock')
+    })
+  })
+
+  describe('setAiMode under FEATURE_AI=false', () => {
+    // D-691: the environment has already forced the scripted assistant, and a row saying `live`
+    // would record a switch the deployment cannot honour. The service refuses before it writes;
+    // `tests/integration/admin/ai-mode.test.ts` proves the write with the flag on.
+    it('refuses with CONFLICT and writes neither the row nor an audit row', async () => {
+      expect(await codeOf(() => admin.setAiMode(actorOf(adminUser), { mode: 'mock' }))).toBe(
+        'CONFLICT',
+      )
+      expect(await codeOf(() => admin.setAiMode(actorOf(adminUser), { mode: 'live' }))).toBe(
+        'CONFLICT',
+      )
+      expect(await testSql`select 1 from app_settings`).toHaveLength(0)
+      expect(await testSql`select 1 from audit_logs`).toHaveLength(0)
     })
   })
 })

@@ -72,6 +72,14 @@ describe('server config (docs/tech/05-environment-config.md §3)', () => {
     expect(m.env.NEXT_PUBLIC_APP_URL).toBe('https://tassl.example')
   })
 
+  it('keeps DEMO_MODE off by default and reads it as a boolean (D-692)', async () => {
+    const off = await load()
+    expect(off.env.DEMO_MODE).toBe(false)
+    vi.stubEnv('DEMO_MODE', 'true')
+    const on = await load()
+    expect(on.env.DEMO_MODE).toBe(true)
+  })
+
   it('coerces numbers and booleans', async () => {
     vi.stubEnv('LLM_TIMEOUT_MS', '1234')
     vi.stubEnv('NOTIFY_EMAIL_COPIES', 'false')

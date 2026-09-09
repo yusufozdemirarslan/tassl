@@ -109,8 +109,21 @@ export const resendTransport: EmailTransport = {
 
 let transport: EmailTransport | null = null
 
-/** The transport named by EMAIL_TRANSPORT, built once per process. */
+/**
+ * The transport the environment names, as a pure function of it (05 §1, D-692).
+ *
+ * `DEMO_MODE` forces the console whatever `EMAIL_TRANSPORT` says: a judged demo signs people up
+ * with addresses nobody should be writing to, and a deployment that has no sending domain (D-686)
+ * has nothing to gain from trying. Every message still renders and is still logged.
+ */
+export function transportFor(config: Pick<typeof env, 'EMAIL_TRANSPORT' | 'DEMO_MODE'>) {
+  return config.EMAIL_TRANSPORT === 'resend' && !config.DEMO_MODE
+    ? resendTransport
+    : consoleTransport
+}
+
+/** The transport named by EMAIL_TRANSPORT (console under DEMO_MODE), built once per process. */
 export function getTransport(): EmailTransport {
-  transport ??= env.EMAIL_TRANSPORT === 'resend' ? resendTransport : consoleTransport
+  transport ??= transportFor(env)
   return transport
 }

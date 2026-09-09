@@ -47,8 +47,8 @@ export const admin = {
   // Flags (UI-050)
   'admin.flags.title': 'Flags',
   'admin.flags.description':
-    'What this deployment is running with. Every one of them comes from the environment, so changing one is a deploy and not a switch on this screen.',
-  'admin.flags.caption': 'The three deployment flags, and what each one changes',
+    'What this deployment is running with. The flags come from the environment, so changing one of them is a deploy and not a switch on this screen. The assistant mode below is the one setting that is a switch.',
+  'admin.flags.caption': 'The deployment flags, and what each one changes',
   'admin.flags.columnFlag': 'Flag',
   'admin.flags.columnValue': 'Value',
   'admin.flags.columnSource': 'Source',
@@ -65,6 +65,9 @@ export const admin = {
   'admin.flags.testControls': 'FEATURE_TEST_CONTROLS',
   'admin.flags.testControlsMeaning':
     'Lets an instructor arm the assistant outage inside a live run. Every use is written to the audit log.',
+  'admin.flags.demoMode': 'DEMO_MODE',
+  'admin.flags.demoModeMeaning':
+    'On, a new sign-up is confirmed and signed in at once, every email goes to the log rather than to a person, and the seeded accounts are the demo logins.',
   'admin.flags.providerTitle': 'Effective model provider',
   'admin.flags.providerDescription':
     'The provider the run loop would actually call right now, which is the mock whenever FEATURE_AI is off.',
@@ -77,6 +80,28 @@ export const admin = {
   // be a change that `FEATURE_AI=false` is not allowed to make.
   'admin.flags.constrainedMode':
     'AI features are running in constrained mode: every model call is answered by the built-in fixture provider, which is deterministic and costs nothing.',
+
+  // The runtime assistant switch (11 §6, D-691). The one control on the screen, and the copy says
+  // both halves of the rule: it takes effect on the next call with no redeploy, and the environment
+  // still wins — FEATURE_AI=false makes the assistant scripted whatever is chosen here.
+  'admin.flags.assistantModeTitle': 'Assistant mode',
+  'admin.flags.assistantModeDescription':
+    'Which assistant answers the next request. Saving takes effect on the next model call, with no redeploy. FEATURE_AI=false overrides it: with the flag off, the assistant is scripted whatever is chosen here.',
+  'admin.flags.assistantModeLegend': 'Assistant mode',
+  'admin.flags.assistantModeLive': 'Live model',
+  'admin.flags.assistantModeLiveHint':
+    'Requests go to the configured model provider, within the token budgets.',
+  'admin.flags.assistantModeScripted': 'Scripted assistant',
+  'admin.flags.assistantModeScriptedHint':
+    'Requests are answered by the built-in fixture: deterministic, free, and no run text leaves Tassl.',
+  'admin.flags.assistantModeSubmit': 'Save assistant mode',
+  'admin.flags.assistantModePending': 'Saving',
+  'admin.flags.assistantModeSaved': 'Assistant mode saved.',
+  'admin.flags.assistantModeEffective': 'Effective mode: {mode}',
+  'admin.flags.assistantModeDisabled':
+    'FEATURE_AI is off in this environment, so the assistant is scripted whatever is chosen here. Turn the flag on and redeploy to make this switch live.',
+  'admin.flags.assistantModeEnvForced':
+    'FEATURE_AI is off in this environment, so the assistant is already scripted and this switch cannot change it.',
 
   // Model usage (NFR-016, D-065): the same sums the budget guardrail reads, on the same clock.
   'admin.flags.usageTitle': 'Model usage',

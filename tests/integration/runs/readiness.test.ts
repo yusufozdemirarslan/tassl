@@ -819,4 +819,36 @@ describe('skipReadiness', () => {
     await armSkip(runId)
     expect(await codeOf(runs.skipReadiness(fx.classmate, runId))).toBe('NOT_FOUND')
   })
+
+  it('is mounted at POST /runs/{runId}/readiness/skip with the same two answers', async () => {
+    // The route rather than the service: `defineRoute` validates the result against the spec's
+    // output, so this is what proves the skip answers the documented ReadinessResult on the wire.
+    const skipRoute = await import('@/app/api/v1/runs/[runId]/readiness/skip/route')
+    const runId = await runInReadiness()
+    const headers = await asUser(fx.student.id, { activeOrganizationId: fx.orgId })
+    headers.set('x-requested-with', 'tassl')
+    headers.set('content-type', 'application/json')
+    const post = () =>
+      skipRoute.POST(
+        new Request(`http://localhost:3000/api/v1/runs/${runId}/readiness/skip`, {
+          method: 'POST',
+          headers,
+        }),
+        { params: Promise.resolve({ runId }) },
+      )
+
+    const refused = await post()
+    expect(refused.status).toBe(409)
+    expect(((await refused.json()) as { error: { code: string } }).error.code).toBe(
+      'READINESS_SKIP_NOT_ALLOWED',
+    )
+
+    await armSkip(runId)
+    const skipped = await post()
+    expect(skipped.status).toBe(200)
+    const body = (await skipped.json()) as { skipped: boolean; concepts: { status: string }[] }
+    expect(body.skipped).toBe(true)
+    expect(body.concepts.every((concept) => concept.status === 'unknown')).toBe(true)
+    expectNoKeys(body, ['correct', 'total', 'score', 'answerKey'])
+  })
 })

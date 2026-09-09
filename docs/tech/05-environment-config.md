@@ -28,6 +28,7 @@
 | `FEATURE_AI` | Master switch: `false` forces the mock provider (D-029) | `false` | none | no | `src/lib/flags.ts` | — |
 | `FEATURE_SAMPLE_DATA` | Show illustrative sample data views | `true` | none | no | `src/lib/flags.ts` | — |
 | `FEATURE_TEST_CONTROLS` | Build-phase test controls (forced assistant failure) | `true` | none | no | `src/lib/flags.ts` | — |
+| `DEMO_MODE` | Demo deployment: sign-up needs no email verification (the account is marked verified and signed in at once) and the email transport is `console` whatever `EMAIL_TRANSPORT` says (D-692) | `false` | none | no | `src/server/auth/auth.ts`, `src/server/email/transport.ts`, `src/lib/flags.ts` | `true` in production for the judged demo |
 | `LLM_PROVIDER` | `mock`, `openai-compatible`, `anthropic` | `mock` | none | no | `src/server/llm/registry.ts` | — |
 | `LLM_BASE_URL` | OpenAI-compatible base URL | `https://token-plan-sgp.xiaomimimo.com/v1` | none | no | `src/server/llm/providers/openai-compatible/index.ts` | — |
 | `LLM_MODEL` | Model id | `mimo-v2.5-pro` | none | no | same | — |
@@ -89,6 +90,7 @@ NOTIFY_EMAIL_COPIES=true
 FEATURE_AI=false
 FEATURE_SAMPLE_DATA=true
 FEATURE_TEST_CONTROLS=true
+DEMO_MODE=false
 
 # ---- LLM (mock by default; FEATURE_AI=false forces mock regardless) ----
 LLM_PROVIDER=mock
@@ -160,6 +162,7 @@ const ServerEnvSchema = z.object({
   FEATURE_AI: bool.default(false),
   FEATURE_SAMPLE_DATA: bool.default(true),
   FEATURE_TEST_CONTROLS: bool.default(true),
+  DEMO_MODE: bool.default(false),
   LLM_PROVIDER: z.enum(['mock', 'openai-compatible', 'anthropic']).default('mock'),
   LLM_BASE_URL: z.string().url().default('https://token-plan-sgp.xiaomimimo.com/v1'),
   LLM_MODEL: z.string().default('mimo-v2.5-pro'),

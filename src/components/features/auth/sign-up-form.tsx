@@ -33,7 +33,12 @@ type SignUpValues = output<typeof signUpSchema>
 // UI-002. An address that is already in use is answered exactly like a new one — Better Auth's
 // USER_ALREADY_EXISTS_USE_ANOTHER_EMAIL is swallowed and the person lands on the same
 // "check your email" screen — so the form never tells a stranger who has an account here.
-export function SignUpForm() {
+//
+// `demoMode` (D-692): the deployment auto-confirms the account and signs it in, so there is no
+// email to check and the person is sent to `/home` instead. The address-in-use answer takes the
+// same path — a visitor with no session is sent to sign-in from there — so the two outcomes still
+// leave this form through one door.
+export function SignUpForm({ demoMode = false }: { demoMode?: boolean }) {
   const router = useRouter()
   const [formError, setFormError] = useState<AuthFormError | null>(null)
   const [leaving, setLeaving] = useState(false)
@@ -68,6 +73,10 @@ export function SignUpForm() {
       return
     }
     setLeaving(true)
+    if (demoMode) {
+      router.push('/home')
+      return
+    }
     router.push(`/verify-email?sent=1&email=${encodeURIComponent(values.email)}` as Route)
   }
 
