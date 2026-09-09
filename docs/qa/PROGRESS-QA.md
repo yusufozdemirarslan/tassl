@@ -16,6 +16,25 @@ Local production build env: `.env.test` (gitignored; recreate from the block in 
 - Part B — three spec writers (workflow `wf_4fadf660-a97`): `tests/e2e/guides/{instructor-guide,learner-guide,demo-path}.spec.ts`, each on its own database (tassl_test_a/b/c) and port (3001/3002/3003). Main server on :3000 serves tassl_test from the rebuilt bundle.
 - Pending after the writers: rebuild if they changed src/, run `pnpm test:guides` on the main database, review screenshots, commit Part B, then C1–C17.
 
+## C-section status (🟢 = finished, ◐ = partly done, ○ = not started)
+- C1 ◐ typecheck/lint/build green; audit --prod no high/critical; depcheck config + unused deps to remove (next-themes, shadcn, @faker-js/faker, typescript-eslint — pending `pnpm remove` once no agent runs); no console.log (eslint rule); cspell clean; clean-clone build green (Node 24); gitleaks clean; bundle secret grep clean; env parity green (DEMO_MODE and SENTRY_TRACES_SAMPLE_RATE added to Vercel production).
+- C2 ○ `--repeat-each=3` E2E run pending (after the spec writers).
+- C3 ◐ API coverage gate written and green (two untested endpoints got tests); COVERAGE.md walk pending.
+- C4 ◐ classmate → 404 on reviewer endpoints (D-703); per-account lockout (D-704); authz-matrix generation pending.
+- C5 🟢 prompt-injection battery (17 tests, security project); assistant mode chip; provider-down = pause path covered by existing tests.
+- C6 ◐ drift gate green; demo:reset green; seed all-walkthrough; Neon backup branch `pre-demo-backup-20260909` created (3 branches); cold start measured 2.2 s; nothing polls /api/ready (D-698).
+- C7 ◐ envelope fuzz + 1 MiB body cap (D-702); offline/long-input UI checks pending.
+- C8 ○ k6 portable ready; load run against a preview pending.
+- C9 ◐ headers verified on production; robots.txt; lockout; body cap; raw SQL parameterised (report); open-redirect check pending.
+- C10 ○ axe suite exists (34 screens); keyboard-only spec exists; rerun pending.
+- C11 ◐ impeccable detect 0 findings; viewport/copy fixes pending.
+- C12 ○ guide tests on three engines pending.
+- C13 ○ Sentry alert rule via browser pending; PostHog verification pending.
+- C14 ◐ env set; rollback target recorded in the runbook; branch protection needs the `checks / guides` context added.
+- C15 ◐ kill switch built; demo:warm and demo:reset built and passing; PRE-DEMO-CHECKLIST written.
+- C16 ○ pending Part B.
+- C17 ○ pending.
+
 ## Open fix in progress
 - (none)
 

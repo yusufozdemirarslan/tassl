@@ -8,7 +8,7 @@
 // values in one process — `betterAuth()` itself is constructed once, below, from the real one.
 import { drizzleAdapter } from '@better-auth/drizzle-adapter'
 import { betterAuth, type BetterAuthOptions } from 'better-auth'
-import { createAuthMiddleware } from 'better-auth/api'
+import { APIError, createAuthMiddleware } from 'better-auth/api'
 import { nextCookies } from 'better-auth/next-js'
 import { organization } from 'better-auth/plugins'
 import { track } from '@/server/analytics/track'
@@ -16,7 +16,16 @@ import { env, type ServerEnv } from '@/server/config'
 import { db } from '@/server/db/client'
 import * as schema from '@/server/db/schema'
 import { sendEmail } from '@/server/email/send'
+import { getRateLimiter } from '@/server/rate-limit/index'
+import { RATE_LIMITS } from '@/server/rate-limit/limits'
 import { ac, roles } from './access-control-shared'
+
+/** `auth:signin-fail:<email>` for a sign-in body, or null when the body carries no address. */
+function failedSignInKey(body: unknown): string | null {
+  const email = (body as { email?: unknown } | null | undefined)?.email
+  if (typeof email !== 'string' || email.trim() === '') return null
+  return `auth:signin-fail:${email.trim().toLowerCase()}`
+}
 
 /** The slice of the environment the options read; structural, so a test can hand in either mode. */
 export type AuthEnv = Pick<
@@ -104,8 +113,29 @@ export function authOptionsFor(env: AuthEnv) {
       },
     },
     hooks: {
+      // The per-account half of D-021 (08 §2.6): Better Auth's own limiter counts sign-ins per
+      // client address, which a credential-stuffing run spreads across addresses. This counts
+      // *failed* sign-ins per account — ten a minute, the `auth` bucket — and refuses the next
+      // attempt before the password is checked, so a lockout costs an attacker the window and
+      // costs a student who mistyped nothing more than one wait. Successful sign-ins are never
+      // counted, so a seat two demos share is not locked out by its own use (D-704).
+      before: createAuthMiddleware(async (ctx) => {
+        if (ctx.path !== '/sign-in/email') return
+        const email = failedSignInKey(ctx.body)
+        if (!email) return
+        const decision = await getRateLimiter().peek(email, RATE_LIMITS.auth)
+        if (decision.allowed) return
+        throw new APIError('TOO_MANY_REQUESTS', {
+          message: `Too many failed sign-ins for this account. Try again in ${String(decision.retryAfterSeconds)} seconds.`,
+          code: 'RATE_LIMITED',
+        })
+      }),
       after: createAuthMiddleware(async (ctx) => {
         const session = ctx.context.newSession
+        if (ctx.path === '/sign-in/email' && !session) {
+          const email = failedSignInKey(ctx.body)
+          if (email) await getRateLimiter().hit(email, RATE_LIMITS.auth)
+        }
         if (!session) return
         const method = ctx.path.startsWith('/callback/')
           ? 'google'

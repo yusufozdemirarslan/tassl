@@ -203,6 +203,14 @@ export async function requireRunReviewer(actor: SessionUser, runId: string): Pro
   const run = await requireRun(runId)
   const membership = await findSectionMembership(actor.id, run.sectionId)
   if (!membership) notFound()
+  // A classmate holds a section row and no read of anybody else's run (08 §4): NOT_FOUND, the
+  // same answer a stranger gets, so a run id cannot be probed for existence from the next seat.
+  // The run's own student is FORBIDDEN: they know the run exists, and the answer says whose
+  // screen this is.
+  if (membership.role === 'student') {
+    if (run.studentId === actor.id) forbidden()
+    notFound()
+  }
   if (!REVIEWER_ROLES.includes(membership.role as SectionRole)) forbidden()
   return run
 }
@@ -227,7 +235,8 @@ export async function requireCourseExportReader(
 ): Promise<RunScope> {
   const run = await requireRun(runId)
   if (await canReviewSection(actor, run.courseId, run.sectionId)) return run
-  if (await findSectionMembership(actor.id, run.sectionId)) forbidden()
+  const membership = await findSectionMembership(actor.id, run.sectionId)
+  if (membership && (membership.role !== 'student' || run.studentId === actor.id)) forbidden()
   notFound()
 }
 
@@ -236,6 +245,10 @@ export async function requireRunInstructor(actor: SessionUser, runId: string): P
   const run = await requireRun(runId)
   const membership = await findSectionMembership(actor.id, run.sectionId)
   if (!membership) notFound()
+  if (membership.role === 'student') {
+    if (run.studentId === actor.id) forbidden()
+    notFound()
+  }
   if (membership.role !== 'instructor') forbidden()
   return run
 }

@@ -3,6 +3,7 @@
 // modules land (10-backend-spec-modules.md); a code that is not in this map does not compile.
 export const ERROR_STATUS = {
   VALIDATION_ERROR: 400,
+  PAYLOAD_TOO_LARGE: 413,
   UNAUTHENTICATED: 401,
   FORBIDDEN: 403,
   NOT_FOUND: 404,
@@ -152,6 +153,7 @@ export const DEFAULT_STATUS: Record<ErrorCode, number> = ERROR_STATUS
 
 export const DEFAULT_MESSAGES: Record<ErrorCode, string> = {
   VALIDATION_ERROR: 'The request did not match the expected shape.',
+  PAYLOAD_TOO_LARGE: 'That request body is too large. The limit is one megabyte.',
   UNAUTHENTICATED: 'Sign in to continue.',
   FORBIDDEN: 'You do not have permission to do this.',
   NOT_FOUND: 'Not found.',

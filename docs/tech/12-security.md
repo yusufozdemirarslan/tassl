@@ -800,3 +800,12 @@ After any rotation: `npx vercel@59.11.2 redeploy --prod`, then `pnpm smoke`.
 | `FEATURE_TEST_CONTROLS=true` default | Needed by the walkthrough (FR-118) | Set to `false` in the Vercel production environment after the walkthrough is accepted; the flag stays in code | Walkthrough acceptance |
 | No CSP reporting | Console only | `report-to` with a Sentry security endpoint once a reporting host is added to the CSP | Pilot preparation |
 | Owner-role database access | Builder and CI can bypass grants | Neon role with `LOGIN` for humans limited to read-only except during migrations | Pilot preparation |
+
+
+## 12. Controls added by the QA run (2026-09-09)
+
+- **Body cap on every route handler** (D-702): `MAX_JSON_BODY_BYTES` = 1 MiB in `src/server/http/define-route.ts`; a larger declared or actual body answers 413 `PAYLOAD_TOO_LARGE` in the envelope. Fuzzed in `tests/integration/api/envelope.test.ts`.
+- **Run ids cannot be probed from the next seat** (D-703): a classmate asking for a run they do not own answers 404 on the replay, bands, exports, corrections and void endpoints; the run's own student answers 403.
+- **Per-account sign-in lockout** (D-704): ten failed sign-ins for one address in a minute, from any client, refuse the eleventh attempt with 429 before the password is checked; successful sign-ins are not counted. `tests/integration/auth/account-lockout.test.ts`.
+- **Prompt-injection battery** (`tests/security/prompt-injection.spec.ts`, `pnpm test:security`): fourteen adversarial requests through the assistant service, sentinel and answer-key vocabulary checks on every reply and every student payload, a second student's marker never surfaces, the 2,000-character refusal and the `llm` bucket refusal. Runs on the scripted provider in CI and against the live model with a key.
+- **`/robots.txt`** disallows every crawler (D-696), beside the `noindex` meta every page already carries.

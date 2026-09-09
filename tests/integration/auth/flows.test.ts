@@ -168,6 +168,10 @@ describe('better auth flows (08 §2)', () => {
 
   it('rate limits /sign-in/email after ten attempts in a minute', async () => {
     await testSql`delete from rate_limit`
+    // The per-account lockout (D-704) has counted this file's earlier failed sign-ins for EMAIL;
+    // this test is about Better Auth's own per-address limiter, so the other window is emptied.
+    const { resetRateLimiter } = await import('@/server/rate-limit/index')
+    resetRateLimiter()
 
     const statuses: number[] = []
     for (let attempt = 0; attempt < 11; attempt += 1) {

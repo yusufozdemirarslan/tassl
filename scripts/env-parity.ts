@@ -19,8 +19,16 @@ import { join } from 'node:path'
 
 const REPO = process.cwd()
 
-/** Keys `.env.example` documents for the test runners, not for the server (05 §1). */
-const RUNNER_KEYS = new Set(['PLAYWRIGHT_BASE_URL'])
+/**
+ * Keys `.env.example` documents that the server schema does not read: the test runner's base URL,
+ * and the three the Sentry build plugin reads in next.config.ts (source-map upload, 13 §3.6).
+ */
+const RUNNER_KEYS = new Set([
+  'PLAYWRIGHT_BASE_URL',
+  'SENTRY_ORG',
+  'SENTRY_PROJECT',
+  'SENTRY_AUTH_TOKEN',
+])
 
 /**
  * Production variables that are read by scripts rather than by the server schema, with the script
@@ -57,7 +65,10 @@ const PRODUCTION_REQUIRED = [
 function schemaKeys(): string[] {
   const source = readFileSync(join(REPO, 'src', 'server', 'config.ts'), 'utf8')
   const body = source.slice(source.indexOf('z\n  .object({'), source.indexOf('.superRefine('))
-  return [...body.matchAll(/^\s{4}([A-Z][A-Z0-9_]+):\s*z\./gm)].map((match) => match[1] ?? '')
+  // `z.…` and `bool.…` (the boolean helper) are the two ways the schema declares a key.
+  return [...body.matchAll(/^\s{4}([A-Z][A-Z0-9_]+):\s*(?:z|bool)\./gm)].map(
+    (match) => match[1] ?? '',
+  )
 }
 
 function exampleKeys(): string[] {
@@ -109,7 +120,7 @@ async function main(): Promise<void> {
   const schemaSet = new Set(schema)
   for (const key of schema) if (!exampleSet.has(key)) problems.push(`.env.example lacks ${key}`)
   for (const key of example)
-    if (!schemaSet.has(key) && !RUNNER_KEYS.has(key))
+    if (!schemaSet.has(key) && !RUNNER_KEYS.has(key) && !(key in SCRIPT_KEYS))
       problems.push(`.env.example documents ${key}, which the schema does not read`)
   for (const key of PRODUCTION_REQUIRED)
     if (!schemaSet.has(key))
@@ -132,7 +143,10 @@ async function main(): Promise<void> {
   if (problems.length > 0) {
     console.error(`env parity: ${problems.length} problem(s)`)
     for (const problem of problems) console.error(`  - ${problem}`)
-    process.exit(1)
+    // `process.exitCode` rather than `process.exit()`: an immediate exit while the CLI's child
+    // handles are closing trips a libuv assertion on Windows.
+    process.exitCode = 1
+    return
   }
   console.log(
     `env parity: ${schema.length} schema keys documented; production carries every required key; ${live}`,
@@ -141,5 +155,5 @@ async function main(): Promise<void> {
 
 main().catch((error: unknown) => {
   console.error(error instanceof Error ? error.message : error)
-  process.exit(1)
+  process.exitCode = 1
 })

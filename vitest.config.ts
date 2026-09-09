@@ -52,6 +52,9 @@ export default defineConfig({
           setupFiles: ['tests/setup/integration.ts'],
           fileParallelism: false,
           testTimeout: 30000,
+          // The review and scoring fixtures take a run through the whole loop in a hook; on a
+          // loaded machine that is longer than the 10 s default.
+          hookTimeout: 60000,
         },
       },
       // The security suites (docs/prompts/02-qa-and-guides.md C5, C9): the prompt-injection
@@ -67,6 +70,7 @@ export default defineConfig({
           setupFiles: ['tests/setup/integration.ts'],
           fileParallelism: false,
           testTimeout: 120000,
+          hookTimeout: 120000,
         },
       },
     ],

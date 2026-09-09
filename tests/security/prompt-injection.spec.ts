@@ -277,7 +277,8 @@ describe('repeated-request cost attack', () => {
     headers.set('content-type', 'application/json')
 
     const statuses: number[] = []
-    let refusal: { code?: string; details?: { retryAfterSeconds?: number } } | null = null
+    type Refusal = { code?: string; details?: { retryAfterSeconds?: number } }
+    let refusal = null as Refusal | null
     for (let attempt = 1; attempt <= 12 && refusal === null; attempt += 1) {
       const response = await route.POST(
         new Request(`http://localhost:3000/api/v1/runs/${runId}/delegations`, {
@@ -292,7 +293,7 @@ describe('repeated-request cost attack', () => {
       statuses.push(response.status)
       const text = await response.text()
       if (response.status === 429) {
-        refusal = (JSON.parse(text) as { error: typeof refusal }).error
+        refusal = (JSON.parse(text) as { error: Refusal }).error
       } else {
         expectClean(`streamed reply ${attempt}`, text)
       }
