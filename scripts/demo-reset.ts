@@ -219,8 +219,12 @@ async function main(): Promise<void> {
     await reliance.setStance(student, runId, claimId(key), value)
   }
 
-  /** The working period, the lock, and the run's Turn due instant. */
-  async function toLocked(runId: string): Promise<void> {
+  /**
+   * The working period and the lock. `full` runs a Source Trace and an escalation as well, which
+   * cost six minutes of clock; the two-minute assignment gets the cheap version, or its clock would
+   * run out under the escalation and the run would auto-lock with an empty brief.
+   */
+  async function toLocked(runId: string, full: boolean): Promise<void> {
     await ask(runId, 'What is the premium payback?')
     await ask(
       runId,
@@ -234,13 +238,19 @@ async function main(): Promise<void> {
       usedClaimIds: [claimId('C3')],
     })
     await stance(runId, 'C5', 'verify')
-    await reliance.runAction(student, runId, claimId('C5'), 'source_trace')
-    await stance(runId, 'C5', 'accept')
+    if (full) {
+      await reliance.runAction(student, runId, claimId('C5'), 'source_trace')
+      await stance(runId, 'C5', 'accept')
+    }
     await stance(runId, 'C8', 'reject')
-    await stance(runId, 'C7', 'escalate')
-    await reliance.escalate(student, runId, claimId('C7'), {
-      statement: 'Was the survey sample drawn from the value tier or from both tiers?',
-    })
+    if (full) {
+      await stance(runId, 'C7', 'escalate')
+      await reliance.escalate(student, runId, claimId('C7'), {
+        statement: 'Was the survey sample drawn from the value tier or from both tiers?',
+      })
+    } else {
+      await stance(runId, 'C7', 'verify')
+    }
     await assistant.declareOutsideTool(student, runId, {
       purpose: 'A calculator, to check the payback arithmetic.',
     })
@@ -283,9 +293,9 @@ async function main(): Promise<void> {
   // One run at a time through the working period: the second assignment's clock is two minutes,
   // and a run whose clock runs out while another is being worked auto-locks with an empty brief.
   const recordedRun = await toWorking('Decision Run 1 (walkthrough)')
-  await toLocked(recordedRun)
+  await toLocked(recordedRun, true)
   const waitingRun = await toWorking('Auto-lock test run')
-  await toLocked(waitingRun)
+  await toLocked(waitingRun, false)
   log(`filed ${recordedRun} and ${waitingRun} as student2@tassl.local`)
   const waitMs = version.turnDelaySeconds * 1000 + 3_000
   log(`decisions filed; waiting ${Math.round(waitMs / 1000)} s for the Turn`)

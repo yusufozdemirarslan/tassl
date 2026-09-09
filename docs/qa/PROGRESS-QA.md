@@ -5,12 +5,16 @@ Branch: `qa/guides-and-full-qa` (from `main` 8ec771b). Local Postgres: `bash scr
 Local production build env: `.env.test` (gitignored; recreate from the block in `docs/qa/00-baseline.md` if missing).
 
 ## Done
-- Step 0 — orientation and baseline (commit c9a387a): `docs/qa/00-baseline.md`, `research-notes.md`, `demo-path.md`, `demo-accounts.md` (gitignored), `PROGRESS-QA.md`, `FIXED-ISSUES.md`. Baseline fully green on 66d87fe.
-- Understand pass: 14 read-only reports in the session scratchpad `understand/` (screens, test harness, env, LLM, authz, security, data, CI). Their findings are the C-section worklist below.
+- Step 0 — orientation and baseline (commit c9a387a). Baseline fully green on 66d87fe.
+- Understand pass: 14 read-only reports in the session scratchpad `understand/` (screens, test harness, env, LLM, authz, security, data, CI).
+- Part A — guides written (commit a3d3335): `docs/guides/{README,instructor-guide,learner-guide,demo-runbook}.md`, `docs/qa/PRE-DEMO-CHECKLIST.md`.
+- Product changes (commit c06828f, D-691–D-700): runtime Assistant mode switch (`app_settings`, `/admin/flags`, `PUT /api/v1/admin/settings/ai-mode`, `/api/ready.assistantMode`, workspace chip), `DEMO_MODE`, replay links on the assignment runs table, `robots.txt`, health version from the inlined release, all seeded assignments walkthrough, perf spec scoped to chromium, guide projects chained, guide purge in global setup.
+- Scripts and gates: `check-guide-coverage.ts`, `env-parity.ts`, `demo-warm.ts` (passes locally and against production), `demo-reset.ts` (passes locally: one recorded run, one scored run on student2), `db-drift.ts` (17 migrations, no drift), API coverage gate (`tests/integration/api/coverage.test.ts`), smoke specs + `playwright.smoke.config.ts`, k6 `tests/load/core-flow.js`, `tests/security/prompt-injection.spec.ts` (security vitest project), package scripts `test:guides test:demo-path test:smoke test:security test:load env:check demo:warm demo:reset db:drift deps:check spell:check qa:all`, CI `guides` job and post-deploy browser smoke.
+- Tooling: portable Node 24 (`~/.tassl-tools/node24`) and k6 (`~/.tassl-tools/k6`); clean-clone build green; cspell clean on the guides; gitleaks clean over 153 commits.
 
 ## In progress
-- Part A — guides: three writers (instructor guide, student guide, runbook + README) running as workflow `wf_b799b824-53b`.
-- Prepared for later sections (uncommitted): `scripts/check-guide-coverage.ts` (Part B), `scripts/env-parity.ts` (C1), `playwright.smoke.config.ts` (Part B), `src/app/robots.ts` (C9), `src/app/api/health/route.ts` version fix (C14).
+- Part B — three spec writers (workflow `wf_4fadf660-a97`): `tests/e2e/guides/{instructor-guide,learner-guide,demo-path}.spec.ts`, each on its own database (tassl_test_a/b/c) and port (3001/3002/3003). Main server on :3000 serves tassl_test from the rebuilt bundle.
+- Pending after the writers: rebuild if they changed src/, run `pnpm test:guides` on the main database, review screenshots, commit Part B, then C1–C17.
 
 ## Open fix in progress
 - (none)

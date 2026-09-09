@@ -17,10 +17,17 @@
     "test:watch": "vitest --project unit",
     "test:coverage": "vitest run --project unit --project integration --coverage",
     "test:integration": "vitest run --project integration",
+    "test:security": "vitest run --project security",
     "test:e2e": "playwright test",
+    "test:guides": "tsx scripts/check-guide-coverage.ts && playwright test --project=guides-chromium --project=guides-firefox --project=guides-webkit && tsx scripts/check-guide-coverage.ts --stamp",
+    "test:demo-path": "playwright test tests/e2e/guides/demo-path.spec.ts --project=guides-chromium",
+    "test:smoke": "playwright test --config=playwright.smoke.config.ts",
+    "test:load": "k6 run --summary-export tests/load/summary.json tests/load/core-flow.js",
+    "qa:all": "pnpm lint && pnpm typecheck && pnpm test && pnpm test:integration && pnpm test:security && pnpm openapi:check && pnpm db:drift && pnpm deps:check && pnpm spell:check && pnpm build && pnpm exec tsx scripts/bundle-budget.ts && pnpm test:e2e && tsx scripts/check-guide-coverage.ts --stamp && pnpm env:check --offline",
     "evals": "tsx evals/run.ts",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate && tsx scripts/pgboss-migrate.ts",
+    "db:drift": "tsx scripts/db-drift.ts",
     "db:seed": "tsx --conditions=react-server src/server/db/seed.ts",
     "db:reset": "tsx scripts/db-reset.ts",
     "db:studio": "drizzle-kit studio",
@@ -32,6 +39,11 @@
     "email:dev": "email dev --dir src/server/email/templates --port 3001",
     "lhci": "lhci autorun",
     "smoke": "bash scripts/smoke.sh",
+    "env:check": "tsx scripts/env-parity.ts",
+    "demo:warm": "tsx scripts/demo-warm.ts",
+    "demo:reset": "tsx --conditions=react-server scripts/demo-reset.ts",
+    "deps:check": "depcheck",
+    "spell:check": "cspell --no-progress \"docs/guides/**/*.md\" \"docs/qa/**/*.md\"",
     "prepare": "husky"
   },
   "dependencies": {
@@ -108,6 +120,8 @@
     "typescript-eslint": "8.69.0",
     "vite": "8.2.2",
     "vite-tsconfig-paths": "6.1.1",
-    "vitest": "4.1.11"
+    "vitest": "4.1.11",
+    "cspell": "9.6.0",
+    "depcheck": "1.4.7"
   }
 }

@@ -1,7 +1,7 @@
 import { defineConfig, devices } from '@playwright/test'
 
-// The smoke lane (docs/prompts/02-qa-and-guides.md Part B): `tests/e2e/smoke/*.spec.ts` plus
-// every test tagged @smoke, run against a deployment that already exists — production after a
+// The smoke lane (docs/prompts/02-qa-and-guides.md Part B): the @smoke tests of
+// `tests/e2e/smoke/*.spec.ts`, run against a deployment that already exists — production after a
 // deploy, a preview, or a local `pnpm start`. It never resets a database and never starts a server:
 // the main `playwright.config.ts` does both, which is exactly what a smoke test of a live URL must
 // not do.
@@ -12,7 +12,10 @@ import { defineConfig, devices } from '@playwright/test'
 // documented default locally).
 export default defineConfig({
   testDir: 'tests/e2e',
-  testMatch: [/smoke\/.*\.spec\.ts$/, /guides\/demo-path\.spec\.ts$/],
+  // The full demo path (tests/e2e/guides/demo-path.spec.ts, also tagged @smoke) is not in this
+  // lane on purpose: it writes runs on the demo seats, so against production it is a rehearsal an
+  // operator runs by hand with `pnpm test:demo-path` and follows with `pnpm demo:reset` (D-701).
+  testMatch: [/smoke\/.*\.spec\.ts$/],
   grep: /@smoke/,
   fullyParallel: false,
   workers: 1,

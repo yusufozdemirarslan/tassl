@@ -54,6 +54,21 @@ export default defineConfig({
           testTimeout: 30000,
         },
       },
+      // The security suites (docs/prompts/02-qa-and-guides.md C5, C9): the prompt-injection
+      // battery and the authorization matrix run against the real services on the test database,
+      // exactly as the integration project does, under their own name so `pnpm test:security` and
+      // the CI gate can run them alone — and, with a provider key, once against the live model.
+      {
+        extends: true,
+        test: {
+          name: 'security',
+          include: ['tests/security/**/*.spec.ts'],
+          environment: 'node',
+          setupFiles: ['tests/setup/integration.ts'],
+          fileParallelism: false,
+          testTimeout: 120000,
+        },
+      },
     ],
   },
 })
