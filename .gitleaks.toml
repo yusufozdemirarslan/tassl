@@ -18,3 +18,21 @@ regexes = [
   '''Walkthrough-Pass-2026''',
   '''postgres://tassl:tassl@localhost:5432/tassl(_test)?''',
 ]
+
+# Content allowlists rather than `.gitleaksignore` fingerprints, because a fingerprint carries the
+# commit that introduced the line and a squash merge gives that line a new commit. Every waiver
+# below was first written as a fingerprint against a PR branch commit, went green on the PR, and
+# stopped applying the moment the branch was squashed onto `main` (D-682).
+[[allowlists]]
+description = "Deliberately fake credentials in the Sentry scrubber's own test: the test exists to prove these are removed from an event, so it has to contain secret-shaped strings"
+paths = ['''tests/unit/observability/sentry-scrub\.test\.ts$''']
+
+[[allowlists]]
+description = "The Idempotency-Key two tests retry with. A key is a ULID the client picks, so it is high-entropy by design and the generic-api-key rule reads it as a credential"
+regexTarget = "match"
+regexes = ['''01J8Z4S8Q5B3F1V6E9K2N7M0TA''']
+
+[[allowlists]]
+description = "Question-bank identifiers in the generation prompt's example output (Q_ASSUMPTION_0, Q_FIGURE_PROVENANCE, ...). Authored keys, flagged only because the field is spelled `key`"
+regexTarget = "match"
+regexes = ['''Q_[A-Z][A-Z0-9_]{2,}''']

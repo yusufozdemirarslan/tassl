@@ -230,3 +230,15 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # D-169: the same gitleaks as the local scan, so the allowlist semantics match.
           GITLEAKS_VERSION: 8.30.1
+      # The action scopes its scan to the event: a push is scanned with `--log-opts=-1`, so only the
+      # newest commit is read, and the whole history had never been scanned by the time the release
+      # phase dispatched this workflow by hand. Scan it explicitly, on every run, at the pinned
+      # version — it takes about three seconds over this repository (D-682).
+      - name: Gitleaks over the full history
+        env:
+          GITLEAKS_VERSION: 8.30.1
+        run: |
+          curl -sSfL -o /tmp/gitleaks.tar.gz \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          tar -xzf /tmp/gitleaks.tar.gz -C /tmp gitleaks
+          /tmp/gitleaks detect --redact --no-banner --exit-code=2 --log-opts=--all
