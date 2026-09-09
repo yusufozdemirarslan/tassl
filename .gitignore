@@ -54,3 +54,6 @@ docs/incidents/evidence/
 .impeccable/live/deferred-svelte-component-accepts.json
 .impeccable/live/*.png
 # impeccable-ignore-end
+
+# QA demo credentials reference (docs/prompts/02-qa-and-guides.md step 0.3)
+docs/qa/demo-accounts.md
