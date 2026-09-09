@@ -28,9 +28,12 @@ description = "Deliberately fake credentials in the Sentry scrubber's own test: 
 paths = ['''tests/unit/observability/sentry-scrub\.test\.ts$''']
 
 [[allowlists]]
-description = "The Idempotency-Key two tests retry with. A key is a ULID the client picks, so it is high-entropy by design and the generic-api-key rule reads it as a credential"
+description = "Two documented fakes, allowed by content rather than by path because they are quoted in DECISIONS.md as well as used in tests: the synthetic Resend key in the Sentry scrubber's fixture, and the Idempotency-Key two tests retry with (a ULID the client picks, so high-entropy by design)"
 regexTarget = "match"
-regexes = ['''01J8Z4S8Q5B3F1V6E9K2N7M0TA''']
+regexes = [
+  '''re_live_1234567890''',
+  '''01J8Z4S8Q5B3F1V6E9K2N7M0TA''',
+]
 
 [[allowlists]]
 description = "Question-bank identifiers in the generation prompt's example output (Q_ASSUMPTION_0, Q_FIGURE_PROVENANCE, ...). Authored keys, flagged only because the field is spelled `key`"
