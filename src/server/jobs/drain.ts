@@ -27,6 +27,45 @@ export type JobOutcome = { ok: true } | { ok: false; message: string }
 
 const BATCH_SIZE = 5
 
+/**
+ * How often a drain runs pg-boss's own maintenance, in ms.
+ *
+ * The queue's `expireInSeconds` is a policy, not a timer: something has to notice that a lease is
+ * older than it, and on this platform nothing does. The boss is constructed with `supervise: false`
+ * because there is no process to keep a supervisor in, so a job whose worker was killed mid-call
+ * stays `active` — no other drain can fetch it — until the nightly sweep. That is how a generation
+ * step held its lease for fifteen minutes and then failed outright instead of being retried the way
+ * `retryLimit: 3` says it should be (D-684).
+ *
+ * `supervise()` is pg-boss's documented entry point for exactly this: an instance run with the
+ * built-in supervisor disabled. It is throttled because the generation poll drains every few
+ * seconds while a pipeline runs (D-683) and maintenance is a heavier query than a fetch; a minute
+ * is well inside the 280 s lease, so a killed worker's job is back on the queue long before anything
+ * would notice it gone.
+ */
+const SUPERVISE_EVERY_MS = 60_000
+let lastSupervisedAt = 0
+
+/**
+ * Releases leases whose worker no longer exists, at most once a minute per process.
+ *
+ * Never throws: maintenance failing is a reason to log and drain anyway, not a reason to stop
+ * processing jobs that are ready right now.
+ */
+async function superviseIfDue(boss: Awaited<ReturnType<typeof getBoss>>): Promise<void> {
+  const now = Date.now()
+  if (now - lastSupervisedAt < SUPERVISE_EVERY_MS) return
+  lastSupervisedAt = now
+  try {
+    await boss.supervise()
+  } catch (error) {
+    rootLogger.warn(
+      { event: 'drain_supervise_failed', err: error },
+      'pg-boss maintenance failed; draining anyway',
+    )
+  }
+}
+
 const errorMessage = (error: unknown): string =>
   scrubSecrets(error instanceof Error ? error.message : String(error))
 
@@ -141,6 +180,8 @@ export async function drainQueues({
   const startedAt = Date.now()
   const deadline = startedAt + maxMs
   const boss = await getBoss()
+  // Before anything is fetched: a job still holding an expired lease is invisible to the fetch below.
+  await superviseIfDue(boss)
   await alertOverdueScoring()
   const skippedQueues: string[] = []
   const active: QueueName[] = []
