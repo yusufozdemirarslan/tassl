@@ -1,27 +1,13 @@
 # gitleaks fingerprints that are documented non-secret defaults in commits that predate the
 # regex allowlist (D-169). Format: <commit>:<file>:<rule>:<line>.
+#
+# Prefer a content allowlist in `.gitleaks.toml` to a fingerprint here. A fingerprint names the
+# commit that introduced the line, and this repository squash-merges: the branch commit a waiver
+# was written and verified against stops existing the moment the PR lands, so the waiver silently
+# stops applying to the identical line under its new SHA on `main` (D-682). The five waivers that
+# used to sit below were all in that state.
 cc4e668de6f2b12d1a27196dd75591284d12239d:src/server/db/seed.ts:generic-api-key:22
 # A scenario family key a test types into the seed form, in the commit that introduced it: the
 # generic-api-key rule reads any hyphenated slug carrying digits as a credential. The line itself
 # now carries a `gitleaks:allow` marker, which covers the working tree but not the history.
 9651a27d4b6710aae67057bb2a0a190d835f1f6a:tests/unit/components/packages/seed-form.test.tsx:generic-api-key:186
-# The Idempotency-Key a test retries with, in the commit that introduced it. A key is a ULID the
-# client picks — high entropy by design, and read by the generic-api-key rule as a credential. The
-# lines themselves now carry `gitleaks:allow` for every future commit.
-2202bff229e866154a1456bdf7f2ef084c431ded:tests/integration/api/runs.test.ts:generic-api-key:170
-2202bff229e866154a1456bdf7f2ef084c431ded:tests/unit/http/idempotency.test.ts:generic-api-key:57
-
-# The example output in the question-bank generation prompt: a bank question's own `key`, which is
-# an authored identifier like `Q_ASSUMPTION_0`, read by the generic-api-key rule as a credential
-# because the field is spelled `key`. Fingerprints rather than an inline allow, because gitleaks
-# scans history and an inline comment cannot retroact to the commit that introduced the line.
-09b6409531422e68576c6b3f94c25ca941ca2ada:src/server/llm/prompts/gen-question-bank-and-counterfactual.ts:generic-api-key:265
-09b6409531422e68576c6b3f94c25ca941ca2ada:src/server/llm/prompts/gen-question-bank-and-counterfactual.ts:generic-api-key:278
-09b6409531422e68576c6b3f94c25ca941ca2ada:src/server/llm/prompts/gen-question-bank-and-counterfactual.ts:generic-api-key:291
-
-# The fixture in the Sentry scrubber's own test: an obviously synthetic Resend key
-# (`re_live_1234567890`) beside a fake database URL and a run of forty 'a's. The test's whole
-# subject is that a secret-shaped value is removed from an outgoing event, so the fixture has to
-# look like a key — that is the property under test, not an oversight. Fingerprint rather than an
-# inline allow, because gitleaks scans history.
-1be969556fd9334b5a9d48914c151913e3140531:tests/unit/observability/sentry-scrub.test.ts:generic-api-key:13

@@ -27,6 +27,16 @@ umask 077
 : "${NEON_API_KEY:?set NEON_API_KEY}"
 : "${BACKUP_ENCRYPTION_KEY:?set BACKUP_ENCRYPTION_KEY}"
 
+# Same version rule as the backup: pg_restore and psql must match Neon's Postgres 17, and a 16
+# client on PATH is the failure the nightly backup hit first (D-680).
+for tool in pg_restore psql; do
+  v="$("$tool" --version | grep -oE '[0-9]+' | head -1)"
+  if [ "$v" != "17" ]; then
+    echo "restore-drill: $tool is version $v; PostgreSQL 17 is required" >&2
+    exit 1
+  fi
+done
+
 neon() { npx neon@4.14.0 "$@"; }
 
 START=$(date +%s)

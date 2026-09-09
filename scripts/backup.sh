@@ -42,6 +42,17 @@ scrub() {
   sed -E 's#([a-zA-Z][a-zA-Z0-9+.-]*://)[^[:space:]/@]*@#\1[redacted]@#g' "$1" >&2
 }
 
+# Neon runs Postgres 17 and pg_dump refuses a server newer than itself, so a client that is merely
+# *present* is not enough: the version on PATH is what matters. Ubuntu images that ship a 16 client
+# keep resolving `pg_dump` to it after 17 is installed beside it, which is how the first live nightly
+# backup failed. Say so here rather than letting it surface as a dump error (D-680).
+PG_DUMP_VERSION="$(pg_dump --version | grep -oE '[0-9]+' | head -1)"
+if [ "$PG_DUMP_VERSION" != "17" ]; then
+  echo "backup: pg_dump is version $PG_DUMP_VERSION; PostgreSQL 17 is required (Neon runs 17)" >&2
+  echo "backup: put /usr/lib/postgresql/17/bin first on PATH" >&2
+  exit 1
+fi
+
 mkdir -p "$OUT_DIR"
 
 if ! pg_dump --format=custom --no-owner --file "$DUMP" "$PRODUCTION_DATABASE_URL_UNPOOLED" 2>"$ERR"; then
