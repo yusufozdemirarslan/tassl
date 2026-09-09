@@ -47,6 +47,8 @@ BRANCH="restore-drill-$STAMP"
 BRANCH_PATTERN='^restore-drill-[0-9]{4}-[0-9]{2}-[0-9]{2}$'
 WORK="$(mktemp -d)"
 PORT="${PORT:-3100}"
+# The role the restore runs as; see the `--role-name` note below.
+DRILL_ROLE="${DRILL_ROLE:-neondb_owner}"
 SERVER_PID=""
 CREATED=0
 CLEANED=0
@@ -140,8 +142,13 @@ echo "restore-drill: artifact from run $RUN_ID decrypted and listed"
 # 2. A fresh branch off main, then the restore over it.
 neon branches create --project-id "$NEON_PROJECT_ID" --name "$BRANCH" --parent main > /dev/null
 CREATED=1
-RESTORE_URL="$(neon connection-string "$BRANCH" --project-id "$NEON_PROJECT_ID" --pooled false)"
-MAIN_URL="$(neon connection-string main --project-id "$NEON_PROJECT_ID" --pooled false)"
+# `--role-name` is not optional any more: Step 15.1 added `tassl_app` beside `neondb_owner`, and a
+# branch with two roles makes `neon connection-string` ambiguous — it exits 1 with "Multiple roles
+# found for the branch". The drill restores as the **owner** on purpose: `pg_restore --clean` drops
+# and recreates objects and `pnpm db:migrate` alters the schema, neither of which the least-privileged
+# application role can do, and neither of which it should be able to (D-690).
+RESTORE_URL="$(neon connection-string "$BRANCH" --project-id "$NEON_PROJECT_ID" --pooled false --role-name "$DRILL_ROLE")"
+MAIN_URL="$(neon connection-string main --project-id "$NEON_PROJECT_ID" --pooled false --role-name "$DRILL_ROLE")"
 if [ -z "$RESTORE_URL" ]; then
   echo "restore-drill: no connection string for $BRANCH" >&2
   exit 1
