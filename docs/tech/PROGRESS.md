@@ -133,7 +133,7 @@
 - [ ] Phase 14 exit criteria
 
 ## Phase 15 — Release and walkthrough (`build-plan/phase-15-release.md`)
-- [ ] 15.1 Production database role and connection strings
+- [x] 15.1 Production database role and connection strings
 - [ ] 15.2 Production seeds and the real scenario package
 - [ ] 15.3 Launch checklist execution
 - [ ] 15.4 Custom domain (conditional on APP_DOMAIN)

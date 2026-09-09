@@ -46,7 +46,7 @@ import { countWords } from '@/lib/words'
 import { track } from '@/server/analytics/track'
 import { requireAuthorOnPackage } from '@/server/auth/permissions'
 import type { SessionUser } from '@/server/auth/types'
-import { enqueueAfterCommit } from '@/server/jobs/enqueue'
+import { enqueueAfterCommit, pumpQueues } from '@/server/jobs/enqueue'
 import { getProvider } from '@/server/llm/registry'
 import { notify } from '@/server/modules/notifications'
 import { listMyInstitutions } from '@/server/modules/tenancy'
@@ -234,9 +234,17 @@ async function reclaimAbandonedRuns(
 // ---------------------------------------------------------------------------------------------
 
 /**
- * Starts the pipeline at step 1 (10 §5). The version must be a draft and must have a seed record —
- * step 1 is the only step given the seed text (11 §2.1), so without one there is nothing to
- * re-skin — and no step of it may already be queued or running.
+ * Starts the pipeline (10 §5). The version must be a draft and must have a seed record — step 1 is
+ * the only step given the seed text (11 §2.1), so without one there is nothing to re-skin — and no
+ * step of it may already be queued or running.
+ *
+ * It starts at the first step that has not succeeded, which for a fresh version is step 1 and after
+ * a stopped pipeline is where it stopped. Restarting at step 1 instead is not merely wasteful, it
+ * cannot work: step 1 rewrites the stakeholder set, `scenario_documents.stakeholder_id` references
+ * it `on delete no action`, and step 2 has already attributed documents to those rows — so the
+ * delete raises a foreign key violation and the version is wedged with no way forward and no way
+ * back. A pipeline that stops partway is the ordinary case, not the exceptional one: the drain runs
+ * inside one invocation's budget and the seven model calls do not fit in it (D-683).
  *
  * The refusal and the enqueue happen under the version row's write lock, which is what makes two
  * simultaneous starts one start: the second waits for the first to commit, finds the `queued` row
@@ -263,10 +271,20 @@ export async function startGeneration(
       generationAlreadyRunning({ step: unfinished.step, passNumber: unfinished.passNumber })
     }
 
+    const succeeded = new Set(
+      (await repo.listGenerationRuns(versionId, tx))
+        .filter((run) => run.status === 'succeeded')
+        .map((run) => run.step),
+    )
+    // `GENERATION_STEP_ORDER` is non-empty, so the `??` is for the type only: every step having
+    // succeeded is a finished pipeline, which `versionFrozen`/`confirm` handles rather than this.
+    const resumeAt =
+      GENERATION_STEP_ORDER.find((step) => !succeeded.has(step)) ?? GENERATION_STEP_ORDER[0]
+
     await repo.insertGenerationRun(
       {
         packageVersionId: versionId,
-        step: GENERATION_STEP_ORDER[0],
+        step: resumeAt,
         passNumber: 1,
         status: 'queued',
       },
@@ -275,7 +293,7 @@ export async function startGeneration(
     await enqueueAfterCommit(tx, 'generate_package_step', {
       packageVersionId: versionId,
       organizationId: scope.tenantId,
-      step: GENERATION_STEP_ORDER[0],
+      step: resumeAt,
       passNumber: 1,
       restatedRules: [],
     })
@@ -417,11 +435,21 @@ export async function getGenerationStatus(
   })
 
   const validation = validatePackage(scope.version)
+  const state = pipelineState(runs)
+
+  // The poll is the pipeline's pump. A drain cannot outlive the invocation that started it, so the
+  // enqueue that starts a run drains only as many steps as fit in one budget — for a real seed case
+  // that is three of seven — and the rest sit queued until something else drains them. UI-042 is
+  // already polling here every few seconds, so this read carries the work forward: a fresh
+  // invocation, a fresh budget, and pg-boss's fetch lock making a poll that lands mid-step a no-op
+  // (D-683). Only while the pipeline is unfinished, so a settled version's poll stays a pure read.
+  if (state === 'running' || state === 'not_started') await pumpQueues()
+
   return {
     packageVersionId: versionId,
     packageId: scope.version.packageId,
     version: scope.version.version,
-    state: pipelineState(runs),
+    state,
     steps,
     runs,
     validation: { ok: validation.ok, failures: validation.failures.map((row) => row.code) },
