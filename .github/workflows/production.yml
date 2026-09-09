@@ -100,6 +100,13 @@ jobs:
       - name: Smoke
         run: pnpm smoke "${{ steps.url.outputs.prod_url }}"
 
+      # `set_commits: skip` because the action's default is `auto`, which runs
+      # `sentry-cli releases set-commits <sha> --auto` and exits 1 when the Sentry organisation has
+      # no repository integration configured. That is a nicety — it is what puts "suspect commits"
+      # on an issue — and it was failing the whole deploy *after* the deployment and the smoke test
+      # had already succeeded, which is the worst place to fail: production was live and the run was
+      # red. Source maps upload in the build step and are unaffected. Set this back to `auto` after
+      # connecting the GitHub integration in Sentry (D-689).
       - name: Sentry release
         if: env.SENTRY_ENABLED == 'true'
         uses: getsentry/action-release@v3
@@ -110,6 +117,7 @@ jobs:
         with:
           environment: production
           release: ${{ github.sha }}
+          set_commits: skip
 
       - uses: actions/upload-artifact@v7
         with:
