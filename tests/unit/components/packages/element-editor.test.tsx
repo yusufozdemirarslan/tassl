@@ -488,6 +488,29 @@ beforeEach(() => {
   vi.clearAllMocks()
 })
 
+describe('ELEMENT_PATCH_SCHEMAS — a key the schema does not know (D-688)', () => {
+  // Found by hand against production: `PATCH .../elements/brief/<nil>` with `{ text }` instead of
+  // `{ brief }` answered 200 and changed nothing. Every key of a patch is optional, so an unknown
+  // one was simply dropped and the caller was told it had succeeded. The workspace never sends a
+  // wrong key, so no screen was affected — but a patch that reports success for work it did not do
+  // is the wrong answer to give anyone, and the schema is the only place that can refuse it.
+  it('is refused rather than dropped, for every element type', () => {
+    for (const elementType of ELEMENT_TYPES) {
+      const schema = ELEMENT_PATCH_SCHEMAS[elementType]
+      const parsed = schema.safeParse({ notAFieldOfThisElement: 'x' })
+      expect(parsed.success, elementType).toBe(false)
+    }
+  })
+
+  it('still accepts an empty patch and a partial one, which is what a patch is', () => {
+    // The property `.partial()` exists for: sending one field must not disturb the others.
+    expect(ELEMENT_PATCH_SCHEMAS.brief.safeParse({}).success).toBe(true)
+    expect(
+      ELEMENT_PATCH_SCHEMAS.brief.safeParse({ brief: 'A brief the author retyped.' }).success,
+    ).toBe(true)
+  })
+})
+
 describe('ConfirmWorkspace — nothing follows the author to the next element (UI-043)', () => {
   it('leaves a half-written rejection behind with the element it was written about', async () => {
     actions.decideElementAction.mockResolvedValue({

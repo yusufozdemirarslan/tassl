@@ -52,6 +52,12 @@ type WithoutDefault<S> = S extends z.ZodDefault<infer Inner> ? Inner : S
  * `.default()` still fills that default when its key is absent, so `PATCH { "body": "…" }` would
  * quietly reset every other defaulted column of the row. Unwrapping the default first leaves a
  * field that is simply not there when the editor did not send it, which is what a patch means.
+ *
+ * Strict, because the failure of a non-strict patch is silent. `PATCH .../elements/brief/…` with
+ * `{ "text": "…" }` instead of `{ "brief": "…" }` answered `200 OK` and changed nothing: every key
+ * was optional, the wrong one was dropped, and the caller was told it had succeeded. An author
+ * editing through the workspace never sees this — the form sends the right keys — but a patch that
+ * reports success for work it did not do is the wrong answer to give anyone (D-688).
  */
 function patchOf<Shape extends z.ZodRawShape>(shape: Shape) {
   const undefaulted = Object.fromEntries(
@@ -60,7 +66,7 @@ function patchOf<Shape extends z.ZodRawShape>(shape: Shape) {
       field instanceof z.ZodDefault ? field.def.innerType : field,
     ]),
   ) as { [K in keyof Shape]: WithoutDefault<Shape[K]> }
-  return z.object(undefaulted).partial()
+  return z.strictObject(undefaulted).partial()
 }
 
 // ---------------------------------------------------------------------------------------------
