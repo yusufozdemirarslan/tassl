@@ -1,0 +1,59 @@
+name: restore-drill
+
+# NFR-015, D-069, docs/tech/13-observability-ops.md §8.4. A backup that has never been restored is
+# not a backup, so the drill is the deliverable and it runs on a schedule rather than waiting for
+# someone to remember it: Monday mornings, matching the weekly cadence in the post-launch runbook.
+# `scripts/restore-drill.sh` already writes GITHUB_STEP_SUMMARY and checks in to Sentry as a cron
+# monitor; it had simply never had a workflow to call it (D-681).
+on:
+  schedule:
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+
+# The drill downloads the nightly artifact, so it must never run beside the nightly dump's own
+# window on the same project, and two drills would collide on one branch name.
+concurrency:
+  group: restore-drill
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  actions: read # gh run list / gh run download, for the backup.yml artifact
+
+jobs:
+  drill:
+    name: drill
+    runs-on: ubuntu-latest
+    # The NFR-015 RTO target is 3600 s and the script reports its own duration against it; the job
+    # ceiling is deliberately higher so a slow-but-passing drill is still recorded as a pass.
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup
+
+      # Neon runs Postgres 17 and the runner image ships a 16 client that `/usr/bin/pg_restore`
+      # keeps resolving to; the same PATH fix the nightly backup needed (D-680).
+      - name: Install postgresql-client-17
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends curl ca-certificates
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl --fail -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          . /etc/os-release
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt ${VERSION_CODENAME}-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends postgresql-client-17
+          echo /usr/lib/postgresql/17/bin >> "$GITHUB_PATH"
+
+      # Step 4 of the drill starts a real server against the restored branch, so the build has to
+      # exist before the clock starts; `pnpm build` inside the script would be counted as restore time.
+      - run: pnpm build
+
+      - name: Restore drill
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+          NEON_PROJECT_ID: ${{ vars.NEON_PROJECT_ID }}
+          BACKUP_ENCRYPTION_KEY: ${{ secrets.BACKUP_ENCRYPTION_KEY }}
+          NEXT_PUBLIC_SENTRY_DSN: ${{ vars.NEXT_PUBLIC_SENTRY_DSN }}
+        run: bash scripts/restore-drill.sh
