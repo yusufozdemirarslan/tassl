@@ -24,7 +24,7 @@ The build is accepted by the walkthrough on the production deployment, with ever
 **Commands (in order, from repo root):**
 ```bash
 mkdir -p "$HOME/.config/tassl" && chmod 700 "$HOME/.config/tassl"
-openssl rand -base64 24 | tr -d '\n' > "$HOME/.config/tassl/tassl_app_db_password"
+openssl rand -base64 24 | tr -d '\r\n' > "$HOME/.config/tassl/tassl_app_db_password"
 PROD_UNPOOLED="$(gh secret list >/dev/null; npx neon@4.14.0 connection-string main --project-id "$(gh variable get NEON_PROJECT_ID)")"
 TASSL_APP_DB_PASSWORD="$(cat "$HOME/.config/tassl/tassl_app_db_password")" DATABASE_URL_UNPOOLED="$PROD_UNPOOLED" pnpm exec tsx scripts/db-app-role.ts
 npx vercel@59.11.2 env add TASSL_APP_DB_PASSWORD production < "$HOME/.config/tassl/tassl_app_db_password"
@@ -53,7 +53,7 @@ bash scripts/smoke.sh "$(grep NEXT_PUBLIC_APP_URL .vercel/.env.production.local 
 **Files to create / modify:** none
 **Commands (in order, from repo root):**
 ```bash
-openssl rand -base64 18 | tr -d '\n' > "$HOME/.config/tassl/seed_password"
+openssl rand -base64 18 | tr -d '\r\n' > "$HOME/.config/tassl/seed_password"
 npx vercel@59.11.2 env add SEED_PASSWORD production < "$HOME/.config/tassl/seed_password" --force
 APP_ENV=production SEED_PASSWORD="$(cat "$HOME/.config/tassl/seed_password")" DATABASE_URL="$PROD_UNPOOLED" DATABASE_URL_UNPOOLED="$PROD_UNPOOLED" pnpm db:seed
 ```
