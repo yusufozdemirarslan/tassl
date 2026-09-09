@@ -1,0 +1,105 @@
+name: cross-browser
+
+# NFR-010 and the §16 launch checklist row 16: the E2E suite on firefox and webkit as well as
+# chromium. `checks.yml` installs chromium only, because running three engines on every PR triples
+# the slowest job for a signal that changes rarely. The checklist expected the builder to run the
+# other two locally — which needs a local Postgres, and the builder's machine has no Docker, so the
+# row could not be closed at all. It runs here instead: on dispatch, and weekly so a regression in
+# an engine nobody develops against is found by the schedule rather than by a student (D-687).
+on:
+  schedule:
+    - cron: '0 7 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cross-browser
+  cancel-in-progress: true
+
+# Non-secret defaults from 05-environment-config.md, matching checks.yml: one service database
+# serves DATABASE_URL, DATABASE_URL_UNPOOLED and TEST_DATABASE_URL, and the provider is the mock,
+# so this suite needs no key and costs nothing to run.
+env:
+  APP_ENV: test
+  NEXT_PUBLIC_APP_URL: http://localhost:3000
+  APP_DOMAIN: ''
+  LOG_LEVEL: info
+  DATABASE_URL: postgres://tassl:tassl@localhost:5432/tassl_test
+  DATABASE_URL_UNPOOLED: postgres://tassl:tassl@localhost:5432/tassl_test
+  TEST_DATABASE_URL: postgres://tassl:tassl@localhost:5432/tassl_test
+  BETTER_AUTH_SECRET: local-dev-secret-do-not-use-in-prod-0123456789
+  GOOGLE_CLIENT_ID: ''
+  GOOGLE_CLIENT_SECRET: ''
+  EMAIL_TRANSPORT: console
+  RESEND_API_KEY: ''
+  EMAIL_FROM: 'Tassl <no-reply@tassl.local>'
+  NOTIFY_EMAIL_COPIES: 'true'
+  FEATURE_AI: 'false'
+  FEATURE_SAMPLE_DATA: 'true'
+  FEATURE_TEST_CONTROLS: 'true'
+  LLM_PROVIDER: mock
+  LLM_BASE_URL: https://token-plan-sgp.xiaomimimo.com/v1
+  LLM_MODEL: mimo-v2.5-pro
+  LLM_API_KEY: ''
+  LLM_TIMEOUT_MS: '60000'
+  LLM_MAX_OUTPUT_TOKENS: '4096'
+  LLM_REASONING: 'off'
+  LLM_FALLBACK_PROVIDER: none
+  LLM_FALLBACK_MODEL: claude-sonnet-5
+  ANTHROPIC_API_KEY: ''
+  LLM_INPUT_USD_PER_MTOK: '0.61'
+  LLM_OUTPUT_USD_PER_MTOK: '0.61'
+  LLM_USER_DAILY_TOKEN_BUDGET: '200000'
+  LLM_GLOBAL_MONTHLY_TOKEN_BUDGET: '20000000'
+  TRIGGER_MATCHING: deterministic_first
+  ASSISTANT_NUMERIC_GUARD: flag
+  NEXT_PUBLIC_POSTHOG_KEY: ''
+  NEXT_PUBLIC_POSTHOG_HOST: https://us.i.posthog.com
+  NEXT_PUBLIC_SENTRY_DSN: ''
+  SENTRY_AUTH_TOKEN: ''
+  SENTRY_ORG: ''
+  SENTRY_PROJECT: tassl
+  SENTRY_TRACES_SAMPLE_RATE: '1.0'
+  CRON_SECRET: local-cron-secret
+  JOBS_DRAIN_ON_ENQUEUE: 'true'
+  SEED_PASSWORD: Walkthrough-Pass-2026
+  PLAYWRIGHT_BASE_URL: http://localhost:3000
+
+jobs:
+  e2e:
+    name: e2e (${{ matrix.browser }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    # One engine's failure must not hide the other's: the point of the row is to know about both.
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [firefox, webkit]
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: tassl
+          POSTGRES_PASSWORD: tassl
+          POSTGRES_DB: tassl_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U tassl -d tassl_test"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup
+      - run: pnpm exec playwright install --with-deps ${{ matrix.browser }}
+      # playwright.config.ts webServer runs: pnpm db:reset && pnpm build && pnpm start (D-073).
+      - run: pnpm test:e2e --project=${{ matrix.browser }}
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: playwright-report-${{ matrix.browser }}
+          path: playwright-report/
+          retention-days: 14
+          if-no-files-found: ignore
