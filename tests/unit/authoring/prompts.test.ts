@@ -113,7 +113,7 @@ describe('the seven generation prompts', () => {
   // wordings apart in the operations panel. Two are at 2 after step 14.4 bounded what they ask for
   // (D-668).
   const VERSIONS: Record<string, number> = {
-    'gen-reskin-brief-stakeholders': 1,
+    'gen-reskin-brief-stakeholders': 2,
     'gen-documents': 2,
     'gen-answer-space-fields': 1,
     'gen-claims-states': 3,

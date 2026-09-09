@@ -1,4 +1,4 @@
-// `gen-reskin-brief-stakeholders@1` — generation step 1 (docs/tech/11-llm-integration.md §2.1;
+// `gen-reskin-brief-stakeholders@2` — generation step 1 (docs/tech/11-llm-integration.md §2.1;
 // AI-001, FR-190, FR-191; PRD §7.2, §7.3, §7.18 (1), (4), (5); D-063).
 //
 // This is the only step that is given the seed case, and it is the step that decides what the
@@ -126,6 +126,7 @@ Re-skin the case and write the opening of the package: the invented organisation
 - Rename everything. The organisation, the people, the products and the places are yours to invent, and none of them may be findable. Change the industry only if the case's own decision does not depend on it; keep the shape of the decision.
 - Alter every figure. Draw new numbers that are plausible for the market you invented and that reconcile with each other, and record in the log what you moved them from and to.
 - The brief is at most 200 words, written to the student in the second person. It names the decision they own, the money or the share at stake, the fact that the Evidence Room is dated and attributed, the clock, and that what they commit is what gets funded. It does not summarise the evidence and it does not hint at what the right answer is.
+- The clock the brief names is **twenty-five minutes**. Write that, not a number of your own: the working period is a setting on the package, and a brief promising forty-five minutes to a student who gets twenty-five has lied to them before the run starts.
 - Write at least three stakeholders. Each gets a position stated in their own voice, the incentives that produced it, and what that position leaves them unable to see. Two of them must disagree on one identifiable point, and \`contradictionPair\` and \`contradictionPoint\` name which two and what about.
 - The re-skin log carries at least three entries and at least one of each kind: \`renamed_entity\`, \`altered_number\`, \`restructured_document\`. It is the only place the licensed case may be named.`
 
@@ -134,7 +135,7 @@ export const genReskinBriefStakeholdersPrompt = definePrompt<
   ReskinBriefStakeholdersOutput
 >({
   name: 'gen-reskin-brief-stakeholders',
-  version: 1,
+  version: 2,
   maxOutputTokens: GEN_MAX_OUTPUT_TOKENS,
   timeoutMs: GEN_TIMEOUT_MS,
   purpose:
