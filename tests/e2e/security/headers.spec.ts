@@ -193,7 +193,12 @@ test.describe('security headers', () => {
 // absolute URL, a protocol-relative host or a backslash path cannot send a signed-in person off the
 // site. Proven through the form, which is the only thing that reads the value.
 test.describe('open redirect on sign-in', () => {
-  for (const evil of ['https://evil.example/', '//evil.example/', '/\evil.example', 'javascript:alert(1)']) {
+  for (const evil of [
+    'https://evil.example/',
+    '//evil.example/',
+    '/\evil.example',
+    'javascript:alert(1)',
+  ]) {
     test(`next=${evil} lands on /home after sign-in`, async ({ page }) => {
       await page.goto(`/sign-in?next=${encodeURIComponent(evil)}`)
       await page.getByLabel('Email address').fill('student2@tassl.local')

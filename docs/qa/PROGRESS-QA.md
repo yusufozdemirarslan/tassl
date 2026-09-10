@@ -1,7 +1,7 @@
 # PROGRESS-QA — resumable state of the QA run
 
 **Read this first when resuming.** Sections are those of `docs/prompts/02-qa-and-guides.md`.
-Branch: `qa/guides-and-full-qa` (from `main` 8ec771b). Local Postgres: `bash scripts/pg-local.sh start`.
+Branch: `qa/guides-and-full-qa` (from `main` 8ec771b), pull request #33; preview alias `tassl-pr-33.vercel.app` once the checks pass. Local Postgres: `bash scripts/pg-local.sh start`.
 Local production build env: `.env.test` (gitignored; recreate from the block in `docs/qa/00-baseline.md` if missing).
 
 ## Done
@@ -65,3 +65,5 @@ Local production build env: `.env.test` (gitignored; recreate from the block in 
 - `demo:warm` against production 2026-09-09 16:05 ET: 14 pages, all 200; first page 2.5 s, the rest 146–335 ms.
 - Impeccable `detect`: 0 open findings.
 - PostHog (browser, 2026-09-09 21:28 UTC): project 600786 ("Default project", token `phc_nzFi…`, the token inlined in the deployed bundle) → Activity → Events, last hour: `sign_in_succeeded` (library posthog-node, hashed person id) from a production sign-in, plus the two `qa_posthog_probe` events sent with the project token. Events appear about a minute after they are sent; the Live stream view shows nothing for this project (it lists "Waiting for events…" while the Events view has the rows), so the Events view is the one the runbook names.
+- Lighthouse (local, `bash scripts/lhci-local.sh`, 3 runs per URL, desktop preset, production build): `/sign-in` performance 99, accessibility 100, best practices 96–100, LCP 836–851 ms, TTI 836–851 ms, CLS 0.000, TBT 0; `/dev/components` performance 97–99, accessibility 100, best practices 100, LCP 882–1161 ms, TTI 902–1682 ms, CLS 0.005, TBT 0–51 ms. All `lighthouserc.json` assertions passed. The demo-path pages behind sign-in are measured by `tests/e2e/perf/web-vitals.spec.ts` (LCP, INP, CLS on the workspace, the debrief and the replay).
+- Bundle budgets (`scripts/bundle-budget.ts`, gzip): every route inside its budget; largest first-load: `/dev/components` 190,701 of 205,000; the sign-in page 103,714 of 110,000; script total 530,000 of 530,000 budget line and total 1,060,000 of 1,060,000 are the `lighthouserc.json` resource-summary caps, both met.

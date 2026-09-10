@@ -100,6 +100,7 @@ export const test = suite.extend<{
   consoleGuard: [
     async ({ page }, provide) => {
       const errors: string[] = []
+      const pending: Promise<void>[] = []
       const ignored = (text: string): boolean =>
         IGNORED_CONSOLE_PATTERNS.some((pattern) => pattern.test(text))
       page.on('pageerror', (error) => {
@@ -108,11 +109,38 @@ export const test = suite.extend<{
       })
       page.on('console', (message) => {
         if (message.type() !== 'error') return
-        const text = message.text()
-        if (ignored(text)) return
-        errors.push(`console.error: ${text}`)
+        // Firefox hands an object argument over as "JSHandle@object", which names nothing. The
+        // arguments are read out of the page — an Error's name, message and stack, any other
+        // object as JSON — so a failure says what was logged and where it came from.
+        const describe = async (): Promise<void> => {
+          const parts = await Promise.all(
+            message.args().map((arg) =>
+              arg
+                .evaluate((value: unknown) => {
+                  if (value instanceof Error)
+                    return `${value.name}: ${value.message}
+${value.stack ?? ''}`
+                  if (typeof value === 'object' && value !== null) {
+                    try {
+                      return JSON.stringify(value)
+                    } catch {
+                      return String(value)
+                    }
+                  }
+                  return String(value)
+                })
+                .catch(() => message.text()),
+            ),
+          )
+          const text = parts.length > 0 ? parts.join(' ') : message.text()
+          if (ignored(text)) return
+          const { url, lineNumber } = message.location()
+          errors.push(`console.error: ${text} (${url}:${String(lineNumber)})`)
+        }
+        pending.push(describe())
       })
       await provide()
+      await Promise.all(pending)
       expect(errors, 'no uncaught page error or console.error during the test').toEqual([])
     },
     { auto: true },
