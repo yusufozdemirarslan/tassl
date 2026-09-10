@@ -23,9 +23,7 @@ open is named in the row itself.
 - C1 🟢 lint, typecheck, build, `audit --prod`, depcheck, `no-console`, cspell, clean-clone build on
   Node 24, gitleaks over the full history, the client-bundle secret grep, env parity, `db:drift`,
   `openapi:check` and the bundle budgets are all green on this branch.
-- C2 ◐ the clean `--repeat-each=3` pass over the four projects is running. Two earlier passes each
-  found real defects (QA-042…QA-046, QA-055, and the regression QA-043's first attempt introduced),
-  which is what the repeats are for; the clean one is the evidence.
+- C2 🟢 `--repeat-each=3` over all four projects, green, on GitHub runners (`cross-browser.yml` run 34515616056, D-731): chromium 297 in 19.9 m, firefox 294 in 21.0 m, webkit 294 in 24.0 m, mobile-safari 24 in 2.1 m — 909 test runs, 0 failed.
 - C3 🟢 the API-coverage gate is green, and the requirement register's two joins — every id covered
   exactly once, every test path it names openable — are now a test rather than a habit (QA-048).
 - C4 🟢 a classmate meets 404 on every reviewer endpoint (D-703), the per-account lockout exists
@@ -45,7 +43,7 @@ open is named in the row itself.
 - C10 ◐ the axe suite (34 screens) and the keyboard-only run are in the pass above.
 - C11 🟢 `impeccable detect` 0 findings, the audit done at 1440×900 and 390×844, the two tables that
   forced a minimum width fixed, and the phone is now a project rather than a reading (QA-047).
-- C12 ◐ chromium, firefox, webkit and `mobile-safari` in the pass above; `cross-browser.yml`
+- C12 🟢 chromium, firefox, webkit and `mobile-safari` all green three times over in the run above; `cross-browser.yml`
   matrixes all three engines it can run (QA-059).
 - C13 ◐ `/api/health` and `/api/ready` answer 200 in production; Sentry receives events and the three
   cron monitors exist; PostHog's last hop is verified in the Events view. **Open:** the fifteen
