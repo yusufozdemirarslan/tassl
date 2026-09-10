@@ -6,10 +6,21 @@ name: cross-browser
 # other two locally — which needs a local Postgres, and the builder's machine has no Docker, so the
 # row could not be closed at all. It runs here instead: on dispatch, and weekly so a regression in
 # an engine nobody develops against is found by the schedule rather than by a student (D-687).
+#
+# `repeat` is how the QA prompt's C2 (`--repeat-each=3`) is met (D-731). The builder's machine has
+# 16 GB and cannot hold it: three attempts at four projects were killed by memory pressure, and the
+# failures they produced were the machine's — tests reported failed at 0 ms, never having run. A
+# runner holds it, and it is the same two workers D-715 pins the suite to, so a repeat here means
+# what a repeat anywhere would.
 on:
   schedule:
     - cron: '0 7 * * 1'
   workflow_dispatch:
+    inputs:
+      repeat:
+        description: 'How many times to run each test (C2 asks for 3)'
+        required: false
+        default: '1'
 
 permissions:
   contents: read
@@ -72,7 +83,9 @@ jobs:
   e2e:
     name: e2e (${{ matrix.project }})
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    # Three repeats of a project take the best part of an hour on a runner; the schedule's single
+    # pass takes about ten minutes.
+    timeout-minutes: 120
     # One engine's failure must not hide the other's: the point of the row is to know about all of
     # them. `mobile-safari` is WebKit at the phone profile (D-723) and needs the webkit engine, which
     # is why the install step below reads the engine rather than the project name.
@@ -80,6 +93,8 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          - project: chromium
+            engine: chromium
           - project: firefox
             engine: firefox
           - project: webkit
@@ -104,7 +119,7 @@ jobs:
       - uses: ./.github/actions/setup
       - run: pnpm exec playwright install --with-deps ${{ matrix.engine }}
       # playwright.config.ts webServer runs: pnpm db:reset && pnpm build && pnpm start (D-073).
-      - run: pnpm test:e2e --project=${{ matrix.project }}
+      - run: pnpm test:e2e --project=${{ matrix.project }} --repeat-each=${{ inputs.repeat || 1 }}
       - uses: actions/upload-artifact@v7
         if: always()
         with:
