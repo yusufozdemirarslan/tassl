@@ -356,6 +356,20 @@ describe('getRun, getRunStatus and listMyRuns (07 §7, §3)', () => {
     expect(forPage.map((item) => item.id)).toContain(older.id)
     expect(forPage).toHaveLength(101)
 
+    // And the join the screen makes with it, which is where the defect showed: `/runs` and `/home`
+    // both feed these two reads to `toRunListRows`, and with the newest-hundred window the older
+    // assignment came back with `run: null` — "Not started", beside a Start that then refused.
+    const { toRunListRows } = await import('@/components/features/run/run-rows')
+    const mine = await courses.listMyAssignments(fx.student, { limit: 100 })
+    const rows = toRunListRows(mine.items, forPage)
+    const row = rows.find((r) => r.assignmentId === fx.assignment.id)
+    expect(row?.run?.id).toBe(older.id)
+
+    // And the reading the defect produced, so the assertion above cannot pass for the wrong reason:
+    // with the window the screen used to read, that row carries no run at all.
+    const windowed = toRunListRows(mine.items, window.items)
+    expect(windowed.find((r) => r.assignmentId === fx.assignment.id)?.run).toBeNull()
+
     // Still the actor's own scope: another student's attempts never appear, whatever is asked for.
     await runs.startRun(fx.student2, fx.assignment.id)
     const theirs = await runs.listMyRunsForAssignments(fx.student2, [fx.assignment.id, busy.id])

@@ -225,6 +225,19 @@ describe('POST /me/export', () => {
     const res = await exportOnce(leaverHeaders)
     expect(res.status).toBe(200)
   })
+
+  it('is emptied by the test reset, along with every other window (D-728)', async () => {
+    // The guide chain runs one seat through these screens on three engines in one server, and
+    // empties every window between them so the third engine is not refused what the first took
+    // (`POST /api/v1/test/rate-limits/reset`). This window is an hour wide, so it is its own
+    // limiter instance rather than the process-wide one — and being its own instance is how it
+    // stayed full through every reset, until the third engine's guide met a 429 on a step whose
+    // sentence says the file downloads.
+    expect((await exportOnce(studentHeaders)).status).toBe(429)
+    const { resetRateLimiter } = await import('@/server/rate-limit')
+    resetRateLimiter()
+    expect((await exportOnce(studentHeaders)).status).toBe(200)
+  })
 })
 
 describe('DELETE /me', () => {

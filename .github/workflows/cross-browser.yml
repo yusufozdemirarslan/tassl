@@ -70,14 +70,22 @@ env:
 
 jobs:
   e2e:
-    name: e2e (${{ matrix.browser }})
+    name: e2e (${{ matrix.project }})
     runs-on: ubuntu-latest
     timeout-minutes: 45
-    # One engine's failure must not hide the other's: the point of the row is to know about both.
+    # One engine's failure must not hide the other's: the point of the row is to know about all of
+    # them. `mobile-safari` is WebKit at the phone profile (D-723) and needs the webkit engine, which
+    # is why the install step below reads the engine rather than the project name.
     strategy:
       fail-fast: false
       matrix:
-        browser: [firefox, webkit]
+        include:
+          - project: firefox
+            engine: firefox
+          - project: webkit
+            engine: webkit
+          - project: mobile-safari
+            engine: webkit
     services:
       postgres:
         image: postgres:17-alpine
@@ -94,13 +102,13 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/setup
-      - run: pnpm exec playwright install --with-deps ${{ matrix.browser }}
+      - run: pnpm exec playwright install --with-deps ${{ matrix.engine }}
       # playwright.config.ts webServer runs: pnpm db:reset && pnpm build && pnpm start (D-073).
-      - run: pnpm exec playwright test --project=${{ matrix.browser }}
+      - run: pnpm test:e2e --project=${{ matrix.project }}
       - uses: actions/upload-artifact@v7
         if: always()
         with:
-          name: playwright-report-${{ matrix.browser }}
+          name: playwright-report-${{ matrix.project }}
           path: playwright-report/
           retention-days: 14
           if-no-files-found: ignore

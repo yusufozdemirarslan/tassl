@@ -145,7 +145,7 @@ jobs:
       - run: pnpm exec playwright install --with-deps chromium
       # playwright.config.ts webServer runs: pnpm db:reset && pnpm build && pnpm start (D-073).
       # CI installs chromium only; firefox and webkit run in the Phase 15 release check (§16).
-      - run: pnpm exec playwright test --project=chromium
+      - run: pnpm test:e2e --project=chromium
       - uses: actions/upload-artifact@v7
         if: always()
         with:

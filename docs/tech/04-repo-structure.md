@@ -396,7 +396,7 @@ The `llm` element may import `db` only for `llm_calls` logging.
     "test:watch": "vitest --project unit",
     "test:coverage": "vitest run --project unit --project integration --coverage",
     "test:integration": "vitest run --project integration",
-    "test:e2e": "playwright test --project=chromium --project=firefox --project=webkit --project=mobile-safari",
+    "test:e2e": "playwright test",
     "evals": "tsx evals/run.ts",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate && tsx scripts/pgboss-migrate.ts",

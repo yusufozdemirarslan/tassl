@@ -16,7 +16,7 @@ import { t } from '@/lib/i18n/t'
 import type { SessionUser } from '@/server/auth/types'
 import { listCourses, listMyAssignments } from '@/server/modules/courses'
 import { getQueue } from '@/server/modules/review'
-import { listMyRuns } from '@/server/modules/runs'
+import { listMyRunsForAssignments } from '@/server/modules/runs'
 import { listPackages } from '@/server/modules/scenarios'
 import { getViewer } from '../viewer'
 
@@ -128,13 +128,24 @@ export default async function HomePage() {
   })
 
   const showsRuns = me.memberships.length === 0 || offered.includes('runs')
-  const [assignments, runs, review, packages, courses] = await Promise.all([
+  const [assignments, review, packages, courses] = await Promise.all([
     showsRuns ? listMyAssignments(actor, { limit: HOME_LIMIT }) : null,
-    showsRuns ? listMyRuns(actor, { limit: HOME_LIMIT }) : null,
     reviewRows(actor),
     packageRows(actor, organizationId, offered.includes('packages')),
     courseRows(actor, organizationId, offered.includes('courses')),
   ])
+
+  // The attempts of the assignments this panel is drawing, which is why it cannot join the read
+  // above (D-722). Asking separately for "the twenty newest runs" and joining what came back left
+  // the join partial the moment a seat held more runs than assignments on screen — and a partial
+  // join here prints **Not started** and a **Start** over a live run, which `startRun` then refuses.
+  // One extra round trip, on a page that is already four reads wide.
+  const runs = assignments
+    ? await listMyRunsForAssignments(
+        actor,
+        assignments.items.map((assignment) => assignment.assignmentId),
+      )
+    : null
 
   return (
     <>
@@ -147,7 +158,7 @@ export default async function HomePage() {
         {showsRuns && (
           <HomeRunsPanel
             hasMembership={me.memberships.length > 0}
-            rows={toRunListRows(assignments?.items ?? [], runs?.items ?? [])}
+            rows={toRunListRows(assignments?.items ?? [], runs ?? [])}
           />
         )}
         {review !== null && <HomeReviewPanel rows={review} />}

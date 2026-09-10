@@ -16,14 +16,16 @@ pnpm lint                # eslint + prettier check
 pnpm typecheck           # tsc --noEmit
 pnpm test                # vitest unit (jsdom)
 pnpm test:integration    # vitest against Postgres (TEST_DATABASE_URL)
-pnpm test:e2e            # playwright, the four engine projects (builds, seeds, starts the app)
+pnpm test:e2e            # playwright (builds, seeds, starts the app)
 pnpm evals               # AI evals (mock in CI; real provider locally with a key)
 pnpm db:generate | db:migrate | db:seed | db:reset -- --dev
 pnpm openapi:generate | openapi:check
 pnpm jobs:worker         # local pg-boss worker
 pnpm docs:build          # regenerate docs/TASSL-TECHNICAL-DOCUMENTATION.md
 pnpm test:guides         # guide coverage gate → guide-driven specs on chromium, firefox, webkit → footer stamp
-pnpm test:demo-path      # the full demo path once on chromium (writes runs on the demo seats; follow with demo:reset)
+pnpm test:demo-path      # the demo path once on chromium, without the guide chain before it (--no-deps).
+                         # The global setup still clears every run on the seeded assignments and every
+                         # tassl.local session; follow with demo:reset
 pnpm test:smoke          # @smoke specs against PLAYWRIGHT_BASE_URL (production after a deploy)
 pnpm test:security       # prompt-injection battery (mock in CI; with FEATURE_AI=true and a key, the live model)
 pnpm test:load           # k6 tests/load/core-flow.js against a preview (BASE_URL, BYPASS, SEED_PASSWORD)

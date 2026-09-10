@@ -58,6 +58,35 @@ QA-047 — `mobile-safari` on `devices['iPhone 14']` running the eight smoke spe
 
 Verification in flight: `db:reset` → `build` → the four projects ×3 → `pnpm test:guides`.
 
+Second round, from that run and from reading the changes:
+- QA-050 (D-725) the production walkthrough could not be run: only the browser followed
+  `PLAYWRIGHT_BASE_URL`, so the setup and the guide resets cleaned the local test database.
+- QA-051, QA-052 the two test fixes of 18f2007 and 8c3cb26 had no rows, and `axe.ts` cited a
+  number that now means something else.
+- QA-053 (D-726) nothing proved what a student sees when the network drops mid-act.
+- QA-054 a two-part emoji is stored as its parts, because the joiner is one of the invisible
+  characters `stripMarkup` removes. Deliberate, now stated.
+- QA-055 (D-727) `page.goto` can never settle on Firefox with the finished page on screen behind it.
+
+**Watch in the clean re-run** (three webkit-only observations, all while a coverage measurement was
+competing for the machine, so none is yet a finding):
+1. `author/confirm-workspace.spec.ts:241` — **Confirm and freeze** with the teaching note
+   unchecked, and the refusal sentence did not arrive within the default five seconds while the
+   dialog's button still read **Confirming…**. The refusal is not cheap by design: `confirmVersion`
+   loads the whole version and every confirmation to compute "undecided" before it can honestly
+   reach the note check (`service.ts:1909-1927`). If it recurs on a quiet machine, measure that
+   action against NFR-008 rather than widening the assertion.
+2. `author/packages.spec.ts` ran 66 s against a 60 s budget on webkit — it is three flows in one
+   test (a package from a seed, a whole import, a claim read back), and it only now runs to its
+   full length, because before QA-046 it stopped at the missing `meridian-roast` row. Its sibling
+   declares `test.setTimeout(300_000)`; if this recurs, the honest answer is a declared budget with
+   the reason, not a global one.
+3. The two firefox `page.goto` timeouts that D-727 answers are fixed but unproven: the fix landed
+   after those repeats had run, so the clean pass is what confirms it.
+
+A separate database `tassl_test_cov` exists for `pnpm test:coverage`, so the coverage gate can be
+measured without touching the database an e2e run is using.
+
 ## Worklist from the understand pass (each becomes a FIXED-ISSUES row when fixed)
 - C1: Node 24 portable at `~/.tassl-tools/node24/node-v24.21.0-win-x64` for builds; add eslint `no-console`; remove unused `next-themes`; cspell; depcheck; clean-clone build; gitleaks full history; client bundle secret grep; env parity (add `DEMO_MODE`, `SENTRY_TRACES_SAMPLE_RATE` to production).
 - C2: web-vitals spec skips on firefox/webkit → scope perf specs to chromium in the config; `--repeat-each=3`.

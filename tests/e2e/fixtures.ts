@@ -85,22 +85,42 @@ function settleBeforeNavigating(page: Page): Page {
    * for the assertions that follow, and the point is only to reach the question below sooner than
    * the test timeout does — a page this app serves in a hundred milliseconds is not fifteen seconds
    * from arriving. A caller that passes its own timeout keeps it.
+   *
+   * Three times that against a deployment, where the smoke lane and build-plan step 15.5's
+   * walkthrough run: a suspended Neon compute wakes in a couple of seconds and the first page after
+   * it has been measured at 2.5, but that is a measurement of one morning and not a bound.
    */
-  const NAVIGATION_MS = 15_000
+  const NAVIGATION_MS = /^https?:\/\/(localhost|127\.0\.0\.1)([:/]|$)/.test(
+    process.env.PLAYWRIGHT_BASE_URL ?? 'http://localhost:3000',
+  )
+    ? 15_000
+    : 45_000
 
   /** One first try and one retry; past that the page is asked what actually happened. */
   const ATTEMPTS = 2
 
-  /** True when the document the navigation asked for is the one on screen, finished loading. */
-  const arrived = async (): Promise<boolean> => {
+  /**
+   * True when the document the navigation asked for is the one on screen, finished loading.
+   *
+   * Both halves are load-bearing. `readyState` alone is true of whatever page is already there —
+   * the previous screen mid-test, or `about:blank` before the first navigation — so a `goto` that
+   * never landed would be reported as arrival and the assertions after it would be made against
+   * the page before it. `wanted` is the address that was asked for, resolved against the base URL;
+   * a `reload` passes none, because a reload asks for the page it is already on.
+   */
+  const arrived = async (wanted?: string): Promise<boolean> => {
     try {
-      return await page.evaluate(() => document.readyState === 'complete')
+      if (!(await page.evaluate(() => document.readyState === 'complete'))) return false
+      if (wanted === undefined) return true
+      const asked = new URL(wanted, page.url())
+      const here = new URL(page.url())
+      return here.pathname === asked.pathname && here.search === asked.search
     } catch {
       return false
     }
   }
 
-  const navigate = async <T>(attempt: () => Promise<T>): Promise<T | null> => {
+  const navigate = async <T>(attempt: () => Promise<T>, wanted?: string): Promise<T | null> => {
     for (let tries = 1; ; tries += 1) {
       await settle()
       try {
@@ -117,7 +137,7 @@ function settleBeforeNavigating(page: Page): Page {
         // page is asked directly instead, on the first failure.
         if (timedOut(error)) {
           await settle()
-          if (await arrived()) return null
+          if (await arrived(wanted)) return null
           throw error
         }
         // A cancelled load did not happen, so asking again asserts nothing that was not asked for.
@@ -131,7 +151,7 @@ function settleBeforeNavigating(page: Page): Page {
           // that changed no document. A page that never settles still fails, on the assertion
           // that wanted something from it rather than on the reload that could not prove itself.
           await settle()
-          if (await arrived()) return null
+          if (await arrived(wanted)) return null
           throw error
         }
       }
@@ -139,7 +159,7 @@ function settleBeforeNavigating(page: Page): Page {
   }
 
   page.goto = async (url, options) =>
-    navigate(() => goto(url, { timeout: NAVIGATION_MS, ...options }))
+    navigate(() => goto(url, { timeout: NAVIGATION_MS, ...options }), url)
   page.reload = async (options) => navigate(() => reload({ timeout: NAVIGATION_MS, ...options }))
   return page
 }

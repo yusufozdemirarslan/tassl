@@ -1,8 +1,6 @@
 'use client'
 
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
-import type { Route } from 'next'
-import { useRouter } from 'next/navigation'
 import { Loader2Icon, PencilLineIcon } from 'lucide-react'
 import { FormAlert } from '@/components/features/account/form-feedback'
 import {
@@ -327,7 +325,6 @@ export type DefenseInterviewProps = {
 
 export function DefenseInterview({ runId, questions: initial }: DefenseInterviewProps) {
   const refresh = useRefresh()
-  const router = useRouter()
 
   // The questions as this screen knows them: what the server rendered, plus every answer and
   // follow-up the writes below have produced. Re-seeded whenever the server hands over a different
@@ -411,10 +408,22 @@ export function DefenseInterview({ runId, questions: initial }: DefenseInterview
    * single-question path shows the refusal and refreshes, so the answer the server holds appears in
    * place of the box; `finish()` treats the question as filed and carries on, because it is.
    */
+  /**
+   * The run has moved on without this tab (D-729).
+   *
+   * A second tab left on the interview while the defense was finished in another one meets
+   * `DEFENSE_NOT_OPEN`, and `src/server/modules/defense/errors.ts` says what that is for: "a stale
+   * tab follows the run's `links.next` rather than sitting on a screen the run has left". Nothing
+   * did follow it — the refusal was rendered and the page stayed put, with the band's poll switched
+   * off in `defense_pending`, so the only way on was a manual reload. Re-reading the route is what
+   * follows it: this page's guard sends a run past `defense_pending` to the status screen.
+   */
+  const movedOn = (code: string | undefined): boolean => code === 'DEFENSE_NOT_OPEN'
+
   async function submit(
     question: Question,
     input: { text: string; durationMs: number },
-  ): Promise<{ ok: boolean; followUp: Question | null; alreadyAnswered: boolean }> {
+  ): Promise<{ ok: boolean; followUp: Question | null; alreadyAnswered: boolean; code?: string }> {
     setAnswering(question.runQuestionId)
     setError(null)
     const result = await answerDefenseQuestionAction({
@@ -437,6 +446,7 @@ export function DefenseInterview({ runId, questions: initial }: DefenseInterview
         ok: false,
         followUp: null,
         alreadyAnswered: result !== null && result.error.code === 'QUESTION_ALREADY_ANSWERED',
+        ...(result === null ? {} : { code: result.error.code }),
       }
     }
     apply(result.data.followUpQuestion, question.runQuestionId, input.text)
@@ -498,7 +508,7 @@ export function DefenseInterview({ runId, questions: initial }: DefenseInterview
             ? t('defense.finishFailed')
             : `${t('defense.finishFailed')} ${t('defense.finishPartial')}`,
         )
-        if (stale) refresh()
+        if (stale || movedOn(written.code)) refresh()
         return
       }
       filed += 1
@@ -513,19 +523,21 @@ export function DefenseInterview({ runId, questions: initial }: DefenseInterview
           ? t('defense.finishFailed')
           : result.error.message || t('defense.finishFailed')
       setFinishError(filed === 0 ? said : `${said} ${t('defense.finishPartial')}`)
-      if (stale) refresh()
+      if (stale || (result !== null && movedOn(result.error.code))) refresh()
       return
     }
     setConfirmOpen(false)
-    // Where the run itself says it goes, as the completing transaction reported it (D-720).
+    // The run is in `defense_complete` from here; the guard on this page sends the student on, and
+    // it now sends them to the same screen whichever of the two post-defense states it reads
+    // (D-720).
     //
-    // `completeDefense` returns the row it wrote, so `links.next` is `/runs/<id>` — the status
-    // screen — by construction, and no job can overtake it. A `refresh()` here instead left the
-    // destination to this page's guard, which re-reads the state: the same press enqueues scoring,
-    // and with the queue drained in the request's own `after()` (D-046, D-410) a fast scorer beat
-    // the refresh's render often enough that one student in three landed on the debrief and never
-    // saw FR-140's "drafts until your instructor confirms them".
-    router.replace(result.data.links.next as Route)
+    // It has to be this refresh rather than a `router.replace` to the route the completing call
+    // reported. `/runs/<id>` and `/runs/<id>/defense` are two children of one layout, and Next
+    // re-renders only the segment that changes on a client navigation — so the `RunFrame` band
+    // would keep the props it was given while the defense was still pending, its poll would never
+    // start, and the student would sit on "Your run is being scored" until they reloaded. The
+    // refresh re-renders the route, band included.
+    refresh()
   }
 
   return (

@@ -13,6 +13,7 @@ import { env } from '@/server/config'
 import { getLogger } from '@/server/http/request-context'
 import { createMemoryRateLimiter, type RateLimiter } from '@/server/rate-limit/memory'
 import { createPostgresRateLimiter } from '@/server/rate-limit/sliding-window'
+import { registerLimiterReset } from '@/server/rate-limit'
 import { audit } from '@/server/modules/admin'
 // `/me/assignments` is the courses module's list behind an identity route (10 §3
 // `listMyAssignments`), so it is called through that module's public interface. `/me/runs` was the
@@ -210,6 +211,15 @@ function getExportLimiter(): RateLimiter {
     env.APP_ENV === 'test' ? createMemoryRateLimiter(HOUR_MS) : createPostgresRateLimiter(HOUR_MS)
   return exportLimiter
 }
+
+// This window is an hour wide, so it cannot be the process-wide limiter's — and being its own
+// instance made it invisible to the test reset that empties every window between the engines of the
+// guide chain (D-728). Three engines take two exports each on one seat inside an hour; the third
+// met a 429 on a screen whose guide step says the file downloads. Registered rather than reached
+// into: `src/server/rate-limit` is underneath this module and must not import it.
+registerLimiterReset(() => {
+  exportLimiter = undefined
+})
 
 /** Everything Tassl holds about the person, as the file `/settings/data` downloads (SYS-004). */
 export async function exportUserData(actor: SessionUser): Promise<UserExport> {

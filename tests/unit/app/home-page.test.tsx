@@ -13,7 +13,7 @@ import type { MeView } from '@/server/modules/identity'
 const viewer = vi.hoisted(() => ({ me: null as unknown }))
 const reads = vi.hoisted(() => ({
   listMyAssignments: vi.fn(),
-  listMyRuns: vi.fn(),
+  listMyRunsForAssignments: vi.fn(),
   getQueue: vi.fn(),
   listPackages: vi.fn(),
   listCourses: vi.fn(),
@@ -36,7 +36,9 @@ vi.mock('@/server/modules/courses', () => ({
   listMyAssignments: reads.listMyAssignments,
 }))
 vi.mock('@/server/modules/review', () => ({ getQueue: reads.getQueue }))
-vi.mock('@/server/modules/runs', () => ({ listMyRuns: reads.listMyRuns }))
+vi.mock('@/server/modules/runs', () => ({
+  listMyRunsForAssignments: reads.listMyRunsForAssignments,
+}))
 vi.mock('@/server/modules/scenarios', () => ({ listPackages: reads.listPackages }))
 // The runs list is a client component whose Start control is a Server Action.
 vi.mock('@/server/modules/runs/actions', () => ({ startRunAction: vi.fn() }))
@@ -82,7 +84,7 @@ describe('HomePage panels (UI-009)', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     reads.listMyAssignments.mockResolvedValue({ items: [], nextCursor: null })
-    reads.listMyRuns.mockResolvedValue({ items: [], nextCursor: null })
+    reads.listMyRunsForAssignments.mockResolvedValue([])
     reads.getQueue.mockResolvedValue({ illustrative: [], runs: [] })
     reads.listPackages.mockResolvedValue({ items: [], nextCursor: null })
     reads.listCourses.mockResolvedValue({ items: [], nextCursor: null })
@@ -95,7 +97,7 @@ describe('HomePage panels (UI-009)', () => {
     expect(screen.queryByText(enUS['home.emptyTitle'])).not.toBeInTheDocument()
     // The two student reads are not made for a seat that has no runs.
     expect(reads.listMyAssignments).not.toHaveBeenCalled()
-    expect(reads.listMyRuns).not.toHaveBeenCalled()
+    expect(reads.listMyRunsForAssignments).not.toHaveBeenCalled()
     // The instructor's own panels are still there.
     expect(
       screen.getByRole('heading', { level: 2, name: enUS['home.reviewTitle'] }),
