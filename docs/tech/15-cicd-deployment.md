@@ -1024,6 +1024,13 @@ DATABASE_URL="$BRANCH_URL" DATABASE_URL_UNPOOLED="$BRANCH_URL" SEED_PASSWORD="$(
 BASE_URL="$PREVIEW_URL" BYPASS="$(cat "$S/vercel-bypass.txt")" SEED_PASSWORD="$(cat "$S/seed-password.txt")" VUS=60 DURATION=10m RAMP=1m pnpm test:load
 ```
 
+**The run has to finish before the pull request is merged (D-733).** Merging deletes the branch,
+Vercel removes the preview alias with it, and k6 keeps going against an address that has stopped
+existing: the first attempt at this row read 94 % `http_req_failed` with a p95 of 104 ms, which is
+the shape of a healthy deployment disappearing rather than of a slow one. Sign-in succeeded 29 times
+and then never again. Read a failure with good latency and a wall of refusals as a target that has
+gone, and check the deployment answers before believing the numbers.
+
 `tests/load/core-flow.js` contract: reads `BASE_URL`, `BYPASS` (sent as the `x-vercel-protection-bypass` header on every request), `SEED_PASSWORD`, `VUS` (default 60), `DURATION` (default `10m`, the plateau) and `RAMP` (default `1m`, the arrival). The virtual users come online evenly over the ramp — a class arrives within a minute or two from one campus address, which the per-address sign-in ceiling of 120 a minute is sized for (D-712) — and each signs in once as `load-student-NN@tassl.local` (`NN` = VU number, zero-padded) and keeps its cookie jar. Each iteration lists the assignments, starts a run on "Load test run" (or continues the live one), acknowledges the policy, reads and submits the Readiness Check, opens a document, locks the frame, and reads the run, its claims and its workspace; requests are tagged `kind:read` or `kind:write`; thresholds `http_req_duration{kind:read}: p(95)<400`, `http_req_duration{kind:write}: p(95)<800`, `http_req_failed: rate<0.01`, `checks: rate>0.99` (NFR-008, NFR-014). `pnpm test:load` writes `tests/load/summary.json` (ignored by git); the numbers go into `docs/qa/QA-REPORT.md` C8.
 
 ### 16.3 `scripts/sentry-test.ts`
