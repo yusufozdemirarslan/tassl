@@ -35,7 +35,8 @@
     "@testing-library/jest-dom",
     "@testing-library/user-event",
     "drizzle-kit",
-    "typescript"
+    "typescript",
+    "shadcn"
   ],
   "skip-missing": true
 }
