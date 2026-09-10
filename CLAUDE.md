@@ -22,6 +22,17 @@ pnpm db:generate | db:migrate | db:seed | db:reset -- --dev
 pnpm openapi:generate | openapi:check
 pnpm jobs:worker         # local pg-boss worker
 pnpm docs:build          # regenerate docs/TASSL-TECHNICAL-DOCUMENTATION.md
+pnpm test:guides         # guide coverage gate → guide-driven specs on chromium, firefox, webkit → footer stamp
+pnpm test:demo-path      # the full demo path once on chromium (writes runs on the demo seats; follow with demo:reset)
+pnpm test:smoke          # @smoke specs against PLAYWRIGHT_BASE_URL (production after a deploy)
+pnpm test:security       # prompt-injection battery (mock in CI; with FEATURE_AI=true and a key, the live model)
+pnpm test:load           # k6 tests/load/core-flow.js against a preview (BASE_URL, BYPASS, SEED_PASSWORD)
+pnpm env:check           # Zod schema ↔ .env.example ↔ Vercel production, then /api/ready (--offline skips Vercel)
+pnpm demo:warm           # wake Neon and every demo-path function (PLAYWRIGHT_BASE_URL, SEED_PASSWORD)
+pnpm demo:reset          # seeded demo state plus one recorded and one scored run on student2 (DATABASE_URL)
+pnpm db:drift            # drizzle-kit generate must produce no migration
+pnpm deps:check | spell:check
+pnpm qa:all              # everything except the load test, in order
 ```
 
 ## Build-session procedure
@@ -42,6 +53,9 @@ Services throw `AppError(code, message, { status, details })` from `src/lib/erro
 
 ## Impeccable (mandatory for all UI)
 Installed with `npx impeccable@3.6.1 install --providers=claude --scope=project`; `/impeccable init` wrote `PRODUCT.md`; `DESIGN.md` records the tokens from `docs/tech/09-frontend-spec.md` §2 (IBM Plex Sans/Mono/Serif; cool paper `#F6F7F9`, tinted ink `#141A26`, deep teal primary `#0F6E74`; 4 px spacing; radii 2/6/10; ease-out 150–200 ms). Every new screen: `/impeccable shape <route>` → build against `DESIGN.md` → `/impeccable critique` → fix → `/impeccable audit` → fix → `/impeccable harden` → `/impeccable polish` before the phase closes. After core screens: `/impeccable onboard`, `/impeccable clarify`. Hardening phase: `/impeccable adapt`, `/impeccable optimize`, `/impeccable extract`. CI runs `npx impeccable@3.6.1 detect --json .` through `scripts/impeccable-gate.mjs`; waivers only via `detector.ignore*` in `.impeccable/config.json` with a reason. When Impeccable asks a taste or direction question, answer "Operate; follow DESIGN.md and 09-frontend-spec.md §2". Rules: no Inter/Arial/system fonts; no gray text on colored backgrounds; no pure black or gray; no cards inside cards; no bounce easing; no gradients.
+
+## Guides and tests are one artifact
+`docs/guides/*.md` and `tests/e2e/guides/*.spec.ts` describe the same clicks: every `### Task N:` is a `test('Task N: …')`, every numbered step a `test.step('N.M …')` in the same order and wording, and every step ends with the screenshot the guide embeds. `scripts/check-guide-coverage.ts` fails on any drift. Change both together, in the guide first; never edit a screenshot by hand (the chromium run writes them). The runbook's demo-path table rows are `tests/e2e/guides/demo-path.spec.ts` steps in the same way.
 
 ## Product invariants to protect
 - Students never see warranted stances, evidence status, failure families, planted flags, or verification results before their run is scored; never the question bank, expected-answer notes, the seed record, or other students' runs (`src/server/auth/student-view.ts`).
