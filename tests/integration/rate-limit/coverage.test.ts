@@ -176,7 +176,7 @@ describe('every route declares a rate-limit bucket', () => {
     expect([...declared].sort()).toEqual([...BUCKETS].sort())
   })
 
-  it('declares the two routes that are deliberately absent from OpenAPI (D-613)', () => {
+  it('declares the three routes that are deliberately absent from OpenAPI (D-613, D-707)', () => {
     // The two this sweep could not see before. `documented: false` is what lets them declare a
     // bucket without the generator describing them: the delegation stream answers
     // `text/event-stream`, which openapi.yaml states by hand (D-273), and the clock control exists
@@ -194,9 +194,18 @@ describe('every route declares a rate-limit bucket', () => {
       rateLimit: 'write',
       documented: false,
     })
-    // And `documented: false` means exactly that: neither operation is in the committed document
-    // as a generated one. (`openapi:check` is the other half; this is the reason it stays green.)
-    expect(routes.filter((route) => route.spec?.documented === false)).toHaveLength(2)
+    // The third: the test-only reset of the in-memory rate-limit windows, which the guide chain
+    // presses between its stages and which, like the clock control, exists only under APP_ENV=test
+    // (D-707).
+    expect(at('/api/v1/test/rate-limits/reset')).toMatchObject({
+      operationId: 'resetTestRateLimits',
+      rateLimit: 'write',
+      documented: false,
+    })
+    // And `documented: false` means exactly that: none of the three operations is in the committed
+    // document as a generated one. (`openapi:check` is the other half; this is the reason it stays
+    // green.)
+    expect(routes.filter((route) => route.spec?.documented === false)).toHaveLength(3)
   })
 })
 
@@ -223,10 +232,13 @@ describe('the exemptions', () => {
     expect(rateLimit?.enabled).toBe(true)
     expect(rateLimit?.max).toBeGreaterThan(0)
     expect(rateLimit?.window).toBeGreaterThan(0)
-    // 08 §2.6: ten a minute per IP on the four endpoints an attacker would grind.
+    // 08 §2.6 and D-712: per client address, sized for a section arriving from one campus address —
+    // sign-in 120 a minute, sign-up 60 — and the two routes that send an email at the ten-a-minute
+    // bombing ceiling. Guessing is stopped per account by the lockout of D-704, not here.
+    expect(rateLimit?.max).toBe(600)
     expect(rateLimit?.customRules).toMatchObject({
-      '/sign-in/email': { window: 60, max: 10 },
-      '/sign-up/email': { window: 60, max: 10 },
+      '/sign-in/email': { window: 60, max: 120 },
+      '/sign-up/email': { window: 60, max: 60 },
       '/request-password-reset': { window: 60, max: 10 },
       '/send-verification-email': { window: 60, max: 10 },
     })

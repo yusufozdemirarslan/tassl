@@ -742,3 +742,42 @@ describe('the room and the actions inside the window', () => {
     ).toBe(ESCALATION_COST_MS)
   })
 })
+
+// ---------------------------------------------------------------------------------------------
+// A claim the student already met, raised again by the Turn (D-705)
+// ---------------------------------------------------------------------------------------------
+
+/** The window flag and the first surfacing of one claim's row, as the table holds them. */
+async function windowRow(runId: string, key: string) {
+  return testSql<{ in_turn_window: boolean; surfaced_by: string }[]>`
+    select rc.in_turn_window, rc.surfaced_by
+    from run_claims rc join scenario_claims sc on sc.id = rc.claim_id
+    where rc.run_id = ${runId} and sc.key = ${key}`
+}
+
+describe('a window claim the student already met (D-705)', () => {
+  it('marks the existing row in_turn_window and keeps one row per claim', async () => {
+    const runId = await runInWorking(fx)
+    // C3 is the seeded Turn's own subject and the assistant's first answer: met before the lock.
+    await delegate(fx, runId, 'What is the premium payback?')
+    const before = await windowRow(runId, 'C3')
+    expect(before).toHaveLength(1)
+    expect(before[0]?.in_turn_window).toBe(false)
+
+    await runs.lockDecision(fx.student, runId, BRIEF)
+    await advance(runId, TURN_DELAY_MS + 2_000)
+
+    const rows = await windowRow(runId, 'C3')
+    expect(rows, 'one row per claim, D-267').toHaveLength(1)
+    expect(rows[0]?.in_turn_window).toBe(true)
+    // The first meeting is kept: the Turn raises the claim again, it does not re-surface it.
+    expect(rows[0]?.surfaced_by).toBe('delegation')
+
+    // What the Turn screen and FR-111's gate read.
+    const view = (await reliance.listRunClaims(fx.student, runId)).filter((c) => c.key === 'C3')
+    expect(view.map((claim) => claim.inTurnWindow)).toEqual([true])
+    expect(await codeOf(runs.respondToTurn(fx.student, runId, RESPONSE))).toBe(
+      'TURN_CLAIMS_UNSTANCED',
+    )
+  })
+})

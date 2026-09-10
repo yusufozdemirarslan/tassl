@@ -1,7 +1,6 @@
 'use client'
 
 import { useTransition } from 'react'
-import { useRouter } from 'next/navigation'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -15,6 +14,7 @@ import {
 import { t } from '@/lib/i18n/messages/run'
 import { toastSuccess } from '@/lib/toast'
 import { deleteWalkthroughRunAction } from '@/server/modules/courses/actions'
+import { useRefresh } from '@/lib/hooks/use-refresh'
 
 // UI-032's delete confirmation, in one chunk the runs table fetches on the press that needs it
 // (B4, see src/lib/hooks/use-deferred-module.ts).
@@ -50,7 +50,7 @@ export function AssignmentRunDeleteDialog({
   onClose,
   onFailure,
 }: AssignmentRunDeleteDialogProps) {
-  const router = useRouter()
+  const refresh = useRefresh()
   const [pending, startTransition] = useTransition()
 
   return (
@@ -78,7 +78,7 @@ export function AssignmentRunDeleteDialog({
                 if (result.ok) {
                   toastSuccess(t('run.reviewDeleted'))
                   onClose()
-                  router.refresh()
+                  refresh()
                   return
                 }
                 onFailure(result.error.message)

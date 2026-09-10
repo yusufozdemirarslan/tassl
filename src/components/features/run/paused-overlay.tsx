@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
 import { Loader2Icon, PauseCircleIcon } from 'lucide-react'
 import { FormAlert } from '@/components/features/account/form-feedback'
 import {
@@ -16,6 +15,7 @@ import {
 import { t } from '@/lib/i18n/messages/workspace'
 import { resumeRunAction } from '@/server/modules/runs/actions'
 import type { PauseCauseValue } from '@/server/modules/runs/schema'
+import { useRefresh } from '@/lib/hooks/use-refresh'
 
 // UI-023's paused state (FR-001): a component of Tassl failed, so the run stopped and the clock
 // stopped with it.
@@ -50,7 +50,7 @@ export type PausedOverlayProps = {
 }
 
 export function PausedOverlay({ runId, cause }: PausedOverlayProps) {
-  const router = useRouter()
+  const refresh = useRefresh()
   const [resuming, setResuming] = useState(false)
   const [failed, setFailed] = useState<string | null>(null)
 
@@ -67,7 +67,7 @@ export function PausedOverlay({ runId, cause }: PausedOverlayProps) {
         }
         // The action revalidated the workspace; the server render decides what stands here next,
         // and `resuming` stays true so the button keeps saying so until the new tree arrives.
-        router.refresh()
+        refresh()
       },
       () => {
         setResuming(false)

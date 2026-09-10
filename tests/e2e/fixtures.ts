@@ -9,7 +9,7 @@
 import 'dotenv/config'
 import { readFile, readdir } from 'node:fs/promises'
 import { join } from 'node:path'
-import { expect, test as base, type Page } from '@playwright/test'
+import { expect, test as base, type Locator, type Page } from '@playwright/test'
 
 export { expect } from '@playwright/test'
 export { axe } from './a11y/axe'
@@ -51,6 +51,13 @@ export const test = base.extend({
  * itself is asked whether the document arrived — Firefox says cancelled even when it did, because
  * the promise loses the race and not the page. The same wait runs on arrival, so a spec never types
  * into a form React has not attached to yet (D-199).
+ *
+ * The promise loses the page in a second way, and the answer is the same one (D-727). Firefox
+ * sometimes never settles it at all: `/verify-email` returned in 26 ms, its thirty-two subresources
+ * in under 100 ms each, the document rendered — and `page.goto` was still waiting fifty-nine
+ * seconds later, until the test's own budget ended it with the page on screen behind it. So a
+ * navigation is given a bound of its own, well inside that budget, and a navigation that passes it
+ * asks the page the same question a cancelled one does.
  */
 function settleBeforeNavigating(page: Page): Page {
   const goto = page.goto.bind(page)
@@ -68,19 +75,52 @@ function settleBeforeNavigating(page: Page): Page {
   const wasCancelled = (error: unknown): boolean =>
     error instanceof Error && error.message.includes('NS_BINDING_ABORTED')
 
+  const timedOut = (error: unknown): boolean =>
+    error instanceof Error && error.name === 'TimeoutError'
+
+  /**
+   * A navigation's own bound, when the caller names none.
+   *
+   * Two settles and two attempts have to fit inside the suite's sixty-second test budget with room
+   * for the assertions that follow, and the point is only to reach the question below sooner than
+   * the test timeout does — a page this app serves in a hundred milliseconds is not fifteen seconds
+   * from arriving. A caller that passes its own timeout keeps it.
+   *
+   * Three times that against a deployment, where the smoke lane and build-plan step 15.5's
+   * walkthrough run: a suspended Neon compute wakes in a couple of seconds and the first page after
+   * it has been measured at 2.5, but that is a measurement of one morning and not a bound.
+   */
+  const NAVIGATION_MS = /^https?:\/\/(localhost|127\.0\.0\.1)([:/]|$)/.test(
+    process.env.PLAYWRIGHT_BASE_URL ?? 'http://localhost:3000',
+  )
+    ? 15_000
+    : 45_000
+
   /** One first try and one retry; past that the page is asked what actually happened. */
   const ATTEMPTS = 2
 
-  /** True when the document the navigation asked for is the one on screen, finished loading. */
-  const arrived = async (): Promise<boolean> => {
+  /**
+   * True when the document the navigation asked for is the one on screen, finished loading.
+   *
+   * Both halves are load-bearing. `readyState` alone is true of whatever page is already there —
+   * the previous screen mid-test, or `about:blank` before the first navigation — so a `goto` that
+   * never landed would be reported as arrival and the assertions after it would be made against
+   * the page before it. `wanted` is the address that was asked for, resolved against the base URL;
+   * a `reload` passes none, because a reload asks for the page it is already on.
+   */
+  const arrived = async (wanted?: string): Promise<boolean> => {
     try {
-      return await page.evaluate(() => document.readyState === 'complete')
+      if (!(await page.evaluate(() => document.readyState === 'complete'))) return false
+      if (wanted === undefined) return true
+      const asked = new URL(wanted, page.url())
+      const here = new URL(page.url())
+      return here.pathname === asked.pathname && here.search === asked.search
     } catch {
       return false
     }
   }
 
-  const navigate = async <T>(attempt: () => Promise<T>): Promise<T | null> => {
+  const navigate = async <T>(attempt: () => Promise<T>, wanted?: string): Promise<T | null> => {
     for (let tries = 1; ; tries += 1) {
       await settle()
       try {
@@ -92,6 +132,14 @@ function settleBeforeNavigating(page: Page): Page {
         await settle()
         return answer
       } catch (error) {
+        // A navigation that timed out is not asked for again: the browser is already wherever it
+        // got to, and a second attempt would spend the rest of the test's budget proving it. The
+        // page is asked directly instead, on the first failure.
+        if (timedOut(error)) {
+          await settle()
+          if (await arrived(wanted)) return null
+          throw error
+        }
         // A cancelled load did not happen, so asking again asserts nothing that was not asked for.
         // Anything else is the spec's own failure and is raised where it was thrown.
         if (!wasCancelled(error)) throw error
@@ -103,15 +151,16 @@ function settleBeforeNavigating(page: Page): Page {
           // that changed no document. A page that never settles still fails, on the assertion
           // that wanted something from it rather than on the reload that could not prove itself.
           await settle()
-          if (await arrived()) return null
+          if (await arrived(wanted)) return null
           throw error
         }
       }
     }
   }
 
-  page.goto = async (url, options) => navigate(() => goto(url, options))
-  page.reload = async (options) => navigate(() => reload(options))
+  page.goto = async (url, options) =>
+    navigate(() => goto(url, { timeout: NAVIGATION_MS, ...options }), url)
+  page.reload = async (options) => navigate(() => reload({ timeout: NAVIGATION_MS, ...options }))
   return page
 }
 
@@ -225,6 +274,45 @@ export async function signOut(page: Page): Promise<void> {
     throw new Error(`Sign-out failed: ${response.status()} ${await response.text()}`)
   }
   await page.context().clearCookies()
+}
+
+// ---------------------------------------------------------------------------------------------
+// Paged lists
+// ---------------------------------------------------------------------------------------------
+
+/**
+ * Presses "Show more …" until `target` is on the page (D-718).
+ *
+ * Every list in the app is a cursor page ordered `created_at desc, id desc` (D-020), so a seeded
+ * row is the oldest row there is and sits on the last page, not the first. On a fresh deployment
+ * — which is what the smoke lane meets against production — the first page is also the last, the
+ * loop body never runs, and the assertion is exactly as strict as a bare `toBeVisible()`. On a
+ * database this suite has been writing to for an hour it is behind "Show more", and walking to it
+ * proves the list and its paging together rather than the page the test happened to land on.
+ *
+ * A missing seeded row still fails, and says which: the walk runs out of pages and reports the
+ * absent "Show more" link rather than passing quietly.
+ */
+export async function walkPagesTo(
+  page: Page,
+  target: Locator,
+  showMore: string,
+  heading: string,
+): Promise<void> {
+  // One more than MAX_LIMIT pages of MAX_LIMIT rows: past any list this suite can build, and a
+  // bound rather than a `while (true)` that a broken link would spin in.
+  for (let visited = 0; visited < 101 && !(await target.isVisible()); visited += 1) {
+    const more = page.getByRole('link', { name: showMore })
+    await expect(more).toBeVisible()
+    // The next page is a navigation carrying a new cursor. The walk waits for that cursor to
+    // change, because the old page keeps its heading and its link until the new one lands, and a
+    // second press on the same link only asks for the same page again.
+    const before = new URL(page.url()).searchParams.get('cursor')
+    await more.click()
+    await page.waitForURL((url) => url.searchParams.get('cursor') !== before)
+    await expect(page.getByRole('heading', { level: 1, name: heading })).toBeVisible()
+  }
+  await expect(target).toBeVisible()
 }
 
 // ---------------------------------------------------------------------------------------------

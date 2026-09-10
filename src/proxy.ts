@@ -25,6 +25,8 @@ const APP_PATHS = [
   '/settings',
   '/notifications',
   '/invitations',
+  '/records',
+  '/assignments',
 ] as const
 
 const isAppPath = (pathname: string): boolean =>

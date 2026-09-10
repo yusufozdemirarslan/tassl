@@ -164,11 +164,12 @@ export default async function JudgmentRecordPage({ params }: RecordPageProps) {
         )}
         <div className="flex flex-wrap items-center gap-2">
           {/* A document at an address, not a button: the browser's own save, open-in-new-tab and
-              copy-link all work, and the route ships no JavaScript for it. */}
+              copy-link all work, and the route ships no JavaScript for it. `download` carries the
+              name rather than leaving it to `content-disposition` (D-719). */}
           <a
             href={`/api/v1/runs/${view.runId}/record/export`}
             className={buttonVariants({})}
-            download
+            download={t('record.exportFileName', { runId: view.runId })}
           >
             {t('record.download')}
           </a>

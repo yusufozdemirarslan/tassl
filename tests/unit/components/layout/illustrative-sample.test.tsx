@@ -126,6 +126,7 @@ describe('ReviewQueue (UI-034, FR-186)', () => {
             studentName: 'Marco Bianchi',
             attemptNo: 1,
             state: 'scored',
+            underReview: false,
             decisionsMade: 0,
             latestExportVersion: null,
           },

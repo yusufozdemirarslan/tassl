@@ -162,6 +162,17 @@ describe('incident-notice', () => {
   })
 })
 
+describe('the notification footer', () => {
+  it('names email copies as an installation setting and promises no account switch', async () => {
+    // NOTIFY_EMAIL_COPIES is read by the notification service for the whole deployment; nothing
+    // under /settings turns copies off, so the footer must not send a reader there (D-015).
+    const html = await render(<Notification title="Title" body="Body" />)
+    expect(html).toContain(enUS['email.notification.footer'])
+    expect(enUS['email.notification.footer']).not.toMatch(/account settings/i)
+    expect(enUS['email.notification.footer']).toMatch(/installation/)
+  })
+})
+
 describe('every template', () => {
   it('is plain: no images, and carries the standing footer', async () => {
     const elements = [

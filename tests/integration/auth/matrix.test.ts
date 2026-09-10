@@ -223,53 +223,70 @@ const OPERATION_IDS = [
   'adminListUsers',
   'adminSetPlatformRole',
   'adminGetFlags',
+  // The runtime assistant switch (D-691): the same eight cells as the four above — a platform
+  // setting, and 08 §4 gives platform settings to the admin and to nobody else.
+  'adminSetAiMode',
   'adminListAuditLog',
+  // The Sentry test event (D-708): a platform operation, so the same eight cells as the rows above.
+  'adminSentryTest',
+  // The run's own lifecycle (Phases 6 to 9). These predate this registry and sat in
+  // `NOT_IN_THE_MATRIX` as named debt until the Phase-15 audit gave them cells. Every one is
+  // `requireRunOwner` first and the run's state second, so each is answered on `lifecycleRun` — the
+  // `student` seat's own run, in `assigned`, on a package that carries one document — where the
+  // owner meets the state rule (409) or a write that changes nothing, and every other seat is
+  // refused by the owner guard before the state is read. No row moves the run, and no row depends
+  // on another.
+  'getReadiness',
+  'answerReadinessItem',
+  'submitReadiness',
+  'skipReadiness',
+  'getRunWorkspace',
+  'openDocument',
+  'closeDocument',
+  'lockFrame',
+  'getTurn',
+  'respondToTurn',
+  'getDefense',
+  'answerDefenseQuestion',
+  'completeDefense',
+  // The trace is the one read of the run's record 08 §4 gives to the owner *and* the section's
+  // reviewers, like `listDelegations` and `getDebrief` above it (`trace.requireOwnerOrReviewer`).
+  'listRunTrace',
+  // The two test-only routes (D-109, D-707). Under this suite's `APP_ENV=test` both are live, and
+  // the cells are what they are then: the clock shift is the run's owner's, the rate-limit reset
+  // any session's. Outside a test process both answer 404 before a session is read, which no seat
+  // here can be shown.
+  'advanceRunClock',
+  'resetTestRateLimits',
+  // The actor's own notifications (SYS-010): every signed-in seat over their own rows and nobody
+  // else's, which `tests/integration/api/notifications.test.ts` proves with a classmate's id.
+  'listNotifications',
+  'unreadNotificationCount',
+  'markNotificationRead',
+  'markAllNotificationsRead',
+  // The two rows addressed by a second id — a version number, a delegation — which answer
+  // NOT_FOUND when it names nothing and so could not be given cells against `MISSING_UUID`. They are
+  // answered against real ones on `reviewedRun`: a filed course export, and a delegation.
+  'getRunExport',
+  'flagDelegation',
 ] as const
 
 // ---------------------------------------------------------------------------------------------
-// The gap, named (D-520)
+// The gap, named (D-520) and closed
 // ---------------------------------------------------------------------------------------------
 //
-// `OPERATION_IDS` above is hand-written, and until now nothing compared it with the endpoints that
-// actually exist: an operation added to a router and never added here was uncovered, silently, and
-// twenty-one of them were. So the list below names every registered operation that has **no row**,
-// with the reason, and `REGISTERED_OPERATION_IDS` is read out of the routers themselves — which
+// `OPERATION_IDS` above is hand-written, and until D-520 nothing compared it with the endpoints
+// that actually exist: an operation added to a router and never added here was uncovered,
+// silently, and twenty-one of them were. So this map names every registered operation that has
+// **no row**, with the reason, and `registeredOperationIds()` reads the routers themselves — which
 // makes the two lists together a closed statement about the whole API. A *new* endpoint cannot join
 // the gap without a line here saying so.
 //
-// It does not pretend the twenty-one are covered. Nineteen are the run's own lifecycle endpoints
-// from Phases 6 to 9, written before this registry existed and never given cells; they are recorded
-// as the debt they are. The two documented exclusions keep their original reason.
-const NOT_IN_THE_MATRIX: Readonly<Record<string, string>> = {
-  // Addressed by a second id — a version number, a delegation — and NOT_FOUND when it names
-  // nothing, which this file counts as a denial. Their seat rules are proven against real ids in
-  // `tests/integration/api/review.test.ts`.
-  getRunExport: 'a second id; proven in tests/integration/api/review.test.ts',
-  flagDelegation: 'a second id; proven in tests/integration/api/review.test.ts',
-  // No row yet. Each of these is a read or a mutation of the student's own live run, guarded by
-  // `requireRunOwner` and then by the run's state; they predate this registry. Naming them is not
-  // covering them — it is the difference between a gap and a gap nobody can see.
-  advanceRunClock: 'no row yet — the run’s own lifecycle (Phase 6)',
-  answerDefenseQuestion: 'no row yet — the run’s own lifecycle (Phase 9)',
-  answerReadinessItem: 'no row yet — the run’s own lifecycle (Phase 6)',
-  closeDocument: 'no row yet — the run’s own lifecycle (Phase 7)',
-  completeDefense: 'no row yet — the run’s own lifecycle (Phase 9)',
-  getDefense: 'no row yet — the run’s own lifecycle (Phase 9)',
-  getReadiness: 'no row yet — the run’s own lifecycle (Phase 6)',
-  getRunWorkspace: 'no row yet — the run’s own lifecycle (Phase 7)',
-  getTurn: 'no row yet — the run’s own lifecycle (Phase 8)',
-  listRunTrace: 'no row yet — the run’s own trace (Phase 6)',
-  lockFrame: 'no row yet — the run’s own lifecycle (Phase 8)',
-  openDocument: 'no row yet — the run’s own lifecycle (Phase 7)',
-  respondToTurn: 'no row yet — the run’s own lifecycle (Phase 8)',
-  skipReadiness: 'no row yet — the run’s own lifecycle (Phase 6)',
-  submitReadiness: 'no row yet — the run’s own lifecycle (Phase 6)',
-  // No row yet. The actor's own notifications, guarded by the session alone (SYS-010).
-  listNotifications: 'no row yet — the actor’s own notifications (Phase 3)',
-  markAllNotificationsRead: 'no row yet — the actor’s own notifications (Phase 3)',
-  markNotificationRead: 'no row yet — the actor’s own notifications (Phase 3)',
-  unreadNotificationCount: 'no row yet — the actor’s own notifications (Phase 3)',
-}
+// The twenty-one it named at D-520 — nineteen lifecycle and notification rows that predated this
+// registry, and the two second-id rows — all have cells now (the Phase-15 authorization audit), so
+// the map is empty and the test below pins it there: a new endpoint gets eight cells, and a line
+// here is no longer a way to ship one without them.
+const NOT_IN_THE_MATRIX: Readonly<Record<string, string>> = {}
 
 /**
  * `delegate` is registered by hand rather than by `defineRoute`: it answers `text/event-stream`, so
@@ -397,6 +414,32 @@ let authoredVersionId: string
 let authoredClaimId: string
 /** The element `regenerateElement`'s row is answered about; nothing else on this fixture reads it. */
 let authoredReadinessItemId: string
+
+/**
+ * The lifecycle rows' run: the `student` seat's own, in `assigned`, on a third assignment.
+ *
+ * A third one because `runs_assignment_id_student_id_live_uidx` allows one live run per student
+ * per assignment, and `ownRun` and the run `startRun`'s allowed row creates hold the other two. Its
+ * package carries the one element the rows look up before they read the run's state: a document,
+ * because `openDocument` answers NOT_FOUND for one that is not in the room — which this file would
+ * read as a denial of the owner. `lifecycleOpenId` is an open of that document, already closed, so
+ * `closeDocument`'s allowed row returns without writing and the fixture is left as it was found.
+ */
+let lifecycleRun: string
+let lifecycleDocumentId: string
+let lifecycleOpenId: string
+
+/**
+ * The run the two second-id rows are answered about: a runner's own, in `working`, carrying one
+ * delegation for `flagDelegation` and one filed course export for `getRunExport`. The `student`
+ * seat holds a section row and is not its owner — a classmate — which is the reader 08 §4 gives no
+ * read of it at all.
+ */
+let reviewedRun: string
+let reviewedDelegationId: string
+
+/** One unread notification per seat, so `markNotificationRead`'s row names the actor's own. */
+let notifications: Record<Seat, string>
 
 /**
  * The account `adminSetPlatformRole` is answered about (07 §9).
@@ -699,6 +742,109 @@ describe('authorization matrix (08 §4)', () => {
       })
     ).id
 
+    // The lifecycle package, built the way `minimalConfirmedVersion` builds one — the element first,
+    // then the status change, because the `package_frozen` triggers (drizzle/0004) refuse every
+    // element write once `confirmed_at` is set — and confirmed because `createAssignment` requires
+    // it.
+    const lifecycle = await f.createPackageVersion(orgA, 'matrix-lifecycle', {
+      createdBy: seats.instructor.id,
+    })
+    lifecycleDocumentId = (
+      await scenariosRepository.upsertElement(orgA, lifecycle.version.id, 'document', {
+        key: 'D1',
+        title: 'Cohort retention table',
+        author: 'Finance',
+        datedOn: '2026-01-15',
+        body: 'Premium retention for the pilot cohort held at 78 percent through month six.',
+        wordCount: 13,
+        role: 'supporting',
+        supersededByDocumentId: null,
+        stakeholderId: null,
+        position: 0,
+      })
+    ).id
+    await scenariosRepository.updateVersionStatus(orgA, lifecycle.version.id, {
+      status: 'confirmed',
+      confirmedAt: f.FROZEN_TIME,
+      confirmedBy: seats.instructor.id,
+      teachingNoteChecked: true,
+    })
+    const lifecycleAssignment = (
+      await f.createAssignment(orgA, section, 'matrix-lifecycle', {
+        packageVersionId: lifecycle.version.id,
+        variantId: lifecycle.sound.id,
+        isWalkthrough: true,
+      })
+    ).id
+    lifecycleRun = (
+      await runsRepository.insertRun(orgA, {
+        assignmentId: lifecycleAssignment,
+        studentId: seats.student.id,
+        packageVersionId: lifecycle.version.id,
+        variantId: lifecycle.sound.id,
+        state: 'assigned',
+        workingClockSeconds: 1500,
+        turnDelaySeconds: 90,
+      })
+    ).id
+    const openedAt = new Date()
+    lifecycleOpenId = (
+      await runsRepository.insertDocumentOpen(lifecycleRun, {
+        documentId: lifecycleDocumentId,
+        openedAt,
+        closedAt: openedAt,
+        durationMs: 0,
+        beforeFirstDelegation: true,
+        inTurnWindow: false,
+      })
+    ).id
+
+    // `reviewedRun`: the delegation is written the way a completed stream writes one, and the export
+    // the way a band confirmation files one (`records.writeCourseExport`), so what the allowed seats
+    // are handed is a document `CourseTraceExportSchema` accepts rather than a stand-in.
+    const reviewedRunner = await f.createUser('matrix-reviewed-runner')
+    await f.addMember(orgA, reviewedRunner.id, 'student')
+    await f.addSectionMember(orgA, section, reviewedRunner.id, 'student')
+    reviewedRun = (
+      await runsRepository.insertRun(orgA, {
+        assignmentId: walkthroughAssignment,
+        studentId: reviewedRunner.id,
+        packageVersionId,
+        variantId: soundVariantId,
+        state: 'working',
+        workingClockSeconds: 1500,
+        turnDelaySeconds: 90,
+      })
+    ).id
+    const assistantRepository = await import('@/server/modules/assistant/repository')
+    reviewedDelegationId = (
+      await assistantRepository.insertDelegation(reviewedRun, {
+        requestText: 'What is the premium payback?',
+      })
+    ).id
+    const { withTransaction } = await import('@/server/db/tx')
+    const records = await import('@/server/modules/records')
+    await withTransaction((tx) =>
+      records.writeCourseExport(
+        tx,
+        { id: reviewedRun, organizationId: orgA, assignmentId: walkthroughAssignment },
+        'initial',
+      ),
+    )
+
+    // One notification per seat, written straight to the table the way
+    // `tests/integration/api/notifications.test.ts` writes them: the writers are the jobs'.
+    const notificationsBuilt: Partial<Record<Seat, string>> = {}
+    for (const seat of SEATS) {
+      const [row] = await testSql<{ id: string }[]>`
+        insert into notifications (user_id, organization_id, type, title, body, link, payload)
+        values (${seats[seat].id}, ${activeOrgOf(seat)}, 'run_scored', 'Matrix notification',
+                'One row of the actor’s own, for the read mark.', '/notifications', '{}'::jsonb)
+        returning id`
+      notificationsBuilt[seat] = row!.id
+    }
+    notifications = notificationsBuilt as Record<Seat, string>
+
     const institutions = await import('@/app/api/v1/institutions/route')
     const institution = await import('@/app/api/v1/institutions/[orgId]/route')
     const settings = await import('@/app/api/v1/institutions/[orgId]/settings/route')
@@ -781,7 +927,36 @@ describe('authorization matrix (08 §4)', () => {
     const adminPlatformRoleRoute =
       await import('@/app/api/v1/admin/users/[userId]/platform-role/route')
     const adminFlagsRoute = await import('@/app/api/v1/admin/flags/route')
+    const adminAiModeRoute = await import('@/app/api/v1/admin/settings/ai-mode/route')
     const adminAuditLogRoute = await import('@/app/api/v1/admin/audit-log/route')
+    const adminSentryTestRoute = await import('@/app/api/v1/admin/sentry-test/route')
+    const readinessRoute = await import('@/app/api/v1/runs/[runId]/readiness/route')
+    const readinessAnswerRoute =
+      await import('@/app/api/v1/runs/[runId]/readiness/answers/[itemId]/route')
+    const readinessSubmitRoute = await import('@/app/api/v1/runs/[runId]/readiness/submit/route')
+    const readinessSkipRoute = await import('@/app/api/v1/runs/[runId]/readiness/skip/route')
+    const workspaceRoute = await import('@/app/api/v1/runs/[runId]/workspace/route')
+    const documentOpenRoute =
+      await import('@/app/api/v1/runs/[runId]/documents/[documentId]/open/route')
+    const documentCloseRoute =
+      await import('@/app/api/v1/runs/[runId]/document-opens/[openId]/close/route')
+    const frameRoute = await import('@/app/api/v1/runs/[runId]/frame/route')
+    const turnRoute = await import('@/app/api/v1/runs/[runId]/turn/route')
+    const turnResponseRoute = await import('@/app/api/v1/runs/[runId]/turn/response/route')
+    const defenseRoute = await import('@/app/api/v1/runs/[runId]/defense/route')
+    const defenseAnswerRoute =
+      await import('@/app/api/v1/runs/[runId]/defense/questions/[runQuestionId]/answer/route')
+    const defenseCompleteRoute = await import('@/app/api/v1/runs/[runId]/defense/complete/route')
+    const traceRoute = await import('@/app/api/v1/runs/[runId]/trace/route')
+    const advanceClockRoute = await import('@/app/api/v1/test/runs/[runId]/advance-clock/route')
+    const resetRateLimitsRoute = await import('@/app/api/v1/test/rate-limits/reset/route')
+    const notificationsRoute = await import('@/app/api/v1/notifications/route')
+    const unreadCountRoute = await import('@/app/api/v1/notifications/unread-count/route')
+    const notificationReadRoute = await import('@/app/api/v1/notifications/[id]/read/route')
+    const notificationsReadAllRoute = await import('@/app/api/v1/notifications/read-all/route')
+    const runExportVersionRoute = await import('@/app/api/v1/runs/[runId]/exports/[version]/route')
+    const flagDelegationRoute =
+      await import('@/app/api/v1/review/runs/[runId]/delegations/[delegationId]/flag/route')
 
     operations = {
       listInstitutions: {
@@ -1659,12 +1834,283 @@ describe('authorization matrix (08 §4)', () => {
         run: async (seat) =>
           call(adminFlagsRoute.GET, { path: '/admin/flags', session: await sessionFor(seat) }),
       },
+      adminSetAiMode: {
+        route: 'PUT /admin/settings/ai-mode',
+        // `live` is what no row means, so the allowed seat leaves the fixture exactly as it found
+        // it. Under this suite's `FEATURE_AI=false` the service answers `CONFLICT` — a 409, which
+        // this file reads as the endpoint having been reached, which is all a cell asks (D-691).
+        run: async (seat) =>
+          call(adminAiModeRoute.PUT, {
+            method: 'PUT',
+            path: '/admin/settings/ai-mode',
+            session: await sessionFor(seat),
+            body: { mode: 'live' },
+          }),
+      },
       adminListAuditLog: {
         route: 'GET /admin/audit-log',
         run: async (seat) =>
           call(adminAuditLogRoute.GET, {
             path: '/admin/audit-log',
             session: await sessionFor(seat),
+          }),
+      },
+      adminSentryTest: {
+        route: 'POST /admin/sentry-test',
+        // `requirePlatformRole(actor, 'admin')` first; under this suite no DSN is set, so the
+        // admin's event goes nowhere and the row proves the seat and nothing else.
+        run: async (seat) =>
+          call(adminSentryTestRoute.POST, {
+            method: 'POST',
+            path: '/admin/sentry-test',
+            session: await sessionFor(seat),
+          }),
+      },
+      // The run's own lifecycle, on `lifecycleRun` in `assigned` (07 §7, 08 §4 "every in-run
+      // capability"). The owner is the one seat admitted, and what admits them is answered before
+      // the state is: a 409 from the transition table is an allow, exactly as it is for
+      // `lockDecision` and `resumeRun` above.
+      getReadiness: {
+        route: 'GET /runs/{runId}/readiness',
+        // The check is not open on a run in `assigned` (`ILLEGAL_TRANSITION`).
+        run: async (seat) =>
+          call(readinessRoute.GET, {
+            path: `/runs/${lifecycleRun}/readiness`,
+            session: await sessionFor(seat),
+            params: { runId: lifecycleRun },
+          }),
+      },
+      answerReadinessItem: {
+        route: 'PUT /runs/{runId}/readiness/answers/{itemId}',
+        // The state is asked for before the item is looked up, so the id can name nothing, as
+        // `updateDelegation`'s does: the owner meets `CLOCK_EXPIRED` (409), never a missing item.
+        run: async (seat) =>
+          call(readinessAnswerRoute.PUT, {
+            method: 'PUT',
+            path: `/runs/${lifecycleRun}/readiness/answers/${MISSING_UUID}`,
+            session: await sessionFor(seat),
+            params: { runId: lifecycleRun, itemId: MISSING_UUID },
+            body: { answerKey: 'b' },
+          }),
+      },
+      submitReadiness: {
+        route: 'POST /runs/{runId}/readiness/submit',
+        run: async (seat) =>
+          call(readinessSubmitRoute.POST, {
+            method: 'POST',
+            path: `/runs/${lifecycleRun}/readiness/submit`,
+            session: await sessionFor(seat),
+            params: { runId: lifecycleRun },
+          }),
+      },
+      skipReadiness: {
+        route: 'POST /runs/{runId}/readiness/skip',
+        run: async (seat) =>
+          call(readinessSkipRoute.POST, {
+            method: 'POST',
+            path: `/runs/${lifecycleRun}/readiness/skip`,
+            session: await sessionFor(seat),
+            params: { runId: lifecycleRun },
+          }),
+      },
+      getRunWorkspace: {
+        route: 'GET /runs/{runId}/workspace',
+        run: async (seat) =>
+          call(workspaceRoute.GET, {
+            path: `/runs/${lifecycleRun}/workspace`,
+            session: await sessionFor(seat),
+            params: { runId: lifecycleRun },
+          }),
+      },
+      openDocument: {
+        route: 'POST /runs/{runId}/documents/{documentId}/open',
+        // A real document, because the room looks it up before it asks the run's state and a
+        // missing one is NOT_FOUND; the state then refuses the owner (`ILLEGAL_TRANSITION`) and no
+        // open is written.
+        run: async (seat) =>
+          call(documentOpenRoute.POST, {
+            method: 'POST',
+            path: `/runs/${lifecycleRun}/documents/${lifecycleDocumentId}/open`,
+            session: await sessionFor(seat),
+            params: { runId: lifecycleRun, documentId: lifecycleDocumentId },
+          }),
+      },
+      closeDocument: {
+        route: 'POST /runs/{runId}/document-opens/{openId}/close',
+        // The open is already closed, so the owner's call answers 204 and writes nothing.
+        run: async (seat) =>
+          call(documentCloseRoute.POST, {
+            method: 'POST',
+            path: `/runs/${lifecycleRun}/document-opens/${lifecycleOpenId}/close`,
+            session: await sessionFor(seat),
+            params: { runId: lifecycleRun, openId: lifecycleOpenId },
+          }),
+      },
+      lockFrame: {
+        route: 'POST /runs/{runId}/frame',
+        // A frame FR-040 accepts, so the owner gets past the rule and meets the transition table.
+        run: async (seat) =>
+          call(frameRoute.POST, {
+            method: 'POST',
+            path: `/runs/${lifecycleRun}/frame`,
+            session: await sessionFor(seat),
+            params: { runId: lifecycleRun },
+            body: {
+              decision: 'Whether to move acquisition spend to the premium tier this quarter',
+              assumptions: ['Retention holds', 'Payback stays near four months', 'Cost is stable'],
+              position: 'Hold the spend in the value tier until the payback is rechecked',
+              confidence: 40,
+            },
+          }),
+      },
+      getTurn: {
+        route: 'GET /runs/{runId}/turn',
+        // Nothing has been delivered: the owner meets `TURN_NOT_OPEN` (409).
+        run: async (seat) =>
+          call(turnRoute.GET, {
+            path: `/runs/${lifecycleRun}/turn`,
+            session: await sessionFor(seat),
+            params: { runId: lifecycleRun },
+          }),
+      },
+      respondToTurn: {
+        route: 'POST /runs/{runId}/turn/response',
+        run: async (seat) =>
+          call(turnResponseRoute.POST, {
+            method: 'POST',
+            path: `/runs/${lifecycleRun}/turn/response`,
+            session: await sessionFor(seat),
+            params: { runId: lifecycleRun },
+            body: {
+              response: 'hold',
+              justification: 'The figure the Turn names was already traced and does not move it.',
+              confidence: 45,
+            },
+          }),
+      },
+      getDefense: {
+        route: 'GET /runs/{runId}/defense',
+        // No decision is locked: the owner meets `DEFENSE_NOT_OPEN` (409).
+        run: async (seat) =>
+          call(defenseRoute.GET, {
+            path: `/runs/${lifecycleRun}/defense`,
+            session: await sessionFor(seat),
+            params: { runId: lifecycleRun },
+          }),
+      },
+      answerDefenseQuestion: {
+        route: 'POST /runs/{runId}/defense/questions/{runQuestionId}/answer',
+        // The state is asked for before the question is looked up, so the id names nothing.
+        run: async (seat) =>
+          call(defenseAnswerRoute.POST, {
+            method: 'POST',
+            path: `/runs/${lifecycleRun}/defense/questions/${MISSING_UUID}/answer`,
+            session: await sessionFor(seat),
+            params: { runId: lifecycleRun, runQuestionId: MISSING_UUID },
+            body: { text: 'From the cohort table, dated 15 July 2026.', durationMs: 1000 },
+          }),
+      },
+      completeDefense: {
+        route: 'POST /runs/{runId}/defense/complete',
+        run: async (seat) =>
+          call(defenseCompleteRoute.POST, {
+            method: 'POST',
+            path: `/runs/${lifecycleRun}/defense/complete`,
+            session: await sessionFor(seat),
+            params: { runId: lifecycleRun },
+          }),
+      },
+      listRunTrace: {
+        route: 'GET /runs/{runId}/trace',
+        // Stu, Rev (07 §7): `ownRun` is before the Decision Lock, which is the owner's `open` tier
+        // (`trace/owner-view.ts`), so the owner reads their own events and the section's reviewers
+        // read the record; the seats with no read of the run are NOT_FOUND.
+        run: async (seat) =>
+          call(traceRoute.GET, {
+            path: `/runs/${ownRun}/trace`,
+            session: await sessionFor(seat),
+            params: { runId: ownRun },
+          }),
+      },
+      advanceRunClock: {
+        route: 'POST /test/runs/{runId}/advance-clock',
+        // The owner's, like every other act on the run; a millisecond on a run in `assigned` fires
+        // no timer. Last of the lifecycle rows, so the shift cannot reach the rows above it.
+        run: async (seat) =>
+          call(advanceClockRoute.POST, {
+            method: 'POST',
+            path: `/test/runs/${lifecycleRun}/advance-clock`,
+            session: await sessionFor(seat),
+            params: { runId: lifecycleRun },
+            body: { ms: 1 },
+          }),
+      },
+      resetTestRateLimits: {
+        route: 'POST /test/rate-limits/reset',
+        // Any session: the route is closed by the environment, not by a seat (D-707).
+        run: async (seat) =>
+          call(resetRateLimitsRoute.POST, {
+            method: 'POST',
+            path: '/test/rate-limits/reset',
+            session: await sessionFor(seat),
+          }),
+      },
+      listNotifications: {
+        route: 'GET /notifications',
+        run: async (seat) =>
+          call(notificationsRoute.GET, { path: '/notifications', session: await sessionFor(seat) }),
+      },
+      unreadNotificationCount: {
+        route: 'GET /notifications/unread-count',
+        run: async (seat) =>
+          call(unreadCountRoute.GET, {
+            path: '/notifications/unread-count',
+            session: await sessionFor(seat),
+          }),
+      },
+      markNotificationRead: {
+        route: 'POST /notifications/{id}/read',
+        // The seat's own row: the endpoint answers NOT_FOUND for anybody else's id (SYS-010).
+        run: async (seat) =>
+          call(notificationReadRoute.POST, {
+            method: 'POST',
+            path: `/notifications/${notifications[seat]}/read`,
+            session: await sessionFor(seat),
+            params: { id: notifications[seat] },
+          }),
+      },
+      markAllNotificationsRead: {
+        route: 'POST /notifications/read-all',
+        run: async (seat) =>
+          call(notificationsReadAllRoute.POST, {
+            method: 'POST',
+            path: '/notifications/read-all',
+            session: await sessionFor(seat),
+          }),
+      },
+      getRunExport: {
+        route: 'GET /runs/{runId}/exports/{version}',
+        // 08 §4 "Download a filed course export": the section's reviewers, through
+        // `requireCourseExportReader` (D-483). The `student` seat is a classmate of the run's owner
+        // and is answered NOT_FOUND, the same as a stranger.
+        run: async (seat) =>
+          call(runExportVersionRoute.GET, {
+            path: `/runs/${reviewedRun}/exports/latest`,
+            session: await sessionFor(seat),
+            params: { runId: reviewedRun, version: 'latest' },
+          }),
+      },
+      flagDelegation: {
+        route: 'POST /review/runs/{runId}/delegations/{delegationId}/flag',
+        // Rev (07 §8, FR-055): `requireRunReviewer`. The flag is set once and kept, so the second
+        // admitted seat finds it already there and the row is answered without a write.
+        run: async (seat) =>
+          call(flagDelegationRoute.POST, {
+            method: 'POST',
+            path: `/review/runs/${reviewedRun}/delegations/${reviewedDelegationId}/flag`,
+            session: await sessionFor(seat),
+            params: { runId: reviewedRun, delegationId: reviewedDelegationId },
+            body: { flag: 'out_of_scenario' },
           }),
       },
     }
@@ -1749,12 +2195,11 @@ describe('authorization matrix (08 §4)', () => {
         'OPERATION_IDS and NOT_IN_THE_MATRIX may only name endpoints that exist',
       ).toEqual([])
 
-      // The gap is debt, not a design: it may shrink and it may not grow.
-      expect(Object.keys(NOT_IN_THE_MATRIX).length).toBeLessThanOrEqual(21)
+      // The gap was debt, not a design; it has been paid and it may not reopen.
       expect(
-        Object.values(NOT_IN_THE_MATRIX).every((reason) => reason.length > 0),
-        'every excused operation states why',
-      ).toBe(true)
+        Object.keys(NOT_IN_THE_MATRIX),
+        'every registered operation carries eight cells; nothing is excused',
+      ).toEqual([])
     })
   })
 

@@ -15,6 +15,10 @@ const BELL = String.fromCharCode(0x0007)
 const ZERO_WIDTH_SPACE = String.fromCharCode(0x200b)
 const BOM = String.fromCharCode(0xfeff)
 const RIGHT_TO_LEFT_OVERRIDE = String.fromCharCode(0x202e)
+const ZERO_WIDTH_JOINER = String.fromCharCode(0x200d)
+const THUMBS_UP = String.fromCodePoint(0x1f44d)
+/** A woman and a laptop, joined: the sequence an emoji picker inserts for one glyph. */
+const WOMAN_TECHNOLOGIST = `${String.fromCodePoint(0x1f469)}${ZERO_WIDTH_JOINER}${String.fromCodePoint(0x1f4bb)}`
 
 describe('countWords (D-075)', () => {
   it('counts nothing in an empty string', () => {
@@ -113,6 +117,29 @@ describe('stripMarkup (10 §5)', () => {
 
   it('leaves emphasis markers alone, since they cost no words and the author typed them', () => {
     expect(stripMarkup('**hold** the _value_ tier')).toBe('**hold** the _value_ tier')
+  })
+
+  it('keeps an emoji, and counts it as the word it stands in for', () => {
+    // Astral characters go through untouched — nothing here is code-unit-indexed — and the count
+    // is of whitespace-separated runs, so an emoji standing alone is one word and one written
+    // against a word is part of it.
+    expect(stripMarkup(`hold the premium tier ${THUMBS_UP}`)).toBe(
+      `hold the premium tier ${THUMBS_UP}`,
+    )
+    expect(countWords(`hold the premium tier ${THUMBS_UP}`)).toBe(5)
+    expect(countWords(`hold${THUMBS_UP} the tier`)).toBe(3)
+  })
+
+  it('splits a joined emoji into its parts, because the joiner is one of the invisible characters', () => {
+    // Stated rather than fixed. The zero-width joiner sits in the same range as the bidirectional
+    // overrides and the zero-width space, and removing those is what stops text being hidden
+    // inside a graded artifact (12 §4 row A03). The cost is that a two-part emoji is stored as its
+    // two parts: it still renders, as two glyphs rather than one, and no character the student can
+    // see is lost.
+    expect(stripMarkup(WOMAN_TECHNOLOGIST)).toBe(
+      `${String.fromCodePoint(0x1f469)}${String.fromCodePoint(0x1f4bb)}`,
+    )
+    expect(countWords(stripMarkup(WOMAN_TECHNOLOGIST))).toBe(1)
   })
 })
 

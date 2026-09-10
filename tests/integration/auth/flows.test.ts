@@ -166,16 +166,40 @@ describe('better auth flows (08 §2)', () => {
     expect(after.status).toBe(200)
   })
 
-  it('rate limits /sign-in/email after ten attempts in a minute', async () => {
-    await testSql`delete from rate_limit`
+  it(
+    'admits a section from one address — 120 sign-ins in a minute — and refuses the 121st (D-712)',
+    { timeout: 180_000 },
+    async () => {
+      await testSql`delete from rate_limit`
+      // The per-account lockout (D-704) has counted this file's earlier failed sign-ins for EMAIL;
+      // this test is about Better Auth's own per-address limiter, so the other window is emptied.
+      const { resetRateLimiter } = await import('@/server/rate-limit/index')
+      resetRateLimiter()
 
-    const statuses: number[] = []
-    for (let attempt = 0; attempt < 11; attempt += 1) {
-      const response = await POST(signInRequest({ email: EMAIL, password: 'Wrong-Password-2026' }))
-      statuses.push(response.status)
-    }
+      // Sixty seats, made through the server API (no HTTP, so no limiter) and verified by hand so
+      // they can sign in; each signs in twice, as a class does when a laptop lid closes.
+      const seats: string[] = []
+      for (let index = 1; index <= 60; index += 1) {
+        const email = `section-seat-${String(index).padStart(2, '0')}@example.test`
+        await auth.api.signUpEmail({
+          body: { name: `Section Seat ${index}`, email, password: PASSWORD },
+        })
+        seats.push(email)
+      }
+      await testSql`update "user" set email_verified = true where email like 'section-seat-%@example.test'`
 
-    expect(statuses.slice(0, 10).every((status) => status !== 429)).toBe(true)
-    expect(statuses[10]).toBe(429)
-  })
+      const statuses: number[] = []
+      for (let round = 0; round < 2; round += 1) {
+        for (const email of seats) {
+          statuses.push((await POST(signInRequest({ email, password: PASSWORD }))).status)
+        }
+      }
+      expect(statuses).toHaveLength(120)
+      expect(statuses.filter((status) => status !== 200)).toEqual([])
+
+      // The ceiling still exists: it is sized for a section, not removed.
+      const beyond = await POST(signInRequest({ email: seats[0]!, password: PASSWORD }))
+      expect(beyond.status).toBe(429)
+    },
+  )
 })

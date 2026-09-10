@@ -23,9 +23,20 @@ vi.hoisted(() => {
   process.env.LLM_FALLBACK_PROVIDER = 'anthropic'
 })
 
+// The runtime switch (D-691) is the one thing added to this path since the invariant was written,
+// and the invariant is that it is *not* on this path: with the flag off the registry never asks
+// for the row. The read is doubled so that a registry that did would fail here rather than cost
+// every mock delegation a query.
+const aiMode = vi.hoisted(() => ({ readAiMode: vi.fn(async () => 'live' as const) }))
+vi.mock('@/server/llm/ai-mode', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/server/llm/ai-mode')>()),
+  readAiMode: aiMode.readAiMode,
+}))
+
 const { getProvider, resetProviderRegistry } = await import('@/server/llm/registry')
 const { mockProvider } = await import('@/server/llm/providers/mock')
 const { effectiveLlmProvider, ServerEnvSchema } = await import('@/server/config')
+const { effectiveAssistantMode } = await import('@/server/llm/ai-mode')
 
 const request = () => ({
   feature: 'assistant' as const,
@@ -98,6 +109,14 @@ describe('FEATURE_AI=false changes nothing', () => {
     resetProviderRegistry()
     // A different instance after a reset, and still the mock.
     expect(getProvider().name).toBe('mock')
+  })
+
+  it('never reads the ai_mode row: the environment’s answer is unconditional (D-691)', async () => {
+    await getProvider().complete(request())
+    for await (const _chunk of getProvider().stream(request())) void _chunk
+    expect(aiMode.readAiMode).not.toHaveBeenCalled()
+    // And the effect is what the flag says, with nothing asked of the database on the way.
+    expect(await effectiveAssistantMode()).toBe('scripted')
   })
 })
 

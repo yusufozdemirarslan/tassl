@@ -1,0 +1,42 @@
+{
+  "ignorePatterns": [
+    ".claude",
+    ".next",
+    "coverage",
+    "playwright-report",
+    "test-results",
+    "drizzle"
+  ],
+  "ignores": [
+    "@types/*",
+    "eslint-config-next",
+    "eslint-config-prettier",
+    "eslint-plugin-boundaries",
+    "prettier-plugin-tailwindcss",
+    "@commitlint/cli",
+    "@commitlint/config-conventional",
+    "husky",
+    "lint-staged",
+    "tw-animate-css",
+    "postcss",
+    "@tailwindcss/postcss",
+    "tailwindcss",
+    "@lhci/cli",
+    "react-email",
+    "server-only",
+    "@vitest/coverage-v8",
+    "@vitejs/plugin-react",
+    "vite",
+    "vite-tsconfig-paths",
+    "jsdom",
+    "pino-pretty",
+    "msw",
+    "tsx",
+    "@testing-library/jest-dom",
+    "@testing-library/user-event",
+    "drizzle-kit",
+    "typescript",
+    "shadcn"
+  ],
+  "skip-missing": true
+}

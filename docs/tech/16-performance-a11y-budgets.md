@@ -24,7 +24,7 @@
 | B14 | axe violations | zero at any impact (D-644), tags through WCAG 2.2 AA | every UI-### screen | `@axe-core/playwright` 4.13.0 | `e2e` job, `tests/e2e/a11y/*` | yes |
 | B15 | Keyboard-only run | full run start to debrief without pointer events | student path | `tests/e2e/a11y/keyboard-only-run.spec.ts` | `e2e` job | yes |
 | B16 | Contrast | text ≥ 4.5:1, UI components ≥ 3:1 | D-025 palette | `tests/unit/design/contrast.test.ts` | `unit` job | yes |
-| B17 | Concurrency | 60 students, p95 within B8/B9 | one section | k6 `scripts/load/run-loop.js` | Phase 15 release step | release gate |
+| B17 | Concurrency | 60 students, p95 within B8/B9 | one section | k6 `tests/load/core-flow.js` | Phase 15 release step | release gate |
 
 Vercel Speed Insights is not used: no `@vercel/speed-insights` dependency, no `<SpeedInsights />` component. Field Web Vitals come from Sentry (`@sentry/nextjs` 10.73.0 `browserTracingIntegration`, which reports LCP, CLS, and INP on pageload transactions) and lab values from Lighthouse CI.
 
@@ -503,7 +503,7 @@ The `integration` job appends the table to `$GITHUB_STEP_SUMMARY` and uploads th
 
 **Structured logs.** Every request log line carries `durationMs` (`02-architecture.md` §5), so Vercel log search (`durationMs>400 route_group=read`) works without Sentry.
 
-**Load test (NFR-014).** `scripts/load/run-loop.js` (k6, D-102) drives 60 virtual students through readiness, framing, delegation on mock, stances, lock, Turn, and defense against a preview deployment seeded for the test, with thresholds `http_req_duration{group:read}: p(95)<400` and `http_req_duration{group:write}: p(95)<800`; run once in Phase 15 and recorded in the release notes.
+**Load test (NFR-014).** `tests/load/core-flow.js` (k6, D-102, D-711) drives 60 virtual students, arriving over seven minutes and staying ten, through sign-in, the assignment list, run start, the policy acknowledgement, the Readiness Check, a document open, the frame lock and the run reads against a preview deployment whose accounts `pnpm demo:reset --load-users=60` made, with thresholds `http_req_duration{kind:read}: p(95)<400`, `http_req_duration{kind:write}: p(95)<800` and `http_req_failed: rate<0.01`; run in Phase 15 and recorded in `docs/qa/QA-REPORT.md` C8.
 
 ## 5. Database query rules
 
@@ -1058,7 +1058,7 @@ flowchart LR
 | Web vitals on authenticated pages | `e2e` | same | `tests/e2e/perf/web-vitals.spec.ts` → `test-results/web-vitals.json` | informational only |
 | B1, B2 (lab proxy), B3, B5, B6, B7 | `lhci` | `pnpm lhci` | `lighthouserc.json` | PR blocked (`lhci`); report link printed by `temporary-public-storage`; `.lighthouseci/` uploaded as artifact `lhci-report` |
 | B8, B9, B10, B11 in production | Sentry alerts | | §4.2 | on-call notification (`13-observability-ops.md` runbook) |
-| B17 | Phase 15 step | `k6 run scripts/load/run-loop.js` | thresholds in the script | release blocked until thresholds pass |
+| B17 | Phase 15 step | `pnpm test:load` (`tests/load/core-flow.js`) | thresholds in the script | release blocked until thresholds pass |
 
 the ten `checks / <job>` contexts (`checks / lint` … `checks / security`) are the required status checks on `main` (`04-repo-structure.md` §6, D-113), so any red row above blocks the merge; there is no override label.
 

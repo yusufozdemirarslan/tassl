@@ -1,7 +1,6 @@
 'use client'
 
 import { useId, useState } from 'react'
-import { useRouter } from 'next/navigation'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useForm } from 'react-hook-form'
 import { maxLength, minLength, object, string, trim, type output } from 'zod/mini'
@@ -13,6 +12,7 @@ import { Field, FieldError, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
 import { t } from '@/lib/i18n/messages/courses'
 import { createSectionAction } from '@/server/modules/courses/actions'
+import { useRefresh } from '@/lib/hooks/use-refresh'
 
 // UI-030 → Sections → "New section", the half that only exists while the dialog is open.
 // `SectionsList` holds the table and the trigger; this module holds the one field and the footer,
@@ -41,7 +41,7 @@ export function SectionFormBody({
   courseId: string
   onCreated: () => void
 }) {
-  const router = useRouter()
+  const refresh = useRefresh()
   const fieldId = useId()
   const [formError, setFormError] = useState<string | null>(null)
 
@@ -65,7 +65,7 @@ export function SectionFormBody({
     }
     onCreated()
     toast.success(t('courses.sectionCreated', { name: result.data.name }))
-    router.refresh()
+    refresh()
   }
 
   return (

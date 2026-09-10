@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { LogOut, Settings } from 'lucide-react'
+import { FileText, LogOut, Settings, ShieldCheck } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -59,6 +59,18 @@ export function AccountMenuPopup({
             <Settings aria-hidden="true" className="size-4" />
             {t('shell.settings')}
           </DropdownMenuItem>
+          {/* The two legal pages (UI-006). The signed-out screens carry them in a footer; inside
+              the shell the account menu is where a person already looks for what concerns their
+              account, and a menu item is reached from the keyboard like every other row here. */}
+          <DropdownMenuItem render={<Link href="/privacy" />}>
+            <ShieldCheck aria-hidden="true" className="size-4" />
+            {t('shell.privacy')}
+          </DropdownMenuItem>
+          <DropdownMenuItem render={<Link href="/terms" />}>
+            <FileText aria-hidden="true" className="size-4" />
+            {t('shell.terms')}
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
           <DropdownMenuItem
             disabled={signOutPending}
             onClick={() => {

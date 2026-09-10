@@ -15,7 +15,9 @@ import { requirePlatformRole } from '@/server/auth/permissions'
 import type { SessionUser } from '@/server/auth/types'
 import { effectiveLlmProvider, env } from '@/server/config'
 import { getRequestContext } from '@/server/http/request-context'
+import { AI_MODE_KEY, effectiveAssistantMode, readAiMode, writeAiMode } from '@/server/llm/ai-mode'
 import { budgetLimits, startOfUtcDay, startOfUtcMonth } from '@/server/llm/guardrails/budgets'
+import { captureOpsTestEvent } from '@/server/logging/ops-events'
 import {
   deleteSessionsOfUser,
   findUserById,
@@ -41,10 +43,18 @@ import {
   type ListAuditLogInput,
   type ListUsersInput,
   type PlatformRole,
+  type SetAiModeInput,
+  type SentryTestResult,
   type SetPlatformRoleInput,
 } from './schema'
 
 export type { AuditAction, AuditLog, AuditLogMetadata } from './repository'
+
+// The one read of the runtime switch's *effect* that lives outside `src/server/llm`: the workspace
+// pages and `/api/ready` reach it through this module's index, because the `boundaries` policy lets
+// a service import `llm` and lets `app` and `server-lib` import a module's public index, and
+// nothing else joins those two (D-691).
+export { effectiveAssistantMode } from '@/server/llm/ai-mode'
 
 /** The request id stamped on rows written outside a request or a job (scripts, seeds). */
 const NO_REQUEST_ID = 'system'
@@ -161,22 +171,63 @@ export async function listInstitutions(actor: SessionUser): Promise<InstitutionR
  * one place in the product where an operator can see budget consumption without PostHog: 13 §6.3's
  * panels need a key, and Tassl must be fully usable without one (D-098).
  *
- * Asynchronous from here on, which is what a screen paid for reading them: the flags themselves are
- * still pure environment.
+ * The flags themselves are still pure environment. The two mode fields are not: `aiMode` is the
+ * `ai_mode` row as it stands (D-691) and `assistantMode` is what the environment and that row
+ * together make of the assistant — the one answer the screen, `/api/ready` and the assistant
+ * panel's chip all print.
  */
 export async function getFlags(actor: SessionUser): Promise<AdminFlags> {
   requirePlatformRole(actor, 'admin')
   const now = new Date()
-  const usage = await readLlmUsage(startOfUtcMonth(now), startOfUtcDay(now))
+  const [usage, aiMode, assistantMode] = await Promise.all([
+    readLlmUsage(startOfUtcMonth(now), startOfUtcDay(now)),
+    readAiMode(),
+    effectiveAssistantMode(),
+  ])
   const limits = budgetLimits()
   return {
     ...flagsFromEnv(env),
     effectiveLlmProvider: effectiveLlmProvider(),
+    aiMode,
+    assistantMode,
     llmUsage: {
       ...usage,
       budgets: { userDaily: limits.userDaily, globalMonthly: limits.globalMonthly },
     },
   }
+}
+
+/**
+ * Throws the runtime assistant switch (11 §6, D-691): the `ai_mode` row and the `ai_mode.set`
+ * audit row, in one transaction, and the flags as they now stand.
+ *
+ * Refused with `CONFLICT` while `FEATURE_AI=false`. The environment has already forced the
+ * scripted assistant and nothing this row says can change that, so a write would record a choice
+ * the deployment cannot honour — an admin reading the audit log later would find a switch to
+ * `live` that never made anything live. The screen says the same thing beside a disabled control;
+ * this is the enforcement behind it.
+ *
+ * `from` is read before the transaction opens. The row is a single key an admin writes by hand a
+ * few times a year; two admins racing on it would produce two audit rows whose `from` disagree by
+ * one write, which is a smaller wrong than holding a lock on the path every model call reads.
+ */
+export async function setAiMode(actor: SessionUser, input: SetAiModeInput): Promise<AdminFlags> {
+  requirePlatformRole(actor, 'admin')
+  if (!flagsFromEnv(env).ai) throw new AppError('CONFLICT', t('admin.flags.assistantModeEnvForced'))
+
+  const before = await readAiMode()
+  await withTransaction(async (tx) => {
+    await writeAiMode(input.mode, actor.id, tx)
+    await audit(tx, {
+      actorId: actor.id,
+      orgId: null,
+      action: 'ai_mode.set',
+      targetType: 'app_setting',
+      targetId: AI_MODE_KEY,
+      metadata: { from: before, to: input.mode },
+    })
+  })
+  return getFlags(actor)
 }
 
 /**
@@ -222,4 +273,20 @@ export async function setPlatformRole(
     })
     return toAdminUser(after)
   })
+}
+
+/**
+ * Sends one test event to Sentry from inside the deployment (13 §4 row 7, D-708): the launch
+ * checklist's proof that events leave production, made a control an admin presses rather than a
+ * script an operator runs with the DSN in hand. Platform admin only; the event carries no
+ * personal data — a fixed message, the `ops` tag and the environment.
+ */
+export async function sendSentryTestEvent(actor: SessionUser): Promise<SentryTestResult> {
+  requirePlatformRole(actor, 'admin')
+  const eventId = captureOpsTestEvent()
+  return {
+    eventId,
+    environment: env.APP_ENV,
+    dsnConfigured: env.NEXT_PUBLIC_SENTRY_DSN.length > 0,
+  }
 }

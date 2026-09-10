@@ -673,24 +673,36 @@ test('FR-210: a whole run, from the runs list to the debrief answers, with the p
       const group = turnCard.getByRole('radiogroup', {
         name: `Your stance on claim ${claim.key}`,
       })
-      await tabTo(page, group.getByRole('radio').first(), `the stance group on ${claim.key}`)
-      await page.keyboard.press('Space')
-      // One write at a time, as above: the arrow that follows records nothing until this one lands.
-      await expect(page.locator('#run-announcer')).toHaveText(
-        `Stance on claim ${claim.key}: Accept.`,
-        { timeout: SLOW_MS },
-      )
-      await arrowTo(
-        page,
-        group.getByRole('radio', { name: 'Verify' }),
-        'ArrowDown',
-        `Verify on ${claim.key}`,
-      )
-      await expect(group.getByRole('radio', { name: 'Verify' })).toHaveAttribute(
-        'aria-checked',
-        'true',
-        { timeout: SLOW_MS },
-      )
+      // The group is a roving-tabindex radio group: one chip is in the tab order, and which one
+      // depends on the stance the claim already carries. A claim raised into the window keeps the
+      // stance it took during the working period (D-705), so the tabbable chip is that stance —
+      // Escalate, for the claim this spec escalated — not the first chip. Tab reaches whichever chip
+      // is tabbable; the arrows do the choosing.
+      const tabbable = group.locator('[role="radio"][tabindex="0"]')
+      await tabTo(page, tabbable, `the stance group on ${claim.key}`)
+      if ((await group.getByRole('radio', { checked: true }).count()) === 0) {
+        await page.keyboard.press('Space')
+        // One write at a time, as above: the arrow that follows records nothing until this one lands.
+        await expect(page.locator('#run-announcer')).toHaveText(
+          `Stance on claim ${claim.key}: Accept.`,
+          { timeout: SLOW_MS },
+        )
+      }
+      // Each arrow press is one write — the group records the chip it lands on — and a press while
+      // that write is in flight moves the focus without recording (one write at a time, as above).
+      // From Escalate, Verify is two presses away, so each press waits for its own announcement
+      // before the next; the loop is bounded by the number of chips.
+      const verify = group.getByRole('radio', { name: 'Verify' })
+      for (let press = 0; press < 5; press += 1) {
+        if ((await verify.getAttribute('aria-checked')) === 'true') break
+        await page.keyboard.press('ArrowDown')
+        const landed = await page.evaluate(() => document.activeElement?.textContent?.trim() ?? '')
+        await expect(page.locator('#run-announcer')).toHaveText(
+          `Stance on claim ${claim.key}: ${landed}.`,
+          { timeout: SLOW_MS },
+        )
+      }
+      await expect(verify).toHaveAttribute('aria-checked', 'true', { timeout: SLOW_MS })
     }
 
     const form = page.locator('#turn-response')

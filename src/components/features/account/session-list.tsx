@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { authClient } from '@/lib/auth-client'
 import { formatDateTime } from '@/lib/format/date-time'
+import { describeUserAgent, type DeviceDescription } from '@/lib/format/user-agent'
 import { auth } from '@/lib/i18n/messages/auth'
 import { settings } from '@/lib/i18n/messages/settings'
 import { ui } from '@/lib/i18n/messages/ui'
@@ -47,6 +48,16 @@ function toRow(session: Record<string, unknown>): SessionRow {
     ipAddress: typeof session.ipAddress === 'string' ? session.ipAddress : null,
     createdAt: toIso(session.createdAt),
   }
+}
+
+/**
+ * "Chrome on Windows", or whichever half the User-Agent gave up; null when it named neither, so
+ * the row can say "Unknown device" rather than print the raw header. The raw string stays on the
+ * row's title for the person who knows what to make of it.
+ */
+function deviceName({ browser, os }: DeviceDescription): string | null {
+  if (browser !== null && os !== null) return t('settings.security.deviceName', { browser, os })
+  return browser ?? os
 }
 
 /** Reads both calls and returns the whole state; it touches no React state itself. */
@@ -125,7 +136,8 @@ export function SessionList() {
       <ul className="flex flex-col">
         {state.rows.map((row) => {
           const current = row.token === state.currentToken
-          const device = row.userAgent ?? t('settings.security.unknownDevice')
+          const device =
+            deviceName(describeUserAgent(row.userAgent)) ?? t('settings.security.unknownDevice')
           const signedIn = t('settings.security.signedIn', {
             value: formatDateTime(row.createdAt),
           })
@@ -140,7 +152,12 @@ export function SessionList() {
                   className="text-ink-faint mt-0.5 size-4 shrink-0"
                 />
                 <div className="min-w-0">
-                  <p className="text-ink text-body [overflow-wrap:anywhere]">{device}</p>
+                  <p
+                    className="text-ink text-body [overflow-wrap:anywhere]"
+                    {...(row.userAgent === null ? {} : { title: row.userAgent })}
+                  >
+                    {device}
+                  </p>
                   <p className="text-ink-muted text-meta [overflow-wrap:anywhere]">
                     {row.ipAddress === null ? signedIn : `${row.ipAddress} · ${signedIn}`}
                   </p>

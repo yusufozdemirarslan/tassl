@@ -44,6 +44,7 @@ export {
   getRunWorkspace,
   getTurn,
   listMyRuns,
+  listMyRunsForAssignments,
   lockDecision,
   lockFrame,
   lockRunForMutation,

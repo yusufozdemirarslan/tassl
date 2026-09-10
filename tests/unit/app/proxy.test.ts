@@ -28,6 +28,28 @@ describe('proxy', () => {
     expect(location.searchParams.get('next')).toBe('/courses/abc/sections/def/roster?tab=people')
   })
 
+  it('covers every signed-in area, the two it once left to the layout included (D-710)', () => {
+    for (const path of [
+      '/home',
+      '/runs/abc',
+      '/courses',
+      '/review',
+      '/packages',
+      '/admin/flags',
+      '/settings/security',
+      '/notifications',
+      '/invitations/abc',
+      '/records/abc',
+      '/assignments/abc/exports',
+    ]) {
+      const response = proxy(request(path))
+      expect([path, response.status]).toEqual([path, 307])
+      const location = new URL(response.headers.get('location') ?? '', 'http://localhost:3000')
+      expect([path, location.pathname]).toEqual([path, '/sign-in'])
+      expect(location.searchParams.get('next')).toBe(path)
+    }
+  })
+
   it('lets a public path through untouched', () => {
     const response = proxy(request('/sign-in'))
     expect(response.headers.get('location')).toBeNull()

@@ -62,10 +62,10 @@ export const auth = betterAuth({
     enabled: true,
     storage: 'database',
     window: 60,
-    max: 60,
+    max: 600, // per address; a section arrives from one campus address (D-712)
     customRules: {
-      '/sign-in/email': { window: 60, max: 10 },
-      '/sign-up/email': { window: 60, max: 10 },
+      '/sign-in/email': { window: 60, max: 120 },
+      '/sign-up/email': { window: 60, max: 60 },
       '/request-password-reset': { window: 60, max: 10 },
       '/send-verification-email': { window: 60, max: 10 },
     },
@@ -103,6 +103,10 @@ export const authClient = createAuthClient({ plugins: [organizationClient({ ac, 
 (The statement and roles live in `src/lib/auth/access-control.ts` so the browser client can import them without `src/lib` reaching into `src/server`; `src/server/auth/access-control-shared.ts` re-exports them for server code, D-170.)
 
 Schema generation: `npx auth@1.7.2 generate --adapter drizzle --dialect pg --config src/server/auth/auth.ts --output src/server/db/schema/auth.ts -y`, then `pnpm db:generate`.
+
+**Failed sign-ins per account (D-704).** Better Auth's limiter counts sign-ins per client address (120 a minute, sized for a section behind one campus address, D-712); a `before` hook on `/sign-in/email` also refuses the eleventh attempt in a minute for one email address after ten failures, from any address, with 429 and a retry-after, and an `after` hook records each failure. Successful sign-ins are never counted.
+
+**Demo mode (D-692).** With `DEMO_MODE=true` the options are built by `authOptionsFor(env)` with `requireEmailVerification: false`, `autoSignIn: true` and `sendOnSignUp: false`, and the `before` hook on user creation marks the account verified; the sign-up form then lands on `/home`. The email transport is `console` in that mode whatever `EMAIL_TRANSPORT` says. Every other option is identical in both modes, which `tests/unit/auth/auth-options.test.ts` asserts.
 
 ## 2. Flows
 

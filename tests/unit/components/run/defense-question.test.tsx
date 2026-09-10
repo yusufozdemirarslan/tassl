@@ -25,7 +25,7 @@ const actions = vi.hoisted(() => ({
   answerDefenseQuestionAction: vi.fn(),
   completeDefenseAction: vi.fn(),
 }))
-const router = vi.hoisted(() => ({ refresh: vi.fn() }))
+const router = vi.hoisted(() => ({ refresh: vi.fn(), replace: vi.fn() }))
 
 // The real modules drag the defense service and the database into jsdom.
 vi.mock('@/server/modules/defense/actions', () => ({
@@ -68,6 +68,7 @@ beforeEach(() => {
   actions.answerDefenseQuestionAction.mockReset()
   actions.completeDefenseAction.mockReset()
   router.refresh.mockReset()
+  router.replace.mockReset()
   sessionStorage.clear()
 })
 
@@ -365,7 +366,10 @@ describe('DefenseInterview', () => {
       ok: true,
       data: { next: null, followUpQuestion: null },
     })
-    actions.completeDefenseAction.mockResolvedValue({ ok: true, data: { id: RUN_ID } })
+    actions.completeDefenseAction.mockResolvedValue({
+      ok: true,
+      data: { id: RUN_ID, links: { next: `/runs/${RUN_ID}` } },
+    })
     render(<DefenseInterview runId={RUN_ID} questions={QUESTIONS} />)
 
     await user.click(screen.getByRole('button', { name: enUS['defense.finish'] }))
@@ -403,7 +407,10 @@ describe('DefenseInterview', () => {
           : { ok: true, data: { next: null, followUpQuestion: null } },
       ),
     )
-    actions.completeDefenseAction.mockResolvedValue({ ok: true, data: { id: RUN_ID } })
+    actions.completeDefenseAction.mockResolvedValue({
+      ok: true,
+      data: { id: RUN_ID, links: { next: `/runs/${RUN_ID}` } },
+    })
     render(<DefenseInterview runId={RUN_ID} questions={QUESTIONS} />)
 
     await user.click(screen.getByRole('button', { name: enUS['defense.finish'] }))
@@ -419,7 +426,34 @@ describe('DefenseInterview', () => {
     expect(actions.answerDefenseQuestionAction).toHaveBeenCalledTimes(2)
     // Nothing under the scrim claims the answer failed: the run holds one.
     expect(screen.queryByText(enUS['defense.finishFailed'])).not.toBeInTheDocument()
+    // And the route is re-read, which is what sends the student on and what re-renders the band
+    // above with the state the completion left behind (D-720). A client navigation would move the
+    // page without moving the layout the band lives in.
     expect(router.refresh).toHaveBeenCalled()
+    expect(router.replace).not.toHaveBeenCalled()
+  })
+
+  it('re-reads the route when the run has moved on without this tab (D-729)', async () => {
+    // The defense was finished in another tab. This one still shows the interview, so the press
+    // meets DEFENSE_NOT_OPEN — not QUESTION_ALREADY_ANSWERED, so nothing here is "stale" — and the
+    // refusal alone would leave the student under the dialog with the band's poll switched off.
+    const user = userEvent.setup()
+    actions.answerDefenseQuestionAction.mockResolvedValue({
+      ok: false,
+      error: { code: 'DEFENSE_NOT_OPEN', message: 'This defense is not open.', requestId: 'req-2' },
+    })
+    render(<DefenseInterview runId={RUN_ID} questions={QUESTIONS} />)
+
+    await user.click(screen.getByRole('button', { name: enUS['defense.finish'] }))
+    const dialog = await screen.findByRole('alertdialog')
+    await user.click(
+      within(dialog).getByRole('button', { name: enUS['defense.finishConfirmAction'] }),
+    )
+
+    await waitFor(() => {
+      expect(router.refresh).toHaveBeenCalled()
+    })
+    expect(actions.completeDefenseAction).not.toHaveBeenCalled()
   })
 
   it('re-reads the interview when the finish is stopped by something else after a stale question', async () => {

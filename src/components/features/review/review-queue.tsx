@@ -46,6 +46,8 @@ export type ReviewQueueRunRow = {
   studentName: string
   attemptNo: number
   state: RunStateValue
+  /** `scoring_status = 'held'`: the chip says so here as it does on the assignment page (FR-140). */
+  underReview: boolean
   decisionsMade: number
   latestExportVersion: number | null
 }
@@ -95,7 +97,7 @@ export function ReviewQueue({ illustrative, runs }: ReviewQueueProps) {
                     <TableCell className="whitespace-normal">{run.studentName}</TableCell>
                     <TableCell className="font-mono tabular-nums">{run.attemptNo}</TableCell>
                     <TableCell>
-                      <RunStateChip state={run.state} />
+                      <RunStateChip state={run.state} underReview={run.underReview} />
                     </TableCell>
                     <TableCell className="font-mono tabular-nums">
                       {t('review.queueDecisions', { made: run.decisionsMade })}

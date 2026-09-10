@@ -1,7 +1,6 @@
 'use client'
 
 import { useId, useState, useTransition } from 'react'
-import { useRouter } from 'next/navigation'
 import { FormAlert } from '@/components/features/account/form-feedback'
 import {
   AlertDialog,
@@ -21,6 +20,7 @@ import { t as bandT } from '@/lib/i18n/messages/band'
 import { t } from '@/lib/i18n/messages/review'
 import { toastSuccess } from '@/lib/toast'
 import { confirmRemainingAction, decideBandAction } from '@/server/modules/review/actions'
+import { useRefresh } from '@/lib/hooks/use-refresh'
 
 // UI-033 → `BandDecisionControl` (FR-181, FR-182): the one act this screen exists for.
 //
@@ -133,7 +133,7 @@ export function BandDecisionControl({
   canDecide,
   willReexport,
 }: BandDecisionControlProps) {
-  const router = useRouter()
+  const refresh = useRefresh()
   const fieldId = useId()
   const [pending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
@@ -166,7 +166,7 @@ export function BandDecisionControl({
         return
       }
       toastSuccess(t('review.decisionSaved'))
-      router.refresh()
+      refresh()
     })
   }
 
@@ -314,7 +314,7 @@ export function ConfirmRemaining({
   pending: open,
   willExportVersion,
 }: ConfirmRemainingProps) {
-  const router = useRouter()
+  const refresh = useRefresh()
   const [asking, setAsking] = useState(false)
   const [saving, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
@@ -390,7 +390,7 @@ export function ConfirmRemaining({
                   }
                   toastSuccess(t('review.confirmRemainingDone'))
                   setAsking(false)
-                  router.refresh()
+                  refresh()
                   // The control that was pressed is gone once nothing is left to decide, so the
                   // control focus would be returned to is gone with it. The page title is where the
                   // shell already sends focus on a route change.

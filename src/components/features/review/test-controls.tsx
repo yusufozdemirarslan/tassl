@@ -1,13 +1,13 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { useRouter } from 'next/navigation'
 import { TriangleAlertIcon } from 'lucide-react'
 import { FormAlert } from '@/components/features/account/form-feedback'
 import { Button } from '@/components/ui/button'
 import { t } from '@/lib/i18n/messages/review'
 import { toastSuccess } from '@/lib/toast'
 import { forceAssistantFailureAction } from '@/server/modules/review/actions'
+import { useRefresh } from '@/lib/hooks/use-refresh'
 
 // UI-033 → `TestControls` (FR-118), shown only when `capabilities.canForceFailure`.
 //
@@ -41,7 +41,7 @@ export type TestControlsProps = {
 }
 
 export function TestControls({ runId, runState, alreadyArmed }: TestControlsProps) {
-  const router = useRouter()
+  const refresh = useRefresh()
   const [pending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
   const armable = ARMABLE_STATES.includes(runState)
@@ -84,7 +84,7 @@ export function TestControls({ runId, runState, alreadyArmed }: TestControlsProp
                   return
                 }
                 toastSuccess(t('review.testForceDone'))
-                router.refresh()
+                refresh()
               })
             }}
           >

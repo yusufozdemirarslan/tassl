@@ -119,8 +119,20 @@ function parseWith<T>(schema: ZodType<T> | undefined, value: unknown, where: str
   return parsed.data
 }
 
+/**
+ * The largest body a route handler reads (docs/prompts/02-qa-and-guides.md C7). Vercel refuses
+ * anything over 4.5 MB before the function runs, with a platform page rather than the envelope; this
+ * cap is the envelope's own, well under it, and far above the largest documented body (a package
+ * export is under 200 KB). Declared and actual sizes are both checked, so a request that lies about
+ * its length is refused when the bytes arrive.
+ */
+export const MAX_JSON_BODY_BYTES = 1_048_576
+
 async function readJsonBody(request: Request): Promise<unknown> {
+  const declared = Number(request.headers.get('content-length') ?? '0')
+  if (declared > MAX_JSON_BODY_BYTES) throw new AppError('PAYLOAD_TOO_LARGE')
   const text = await request.text()
+  if (Buffer.byteLength(text, 'utf8') > MAX_JSON_BODY_BYTES) throw new AppError('PAYLOAD_TOO_LARGE')
   if (text.trim() === '') return undefined
   try {
     return JSON.parse(text) as unknown

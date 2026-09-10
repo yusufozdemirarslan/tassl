@@ -28,6 +28,7 @@ export const settings = {
   'settings.security.sessionsFailed': 'The device list could not be loaded.',
   'settings.security.thisDevice': 'This device',
   'settings.security.unknownDevice': 'Unknown device',
+  'settings.security.deviceName': '{browser} on {os}',
   'settings.security.signedIn': 'Signed in {value}',
   'settings.security.revoke': 'Sign out',
   'settings.security.revokeLabel': 'Sign out {device}',

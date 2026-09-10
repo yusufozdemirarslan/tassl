@@ -1,13 +1,13 @@
 'use client'
 
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
 import { Loader2Icon } from 'lucide-react'
 import { FormAlert } from '@/components/features/account/form-feedback'
 import { Button } from '@/components/ui/button'
 // The review namespace alone, not the composed catalogue (16 §3.4, D-221).
 import { t } from '@/lib/i18n/messages/review'
 import { flagDelegationAction } from '@/server/modules/review/actions'
+import { useRefresh } from '@/lib/hooks/use-refresh'
 
 // FR-055, on the log where a reviewer reads the exchange (UI-033 → Overview).
 //
@@ -55,7 +55,7 @@ export function DelegationFlag({
   alreadyFlagged,
   reachesDrafting,
 }: DelegationFlagProps) {
-  const router = useRouter()
+  const refresh = useRefresh()
   const [marking, setMarking] = useState(false)
   const [refused, setRefused] = useState<string | null>(null)
 
@@ -75,7 +75,7 @@ export function DelegationFlag({
           return
         }
         // The action revalidated the replay; the server render is what draws the mark in the log.
-        router.refresh()
+        refresh()
       },
       () => {
         setMarking(false)

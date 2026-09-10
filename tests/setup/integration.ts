@@ -42,6 +42,10 @@ export function migrateTestDatabase(): void {
 
 /** Empties every application table in `public` (tests tagged // @db:truncate call this in afterEach); the pgboss schema is left alone. */
 export async function truncateAll(): Promise<void> {
+  // The in-memory rate limiter is state too (D-704): a suite that failed ten sign-ins for one
+  // address must not lock the next suite out of it.
+  const { resetRateLimiter } = await import('@/server/rate-limit/index')
+  resetRateLimiter()
   const tables = await testSql<{ tablename: string }[]>`
     select tablename from pg_tables where schemaname = 'public'`
   if (tables.length === 0) return

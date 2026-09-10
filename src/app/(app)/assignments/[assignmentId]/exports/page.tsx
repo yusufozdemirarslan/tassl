@@ -161,7 +161,10 @@ export default async function AssignmentExportsPage({
                     <a
                       href={`/api/v1/runs/${row.runId}/exports/${String(row.version)}`}
                       className={buttonVariants({ variant: 'secondary', size: 'sm' })}
-                      download
+                      download={t('record.courseExportFileName', {
+                        runId: row.runId,
+                        version: String(row.version),
+                      })}
                     >
                       {t('review.exportDownload', { version: row.version })}
                     </a>

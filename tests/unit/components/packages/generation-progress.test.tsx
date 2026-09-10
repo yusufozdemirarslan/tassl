@@ -232,6 +232,10 @@ describe('GenerationProgress — a step that did not finish (UI-042)', () => {
     expect(rows()[1]).toContainElement(retry)
     expect(rows()[0]).not.toContainElement(retry)
     expect(screen.getByText(enUS['generation.retryNote'])).toBeInTheDocument()
+    // `startGeneration` resumes at the first step that has not succeeded (D-683); the sentence
+    // beside the button has to say that, not that the pipeline starts again at step 1.
+    expect(enUS['generation.retryNote']).toMatch(/resumes at the first step/)
+    expect(enUS['generation.retryNote']).not.toMatch(/step 1/)
   })
 
   it('starts the pipeline again from the row, and asks the route to render what changed', async () => {

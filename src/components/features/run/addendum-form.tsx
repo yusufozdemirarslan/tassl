@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
 import { Loader2Icon } from 'lucide-react'
 import { FormAlert } from '@/components/features/account/form-feedback'
 import { Button } from '@/components/ui/button'
@@ -19,6 +18,7 @@ import { cn } from '@/lib/cn'
 import { t } from '@/lib/i18n/messages/decision'
 import { countWords } from '@/lib/words'
 import { addAddendumAction } from '@/server/modules/runs/actions'
+import { useRefresh } from '@/lib/hooks/use-refresh'
 
 // The addendum's own form (FR-107), in its own module so it can be its own chunk.
 //
@@ -40,7 +40,7 @@ export type AddendumDialogProps = {
 }
 
 export function AddendumDialog({ open, onOpenChange, runId, onAdded }: AddendumDialogProps) {
-  const router = useRouter()
+  const refresh = useRefresh()
   const [text, setText] = useState('')
   const [adding, setAdding] = useState(false)
   const [invalid, setInvalid] = useState<string | null>(null)
@@ -75,7 +75,7 @@ export function AddendumDialog({ open, onOpenChange, runId, onAdded }: AddendumD
         onAdded()
         // The action revalidated `/runs/[runId]/locked`; the server render is what draws the
         // addendum where the control was.
-        router.refresh()
+        refresh()
       },
       () => {
         setAdding(false)

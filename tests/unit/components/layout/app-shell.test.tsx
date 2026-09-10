@@ -233,7 +233,7 @@ describe('rail derivation (UI-008)', () => {
       { href: '/courses', label: enUS['nav.courses'], icon: 'courses' },
       { href: '/review', label: enUS['nav.review'], icon: 'review' },
       { href: '/packages', label: enUS['nav.packages'], icon: 'packages' },
-      { href: '/admin/users', label: enUS['nav.admin'], icon: 'admin' },
+      { href: '/admin/users', label: enUS['nav.admin'], icon: 'admin', section: '/admin' },
     ])
   })
 

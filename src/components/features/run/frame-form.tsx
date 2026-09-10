@@ -1,7 +1,6 @@
 'use client'
 
 import { useRef, useState } from 'react'
-import { useRouter } from 'next/navigation'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useForm, useWatch, type UseFormRegisterReturn } from 'react-hook-form'
 import { array, length, minLength, object, refine, string, trim, type output } from 'zod/mini'
@@ -17,6 +16,7 @@ import { useDeferredModule } from '@/lib/hooks/use-deferred-module'
 import { t } from '@/lib/i18n/messages/workspace'
 import { countWords } from '@/lib/words'
 import { lockFrameAction } from '@/server/modules/runs/actions'
+import { useRefresh } from '@/lib/hooks/use-refresh'
 
 // UI-023, middle column in `framing`: the frame (FR-040 to FR-043).
 //
@@ -143,7 +143,7 @@ export type FrameFormProps = {
 }
 
 export function FrameForm({ runId }: FrameFormProps) {
-  const router = useRouter()
+  const refresh = useRefresh()
   const {
     control,
     register,
@@ -223,7 +223,7 @@ export function FrameForm({ runId }: FrameFormProps) {
           // beat away from being removed. `locked` is what the dialog's `finalFocus` reads.
           locked.current = true
           setConfirmOpen(false)
-          router.refresh()
+          refresh()
           return
         }
         setLocking(false)
@@ -239,7 +239,7 @@ export function FrameForm({ runId }: FrameFormProps) {
           // The frame was locked somewhere else — another tab, or a second press that landed
           // first. The screen is behind the run rather than wrong; the refresh catches it up.
           setFormError(t('workspace.lockMoved'))
-          router.refresh()
+          refresh()
           return
         }
         setFormError(result.error.message || t('workspace.lockFailed'))

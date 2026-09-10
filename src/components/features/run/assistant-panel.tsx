@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useState, type ReactNode } from 'react'
-import { useRouter } from 'next/navigation'
 import { Loader2Icon, TriangleAlertIcon } from 'lucide-react'
 import { FormAlert } from '@/components/features/account/form-feedback'
 import { EmptyState } from '@/components/layout/empty-state'
@@ -14,10 +13,13 @@ import { cn } from '@/lib/cn'
 import { useDelegation } from '@/lib/hooks/use-delegation'
 import { t } from '@/lib/i18n/messages/workspace'
 import { stripMarkup } from '@/lib/words'
+import type { AssistantMode } from '@/server/modules/admin/schema'
 import type { ClaimView } from '@/server/modules/reliance/schema'
 import type { TracedDocument } from './action-result-sheet'
+import { AssistantModeChip } from './assistant-mode-chip'
 import { ClaimCard, ClaimControls } from './claim-card'
 import { useRunWork } from './run-work-context'
+import { useRefresh } from '@/lib/hooks/use-refresh'
 
 // UI-023, middle column in `working`: the AI assistant (FR-050 to FR-053, FR-056, AI-002).
 //
@@ -205,6 +207,12 @@ export type AssistantPanelProps = {
    * not the thing the screen is for.
    */
   submitVariant?: 'primary' | 'secondary'
+  /**
+   * Which assistant is answering (D-691): read once on the server when the page renders, drawn
+   * as a chip in the panel header. A fact, never a warning — with the scripted assistant the
+   * product is whole (D-029), and no wording here may describe a degradation (D-655).
+   */
+  assistantMode?: AssistantMode
 }
 
 export function AssistantPanel({
@@ -214,8 +222,9 @@ export function AssistantPanel({
   documents = [],
   lockedReason,
   submitVariant = 'primary',
+  assistantMode,
 }: AssistantPanelProps) {
-  const router = useRouter()
+  const refresh = useRefresh()
   const { setWorked } = useRunWork()
   const [request, setRequest] = useState('')
   const [invalid, setInvalid] = useState<string | null>(null)
@@ -228,14 +237,14 @@ export function AssistantPanel({
       // The request the student typed has landed and been echoed above the reply; the box is theirs
       // again. It is cleared here rather than at the press so a failed request is still in it.
       setRequest('')
-      router.refresh()
+      refresh()
     },
     onFailed: (failure) => {
       // `ASSISTANT_UNAVAILABLE` means the run is now paused and the clock is stopped (FR-001), and
       // `ASSISTANT_LOCKED` means this screen is behind the run. Both are answered by the server
       // render: the first draws the paused overlay, the second sends the student where they belong.
       if (failure.code === 'ASSISTANT_UNAVAILABLE' || failure.code === 'ASSISTANT_LOCKED') {
-        router.refresh()
+        refresh()
       }
     },
   })
@@ -300,6 +309,7 @@ export function AssistantPanel({
       description={t('workspace.assistantDescription')}
       headingLevel={2}
       padding="reading"
+      actions={assistantMode === undefined ? undefined : <AssistantModeChip mode={assistantMode} />}
     >
       <form
         noValidate

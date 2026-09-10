@@ -12,6 +12,7 @@ import { Button, buttonVariants } from '@/components/ui/button'
 import { t } from '@/lib/i18n/messages/package-generation'
 import { startGenerationAction } from '@/server/modules/authoring/actions'
 import type { GenerationStatusView, GenerationStepValue } from '@/server/modules/authoring/schema'
+import { useRefresh } from '@/lib/hooks/use-refresh'
 
 // UI-042 (FR-191, FR-198, AI-001). What the pipeline is doing to this version, step by step, and
 // the one thing to do next.
@@ -29,7 +30,7 @@ import type { GenerationStatusView, GenerationStepValue } from '@/server/modules
 // a screen left open overnight on a stopped run makes no requests at all. The one thing the poll
 // decides for itself is when to ask the route to re-render: the package's rule report and its
 // status are read on the server, so the transition out of `running` is followed by a
-// `router.refresh()` rather than by a second endpoint.
+// `refresh()` rather than by a second endpoint.
 //
 // **The retry says what it does not do.** `startGeneration` is the only way to run the pipeline
 // (07 §6), and it starts at step 1 — it does not resume where the run stopped. A control labelled
@@ -165,6 +166,7 @@ export function GenerationProgress(props: GenerationProgressProps) {
   const { packageId, versionId, version, ruleText, failures, canGenerate, frozen, confirmHref } =
     props
   const router = useRouter()
+  const refresh = useRefresh()
 
   const [polled, setPolled] = useState<GenerationStatusSummary | null>(null)
   const [starting, setStarting] = useState(false)
@@ -230,8 +232,8 @@ export function GenerationProgress(props: GenerationProgressProps) {
     if (status.state === refreshOnStop.current) return
     const wasRunning = refreshOnStop.current === 'running'
     refreshOnStop.current = status.state
-    if (wasRunning) router.refresh()
-  }, [status.state, router])
+    if (wasRunning) refresh()
+  }, [status.state, router, refresh])
 
   useEffect(() => {
     if (!running) return undefined
@@ -298,10 +300,10 @@ export function GenerationProgress(props: GenerationProgressProps) {
     // screen rather than falling to the document.
     setPolled(null)
     toast.success(t('generation.startedToast'))
-    router.refresh()
+    refresh()
     // Panel renders the id on its section and takes the focus recipe with tabIndex -1.
     document.getElementById('generation-steps')?.focus()
-  }, [packageId, versionId, router])
+  }, [packageId, versionId, refresh])
 
   const canPress = canGenerate && !frozen && !running && !starting
 

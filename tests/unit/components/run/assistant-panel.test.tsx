@@ -396,4 +396,23 @@ describe('AssistantPanel (UI-023, FR-051)', () => {
     expect(button).not.toBeDisabled()
     expect(screen.getByText(enUS['workspace.assistantPaused'])).toBeInTheDocument()
   })
+
+  // D-691: the chip says which assistant is answering, as a fact in the panel header. It is a
+  // label, never an alert — no live region, no warning role — because with the scripted assistant
+  // the product is whole (D-029) and nothing here may read as a degradation (D-655).
+  it('names the assistant that is answering in the panel header, and only when told', () => {
+    vi.stubGlobal('fetch', streamed(REPLY_FRAMES))
+    const { unmount } = render(
+      <AssistantPanel runId={RUN_ID} canDelegate assistantMode="scripted" />,
+    )
+    const chip = screen.getByText(enUS['workspace.assistantModeScripted'])
+    expect(chip).toBeInTheDocument()
+    expect(chip).not.toHaveAttribute('role')
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    unmount()
+
+    render(<AssistantPanel runId={RUN_ID} canDelegate assistantMode="live" />)
+    expect(screen.getByText(enUS['workspace.assistantModeLive'])).toBeInTheDocument()
+    expect(screen.queryByText(enUS['workspace.assistantModeScripted'])).not.toBeInTheDocument()
+  })
 })

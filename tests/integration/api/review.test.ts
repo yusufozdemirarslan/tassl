@@ -219,7 +219,7 @@ describe('GET /review/runs/{runId}', () => {
       session: await sessionFor('classmate'),
       params: { runId },
     })
-    expect(classmate.status).toBe(403)
+    expect(classmate.status).toBe(404)
 
     const anonymous = await call(routes.replay, {
       path: `/review/runs/${runId}`,

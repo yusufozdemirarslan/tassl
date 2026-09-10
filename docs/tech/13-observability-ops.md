@@ -592,6 +592,8 @@ Cron monitors are created by their first check-in (the check-in carries `monitor
 
 Verification after creating the rules: `curl -sS -o /dev/null -w '%{http_code}\n' "$NEXT_PUBLIC_APP_URL/api/v1/does-not-exist"` returns `404` and produces no alert (4xx); `curl -sS -H "Authorization: Bearer $CRON_SECRET" "$NEXT_PUBLIC_APP_URL/api/internal/jobs/drain"` returns `200` and a check-in appears under Sentry → Crons → `jobs-drain-daily` within a minute.
 
+**Test event from the deployment (D-708).** `/admin/flags` → **Sentry** → **Send a test event to Sentry** sends one `ops.sentry_test` warning tagged `environment:production` and prints the event id; it appears under the existing issue within a minute. `scripts/sentry-test.ts` does the same from an operator's machine.
+
 ## 8. Runbooks
 
 Shell prerequisites for every runbook: Node 24 (`nvm use`), `pnpm 11.25.0`, `gh` authenticated (`gh auth status`), `psql` and `pg_restore` from PostgreSQL 17 client tools, and these exported from the password manager: `VERCEL_TOKEN`, `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID`, `NEON_API_KEY`, `NEON_PROJECT_ID`, `BACKUP_ENCRYPTION_KEY`, `NEXT_PUBLIC_SENTRY_DSN`. With `VERCEL_ORG_ID` and `VERCEL_PROJECT_ID` set, `npx vercel@59.11.2` needs no `vercel link`; `npx neon@4.14.0` reads `NEON_API_KEY` from the environment. Production values are fetched with:

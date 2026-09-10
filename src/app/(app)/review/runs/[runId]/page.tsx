@@ -245,7 +245,9 @@ export default async function FacultyReplayPage({ params, searchParams }: Review
         }
         actions={
           <div className="flex flex-wrap items-center gap-2">
-            <RunStateChip state={run.state} />
+            {/* A held run reads "Under review" here, on the queue and on the assignment page alike:
+                one word for one fact, wherever the reviewer meets it (FR-140). */}
+            <RunStateChip state={run.state} underReview={run.scoringStatus === 'held'} />
             {labels.uncalibrated && <LabelChip kind="uncalibrated" />}
             {labels.isWalkthrough && <LabelChip kind="walkthrough" />}
           </div>

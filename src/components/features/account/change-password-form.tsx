@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useForm } from 'react-hook-form'
 import { toast } from 'sonner'
@@ -14,6 +13,7 @@ import { auth } from '@/lib/i18n/messages/auth'
 import { settings } from '@/lib/i18n/messages/settings'
 import { scopedT } from '@/lib/i18n/scoped'
 import { FormAlert, SubmitButton } from './form-feedback'
+import { useRefresh } from '@/lib/hooks/use-refresh'
 
 // The panel is a settings screen written out of the shared password vocabulary.
 const t = scopedT(auth, settings)
@@ -61,7 +61,7 @@ const changePasswordSchema = object({
 type ChangePasswordValues = output<typeof changePasswordSchema>
 
 export function ChangePasswordForm({ email }: { email: string }) {
-  const router = useRouter()
+  const refresh = useRefresh()
   const [formError, setFormError] = useState<string | null>(null)
 
   const {
@@ -88,7 +88,7 @@ export function ChangePasswordForm({ email }: { email: string }) {
     reset()
     toast.success(t('settings.security.changed'))
     // The device list on this page just lost every other row; the session that stays is this one.
-    router.refresh()
+    refresh()
   }
 
   return (

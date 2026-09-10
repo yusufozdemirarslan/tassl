@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useId, useRef, useState } from 'react'
-import { useRouter } from 'next/navigation'
 import { Loader2Icon } from 'lucide-react'
 import { FormAlert } from '@/components/features/account/form-feedback'
 import { Button } from '@/components/ui/button'
@@ -13,8 +12,10 @@ import { formatDateTime } from '@/lib/format/date-time'
 // page, and a `@/lib/i18n/t` here would ship every namespace to the browser to label two textareas
 // (16 §3.4, D-221).
 import { t } from '@/lib/i18n/messages/debrief'
+import { toastSuccess } from '@/lib/toast'
 import { countWords } from '@/lib/words'
 import { answerDebriefAction } from '@/server/modules/debrief/actions'
+import { useRefresh } from '@/lib/hooks/use-refresh'
 
 // UI-028 → "Two questions" (FR-152).
 //
@@ -51,7 +52,7 @@ export function DebriefQuestions({
   doDifferently,
   answeredAt,
 }: DebriefQuestionsProps) {
-  const router = useRouter()
+  const refresh = useRefresh()
   const fieldId = useId()
   const [stance, setStance] = useState('')
   const [different, setDifferent] = useState('')
@@ -140,8 +141,10 @@ export function DebriefQuestions({
           return
         }
         // The action revalidated this route and the run's status page; the server render is what
-        // replaces the form with the two answers and moves the run on.
-        router.refresh()
+        // replaces the form with the two answers and moves the run on. The toast confirms the
+        // press itself, since the form it was made on is about to be replaced.
+        toastSuccess(t('debrief.questions.filed'))
+        refresh()
       },
       () => {
         setFiling(false)

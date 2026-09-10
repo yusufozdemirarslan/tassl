@@ -184,7 +184,7 @@ Conventions: steps are `N.M` in `build-plan/phase-NN-*.md`; test paths are relat
 | NFR-011 | 13.3, 13.4 | unit/security/csp.test.ts, e2e/security/headers.spec.ts, integration/rate-limit/coverage.test.ts |
 | NFR-012 | 7.1, 14.4 | unit/llm/mock.test.ts, `pnpm evals` |
 | NFR-013 | 10.2, 13.8 | `scripts/bundle-budget.ts`, `pnpm lhci` |
-| NFR-014 | 15.3 | k6 `scripts/load/run-loop.js` |
+| NFR-014 | 15.3 | k6 `tests/load/core-flow.js` |
 | NFR-015 | 13.6 | backup workflow run, `scripts/restore-drill.sh` |
 | NFR-016 | 0.5, 13.1, 14.5 | unit/http/define-route.test.ts, integration/llm/observability.test.ts |
 | NFR-017 | 0.2, 0.7 | unit/lib/i18n.test.ts |

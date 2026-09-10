@@ -31,8 +31,10 @@ export const email = {
   'email.notification.subject': '{title} · Tassl',
   'email.notification.preview': 'An update from Tassl: {title}',
   'email.notification.cta': 'Open in Tassl',
+  // NOTIFY_EMAIL_COPIES is a setting of the installation, not of an account: there is no per-person
+  // switch, and the footer must not promise one (D-015).
   'email.notification.footer':
-    'This is an email copy of a Tassl notification. Email copies can be turned off in your account settings.',
+    'This is an email copy of a Tassl notification. Email copies are switched on or off for the whole installation by whoever runs it; there is no setting for them in your account.',
   'email.incident.subject': 'Tassl notice · {title}',
   'email.incident.preview': 'An incident notice from Tassl: {title}',
   'email.incident.cta': 'Read the status page',

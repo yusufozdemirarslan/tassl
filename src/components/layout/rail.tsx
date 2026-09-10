@@ -27,7 +27,22 @@ const ICONS: Record<RailIcon, LucideIcon> = {
   admin: ShieldCheck,
 }
 
-export type RailItem = { href: Route; label: string; icon: RailIcon }
+export type RailItem = {
+  href: Route
+  label: string
+  icon: RailIcon
+  /**
+   * The path prefix this item is active under, when it is wider than the link itself. Admin links
+   * to its first section (`/admin/users`) but owns every `/admin/*` screen, so without this the
+   * item went dark on `/admin/flags` and `/admin/audit` while the reader was still inside it.
+   */
+  section?: string
+}
+
+/** The section itself, or any screen beneath it; never a sibling that merely shares the prefix. */
+function isWithin(pathname: string, root: string): boolean {
+  return pathname === root || pathname.startsWith(`${root}/`)
+}
 
 // Primary navigation (UI-008): a left rail from `md` up (40 px rows, icon beside label), a bottom
 // bar below it (48 px cells, icon over label). 20 px icons with visible labels, aria-current on
@@ -41,9 +56,9 @@ export function Rail({ items }: { items: RailItem[] }) {
       className="border-line bg-paper fixed inset-x-0 bottom-0 z-20 border-t md:static md:w-56 md:border-t-0 md:border-r"
     >
       <ul className="flex items-stretch justify-center gap-1 px-2 py-1 md:flex-col md:justify-start md:px-3 md:py-6">
-        {items.map(({ href, label, icon }) => {
+        {items.map(({ href, label, icon, section }) => {
           const Icon = ICONS[icon]
-          const active = pathname === href || pathname.startsWith(`${href}/`)
+          const active = isWithin(pathname, section ?? href)
           return (
             <li key={href} className="max-w-40 min-w-0 flex-1 md:max-w-none md:flex-none">
               <Link

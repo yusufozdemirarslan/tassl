@@ -11,6 +11,7 @@ import { buttonVariants } from '@/components/ui/button'
 import { isAppError } from '@/lib/errors'
 import { t } from '@/lib/i18n/t'
 import { openDefense, type DefenseView } from '@/server/modules/defense'
+import type { RunStateValue } from '@/server/modules/runs/schema'
 import { getViewer } from '../../../viewer'
 import { getRunView } from '../run-view'
 
@@ -37,21 +38,35 @@ export const metadata: Metadata = { title: t('defense.metaTitle') }
 // **One read** (D-341). `openDefense` selects the questions the first time it is called and is
 // idempotent afterwards (FR-121, FR-126), and it carries the artifacts with them because all four
 // are `runs.getDecision`'s — the frozen record UI-024 already reads. `defense_complete` is a state
-// it still answers in, so the poll's refresh after the completion does not race the redirect; the
-// guard below is what sends the student to the status screen.
+// it still answers in, so the poll's refresh after the completion does not race the redirect.
+//
+// **The completing press lands on the status screen whichever state the guard reads** (D-720). The
+// press enqueues scoring, and the request drains that queue in its own `after()` (D-046, D-410), so
+// the refresh's render is a coin toss between `defense_complete` and `scored` — and the two used to
+// name different destinations, which is how one student in three skipped the screen carrying
+// FR-140's "drafts until your instructor confirms them". Both now name this run's status screen.
+// Every other state still follows the run, because a page that *arrives* here from a bookmark on a
+// run confirmed last week should go where that run has got to.
 
 export default async function RunDefensePage({ params }: PageProps<'/runs/[runId]/defense'>) {
   const { runId } = await params
   const { status } = await getRunView(runId)
   const next = status.run.links.next as Route
 
-  // The one state this screen draws (09 §1). `turn_locked` names this route as its own next step
-  // and a run cannot rest there — the response and the implicit hold both pass through it inside
-  // one transaction (10 §8) — so redirecting a run in it to `links.next` would send it here again.
-  // That one row goes to the status screen instead, which is the honest answer for a run nobody
-  // can act on.
+  // The one state this screen draws (09 §1). Three states go to the run's own status screen rather
+  // than to `links.next`:
+  //
+  //   `turn_locked`     names this route as its own next step and a run cannot rest there — the
+  //                     response and the implicit hold both pass through it inside one transaction
+  //                     (10 §8) — so `links.next` would send it here again.
+  //   `defense_complete`
+  //   `scored`          the two the completion straddles, above.
+  //
+  // Everything else follows the run.
+  const TO_RUN_STATUS: readonly RunStateValue[] = ['turn_locked', 'defense_complete', 'scored']
   if (status.run.state !== 'defense_pending') {
-    redirect(status.run.state === 'turn_locked' ? (`/runs/${runId}` as Route) : next)
+    const toStatus = TO_RUN_STATUS.includes(status.run.state)
+    redirect(toStatus ? (`/runs/${runId}` as Route) : next)
   }
 
   const { actor } = await getViewer()

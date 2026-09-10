@@ -36,6 +36,7 @@ export type AuditAction =
   | 'invitation.create'
   | 'section_member.add'
   | 'run.delete'
+  | 'ai_mode.set'
 
 /** `audit_logs.metadata`: action-specific details, never secrets or run free text. */
 export type AuditLogMetadata = Record<string, unknown>
@@ -134,6 +135,20 @@ export const rateLimitBuckets = pgTable(
   ],
 )
 
+/**
+ * Runtime settings a platform admin changes without a redeploy (`ai_mode`, D-691). One row per key;
+ * `updated_by` is a user id without a foreign key because the row outlives the account that set it,
+ * the way `audit_logs.actor_id` does. The row is *not* configuration in the 05 §3 sense — the
+ * environment still wins wherever the two disagree (`FEATURE_AI=false` forces the scripted assistant
+ * whatever this table says) — it is the one switch an operator can throw from inside the product.
+ */
+export const appSettings = pgTable('app_settings', {
+  key: text('key').primaryKey(),
+  value: text('value').notNull(),
+  updatedBy: text('updated_by'),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+})
+
 export type Notification = typeof notifications.$inferSelect
 export type NewNotification = typeof notifications.$inferInsert
 export type AuditLog = typeof auditLogs.$inferSelect
@@ -142,3 +157,5 @@ export type LlmCall = typeof llmCalls.$inferSelect
 export type NewLlmCall = typeof llmCalls.$inferInsert
 export type RateLimitBucket = typeof rateLimitBuckets.$inferSelect
 export type NewRateLimitBucket = typeof rateLimitBuckets.$inferInsert
+export type AppSetting = typeof appSettings.$inferSelect
+export type NewAppSetting = typeof appSettings.$inferInsert

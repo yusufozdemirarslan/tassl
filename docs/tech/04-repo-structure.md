@@ -58,8 +58,7 @@ tassl/
 │   ├── init-test-db.sql            # creates the tassl_test database for the local Compose Postgres
 │   ├── backup.sh                   # pg_dump wrapper used by backup.yml
 │   ├── restore-drill.sh            # weekly restore drill
-│   ├── load/run-loop.js            # k6 load test
-│   └── load/seed-users.ts          # 60 load-test students on a preview branch (refuses production)
+│   └── demo-reset.ts               # restores the demo state; --load-users seeds the load-test students on a preview branch (refuses production)
 ├── docs/incidents/TEMPLATE.md      # incident record template (records: docs/incidents/YYYY-MM-DD-<slug>.md)
 ├── src/
 │   ├── app/                        # Next.js App Router (routes only; no business logic)
@@ -141,7 +140,8 @@ tassl/
 │   ├── factories/                  # test data factories (deterministic ids, frozen time)
 │   ├── unit/<module>/              # pure logic and components
 │   ├── integration/<module>/       # services + repositories against Postgres; every endpoint
-│   └── e2e/                        # Playwright: auth, walkthrough/*, a11y/*
+│   ├── e2e/                        # Playwright: auth, walkthrough/*, a11y/*, guides/*, smoke/*
+│   └── load/core-flow.js           # k6 load test: 60 virtual students for 10 minutes against a preview (15 §16.2)
 ├── compose.yaml                    # local Postgres 17
 ├── drizzle.config.ts
 ├── eslint.config.mjs

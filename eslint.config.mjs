@@ -160,6 +160,15 @@ export default defineConfig([
     files: ['src/lib/i18n/**', 'src/app/dev/**', 'tests/**', 'evals/**'],
     rules: { 'react/jsx-no-literals': 'off' },
   },
+  // Every line the application logs goes through pino (src/server/logging), so `console.log` in
+  // src/ is either a leftover from debugging or a message that bypasses redaction. `warn` and
+  // `error` stay allowed: the fail-fast configuration error in config.ts and the two error
+  // boundaries have no logger to reach yet when they fire.
+  {
+    files: ['src/**/*.{ts,tsx}'],
+    ignores: ['src/server/logging/**'],
+    rules: { 'no-console': ['error', { allow: ['warn', 'error'] }] },
+  },
   // Analytics confinement: docs/tech/17-analytics-events.md §6 and §9.4.
   // Only three files may touch a PostHog SDK, so every event in the product goes through the typed
   // helpers and is validated against `EVENTS`; and no code anywhere may write a person property,

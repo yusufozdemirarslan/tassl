@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { useRouter } from 'next/navigation'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Controller, useForm } from 'react-hook-form'
 import { literal, object, type output } from 'zod/mini'
@@ -46,6 +45,7 @@ import { scopedT } from '@/lib/i18n/scoped'
 import { addSectionMemberAction, removeSectionMemberAction } from '@/server/modules/courses/actions'
 import type { SectionMember, SectionRoleValue } from '@/server/modules/courses/schema'
 import type { InvitationView } from '@/server/modules/tenancy/schema'
+import { useRefresh } from '@/lib/hooks/use-refresh'
 
 // UI-031. The page reads the roster and the institution's outstanding invitations; this component
 // owns the four things the screen does with them: add a member by address, take one off the
@@ -116,14 +116,14 @@ export function SectionRoster({
   invitations,
   truncated,
 }: SectionRosterProps) {
-  const router = useRouter()
+  const refresh = useRefresh()
   const [removing, setRemoving] = useState<string | null>(null)
   const [confirming, setConfirming] = useState<SectionMember | null>(null)
   const [removalRefusal, setRemovalRefusal] = useState<{ userId: string; message: string } | null>(
     null,
   )
   const [pending, startTransition] = useTransition()
-  // What this screen has just sent, prepended until `router.refresh()` brings the row back from
+  // What this screen has just sent, prepended until `refresh()` brings the row back from
   // the server; the id match is what retires the optimistic copy.
   const [justSent, setJustSent] = useState<readonly InvitationView[]>([])
   const dialogs = useDeferredModule(loadDialogs)
@@ -155,7 +155,7 @@ export function SectionRoster({
         return
       }
       toast.success(t('roster.removed', { name: member.name }))
-      router.refresh()
+      refresh()
     })
   }
 
@@ -243,7 +243,7 @@ export function SectionRoster({
         dialogs={dialogs}
         onInvited={(invitation) => {
           setJustSent((current) => [invitation, ...current])
-          router.refresh()
+          refresh()
         }}
       />
 
@@ -339,7 +339,7 @@ function AddMemberPanel({
   dialogs: RosterDialogs
   onInvited: (invitation: InvitationView) => void
 }) {
-  const router = useRouter()
+  const refresh = useRefresh()
   const [formError, setFormError] = useState<string | null>(null)
   const [notMember, setNotMember] = useState<{
     email: string
@@ -379,7 +379,7 @@ function AddMemberPanel({
     }
     toast.success(t('roster.added', { email: result.data.email }))
     reset({ email: '', role: values.role })
-    router.refresh()
+    refresh()
   }
 
   return (

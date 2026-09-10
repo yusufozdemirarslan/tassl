@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
-import { useRouter } from 'next/navigation'
 import { Loader2Icon, PencilLineIcon } from 'lucide-react'
 import { FormAlert } from '@/components/features/account/form-feedback'
 import {
@@ -26,6 +25,7 @@ import {
   completeDefenseAction,
 } from '@/server/modules/defense/actions'
 import type { DefenseQuestion as Question } from '@/server/modules/defense/schema'
+import { useRefresh } from '@/lib/hooks/use-refresh'
 
 // UI-026: the interview (FR-120 to FR-126).
 //
@@ -324,11 +324,11 @@ export type DefenseInterviewProps = {
 }
 
 export function DefenseInterview({ runId, questions: initial }: DefenseInterviewProps) {
-  const router = useRouter()
+  const refresh = useRefresh()
 
   // The questions as this screen knows them: what the server rendered, plus every answer and
   // follow-up the writes below have produced. Re-seeded whenever the server hands over a different
-  // list, which is what a reload or a `router.refresh()` does.
+  // list, which is what a reload or a `refresh()` does.
   const [seed, setSeed] = useState(initial)
   const [held, setHeld] = useState<readonly Question[]>(initial)
   if (seed !== initial) {
@@ -408,10 +408,22 @@ export function DefenseInterview({ runId, questions: initial }: DefenseInterview
    * single-question path shows the refusal and refreshes, so the answer the server holds appears in
    * place of the box; `finish()` treats the question as filed and carries on, because it is.
    */
+  /**
+   * The run has moved on without this tab (D-729).
+   *
+   * A second tab left on the interview while the defense was finished in another one meets
+   * `DEFENSE_NOT_OPEN`, and `src/server/modules/defense/errors.ts` says what that is for: "a stale
+   * tab follows the run's `links.next` rather than sitting on a screen the run has left". Nothing
+   * did follow it — the refusal was rendered and the page stayed put, with the band's poll switched
+   * off in `defense_pending`, so the only way on was a manual reload. Re-reading the route is what
+   * follows it: this page's guard sends a run past `defense_pending` to the status screen.
+   */
+  const movedOn = (code: string | undefined): boolean => code === 'DEFENSE_NOT_OPEN'
+
   async function submit(
     question: Question,
     input: { text: string; durationMs: number },
-  ): Promise<{ ok: boolean; followUp: Question | null; alreadyAnswered: boolean }> {
+  ): Promise<{ ok: boolean; followUp: Question | null; alreadyAnswered: boolean; code?: string }> {
     setAnswering(question.runQuestionId)
     setError(null)
     const result = await answerDefenseQuestionAction({
@@ -434,6 +446,7 @@ export function DefenseInterview({ runId, questions: initial }: DefenseInterview
         ok: false,
         followUp: null,
         alreadyAnswered: result !== null && result.error.code === 'QUESTION_ALREADY_ANSWERED',
+        ...(result === null ? {} : { code: result.error.code }),
       }
     }
     apply(result.data.followUpQuestion, question.runQuestionId, input.text)
@@ -446,10 +459,12 @@ export function DefenseInterview({ runId, questions: initial }: DefenseInterview
    * The refusal stands and is shown — the text the student just wrote was not filed, and saying so
    * is the honest thing — and the tree is re-read so that the answer the run already holds takes the
    * box's place rather than leaving them looking at a form for a question that is closed (D-368).
+   * A run that has moved past the defense altogether is the same case one screen wider, and the
+   * same re-read carries them to it (D-729).
    */
   function answerOne(question: Question, input: { text: string; durationMs: number }): void {
     void submit(question, input).then((written) => {
-      if (written.alreadyAnswered) router.refresh()
+      if (written.alreadyAnswered || movedOn(written.code)) refresh()
     })
   }
 
@@ -495,7 +510,7 @@ export function DefenseInterview({ runId, questions: initial }: DefenseInterview
             ? t('defense.finishFailed')
             : `${t('defense.finishFailed')} ${t('defense.finishPartial')}`,
         )
-        if (stale) router.refresh()
+        if (stale || movedOn(written.code)) refresh()
         return
       }
       filed += 1
@@ -510,12 +525,21 @@ export function DefenseInterview({ runId, questions: initial }: DefenseInterview
           ? t('defense.finishFailed')
           : result.error.message || t('defense.finishFailed')
       setFinishError(filed === 0 ? said : `${said} ${t('defense.finishPartial')}`)
-      if (stale) router.refresh()
+      if (stale || (result !== null && movedOn(result.error.code))) refresh()
       return
     }
     setConfirmOpen(false)
-    // The run is in `defense_complete` from here; the guard on this page sends the student on.
-    router.refresh()
+    // The run is in `defense_complete` from here; the guard on this page sends the student on, and
+    // it now sends them to the same screen whichever of the two post-defense states it reads
+    // (D-720).
+    //
+    // It has to be this refresh rather than a `router.replace` to the route the completing call
+    // reported. `/runs/<id>` and `/runs/<id>/defense` are two children of one layout, and Next
+    // re-renders only the segment that changes on a client navigation — so the `RunFrame` band
+    // would keep the props it was given while the defense was still pending, its poll would never
+    // start, and the student would sit on "Your run is being scored" until they reloaded. The
+    // refresh re-renders the route, band included.
+    refresh()
   }
 
   return (

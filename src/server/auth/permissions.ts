@@ -16,6 +16,7 @@ import {
   findOrganizationRole,
   findPackage,
   findRunContext,
+  findSection,
   findSectionMembership,
   teachesCourse,
 } from '@/server/auth/queries'
@@ -99,7 +100,15 @@ export async function requireSectionRole(
   roles: readonly SectionRole[],
 ): Promise<SectionScope> {
   const membership = await findSectionMembership(actor.id, sectionId)
-  if (!membership) forbidden()
+  if (!membership) {
+    // A section in an institution the actor does not belong to, or no section at all, answers
+    // NOT_FOUND (08 §5 "Cross-tenant"): a section id must not be confirmable from another tenant.
+    // A member of the institution with no seat on the section is FORBIDDEN (D-710).
+    const section = await findSection(sectionId)
+    if (!section) notFound()
+    if (!(await findOrganizationRole(actor.id, section.organizationId))) notFound()
+    forbidden()
+  }
   const role = membership.role as SectionRole
   if (!roles.includes(role)) forbidden()
   return { sectionId, role, organizationId: membership.organizationId }
@@ -203,6 +212,14 @@ export async function requireRunReviewer(actor: SessionUser, runId: string): Pro
   const run = await requireRun(runId)
   const membership = await findSectionMembership(actor.id, run.sectionId)
   if (!membership) notFound()
+  // A classmate holds a section row and no read of anybody else's run (08 §4): NOT_FOUND, the
+  // same answer a stranger gets, so a run id cannot be probed for existence from the next seat.
+  // The run's own student is FORBIDDEN: they know the run exists, and the answer says whose
+  // screen this is.
+  if (membership.role === 'student') {
+    if (run.studentId === actor.id) forbidden()
+    notFound()
+  }
   if (!REVIEWER_ROLES.includes(membership.role as SectionRole)) forbidden()
   return run
 }
@@ -227,7 +244,8 @@ export async function requireCourseExportReader(
 ): Promise<RunScope> {
   const run = await requireRun(runId)
   if (await canReviewSection(actor, run.courseId, run.sectionId)) return run
-  if (await findSectionMembership(actor.id, run.sectionId)) forbidden()
+  const membership = await findSectionMembership(actor.id, run.sectionId)
+  if (membership && (membership.role !== 'student' || run.studentId === actor.id)) forbidden()
   notFound()
 }
 
@@ -236,6 +254,10 @@ export async function requireRunInstructor(actor: SessionUser, runId: string): P
   const run = await requireRun(runId)
   const membership = await findSectionMembership(actor.id, run.sectionId)
   if (!membership) notFound()
+  if (membership.role === 'student') {
+    if (run.studentId === actor.id) forbidden()
+    notFound()
+  }
   if (membership.role !== 'instructor') forbidden()
   return run
 }

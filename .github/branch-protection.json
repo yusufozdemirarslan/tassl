@@ -8,6 +8,7 @@
       "checks / integration",
       "checks / build",
       "checks / e2e",
+      "checks / guides",
       "checks / impeccable",
       "checks / lhci",
       "checks / openapi-check",

@@ -1030,3 +1030,42 @@ export async function listRunsForStudent(
     .limit(limit + 1)
   return toPage(rows, limit)
 }
+
+/**
+ * Every attempt the student holds on the given assignments, newest first (D-722).
+ *
+ * Not a page. The runs list joins attempts onto the assignments *of one page*, so the answer is
+ * bounded by that page — a hundred assignments and their handful of attempts each — and a limit
+ * here would silently drop the attempts that fall past it, which is the defect this replaced: the
+ * screen said "Not started" over a run the student was standing in.
+ */
+export async function listRunsForStudentAssignments(
+  tenantId: string,
+  studentId: string,
+  assignmentIds: readonly string[],
+  dbx: DbOrTx = db,
+): Promise<RunListItem[]> {
+  if (assignmentIds.length === 0) return []
+  return dbx
+    .select({
+      id: runs.id,
+      createdAt: runs.createdAt,
+      run: runs,
+      assignment: { id: assignments.id, label: assignments.label, runType: assignments.runType },
+      variant: { id: scenarioVariants.id, key: scenarioVariants.key },
+    })
+    .from(runs)
+    .innerJoin(
+      assignments,
+      and(eq(assignments.id, runs.assignmentId), eq(assignments.organizationId, tenantId)),
+    )
+    .innerJoin(scenarioVariants, eq(scenarioVariants.id, runs.variantId))
+    .where(
+      and(
+        eq(runs.organizationId, tenantId),
+        eq(runs.studentId, studentId),
+        inArray(runs.assignmentId, [...assignmentIds]),
+      ),
+    )
+    .orderBy(...cursorOrder({ createdAt: runs.createdAt, id: runs.id }))
+}

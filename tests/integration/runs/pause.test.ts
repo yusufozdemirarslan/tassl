@@ -161,11 +161,11 @@ describe('forceAssistantFailure', () => {
   it('is refused to the student whose run it is, and to the TA', async () => {
     const runId = await runInWorking(fx)
 
-    // A student holds a membership on the section, so `requireRunInstructor` answers FORBIDDEN
-    // rather than NOT_FOUND — and either way they cannot arm it (08 §4).
+    // The run's own student and the TA are told they may not (FORBIDDEN); a classmate is told the
+    // run does not exist for them (NOT_FOUND, D-703) — and none of them can arm it (08 §4).
     expect(await codeOf(runs.forceAssistantFailure(fx.student, runId))).toBe('FORBIDDEN')
     expect(await codeOf(runs.forceAssistantFailure(fx.ta, runId))).toBe('FORBIDDEN')
-    expect(await codeOf(runs.forceAssistantFailure(fx.classmate, runId))).toBe('FORBIDDEN')
+    expect(await codeOf(runs.forceAssistantFailure(fx.classmate, runId))).toBe('NOT_FOUND')
 
     expect((await runRow(runId)).flags.forced_failure_armed).toBeUndefined()
     expect(await auditRows()).toEqual([])

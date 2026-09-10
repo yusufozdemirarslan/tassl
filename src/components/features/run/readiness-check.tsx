@@ -28,6 +28,7 @@ import {
 import type { ReadinessItemView } from '@/server/modules/runs/schema'
 import { ReadinessItem } from './readiness-item'
 import { ReadinessTimer } from './readiness-timer'
+import { useRefresh } from '@/lib/hooks/use-refresh'
 
 // UI-022: the Readiness Check as the student takes it — the clock, the navigator of sixteen items,
 // the item itself, and the submit that says what it is closing.
@@ -43,7 +44,7 @@ import { ReadinessTimer } from './readiness-timer'
 //   * **Where the check resumes.** FR-017: a check reopened after the browser closed comes back
 //     with its answers, and it opens at the first item that has none.
 //   * **The eight-minute clock, as something to display.** The instant belongs to the server
-//     (D-042); when the digits reach zero this asks for one early read — `router.refresh()` — so
+//     (D-042); when the digits reach zero this asks for one early read — `refresh()` — so
 //     the auto-submit happens now rather than on the next five-second poll, and it says on screen
 //     that the check submitted itself.
 //   * **The skip, but only where FR-018 puts it.** `skipReadiness` is refused unless a submission
@@ -85,6 +86,7 @@ function isOurFailure(code: ErrorCode): boolean {
 
 export function ReadinessCheck({ runId, items, remainingMs }: ReadinessCheckProps) {
   const router = useRouter()
+  const refresh = useRefresh()
   const navigatorId = useId()
   const hintId = `${navigatorId}-hint`
   const panelId = `${navigatorId}-panel`
@@ -240,7 +242,7 @@ export function ReadinessCheck({ runId, items, remainingMs }: ReadinessCheckProp
               setExpired(true)
               // The server decides that the check has closed; this only asks it sooner than the
               // RunFrame's five-second poll would.
-              router.refresh()
+              refresh()
             }}
           />
         </div>

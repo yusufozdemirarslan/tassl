@@ -9,6 +9,7 @@ import {
   DelegationLog,
   FrameForm,
 } from '@/components/features/run/deferred-panels'
+import { AssistantModeChip } from '@/components/features/run/assistant-mode-chip'
 import { EvidenceRoom } from '@/components/features/run/evidence-room'
 import { FramePanel } from '@/components/features/run/frame-panel'
 import { PausedOverlay } from '@/components/features/run/paused-overlay'
@@ -17,6 +18,7 @@ import { PageHeader } from '@/components/layout/page-header'
 import { Panel } from '@/components/layout/panel'
 import { isAppError } from '@/lib/errors'
 import { t } from '@/lib/i18n/t'
+import { effectiveAssistantMode } from '@/server/modules/admin'
 import { listDelegations, type DelegationView } from '@/server/modules/assistant'
 import { listRunClaims, type ClaimView } from '@/server/modules/reliance'
 import { getRunWorkspace, type RunStateValue, type RunWorkspace } from '@/server/modules/runs'
@@ -131,6 +133,11 @@ export default async function RunWorkPage({ params }: PageProps<'/runs/[runId]/w
   const { run, capabilities, frame } = workspace
   const framing = capabilities.canLockFrame
 
+  // Which assistant answers the next call (D-691), read once here and handed down as a prop: the
+  // client panel polls nothing and decides nothing about it. Under `FEATURE_AI=false` this reads no
+  // row at all; on the live path it is one primary-key lookup per page render.
+  const assistantMode = await effectiveAssistantMode()
+
   const room = (
     <aside aria-label={t('workspace.referenceRegion')} className="flex min-w-0 flex-col gap-6">
       <BriefPanel text={workspace.brief.text} />
@@ -175,7 +182,12 @@ export default async function RunWorkPage({ params }: PageProps<'/runs/[runId]/w
 
             {/* Both panels keep their name and their place from the first minute of the run. What
                 they say is what Tassl can do, not which release does it. */}
-            <Panel id="assistant-panel" title={t('workspace.assistantTitle')} headingLevel={2}>
+            <Panel
+              id="assistant-panel"
+              title={t('workspace.assistantTitle')}
+              headingLevel={2}
+              actions={<AssistantModeChip mode={assistantMode} />}
+            >
               <p className="text-ink-muted text-reading max-w-measure">
                 {t('workspace.assistantLockedBody')}
               </p>
@@ -207,6 +219,7 @@ export default async function RunWorkPage({ params }: PageProps<'/runs/[runId]/w
                 lockedReason={
                   capabilities.assistantUnlocked ? undefined : t('workspace.assistantPaused')
                 }
+                assistantMode={assistantMode}
               />
             </div>
 

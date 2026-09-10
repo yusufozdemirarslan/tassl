@@ -257,6 +257,8 @@ Layout: `evals/<feature>/cases/*.json` (golden inputs with expected properties),
 
 ## 6. Rollout
 
+**The kill switch has two layers (D-691).** The first is the environment: `FEATURE_AI=false` (or `LLM_PROVIDER=mock`) plus a deploy — 41 minutes through `production.yml`, about 4 minutes through `npx vercel@59.11.2 redeploy <deployment-url>` after `printf mock | npx vercel@59.11.2 env add LLM_PROVIDER production --force --no-sensitive`. The second is the `ai_mode` row of `app_settings`: a platform admin chooses **Scripted assistant** under **Assistant mode** on `/admin/flags` (or `PUT /api/v1/admin/settings/ai-mode` with `{ "mode": "mock" }`), the registry reads the row before every model call, and the next request is answered by the scripted assistant with no deploy. The environment always wins: with `FEATURE_AI=false` the row is never read. `/api/ready` answers `assistantMode: live | scripted`, the flags screen prints the same word, and the run workspace shows it in a neutral chip, so an operator, a probe and a student read one answer.
+
 - `FEATURE_AI=false` in every environment until Phase 14; all earlier phases ship on the mock provider with no key.
 - Phase 14 sets `FEATURE_AI=true`, `LLM_PROVIDER=openai-compatible`, and `LLM_API_KEY` in preview first, runs the evals and the E2E walkthrough on a preview, then in production.
 - Kill switch: `FEATURE_AI=false` + redeploy forces mock everywhere (runbook in `13-observability-ops.md`).

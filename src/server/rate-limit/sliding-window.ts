@@ -14,6 +14,24 @@ export function createPostgresRateLimiter(windowMs = RATE_LIMIT_WINDOW_MS): Rate
   let calls = 0
 
   return {
+    async peek(key, limit, now = Date.now()): Promise<RateLimitDecision> {
+      const current = Math.floor(now / windowMs)
+      const previous = current - 1
+      const elapsedShare = (now - current * windowMs) / windowMs
+      const currentStart = new Date(current * windowMs).toISOString()
+      const previousStart = new Date(previous * windowMs).toISOString()
+      const result = await db.execute<Row>(sql`
+        select
+          coalesce((select count from rate_limit_buckets
+            where key = ${key} and window_start = ${currentStart}::timestamptz), 0) as current_count,
+          coalesce((select count from rate_limit_buckets
+            where key = ${key} and window_start = ${previousStart}::timestamptz), 0) as previous_count`)
+      const row = (Array.isArray(result) ? result[0] : undefined) as Row | undefined
+      const count =
+        Number(row?.current_count ?? 0) + Number(row?.previous_count ?? 0) * (1 - elapsedShare)
+      const retryAfterSeconds = Math.max(1, Math.ceil(((current + 1) * windowMs - now) / 1000))
+      return { allowed: count < limit, count, limit, retryAfterSeconds }
+    },
     async hit(key, limit, now = Date.now()): Promise<RateLimitDecision> {
       const current = Math.floor(now / windowMs)
       const previous = current - 1

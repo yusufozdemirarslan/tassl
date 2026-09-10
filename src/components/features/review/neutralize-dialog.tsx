@@ -1,7 +1,6 @@
 'use client'
 
 import { useId, useState, useTransition } from 'react'
-import { useRouter } from 'next/navigation'
 import { FormAlert } from '@/components/features/account/form-feedback'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -20,6 +19,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { t as bandT } from '@/lib/i18n/messages/band'
 import { t } from '@/lib/i18n/messages/review'
 import { neutralizeClaimAction } from '@/server/modules/review/actions'
+import { useRefresh } from '@/lib/hooks/use-refresh'
 
 // UI-033 → `NeutralizeDialog` (FR-003, FR-005, FR-232, D-092): Tassl admitting its own error on one
 // claim, and showing what that moved.
@@ -122,7 +122,7 @@ export function NeutralizeDialog({
   claimKey,
   alreadyCorrected,
 }: NeutralizeDialogProps) {
-  const router = useRouter()
+  const refresh = useRefresh()
   const fieldId = useId()
   const [open, setOpen] = useState(false)
   const [pending, startTransition] = useTransition()
@@ -181,7 +181,7 @@ export function NeutralizeDialog({
             // The instructor who pressed the control is the only person who ever sees those five
             // facts together, so the screen waits until they have closed the answer.
             setResult(null)
-            router.refresh()
+            refresh()
           }
         }}
       >
@@ -290,13 +290,20 @@ export function NeutralizeDialog({
                         creditChallenge: credit,
                         note: note.trim(),
                       })
-                      if (!answer.ok) {
-                        setError(answer.error.message)
-                        return
-                      }
-                      setResult({
-                        recompute: answer.data.recompute as Recompute,
-                        exportVersion: answer.data.exportVersion,
+                      // An update made after an `await` is outside the transition unless it is
+                      // wrapped again (React 19, useTransition). Unwrapped, the answer painted one
+                      // commit before `pending` fell, and a Close pressed in that gap was refused
+                      // by the guard on `onOpenChange`; wrapped, the answer and the end of the
+                      // pending state land in the same commit (D-706).
+                      startTransition(() => {
+                        if (!answer.ok) {
+                          setError(answer.error.message)
+                          return
+                        }
+                        setResult({
+                          recompute: answer.data.recompute as Recompute,
+                          exportVersion: answer.data.exportVersion,
+                        })
                       })
                     })
                   }}

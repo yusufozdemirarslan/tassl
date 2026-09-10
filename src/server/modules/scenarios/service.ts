@@ -374,14 +374,23 @@ function toVersionSummary(row: repo.ScenarioPackageVersion): VersionSummaryView 
   }
 }
 
+/**
+ * `keys` is the version's own element index (`elementKeyIndex`), given where the row is read on
+ * the record beside a hundred others; the confirmation an element carries for itself already sits
+ * under its key and passes none.
+ */
 function toConfirmationView(
   row: repo.ElementConfirmation,
   names: ReadonlyMap<string, string>,
+  keys?: ReadonlyMap<string, string>,
 ): ElementConfirmationView {
   return {
     id: row.id,
     elementType: row.elementType,
     elementId: row.elementId,
+    ...(keys === undefined
+      ? {}
+      : { elementKey: row.elementId === null ? null : (keys.get(row.elementId) ?? null) }),
     revision: row.revision,
     decision: row.decision,
     note: row.note,
@@ -390,6 +399,13 @@ function toConfirmationView(
     decidedBy: row.decidedBy,
     decidedByName: names.get(row.decidedBy) ?? '',
   }
+}
+
+/** Element id → the key the workspace shows it under, from the version's own unit list. */
+function elementKeyIndex(units: readonly ElementUnit[]): ReadonlyMap<string, string> {
+  return new Map(
+    units.flatMap((unit) => (unit.elementId === null ? [] : [[unit.elementId, unit.key]])),
+  )
 }
 
 function toSeedRecordView(row: repo.SeedRecord): SeedRecordView {
@@ -1409,7 +1425,9 @@ async function buildVersionView(
     confirmedAt: isoOrNull(version.confirmedAt),
     confirmedBy: version.confirmedBy,
     counts: content ? countElements(version) : EMPTY_COUNTS,
-    confirmationRecord: content ? confirmations.map((row) => toConfirmationView(row, names)) : [],
+    confirmationRecord: content
+      ? confirmations.map((row) => toConfirmationView(row, names, elementKeyIndex(units)))
+      : [],
     authoringRecord: toAuthoringRecord(version, confirmations, names, runs),
     measures: {
       seedToConfirmedMs: measured.seedToConfirmedMs,
@@ -1443,6 +1461,7 @@ function toValidationResult(version: repo.VersionFull): ValidationResult {
     failures: result.failures.map((failure) => ({
       code: failure.code,
       elementIds: failure.elementIds,
+      elementKeys: failure.elementKeys,
       message: failure.message,
     })),
   }

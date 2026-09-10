@@ -14,7 +14,7 @@
 | HTTP mocking | MSW 2.15.0 | Unit tests of the openai-compatible and anthropic adapters (request shape, headers, streaming, repair retry) and of PostHog/Resend clients; never in integration tests of services (they use the mock provider) | unit |
 | Evals | `pnpm evals` | Golden datasets for AI-001 to AI-005 and rubric placements (`11-llm-integration.md` §5) | PR job `unit` runs `pnpm evals` on mock |
 | Performance | Lighthouse CI 0.15.1 | Web-vitals and bundle budgets (`16-performance-a11y-budgets.md`) | PR job `lhci` |
-| Load | k6 | Phase 15 only (`scripts/load/run-loop.js`) | manual |
+| Load | k6 | Phase 15 only (`tests/load/core-flow.js`, `pnpm test:load` against a preview; the accounts come from `pnpm demo:reset --load-users`) | manual |
 
 ## 2. Tooling and configuration
 
@@ -29,7 +29,7 @@
 
 | Gate | Threshold | Enforced by |
 |---|---|---|
-| Lines on `src/server/**` | ≥ 80 % | `vitest --coverage` thresholds in the `unit` job (unit + integration combined via `pnpm test:coverage`) |
+| Lines on `src/server/**` | ≥ 80 % | `vitest --coverage` thresholds in the `integration` job (unit + integration combined via `pnpm test:coverage`), which is the job that already has a Postgres; `unit` stays fast feedback (D-732) |
 | Lines on `src/components/**` | ≥ 70 % | same |
 | API endpoints with an integration test | 100 % | `tests/integration/api/coverage.test.ts` reads the OpenAPI registry and asserts every `operationId` appears in `tests/integration/**` (grep on `op('<operationId>')` helper) |
 | PRD user flows with an E2E test | 100 % | `tests/e2e/coverage.test.ts` asserts every flow id in `tests/e2e/flows.json` (the flows of `01-prd-analysis.md` §6 plus auth, authoring, admin) has a spec file |

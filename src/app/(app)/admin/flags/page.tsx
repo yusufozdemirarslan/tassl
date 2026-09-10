@@ -1,10 +1,13 @@
 import type { Metadata } from 'next'
 import { AdminNav } from '@/components/features/admin/admin-nav'
+import { AssistantModeForm } from '@/components/features/admin/assistant-mode-form'
+import { SentryTestForm } from '@/components/features/admin/sentry-test-form'
 import { FlagTable } from '@/components/features/admin/flag-table'
 import { LlmUsageTable } from '@/components/features/admin/llm-usage-table'
 import { PageHeader } from '@/components/layout/page-header'
 import { Panel } from '@/components/layout/panel'
 import { t } from '@/lib/i18n/t'
+import { env } from '@/server/config'
 import { getFlags } from '@/server/modules/admin'
 import { getViewer } from '../../viewer'
 
@@ -13,6 +16,10 @@ export const metadata: Metadata = { title: t('admin.flags.title') }
 // UI-050 → flags (SYS-006). The screen exists to answer one question honestly: what is this
 // deployment running with right now? So the provider row is `effectiveLlmProvider()` and not
 // `LLM_PROVIDER` — with FEATURE_AI off the two disagree, and the one that decides is the first.
+//
+// It has one control, and it is the one value on the screen that does not live in the environment:
+// the runtime assistant switch (11 §6, D-691). It sits under the provider panel because it is read
+// *after* the provider — `FEATURE_AI=false` wins whatever it says — and the form says so.
 export default async function AdminFlagsPage() {
   const { actor } = await getViewer()
   const flags = await getFlags(actor)
@@ -46,6 +53,27 @@ export default async function AdminFlagsPage() {
               {t('admin.flags.constrainedMode')}
             </p>
           )}
+        </Panel>
+        <Panel
+          id="admin-assistant-mode"
+          title={t('admin.flags.assistantModeTitle')}
+          description={t('admin.flags.assistantModeDescription')}
+          headingLevel={2}
+        >
+          <AssistantModeForm
+            aiMode={flags.aiMode}
+            assistantMode={flags.assistantMode}
+            aiEnabled={flags.ai}
+          />
+        </Panel>
+        {/* 13 §4 row 7, D-708: the test event, sent from where the real ones start. */}
+        <Panel
+          id="admin-sentry"
+          title={t('admin.flags.sentryTitle')}
+          description={t('admin.flags.sentryDescription')}
+          headingLevel={2}
+        >
+          <SentryTestForm dsnConfigured={env.NEXT_PUBLIC_SENTRY_DSN.length > 0} />
         </Panel>
         {/* Step 14.5: the flags say what this deployment is running with; this says what it has
             cost. Both come from the server, and this one from the same two sums the budget

@@ -140,16 +140,54 @@ export const llmUsageSchema = z.object({
 export type LlmUsage = z.infer<typeof llmUsageSchema>
 
 /**
- * `GET /admin/flags` (07 §9): the three deployment flags (05 §3), the provider the run loop would
- * actually call, and what that provider has cost (NFR-016). `effectiveLlmProvider` is a string
- * rather than the provider enum because the flags screen prints it and never branches on it, and
- * the set of providers is a server fact.
+ * The runtime assistant switch (11 §6, D-691): what the `ai_mode` row may hold. `live` is also what
+ * no row means, so the screen never has to draw a third state.
+ */
+export const aiModeSchema = z.enum(['live', 'mock'])
+export type AiMode = z.infer<typeof aiModeSchema>
+
+/** The body of `PUT /admin/settings/ai-mode` and the input of the Server Action (07 §9). */
+export const setAiModeSchema = z.object({ mode: aiModeSchema })
+export type SetAiModeInput = z.infer<typeof setAiModeSchema>
+
+/**
+ * What the assistant actually is once the environment and the row are both read: `scripted` when
+ * `FEATURE_AI=false` forces the mock *or* the row says `mock`, else `live`. The same vocabulary
+ * `/api/ready` reports and the assistant panel's chip prints, so the three cannot disagree.
+ */
+export const assistantModeSchema = z.enum(['live', 'scripted'])
+export type AssistantMode = z.infer<typeof assistantModeSchema>
+
+/**
+ * `GET /admin/flags` (07 §9): the deployment flags (05 §3), the provider the run loop would
+ * actually call, the runtime switch and its effect, and what that provider has cost (NFR-016).
+ * `effectiveLlmProvider` is a string rather than the provider enum because the flags screen prints
+ * it and never branches on it, and the set of providers is a server fact.
+ *
+ * `demoMode` is on it for the reason the three flags are: the screen answers "what is this
+ * deployment running with", and a deployment that auto-confirms sign-ups is running with something
+ * an operator needs to be able to see (D-692).
  */
 export const adminFlagsSchema = z.object({
   ai: z.boolean(),
   sampleData: z.boolean(),
   testControls: z.boolean(),
+  demoMode: z.boolean(),
   effectiveLlmProvider: z.string(),
+  aiMode: aiModeSchema,
+  assistantMode: assistantModeSchema,
   llmUsage: llmUsageSchema,
 })
 export type AdminFlags = z.infer<typeof adminFlagsSchema>
+
+/**
+ * `POST /admin/sentry-test` (D-708): the id of the test event just sent, the environment it was
+ * tagged with, and whether this deployment has a DSN at all — without one the SDK mints an id and
+ * sends nothing, and the screen must say so rather than print an id that will never arrive.
+ */
+export const sentryTestResultSchema = z.object({
+  eventId: z.string().min(1),
+  environment: z.string(),
+  dsnConfigured: z.boolean(),
+})
+export type SentryTestResult = z.infer<typeof sentryTestResultSchema>

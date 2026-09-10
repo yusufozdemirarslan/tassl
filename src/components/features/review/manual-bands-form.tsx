@@ -1,7 +1,6 @@
 'use client'
 
 import { useId, useState, useTransition } from 'react'
-import { useRouter } from 'next/navigation'
 import { FormAlert } from '@/components/features/account/form-feedback'
 import { Button } from '@/components/ui/button'
 import { Field, FieldLabel } from '@/components/ui/field'
@@ -10,6 +9,7 @@ import { t as bandT } from '@/lib/i18n/messages/band'
 import { t } from '@/lib/i18n/messages/review'
 import { toastSuccess } from '@/lib/toast'
 import { bandHeldRunManuallyAction } from '@/server/modules/review/actions'
+import { useRefresh } from '@/lib/hooks/use-refresh'
 
 // UI-033 → the held-run form (FR-140, FR-004), shown only when `capabilities.canBandManually`.
 //
@@ -46,7 +46,7 @@ type OptionValue = (typeof OPTIONS)[number]['value']
 export type ManualBandsFormProps = { runId: string }
 
 export function ManualBandsForm({ runId }: ManualBandsFormProps) {
-  const router = useRouter()
+  const refresh = useRefresh()
   const fieldId = useId()
   const [pending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
@@ -127,7 +127,7 @@ export function ManualBandsForm({ runId }: ManualBandsFormProps) {
               return
             }
             toastSuccess(t('review.manualDone'))
-            router.refresh()
+            refresh()
             // The whole panel goes when the run leaves `held`, taking the focused control with it.
             document.getElementById('page-title')?.focus()
           })

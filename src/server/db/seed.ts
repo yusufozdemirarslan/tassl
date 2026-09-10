@@ -34,12 +34,14 @@ export const SEED_ORGANIZATION = { slug: 'walkthrough', name: 'Walkthrough Unive
 
 export type SeatRole = 'student' | 'instructor' | 'scenario_author'
 
-export const SEED_USERS: ReadonlyArray<{
+export type Seat = {
   email: string
   name: string
   platformRole: 'none' | 'tassl_scenario_editor' | 'admin'
   memberRole: SeatRole | null
-}> = [
+}
+
+export const SEED_USERS: ReadonlyArray<Seat> = [
   {
     email: 'student1@tassl.local',
     name: 'Student One',
@@ -104,7 +106,7 @@ async function ensureSettings(organizationId: string): Promise<void> {
     .onConflictDoNothing()
 }
 
-async function ensureUser(seat: (typeof SEED_USERS)[number], password: string): Promise<string> {
+async function ensureUser(seat: Seat, password: string): Promise<string> {
   const [existing] = await db.select({ id: user.id }).from(user).where(eq(user.email, seat.email))
   let id = existing?.id
   if (!id) {
@@ -199,16 +201,26 @@ async function ensureSectionMembership(
 const SEED_PACKAGE_FAMILY_KEY = 'meridian-roast'
 
 /** 06 §5 item 5. The auto-lock assignment's short clock is what makes a lock observable in a demo. */
-const SEED_ASSIGNMENTS = [
+// All three are walkthrough assignments (PRD §12 takes every one of them in the walkthrough), so a
+// rehearsal run on any of them can be deleted from the assignment page and the seat is free again
+// (D-104; before this only the first was flagged, and a run on the other two could only be voided).
+type WantedAssignment = {
+  label: string
+  variant: 'defective' | 'sound'
+  isWalkthrough: boolean
+  workingClockSeconds?: number
+}
+
+const SEED_ASSIGNMENTS: ReadonlyArray<WantedAssignment> = [
   { label: 'Decision Run 1 (walkthrough)', variant: 'defective', isWalkthrough: true },
-  { label: 'Decision Run 1 (sound)', variant: 'sound', isWalkthrough: false },
+  { label: 'Decision Run 1 (sound)', variant: 'sound', isWalkthrough: true },
   {
     label: 'Auto-lock test run',
     variant: 'defective',
-    isWalkthrough: false,
+    isWalkthrough: true,
     workingClockSeconds: 120,
   },
-] as const
+]
 
 /**
  * The fixture package, imported through the service rather than written row by row: the import is
@@ -266,6 +278,7 @@ async function ensureAssignments(
   organizationId: string,
   sectionId: string,
   packageVersionId: string,
+  wantedAssignments: ReadonlyArray<WantedAssignment> = SEED_ASSIGNMENTS,
 ): Promise<number> {
   const variants = await db
     .select({ id: scenarioVariants.id, key: scenarioVariants.key })
@@ -274,7 +287,7 @@ async function ensureAssignments(
   const variantByKey = new Map(variants.map((row) => [row.key, row.id]))
 
   let written = 0
-  for (const wanted of SEED_ASSIGNMENTS) {
+  for (const wanted of wantedAssignments) {
     const [existing] = await db
       .select({ id: assignments.id })
       .from(assignments)
@@ -290,9 +303,9 @@ async function ensureAssignments(
       packageVersionId,
       variantId,
       isWalkthrough: wanted.isWalkthrough,
-      ...('workingClockSeconds' in wanted
-        ? { workingClockSeconds: wanted.workingClockSeconds }
-        : {}),
+      ...(wanted.workingClockSeconds === undefined
+        ? {}
+        : { workingClockSeconds: wanted.workingClockSeconds }),
     })
     written += 1
   }
@@ -349,6 +362,54 @@ export async function runSeed(): Promise<SeedSummary> {
   return { organizationId, courseId, sectionId, packageVersionId, users }
 }
 
+/** The assignment the load accounts run (`tests/load/core-flow.js`; 15 §16.2). */
+export const LOAD_ASSIGNMENT_LABEL = 'Load test run'
+
+/** `load-student-01@tassl.local` … : one account per virtual user of the load test. */
+export const loadSeatEmail = (index: number): string =>
+  `load-student-${String(index).padStart(2, '0')}@tassl.local`
+
+/**
+ * The load accounts and their assignment (`pnpm demo:reset --load-users[=N]`, D-711). Idempotent
+ * like the seed: an account that exists keeps its id, and the assignment is written once. The
+ * accounts are ordinary students of the seeded section with the seed password, so the load test
+ * signs them in through the same door a real student uses; the assignment is a walkthrough one so
+ * the runs it accumulates can be deleted from the assignment page or by the next reset.
+ */
+export async function ensureLoadSeats(
+  summary: SeedSummary,
+  count: number,
+): Promise<{ seats: number; assignmentId: string }> {
+  if (!Number.isInteger(count) || count < 1 || count > 99) {
+    throw new Error('LOAD_SEAT_COUNT_OUT_OF_RANGE')
+  }
+  for (let index = 1; index <= count; index += 1) {
+    const seat: Seat = {
+      email: loadSeatEmail(index),
+      name: `Load Student ${String(index).padStart(2, '0')}`,
+      platformRole: 'none',
+      memberRole: 'student',
+    }
+    const id = await ensureUser(seat, env.SEED_PASSWORD)
+    await ensureMember(summary.organizationId, id, 'student')
+    await ensureSectionMembership(summary.organizationId, summary.sectionId, id, 'student')
+  }
+  await ensureAssignments(summary.organizationId, summary.sectionId, summary.packageVersionId, [
+    { label: LOAD_ASSIGNMENT_LABEL, variant: 'defective', isWalkthrough: true },
+  ])
+  const [assignment] = await db
+    .select({ id: assignments.id })
+    .from(assignments)
+    .where(
+      and(
+        eq(assignments.sectionId, summary.sectionId),
+        eq(assignments.label, LOAD_ASSIGNMENT_LABEL),
+      ),
+    )
+  if (!assignment) throw new Error('LOAD_ASSIGNMENT_MISSING')
+  return { seats: count, assignmentId: assignment.id }
+}
+
 const invokedDirectly =
   typeof process.argv[1] === 'string' && import.meta.url === pathToFileURL(process.argv[1]).href
 
@@ -365,13 +426,14 @@ async function shutdown(): Promise<void> {
 if (invokedDirectly) {
   runSeed()
     .then(async (summary) => {
-      console.log(
-        `seed: ${Object.keys(summary.users).length} seat accounts, course ${summary.courseId}`,
+      log.info(
+        { seats: Object.keys(summary.users).length, courseId: summary.courseId },
+        'seed complete',
       )
       await shutdown()
     })
     .catch(async (error: unknown) => {
-      console.error(error instanceof Error ? error.message : error)
+      log.error({ err: error instanceof Error ? error.message : String(error) }, 'seed failed')
       await shutdown()
       process.exit(1)
     })

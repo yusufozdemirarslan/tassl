@@ -19,12 +19,15 @@ const DIFFERENT = 'I would run a Source Trace on every figure the recommendation
 
 const actions = vi.hoisted(() => ({ answerDebriefAction: vi.fn() }))
 const router = vi.hoisted(() => ({ refresh: vi.fn() }))
+const toasts = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }))
 
 // The real module drags the debrief service and `server-only` into jsdom.
 vi.mock('@/server/modules/debrief/actions', () => ({
   answerDebriefAction: actions.answerDebriefAction,
 }))
 vi.mock('next/navigation', () => ({ useRouter: () => router }))
+// `@/lib/toast` reaches sonner through a dynamic import, which this mock answers as well.
+vi.mock('sonner', () => ({ toast: { success: toasts.success, error: toasts.error } }))
 
 const stanceBox = () => screen.getByLabelText(enUS['debrief.questions.stanceToChange.label'])
 const differentBox = () => screen.getByLabelText(enUS['debrief.questions.doDifferently.label'])
@@ -64,6 +67,28 @@ describe('DebriefQuestions (UI-028, FR-152)', () => {
       })
     })
     expect(router.refresh).toHaveBeenCalled()
+    // The press is confirmed where it was made: the form is about to be replaced by the server
+    // render, so the toast is the one thing that says the filing happened.
+    await waitFor(() => {
+      expect(toasts.success).toHaveBeenCalledWith(enUS['debrief.questions.filed'])
+    })
+  })
+
+  it('says nothing was filed when the action refuses', async () => {
+    actions.answerDebriefAction.mockResolvedValue({
+      ok: false,
+      error: { code: 'ILLEGAL_TRANSITION', message: 'This run is not at its debrief.' },
+    })
+    const user = userEvent.setup()
+    render(<DebriefQuestions {...props(false)} />)
+
+    await user.type(stanceBox(), STANCE)
+    await user.type(differentBox(), DIFFERENT)
+    await user.click(fileButton())
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('This run is not at its debrief.')
+    expect(toasts.success).not.toHaveBeenCalled()
+    expect(router.refresh).not.toHaveBeenCalled()
   })
 
   it('puts the caret on the first filed answer when the form is replaced', async () => {

@@ -13,6 +13,8 @@ export type RateLimitDecision = {
 
 export type RateLimiter = {
   hit(key: string, limit: number, now?: number): Promise<RateLimitDecision>
+  /** The decision `hit` would return, without recording anything: a read of the window. */
+  peek(key: string, limit: number, now?: number): Promise<RateLimitDecision>
 }
 
 type Windows = Map<number, number> // window index -> count
@@ -28,27 +30,35 @@ export function createMemoryRateLimiter(windowMs = RATE_LIMIT_WINDOW_MS): RateLi
     }
   }
 
-  return {
-    async hit(key, limit, now = Date.now()) {
-      const current = Math.floor(now / windowMs)
-      const previous = current - 1
-      const elapsedShare = (now - current * windowMs) / windowMs
+  const decide = (key: string, limit: number, now: number, record: boolean): RateLimitDecision => {
+    const current = Math.floor(now / windowMs)
+    const previous = current - 1
+    const elapsedShare = (now - current * windowMs) / windowMs
 
-      let windows = store.get(key)
-      if (!windows) {
-        windows = new Map()
-        store.set(key, windows)
-      }
-      const count = (windows.get(current) ?? 0) + (windows.get(previous) ?? 0) * (1 - elapsedShare)
-      const allowed = count < limit
+    let windows = store.get(key)
+    if (!windows) {
+      windows = new Map()
+      if (record) store.set(key, windows)
+    }
+    const count = (windows.get(current) ?? 0) + (windows.get(previous) ?? 0) * (1 - elapsedShare)
+    const allowed = count < limit
 
-      // Recorded whether or not it was allowed, like the SQL upsert in the Postgres limiter.
+    if (record) {
       windows.set(current, (windows.get(current) ?? 0) + 1)
       for (const w of windows.keys()) if (w < previous) windows.delete(w)
       if (++calls % 100 === 0) sweep(current)
+    }
 
-      const retryAfterSeconds = Math.max(1, Math.ceil(((current + 1) * windowMs - now) / 1000))
-      return { allowed, count, limit, retryAfterSeconds }
+    const retryAfterSeconds = Math.max(1, Math.ceil(((current + 1) * windowMs - now) / 1000))
+    return { allowed, count, limit, retryAfterSeconds }
+  }
+
+  return {
+    async peek(key, limit, now = Date.now()) {
+      return decide(key, limit, now, false)
+    },
+    async hit(key, limit, now = Date.now()) {
+      return decide(key, limit, now, true)
     },
   }
 }

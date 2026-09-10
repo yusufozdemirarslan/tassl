@@ -496,6 +496,8 @@ Unique `(run_id, dimension)`. `effective_band` is computed in code: `max(band_be
 
 **`rate_limit_buckets`** (DATA-050): key text, window_start timestamptz, count integer NN default 0; PK `(key, window_start)`. Rows older than 2 windows are deleted opportunistically on write.
 
+**`app_settings`** (DATA-051, migration 0016, D-691): key text PK, value text NN, updated_by text (a user id, no foreign key: the row outlives the account), updated_at timestamptz NN default now(). One row today, `ai_mode` = `live` | `mock`, read by `src/server/llm/ai-mode.ts` on every model call and written by the admin service inside the transaction that audits `ai_mode.set`. `tassl_app` reads and writes it through the default privileges of migration 0009.
+
 **`pgboss.*`** (DATA-051): created by pg-boss; not modified by hand.
 
 ## 4. Migration policy

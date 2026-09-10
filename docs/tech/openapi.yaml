@@ -7135,7 +7135,7 @@ paths:
       tags:
         - system
       operationId: getReady
-      summary: Readiness (database and jobs schema)
+      summary: Readiness (database, jobs schema, assistant mode)
       security: []
       servers:
         - url: /api
@@ -7156,9 +7156,15 @@ paths:
                       type: string
                     additionalProperties:
                       type: string
+                  assistantMode:
+                    type: string
+                    enum:
+                      - live
+                      - scripted
                 required:
                   - status
                   - checks
+                  - assistantMode
                 additionalProperties: false
         "503":
           description: Not ready
@@ -7176,6 +7182,11 @@ paths:
                       type: string
                     additionalProperties:
                       type: string
+                  assistantMode:
+                    type: string
+                    enum:
+                      - live
+                      - scripted
                 required:
                   - status
                   - checks
@@ -7292,8 +7303,20 @@ paths:
                     type: boolean
                   testControls:
                     type: boolean
+                  demoMode:
+                    type: boolean
                   effectiveLlmProvider:
                     type: string
+                  aiMode:
+                    type: string
+                    enum:
+                      - live
+                      - mock
+                  assistantMode:
+                    type: string
+                    enum:
+                      - live
+                      - scripted
                   llmUsage:
                     type: object
                     properties:
@@ -7359,9 +7382,171 @@ paths:
                   - ai
                   - sampleData
                   - testControls
+                  - demoMode
                   - effectiveLlmProvider
+                  - aiMode
+                  - assistantMode
                   - llmUsage
                 additionalProperties: false
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+  /admin/sentry-test:
+    post:
+      tags:
+        - admin
+      operationId: adminSentryTest
+      summary: Send a Sentry test event
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  eventId:
+                    type: string
+                    minLength: 1
+                  environment:
+                    type: string
+                  dsnConfigured:
+                    type: boolean
+                required:
+                  - eventId
+                  - environment
+                  - dsnConfigured
+                additionalProperties: false
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+  /admin/settings/ai-mode:
+    put:
+      tags:
+        - admin
+      operationId: adminSetAiMode
+      summary: Set the assistant mode
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                mode:
+                  type: string
+                  enum:
+                    - live
+                    - mock
+              required:
+                - mode
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ai:
+                    type: boolean
+                  sampleData:
+                    type: boolean
+                  testControls:
+                    type: boolean
+                  demoMode:
+                    type: boolean
+                  effectiveLlmProvider:
+                    type: string
+                  aiMode:
+                    type: string
+                    enum:
+                      - live
+                      - mock
+                  assistantMode:
+                    type: string
+                    enum:
+                      - live
+                      - scripted
+                  llmUsage:
+                    type: object
+                    properties:
+                      today:
+                        type: object
+                        properties:
+                          calls:
+                            type: integer
+                            minimum: 0
+                            maximum: 9007199254740991
+                          tokens:
+                            type: integer
+                            minimum: 0
+                            maximum: 9007199254740991
+                          costUsd:
+                            type: number
+                            minimum: 0
+                        required:
+                          - calls
+                          - tokens
+                          - costUsd
+                        additionalProperties: false
+                      month:
+                        type: object
+                        properties:
+                          calls:
+                            type: integer
+                            minimum: 0
+                            maximum: 9007199254740991
+                          tokens:
+                            type: integer
+                            minimum: 0
+                            maximum: 9007199254740991
+                          costUsd:
+                            type: number
+                            minimum: 0
+                        required:
+                          - calls
+                          - tokens
+                          - costUsd
+                        additionalProperties: false
+                      budgets:
+                        type: object
+                        properties:
+                          userDaily:
+                            type: integer
+                            exclusiveMinimum: 0
+                            maximum: 9007199254740991
+                          globalMonthly:
+                            type: integer
+                            exclusiveMinimum: 0
+                            maximum: 9007199254740991
+                        required:
+                          - userDaily
+                          - globalMonthly
+                        additionalProperties: false
+                    required:
+                      - today
+                      - month
+                      - budgets
+                    additionalProperties: false
+                required:
+                  - ai
+                  - sampleData
+                  - testControls
+                  - demoMode
+                  - effectiveLlmProvider
+                  - aiMode
+                  - assistantMode
+                  - llmUsage
+                additionalProperties: false
+        "400":
+          $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/Unauthenticated"
         "403":
@@ -10287,11 +10472,17 @@ paths:
                               type: array
                               items:
                                 type: string
+                            elementKeys:
+                              default: []
+                              type: array
+                              items:
+                                type: string
                             message:
                               type: string
                           required:
                             - code
                             - elementIds
+                            - elementKeys
                             - message
                           additionalProperties: false
                     required:
@@ -11787,6 +11978,10 @@ paths:
                               format: uuid
                               pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
                             - type: "null"
+                        elementKey:
+                          type:
+                            - string
+                            - "null"
                         revision:
                           type: integer
                           minimum: -9007199254740991
@@ -11956,11 +12151,17 @@ paths:
                               type: array
                               items:
                                 type: string
+                            elementKeys:
+                              default: []
+                              type: array
+                              items:
+                                type: string
                             message:
                               type: string
                           required:
                             - code
                             - elementIds
+                            - elementKeys
                             - message
                           additionalProperties: false
                     required:
@@ -12365,6 +12566,10 @@ paths:
                                 format: uuid
                                 pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
                               - type: "null"
+                          elementKey:
+                            type:
+                              - string
+                              - "null"
                           revision:
                             type: integer
                             minimum: -9007199254740991
@@ -12621,6 +12826,10 @@ paths:
                               format: uuid
                               pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
                             - type: "null"
+                        elementKey:
+                          type:
+                            - string
+                            - "null"
                         revision:
                           type: integer
                           minimum: -9007199254740991
@@ -12790,11 +12999,17 @@ paths:
                               type: array
                               items:
                                 type: string
+                            elementKeys:
+                              default: []
+                              type: array
+                              items:
+                                type: string
                             message:
                               type: string
                           required:
                             - code
                             - elementIds
+                            - elementKeys
                             - message
                           additionalProperties: false
                     required:
@@ -13035,6 +13250,10 @@ paths:
                                 format: uuid
                                 pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
                               - type: "null"
+                          elementKey:
+                            type:
+                              - string
+                              - "null"
                           revision:
                             type: integer
                             minimum: -9007199254740991
@@ -13190,6 +13409,10 @@ paths:
                         format: uuid
                         pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
                       - type: "null"
+                  elementKey:
+                    type:
+                      - string
+                      - "null"
                   revision:
                     type: integer
                     minimum: -9007199254740991

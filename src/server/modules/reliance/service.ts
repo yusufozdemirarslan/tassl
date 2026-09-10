@@ -358,7 +358,9 @@ export async function surfaceClaims(
   if (claims.length === 0) return []
 
   // Built once, before the loop: a claim surfaced a second time may already carry actions and an
-  // escalation, and the card the caller draws has to show them (FR-073).
+  // escalation, and the card the caller draws has to show them (FR-073). Inside the window a second
+  // surfacing also marks the row `in_turn_window` (`upsertRunClaim`, D-705): the Turn puts a claim
+  // the student has already met in front of them again, and the screen lists it by that flag.
   const context = await claimViewContext(run.id, run.variantId, tx)
   const inWindow = isInTurnWindow(run)
   const surfaced: SurfacedClaim[] = []

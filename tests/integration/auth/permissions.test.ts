@@ -222,17 +222,27 @@ describe('permission helpers (08 §5)', () => {
       ).resolves.toMatchObject({ role: 'ta' })
     })
 
-    it('denies the wrong role and a user with no membership on the section', async () => {
+    it('denies the wrong role with FORBIDDEN, and an outsider with NOT_FOUND (D-710)', async () => {
       expect(
         await codeOf(() =>
           permissions.requireSectionRole(actorOf(fx.student1), fx.sectionId, ['instructor']),
         ),
       ).toBe('FORBIDDEN')
+      // Another institution's seat learns nothing from a section id, not even that it exists.
       expect(
         await codeOf(() =>
           permissions.requireSectionRole(actorOf(fx.outsider), fx.sectionId, ['instructor', 'ta']),
         ),
-      ).toBe('FORBIDDEN')
+      ).toBe('NOT_FOUND')
+      expect(
+        await codeOf(() =>
+          permissions.requireSectionRole(
+            actorOf(fx.outsider),
+            '00000000-0000-4000-8000-000000000000',
+            ['instructor'],
+          ),
+        ),
+      ).toBe('NOT_FOUND')
     })
   })
 

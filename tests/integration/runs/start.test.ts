@@ -319,6 +319,64 @@ describe('getRun, getRunStatus and listMyRuns (07 §7, §3)', () => {
     await runs.acknowledgePolicy(fx.student, started.id)
     expect((await runs.listMyRuns(fx.student, { state: 'readiness' })).items).toHaveLength(1)
   })
+
+  /**
+   * D-722. `/runs` joins the attempts onto the assignments of the page it is drawing, and it used
+   * to fetch those attempts as "the hundred newest runs of the seat". Past a hundred runs the join
+   * went partial and the screen printed **Not started** over a run the student was standing in,
+   * with a **Start** that then refused them. The guard is the shape of the read, not the screen:
+   * an attempt outside the newest hundred is still returned when its assignment is asked for.
+   */
+  it('returns an attempt the newest-hundred window has left behind (D-722)', async () => {
+    const older = await runs.startRun(fx.student, fx.assignment.id)
+
+    // A second assignment carrying a hundred newer attempts of the same seat. They are voided, so
+    // the one-live-run-per-assignment constraint (D-041) holds while the numbers still count.
+    const busy = await f.createAssignment(fx.orgId, fx.section.id, 'runs-start-busy', {
+      packageVersionId: fx.pkg.version.id,
+      variantId: fx.pkg.sound.id,
+      label: 'Decision Run 1 (sound)',
+    })
+    await testSql`
+      insert into runs (organization_id, assignment_id, student_id, package_version_id, variant_id,
+                        attempt_no, state, working_clock_seconds, turn_delay_seconds, voided_at,
+                        created_at)
+      select ${fx.orgId}, ${busy.id}, ${fx.student.id}, ${fx.pkg.version.id}, ${fx.pkg.sound.id},
+             n, 'voided', 1500, 600, now(), now() + (n * interval '1 second')
+      from generate_series(1, 100) as n`
+
+    // The window the screen used to read: a hundred rows, every one of them on the busy assignment.
+    const window = await runs.listMyRuns(fx.student, { limit: 100 })
+    expect(window.items).toHaveLength(100)
+    expect(window.items.map((item) => item.id)).not.toContain(older.id)
+
+    // The read the screen makes now: keyed by the assignments on the page, so the older attempt is
+    // there whatever has happened since.
+    const forPage = await runs.listMyRunsForAssignments(fx.student, [fx.assignment.id, busy.id])
+    expect(forPage.map((item) => item.id)).toContain(older.id)
+    expect(forPage).toHaveLength(101)
+
+    // And the join the screen makes with it, which is where the defect showed: `/runs` and `/home`
+    // both feed these two reads to `toRunListRows`, and with the newest-hundred window the older
+    // assignment came back with `run: null` — "Not started", beside a Start that then refused.
+    const { toRunListRows } = await import('@/components/features/run/run-rows')
+    const mine = await courses.listMyAssignments(fx.student, { limit: 100 })
+    const rows = toRunListRows(mine.items, forPage)
+    const row = rows.find((r) => r.assignmentId === fx.assignment.id)
+    expect(row?.run?.id).toBe(older.id)
+
+    // And the reading the defect produced, so the assertion above cannot pass for the wrong reason:
+    // with the window the screen used to read, that row carries no run at all.
+    const windowed = toRunListRows(mine.items, window.items)
+    expect(windowed.find((r) => r.assignmentId === fx.assignment.id)?.run).toBeNull()
+
+    // Still the actor's own scope: another student's attempts never appear, whatever is asked for.
+    await runs.startRun(fx.student2, fx.assignment.id)
+    const theirs = await runs.listMyRunsForAssignments(fx.student2, [fx.assignment.id, busy.id])
+    expect(theirs.map((item) => item.assignmentId)).toEqual([fx.assignment.id])
+    expect(await runs.listMyRunsForAssignments(fx.instructor, [fx.assignment.id])).toEqual([])
+    expect(await runs.listMyRunsForAssignments(fx.student, [])).toEqual([])
+  })
 })
 
 describe('the variant never reaches the student (12 §8, D-228)', () => {

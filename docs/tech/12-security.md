@@ -116,7 +116,7 @@ Columns: what an attacker does, which asset is at stake, where they get in, the 
 | PII in PostHog | Identity | `posthog-js`, `posthog-node` | `distinct_id = sha256(user.id)` computed in `src/server/analytics/track.ts`; no `email` or `name` properties; `disable_session_recording: true`, `autocapture: false`, `person_profiles: 'identified_only'` | None |
 | Student text sent to the LLM provider | Student prose | Every real-provider call | `redactPii()` on every untrusted slot; opaque ids only; no names or emails (D-066) | The prose itself is disclosed to the provider by design; stated on `/privacy` |
 | Internal details in error responses | Implementation | Any error | Envelope `{ error: { code, message, details?, requestId } }`; no stack, no SQL (SYS-022, D-105); 4xx never sent to Sentry | None |
-| Email enumeration | User list | `/api/auth/sign-up/email` | Password reset and resend-verification are enumeration-safe (08 §2.3); rate limit 10/min per IP | Sign-up returns `USER_ALREADY_EXISTS`; accepted because enrollment is by invitation and the limit applies |
+| Email enumeration | User list | `/api/auth/sign-up/email` | Password reset and resend-verification are enumeration-safe (08 §2.3); rate limit 60/min per address (D-712: a class signing up at once) | Sign-up returns `USER_ALREADY_EXISTS`; accepted because enrollment is by invitation and the limit applies |
 | Identified records read by the platform editor without an agreement | Traces | Editor's cross-tenant helpers | `canReadIdentifiedRecords()` in `src/server/modules/tenancy/service.ts` (D-055, FR-234); purposes exclude any integrity purpose (FR-221) | None |
 | Test-control state visible to the student | Run experience | Run reads | `runs.flags.forced_failure_armed` is stripped by `toStudentWorkspaceView()` | None |
 
@@ -179,7 +179,7 @@ Columns: what an attacker does, which asset is at stake, where they get in, the 
 | A06 Vulnerable and Outdated Components | Pinned versions; frozen lockfile | 04 §8; `pnpm install --frozen-lockfile` in every workflow | `security` job (§5.1) |
 | A06 | Dependency audit | `pnpm audit --audit-level=high`; overrides and `auditConfig.ignoreGhsas` waivers in `pnpm-workspace.yaml`, each recorded in `DECISIONS.md` (D-149) | `security` job |
 | A06 | Update cadence | `.github/dependabot.yml` weekly (§5.3) | Dependabot PRs pass the full gate |
-| A07 Identification and Authentication Failures | Verified email before first sign-in; enumeration-safe reset; rate limits 10/min per IP on sign-in, sign-up, reset, resend | `src/server/auth/auth.ts` `emailAndPassword`, `emailVerification`, `rateLimit.customRules` (08 §1) | `tests/integration/auth/flows.test.ts` |
+| A07 Identification and Authentication Failures | Verified email before first sign-in; enumeration-safe reset; per-address ceilings of sign-in 120/min, sign-up 60/min, reset and resend 10/min (D-712); the eleventh failed sign-in for one account refused whatever the address (D-704) | `src/server/auth/auth.ts` `emailAndPassword`, `emailVerification`, `rateLimit.customRules` (08 §1) | `tests/integration/auth/flows.test.ts` |
 | A07 | Session lifetime and revocation | `expiresIn` 30 d, `updateAge` 1 d, `revokeSessionsOnPasswordReset`, `revokeOtherSessions` on password change, `revokeSessions` on role change; `freshAge` 10 min required for password change and account deletion | `tests/integration/auth/sessions.test.ts` |
 | A07 | Per-account sign-in limit | Application limit 10/min per email in `src/server/rate-limit/limits.ts` (D-021) | `tests/integration/auth/rate-limit.test.ts` |
 | A08 Software and Data Integrity Failures | Reproducible build shipped from CI | `vercel build` then `vercel deploy --prebuilt` in `.github/workflows/production.yml`; `SENTRY_AUTH_TOKEN` scoped to `project:releases`, `org:read` | Production workflow |
@@ -800,3 +800,13 @@ After any rotation: `npx vercel@59.11.2 redeploy --prod`, then `pnpm smoke`.
 | `FEATURE_TEST_CONTROLS=true` default | Needed by the walkthrough (FR-118) | Set to `false` in the Vercel production environment after the walkthrough is accepted; the flag stays in code | Walkthrough acceptance |
 | No CSP reporting | Console only | `report-to` with a Sentry security endpoint once a reporting host is added to the CSP | Pilot preparation |
 | Owner-role database access | Builder and CI can bypass grants | Neon role with `LOGIN` for humans limited to read-only except during migrations | Pilot preparation |
+
+
+## 12. Controls added by the QA run (2026-09-09)
+
+- **Body cap on every route handler** (D-702): `MAX_JSON_BODY_BYTES` = 1 MiB in `src/server/http/define-route.ts`; a larger declared or actual body answers 413 `PAYLOAD_TOO_LARGE` in the envelope. Fuzzed in `tests/integration/api/envelope.test.ts`.
+- **Run ids cannot be probed from the next seat** (D-703): a classmate asking for a run they do not own answers 404 on the replay, bands, exports, corrections and void endpoints; the run's own student answers 403.
+- **Per-account sign-in lockout** (D-704): ten failed sign-ins for one address in a minute, from any client, refuse the eleventh attempt with 429 before the password is checked; successful sign-ins are not counted. `tests/integration/auth/account-lockout.test.ts`.
+- **Per-address ceilings sized for a section** (D-712): sign-in 120 a minute, sign-up 60, and 600 for the other auth routes (the session reads every page makes), because a section arrives from one campus address (NFR-014: sixty students at once); the routes that send an email keep the ten-a-minute bombing ceiling. `tests/integration/auth/flows.test.ts` admits 120 sign-ins from one address in a minute and refuses the 121st.
+- **Prompt-injection battery** (`tests/security/prompt-injection.spec.ts`, `pnpm test:security`): fourteen adversarial requests through the assistant service, sentinel and answer-key vocabulary checks on every reply and every student payload, a second student's marker never surfaces, the 2,000-character refusal and the `llm` bucket refusal. Runs on the scripted provider in CI and against the live model with a key.
+- **`/robots.txt`** disallows every crawler (D-696), beside the `noindex` meta every page already carries.
