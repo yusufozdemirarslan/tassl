@@ -34,7 +34,12 @@ test.describe('@smoke screens', () => {
     for (let pageIndex = 0; pageIndex < 30 && !(await seeded.isVisible()); pageIndex += 1) {
       const more = page.getByRole('link', { name: 'Show more courses' })
       await expect(more).toBeVisible()
+      // The next page is a navigation with a new cursor; the walk waits for it, because the old
+      // page keeps its heading and its link until the new one lands and a second press on the same
+      // link only asks for the same page again.
+      const cursorBefore = new URL(page.url()).searchParams.get('cursor')
       await more.click()
+      await page.waitForURL((url) => url.searchParams.get('cursor') !== cursorBefore)
       await expect(page.getByRole('heading', { level: 1, name: 'Courses' })).toBeVisible()
     }
     await expect(seeded).toBeVisible()
