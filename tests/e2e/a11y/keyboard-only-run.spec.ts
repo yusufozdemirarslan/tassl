@@ -688,17 +688,21 @@ test('FR-210: a whole run, from the runs list to the debrief answers, with the p
           { timeout: SLOW_MS },
         )
       }
-      await arrowTo(
-        page,
-        group.getByRole('radio', { name: 'Verify' }),
-        'ArrowDown',
-        `Verify on ${claim.key}`,
-      )
-      await expect(group.getByRole('radio', { name: 'Verify' })).toHaveAttribute(
-        'aria-checked',
-        'true',
-        { timeout: SLOW_MS },
-      )
+      // Each arrow press is one write — the group records the chip it lands on — and a press while
+      // that write is in flight moves the focus without recording (one write at a time, as above).
+      // From Escalate, Verify is two presses away, so each press waits for its own announcement
+      // before the next; the loop is bounded by the number of chips.
+      const verify = group.getByRole('radio', { name: 'Verify' })
+      for (let press = 0; press < 5; press += 1) {
+        if ((await verify.getAttribute('aria-checked')) === 'true') break
+        await page.keyboard.press('ArrowDown')
+        const landed = await page.evaluate(() => document.activeElement?.textContent?.trim() ?? '')
+        await expect(page.locator('#run-announcer')).toHaveText(
+          `Stance on claim ${claim.key}: ${landed}.`,
+          { timeout: SLOW_MS },
+        )
+      }
+      await expect(verify).toHaveAttribute('aria-checked', 'true', { timeout: SLOW_MS })
     }
 
     const form = page.locator('#turn-response')
