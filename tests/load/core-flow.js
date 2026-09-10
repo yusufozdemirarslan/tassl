@@ -13,7 +13,8 @@
 // Arrival is a ramp over RAMP (default one minute for sixty of them): a class arrives from one
 // campus address within a minute or two, not within the same second, and the per-address sign-in
 // ceiling is sized for exactly that (120 a minute, D-712). Each virtual user signs in once and
-// keeps its cookie jar for the rest of the test, the way a browser does.
+// carries its session for the rest of the test, the way a browser does — as an explicit `Cookie`
+// header rather than through k6's jar, which is emptied between iterations (D-734).
 //
 // Each iteration: list assignments → start a run on the load assignment (or continue the live one)
 // → acknowledge the policy → read the Readiness Check → submit it → open a document → lock the frame
@@ -53,7 +54,23 @@ export const options = {
   },
 }
 
-const baseHeaders = () => (BYPASS ? { 'x-vercel-protection-bypass': BYPASS } : {})
+/**
+ * The session this virtual user signed in with, as a `Cookie` header (D-734).
+ *
+ * k6 empties the per-VU cookie jar at the end of every iteration, so a script that signs in once
+ * and leans on the jar is signed out from its second iteration onward — and this one did: every VU
+ * completed its first iteration and then read `/me/assignments` without a session for the rest of
+ * the run, which is how a ten-minute test reported 91 % failures against a deployment answering
+ * every one of those requests in 143 ms. The cookies are held here instead, in a module-level
+ * variable, which k6 does keep for the life of the VU.
+ */
+let sessionCookie = ''
+
+const baseHeaders = () =>
+  Object.assign(
+    BYPASS ? { 'x-vercel-protection-bypass': BYPASS } : {},
+    sessionCookie ? { cookie: sessionCookie } : {},
+  )
 
 function read(path) {
   const res = http.get(`${BASE}${path}`, {
@@ -90,7 +107,16 @@ function signIn() {
       tags: { kind: 'write' },
     },
   )
-  return check(res, { 'sign-in 200': (r) => r.status === 200 })
+  const ok = check(res, { 'sign-in 200': (r) => r.status === 200 })
+  if (ok) {
+    // Every cookie the sign-in set, as one header. Better Auth sets the session token and the
+    // signed session data beside it, and the session is only whole with both.
+    const jar = res.cookies || {}
+    sessionCookie = Object.keys(jar)
+      .map((name) => `${name}=${(jar[name][0] || {}).value}`)
+      .join('; ')
+  }
+  return ok
 }
 
 export default function student() {
