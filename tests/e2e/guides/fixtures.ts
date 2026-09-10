@@ -50,7 +50,8 @@ export type Persona = 'instructor' | 'student' | 'demo'
 export type Shooter = (task: number, step: number, show?: Locator) => Promise<void>
 
 /** Where the guides read their screenshots from (`docs/guides/<guide>.md` embeds `screenshots/…`). */
-export const SCREENSHOT_ROOT = join(process.cwd(), 'docs', 'guides', 'screenshots')
+export const SCREENSHOT_ROOT =
+  process.env.GUIDE_SCREENSHOT_ROOT ?? join(process.cwd(), 'docs', 'guides', 'screenshots')
 
 const pad = (n: number): string => String(n).padStart(2, '0')
 
@@ -173,6 +174,13 @@ export async function advanceRunClock(page: Page, runId: string, ms: number): Pr
     data: { ms },
     headers: WRITE_HEADERS,
   })
+  // Outside APP_ENV=test the route does not exist (it answers 404 before it looks at a session),
+  // and the guide chain is then running against a deployment — the walkthrough of
+  // build-plan step 15.5 — where the only honest way past the clock is to wait for it.
+  if (response.status() === 404) {
+    await page.waitForTimeout(ms)
+    return
+  }
   expect(response.status(), `advance-clock ${runId}: ${await response.text()}`).toBe(200)
 }
 

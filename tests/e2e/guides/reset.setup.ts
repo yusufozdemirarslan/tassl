@@ -20,5 +20,8 @@ setup('reset the demo seats between guide stages', async ({ request }) => {
   const reset = await request.post('/api/v1/test/rate-limits/reset', {
     headers: { 'X-Requested-With': 'tassl' },
   })
-  expect(reset.status(), await reset.text()).toBe(200)
+  // The route exists under APP_ENV=test alone (D-707). Against a deployment — the walkthrough of
+  // build-plan step 15.5 — it answers 404, and the windows there are Postgres rows that expire on
+  // their own within the minute.
+  expect([200, 404], await reset.text()).toContain(reset.status())
 })
