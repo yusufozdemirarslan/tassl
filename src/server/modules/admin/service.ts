@@ -17,6 +17,7 @@ import { effectiveLlmProvider, env } from '@/server/config'
 import { getRequestContext } from '@/server/http/request-context'
 import { AI_MODE_KEY, effectiveAssistantMode, readAiMode, writeAiMode } from '@/server/llm/ai-mode'
 import { budgetLimits, startOfUtcDay, startOfUtcMonth } from '@/server/llm/guardrails/budgets'
+import { captureOpsTestEvent } from '@/server/logging/ops-events'
 import {
   deleteSessionsOfUser,
   findUserById,
@@ -43,6 +44,7 @@ import {
   type ListUsersInput,
   type PlatformRole,
   type SetAiModeInput,
+  type SentryTestResult,
   type SetPlatformRoleInput,
 } from './schema'
 
@@ -271,4 +273,20 @@ export async function setPlatformRole(
     })
     return toAdminUser(after)
   })
+}
+
+/**
+ * Sends one test event to Sentry from inside the deployment (13 §4 row 7, D-708): the launch
+ * checklist's proof that events leave production, made a control an admin presses rather than a
+ * script an operator runs with the DSN in hand. Platform admin only; the event carries no
+ * personal data — a fixed message, the `ops` tag and the environment.
+ */
+export async function sendSentryTestEvent(actor: SessionUser): Promise<SentryTestResult> {
+  requirePlatformRole(actor, 'admin')
+  const eventId = captureOpsTestEvent()
+  return {
+    eventId,
+    environment: env.APP_ENV,
+    dsnConfigured: env.NEXT_PUBLIC_SENTRY_DSN.length > 0,
+  }
 }

@@ -17,9 +17,17 @@ import {
   listAuditLogSchema,
   listUsersSchema,
   setAiModeSchema,
+  sentryTestResultSchema,
   setPlatformRoleBodySchema,
 } from './schema'
-import { getFlags, listAuditLog, listUsers, setAiMode, setPlatformRole } from './service'
+import {
+  getFlags,
+  listAuditLog,
+  listUsers,
+  setAiMode,
+  setPlatformRole,
+  sendSentryTestEvent,
+} from './service'
 
 const TAGS = ['admin']
 
@@ -97,4 +105,15 @@ export const adminListAuditLog = defineRoute(
     openapi: { operationId: 'adminListAuditLog', summary: 'Audit log', tags: TAGS },
   },
   async (ctx) => listAuditLog(actorOf(ctx), ctx.input.query),
+)
+
+/** `POST /admin/sentry-test` — one `ops.sentry_test` event from this deployment (D-708). */
+export const adminSentryTest = defineRoute(
+  {
+    auth: 'session',
+    output: sentryTestResultSchema,
+    rateLimit: { bucket: 'write' },
+    openapi: { operationId: 'adminSentryTest', summary: 'Send a Sentry test event', tags: TAGS },
+  },
+  async (ctx) => sendSentryTestEvent(actorOf(ctx)),
 )

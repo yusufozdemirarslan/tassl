@@ -179,3 +179,15 @@ export const adminFlagsSchema = z.object({
   llmUsage: llmUsageSchema,
 })
 export type AdminFlags = z.infer<typeof adminFlagsSchema>
+
+/**
+ * `POST /admin/sentry-test` (D-708): the id of the test event just sent, the environment it was
+ * tagged with, and whether this deployment has a DSN at all — without one the SDK mints an id and
+ * sends nothing, and the screen must say so rather than print an id that will never arrive.
+ */
+export const sentryTestResultSchema = z.object({
+  eventId: z.string().min(1),
+  environment: z.string(),
+  dsnConfigured: z.boolean(),
+})
+export type SentryTestResult = z.infer<typeof sentryTestResultSchema>

@@ -9,6 +9,7 @@
 // not turn into a full page render per press. The search box and the institution filter stay on
 // the server as plain query parameters, because a filter that survives a reload and can be linked
 // to is worth more than one that does not (D-575).
+import { z } from 'zod'
 import { defineAction } from '@/server/http/define-action'
 import {
   listAuditLogSchema,
@@ -22,9 +23,10 @@ import {
   type ListAuditLogInput,
   type ListUsersInput,
   type SetAiModeInput,
+  type SentryTestResult,
   type SetPlatformRoleInput,
 } from './schema'
-import { listAuditLog, listUsers, setAiMode, setPlatformRole } from './service'
+import { listAuditLog, listUsers, sendSentryTestEvent, setAiMode, setPlatformRole } from './service'
 
 /** Every admin screen shows role state, and the change signs the person out of all three. */
 const ADMIN = ['/admin/users', '/admin/audit']
@@ -57,4 +59,11 @@ export const listAuditLogAction = defineAction<ListAuditLogInput, AuditEntryPage
   listAuditLogSchema,
   async (input, ctx) => ({ data: await listAuditLog(ctx.actor, input) }),
   { name: 'admin.listAuditLog' },
+)
+
+/** "Send a test event to Sentry" on the flags screen (D-708). */
+export const sendSentryTestAction = defineAction<Record<string, never>, SentryTestResult>(
+  z.object({}),
+  async (_input, ctx) => ({ data: await sendSentryTestEvent(ctx.actor) }),
+  { name: 'admin.sendSentryTest' },
 )

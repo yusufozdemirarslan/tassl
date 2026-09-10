@@ -119,6 +119,16 @@ export const admin = {
   'admin.flags.usageDailyBudget':
     'LLM_USER_DAILY_TOKEN_BUDGET is {budget} tokens per person per UTC day. It is counted per person, so the platform-wide figure above is not measured against it.',
 
+  // Sentry test event (13 §4, D-708)
+  'admin.flags.sentryTitle': 'Sentry',
+  'admin.flags.sentryDescription':
+    'Sends one test event from this deployment, tagged ops:sentry_test, so the last hop to Sentry is proven from where the real events start. It lands in the issue the launch checklist already knows.',
+  'admin.flags.sentrySend': 'Send a test event to Sentry',
+  'admin.flags.sentrySending': 'Sending…',
+  'admin.flags.sentrySent': 'Test event {id} sent to Sentry ({environment}).',
+  'admin.flags.sentryNoDsn':
+    'NEXT_PUBLIC_SENTRY_DSN is empty in this deployment, so the SDK is off and nothing leaves it. The button does nothing until a DSN is set and the app redeployed.',
+
   // Audit log (UI-050, DATA-048)
   'admin.audit.title': 'Audit log',
   'admin.audit.description':

@@ -7394,6 +7394,38 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "429":
           $ref: "#/components/responses/RateLimited"
+  /admin/sentry-test:
+    post:
+      tags:
+        - admin
+      operationId: adminSentryTest
+      summary: Send a Sentry test event
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  eventId:
+                    type: string
+                    minLength: 1
+                  environment:
+                    type: string
+                  dsnConfigured:
+                    type: boolean
+                required:
+                  - eventId
+                  - environment
+                  - dsnConfigured
+                additionalProperties: false
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "429":
+          $ref: "#/components/responses/RateLimited"
   /admin/settings/ai-mode:
     put:
       tags:

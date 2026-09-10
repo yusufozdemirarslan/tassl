@@ -30,6 +30,9 @@ runbook (`docs/guides/demo-runbook.md`) open on the second screen.
    plan for the day differs; it takes effect on the next assistant request.
 8. On the same page, **Model usage** shows today's calls and tokens under the ceilings
    (`LLM_USER_DAILY_TOKEN_BUDGET` 200,000 per person, `LLM_GLOBAL_MONTHLY_TOKEN_BUDGET` 20,000,000).
+   Under **Sentry**, press **Send a test event to Sentry**: the line "Test event … sent to Sentry
+   (production)" appears, and within a minute the event is under Sentry → Issues → `ops.sentry_test`
+   (TASSL-1). That proves the last hop to Sentry from inside the deployment.
 
 ## 3. Dry run at projector resolution (5 minutes)
 

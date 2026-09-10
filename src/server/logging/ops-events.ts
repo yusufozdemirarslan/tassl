@@ -66,3 +66,18 @@ export function countOps(event: OpsCount, props: OpsAttrs = {}, distinctId = 'sy
   getLogger().info({ event, distinctId, ...props }, event)
   trackOps(event, props, distinctId)
 }
+
+/**
+ * The admin's test event (13 §4, docs/prompts/02-qa-and-guides.md C13, D-708): one `ops.sentry_test`
+ * warning with the same tag and fingerprint `scripts/sentry-test.ts` uses, so the issue it lands in
+ * is the one the launch checklist already knows (TASSL-1). Returns the event id the SDK minted — a
+ * string even when the SDK is disabled, which is why the service also reports whether a DSN is set.
+ */
+export function captureOpsTestEvent(): string {
+  return Sentry.withScope((scope) => {
+    scope.setTag('ops', 'sentry_test')
+    scope.setFingerprint(['ops', 'sentry_test'])
+    scope.setLevel('warning')
+    return Sentry.captureMessage('ops.sentry_test')
+  })
+}

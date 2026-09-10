@@ -10,6 +10,7 @@ export {
   listAuditLog,
   listInstitutions,
   listUsers,
+  sendSentryTestEvent,
   setAiMode,
   setPlatformRole,
 } from './service'
@@ -30,6 +31,7 @@ export {
   llmUsageSchema,
   llmUsageWindowSchema,
   platformRoleSchema,
+  sentryTestResultSchema,
   setAiModeSchema,
   setPlatformRoleSchema,
   type AdminFlags,
@@ -46,5 +48,6 @@ export {
   type LlmUsageWindow,
   type PlatformRole,
   type SetAiModeInput,
+  type SentryTestResult,
   type SetPlatformRoleInput,
 } from './schema'
