@@ -18,7 +18,7 @@
 //     that says "wait for the Turn" waits for the same thing a person would, without the 90 seconds.
 import { mkdirSync } from 'node:fs'
 import { dirname, join } from 'node:path'
-import { expect, type Page } from '@playwright/test'
+import { expect, type Locator, type Page } from '@playwright/test'
 import { test as suite } from '../fixtures'
 
 export {
@@ -41,7 +41,13 @@ export { expect }
 
 export type Persona = 'instructor' | 'student' | 'demo'
 
-export type Shooter = (task: number, step: number) => Promise<void>
+/**
+ * Writes the step's screenshot. `show` names what the step's "You see" describes: it is scrolled into
+ * view first, so the image carries the heading, counter, or panel the sentence names rather than
+ * whatever the top of the page happened to be (D-714). A step whose subject is already in the first
+ * viewport passes nothing.
+ */
+export type Shooter = (task: number, step: number, show?: Locator) => Promise<void>
 
 /** Where the guides read their screenshots from (`docs/guides/<guide>.md` embeds `screenshots/…`). */
 export const SCREENSHOT_ROOT = join(process.cwd(), 'docs', 'guides', 'screenshots')
@@ -87,9 +93,14 @@ export const test = suite.extend<{
   shot: async ({ page, persona, browserName }, provide) => {
     const dir = join(SCREENSHOT_ROOT, persona)
     mkdirSync(dir, { recursive: true })
-    await provide(async (task, step) => {
+    await provide(async (task, step, show) => {
       // Let the last action settle so the screenshot shows the state the guide describes.
       await page.waitForLoadState('domcontentloaded')
+      if (show) {
+        // Every engine scrolls, so the three chains walk the same page; only chromium captures.
+        await expect(show).toBeVisible()
+        await show.scrollIntoViewIfNeeded()
+      }
       if (browserName !== 'chromium') return
       const path = join(dir, `task-${pad(task)}-step-${pad(step)}.png`)
       mkdirSync(dirname(path), { recursive: true })

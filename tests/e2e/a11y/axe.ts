@@ -23,6 +23,14 @@ export const AXE_TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa']
  * rather than a `testInfo` parameter so the sixty-odd call sites stay `axe(page)`.
  */
 export async function axe(page: Page): Promise<void> {
+  // Colours are read when nothing is mid-transition. A dialog fading out, or a button between its
+  // rest and hover fills (150 ms, `transition-colors`), has a blended foreground and background that
+  // neither state has — axe once read a submit button inside a closing dialog at 4.19:1 while both
+  // of its real states clear 4.5:1 (QA-036). Every running animation and transition is awaited
+  // first; a screen with none resolves at once.
+  await page.evaluate(() =>
+    Promise.all(document.getAnimations().map((animation) => animation.finished.catch(() => null))),
+  )
   const results = await new AxeBuilder({ page }).withTags([...AXE_TAGS]).analyze()
 
   const detail = results.violations.map((violation) => ({
