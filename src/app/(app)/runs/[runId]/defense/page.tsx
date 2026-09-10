@@ -37,8 +37,12 @@ export const metadata: Metadata = { title: t('defense.metaTitle') }
 // **One read** (D-341). `openDefense` selects the questions the first time it is called and is
 // idempotent afterwards (FR-121, FR-126), and it carries the artifacts with them because all four
 // are `runs.getDecision`'s — the frozen record UI-024 already reads. `defense_complete` is a state
-// it still answers in, so the poll's refresh after the completion does not race the redirect; the
-// guard below is what sends the student to the status screen.
+// it still answers in, so the poll's refresh after the completion does not race the redirect.
+//
+// The guard below no longer routes the completing press — `DefenseInterview` navigates to the route
+// the completing call reported, so the destination cannot be overtaken by the scoring job (D-720).
+// It stays as the answer for a page that *arrives* here with the run elsewhere: a second tab, a
+// bookmark, a back press.
 
 export default async function RunDefensePage({ params }: PageProps<'/runs/[runId]/defense'>) {
   const { runId } = await params

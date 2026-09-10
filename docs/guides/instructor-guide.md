@@ -28,8 +28,8 @@ Students, teaching assistants and platform admins have other guides; this one co
 - **Courses** (rail) — every course in the institution; a course opens with the views **Sections**, **Assignments**, **Policy** and **Mapping**. A section row has a **Roster** link; an assignment row opens the assignment page, whose **Runs** table has **Open the replay** for every run and which links to **Course exports**.
 - **Review** (rail) — **Runs waiting for you**: every scored run of a section you review, newest first, each with **Open the replay for** the student. The replay has the views **Overview**, **Bands**, **Trace**, **Package** and **Actions**.
 - **Packages** (rail) — the scenario packages of the institution and **New package from a seed case**; a package row opens its latest version, from which you reach the generation screen and the confirmation workspace.
-- **Notifications** (the bell in the header) — what Tassl has told you, newest first.
-- **Account** (the header button that carries your name) — **Settings**, with the sections **Profile**, **Security** and **Data**, then **Privacy**, **Terms** and **Sign out**.
+- **Notifications** (the bell icon at the top right) — what Tassl has told you, newest first.
+- **Account** (the person icon at the top right) — **Settings**, with the sections **Profile**, **Security** and **Data**, then **Privacy**, **Terms** and **Sign out**.
 - The institution name in the header becomes a **Switch institution** menu when you belong to more than one.
 
 Two rail items never appear for an instructor seat: **Runs** belongs to student seats and **Admin** to platform admins.
@@ -56,15 +56,15 @@ Two rail items never appear for an instructor seat: **Runs** belongs to student 
    ![Task 1 step 6](screenshots/instructor/task-01-step-06.png)
 7. Click **Courses** in the rail. → You see: the heading **Courses** and the row **Marketing Strategy Walkthrough**.
    ![Task 1 step 7](screenshots/instructor/task-01-step-07.png)
-8. Click **Review** in the rail. → You see: the heading **Review**, **Runs waiting for you** and **Nothing waiting**.
+8. Click **Review** in the rail. → You see: **Runs waiting for you** and, under it, **Nothing waiting**.
    ![Task 1 step 8](screenshots/instructor/task-01-step-08.png)
-9. Click **Packages** in the rail. → You see: the heading **Packages** and the row **Meridian Roast (fixture)**.
+9. Click **Packages** in the rail on the left. → You see: the heading **Packages** and the row **Meridian Roast (fixture)**.
    ![Task 1 step 9](screenshots/instructor/task-01-step-09.png)
 10. Click **Home** in the rail. → You see: **What needs your attention, and what is coming up.**
    ![Task 1 step 10](screenshots/instructor/task-01-step-10.png)
-11. Click the **Notifications** bell in the header. → You see: the heading **Notifications** and **What Tassl has told you, newest first.**
+11. Click the bell icon at the top right (named **Notifications**). → You see: the heading **Notifications** and **What Tassl has told you, newest first.**
    ![Task 1 step 11](screenshots/instructor/task-01-step-11.png)
-12. Click the **Account** button in the header (your name is part of its label). → You see: the menu items **Settings**, **Privacy**, **Terms** and **Sign out**.
+12. Click the person icon at the top right (named **Account**). → You see: the menu items **Settings**, **Privacy**, **Terms** and **Sign out**.
    ![Task 1 step 12](screenshots/instructor/task-01-step-12.png)
 
 *If something goes wrong:*
@@ -160,7 +160,7 @@ Two rail items never appear for an instructor seat: **Runs** belongs to student 
    ![Task 4 step 6](screenshots/instructor/task-04-step-06.png)
 7. Click **Save policy**. → You see: **Policy saved.**
    ![Task 4 step 7](screenshots/instructor/task-04-step-07.png)
-8. Click the **Mapping** tab. → You see: **Band-to-points mapping** and the fields **Novice**, **Developing**, **Proficient** and **Professional**.
+8. Click the **Mapping** tab under the course heading. → You see: **Band-to-points mapping** and the fields **Novice**, **Developing**, **Proficient** and **Professional**.
    ![Task 4 step 8](screenshots/instructor/task-04-step-08.png)
 9. Type **5** in **Professional**. → You see: **5** in the field.
    ![Task 4 step 9](screenshots/instructor/task-04-step-09.png)
@@ -189,19 +189,19 @@ Two rail items never appear for an instructor seat: **Runs** belongs to student 
    ![Task 5 step 2](screenshots/instructor/task-05-step-02.png)
 3. Read **This version**. → You see: **Status** with **Confirmed**, **Working clock** with **25 min** and **Turn delay** with **1 min 30 s**.
    ![Task 5 step 3](screenshots/instructor/task-05-step-03.png)
-4. Read **Confirmation record**. → You see: **Decisions by element type** with the columns **Element type**, **Decisions**, **By** and **Latest decision**.
+4. Read **Confirmation record**. → You see: under the table, the caption **Decisions by element type**, and below it the heading **Decisions that were not a plain confirmation**.
    ![Task 5 step 4](screenshots/instructor/task-05-step-04.png)
 5. Read **Authoring record**. → You see: **Generating model**, **The seed case** and **Re-skin log**.
    ![Task 5 step 5](screenshots/instructor/task-05-step-05.png)
 6. Read **Authoring measures**. → You see: **Seed to confirmed**, **Edit rate**, **Rejected share**, **Generation passes** and **Review time per element**.
    ![Task 5 step 6](screenshots/instructor/task-05-step-06.png)
-7. Read **Claims**. → You see: **Claims and their per-variant states** with the columns **Defective variant** and **Sound variant**.
+7. Read **Claims**. → You see: the last claim of the table, **C8**, and under the table the caption **Claims and their per-variant states**.
    ![Task 5 step 7](screenshots/instructor/task-05-step-07.png)
-8. Click **C3** in the **Claims** table. → You see: **Claim C3**, **Where it comes from** and **What it deserved, and why**.
+8. Click **C3** in the **Claims** table. → You see: the headings **Escalation**, **What it deserved, and why** and, under them, **Per variant**.
    ![Task 5 step 8](screenshots/instructor/task-05-step-08.png)
-9. Click **All claims**. → You see: **Claims and their per-variant states**.
+9. Click **All claims** at the top of the **Claims** panel. → You see: the caption **Claims and their per-variant states** under the table.
    ![Task 5 step 9](screenshots/instructor/task-05-step-09.png)
-10. Click **Export package JSON**. → You see: the version page unchanged, with the link **Export package JSON** still on it; your browser saves the file **tassl-package-meridian-roast.json**.
+10. Click **Export package JSON** at the top right, beside the package title. → You see: the version page unchanged, with the link **Export package JSON** still on it; your browser saves the file **tassl-package-meridian-roast.json**.
    ![Task 5 step 10](screenshots/instructor/task-05-step-10.png)
 
 *If something goes wrong:*
@@ -238,7 +238,7 @@ Two rail items never appear for an instructor seat: **Runs** belongs to student 
    ![Task 6 step 10](screenshots/instructor/task-06-step-10.png)
 11. Click **Create assignment**. → You see: **Guide run is ready.**, the heading **Guide run** and the chip **Walkthrough**.
    ![Task 6 step 11](screenshots/instructor/task-06-step-11.png)
-12. Read **Configuration**. → You see: **What every run on this assignment is taken under.** and the button **Save configuration**.
+12. Read **Configuration**. → You see: **Working clock (seconds)** reading **600**, **Weight** reading **2**, the **Walkthrough** switch on, and the button **Save configuration**.
    ![Task 6 step 12](screenshots/instructor/task-06-step-12.png)
 13. Read **Runs**. → You see: **No runs yet** and **Once a student starts this assignment, their run appears here with its state and its replay.**
    ![Task 6 step 13](screenshots/instructor/task-06-step-13.png)
@@ -263,11 +263,11 @@ Two rail items never appear for an instructor seat: **Runs** belongs to student 
    ![Task 7 step 3](screenshots/instructor/task-07-step-03.png)
 4. Click **Guide run** on its row. → You see: **Runs** with the row **Student Two**, the state **Scored**, **0 of 7** and **None yet**.
    ![Task 7 step 4](screenshots/instructor/task-07-step-04.png)
-5. Click **Review** in the rail. → You see: **Runs waiting for you** with **Student Two**, **Scored**, **0 of 7** and **Open the replay for Student Two**.
+5. Click **Review** in the rail on the left. → You see: **Runs waiting for you** with **Student Two**, **Scored**, **0 of 7** and **Open the replay for Student Two**.
    ![Task 7 step 5](screenshots/instructor/task-07-step-05.png)
 6. Read the note under the **Runs waiting for you** table. → You see: **Which variant a student drew is on the replay rather than in this list, so this screen can be shown to a room.**
    ![Task 7 step 6](screenshots/instructor/task-07-step-06.png)
-7. Click **Home** in the rail. → You see: the **Review** panel with **Student Two**, **0 of 7 decided** and **Open the replay for Student Two**.
+7. Click **Home** in the rail on the left. → You see: the **Review** panel with **Student Two**, **0 of 7 decided** and **Open the replay for Student Two**.
    ![Task 7 step 7](screenshots/instructor/task-07-step-07.png)
 
 *If something goes wrong:*
@@ -286,7 +286,7 @@ Two rail items never appear for an instructor seat: **Runs** belongs to student 
    ![Task 8 step 1](screenshots/instructor/task-08-step-01.png)
 2. Click **Open the replay for Student Two**. → You see: the heading **Student Two**, **Attempt 1 · Defective variant** and the views **Overview**, **Bands**, **Trace**, **Package** and **Actions**.
    ![Task 8 step 2](screenshots/instructor/task-08-step-02.png)
-3. Read **The four graphs**. → You see: **Confidence line**, **Clock timeline**, **Stance matrix** and **Frame beside decision**.
+3. Read **The four graphs**. → You see: the first two of them, **Confidence line** and **Clock timeline**; scrolling down, the others are **Stance matrix** and **Frame beside decision**.
    ![Task 8 step 3](screenshots/instructor/task-08-step-03.png)
 4. Click the first **Show data table**. → You see: that button now reads **Show graph**.
    ![Task 8 step 4](screenshots/instructor/task-08-step-04.png)
@@ -296,23 +296,23 @@ Two rail items never appear for an instructor seat: **Runs** belongs to student 
    ![Task 8 step 6](screenshots/instructor/task-08-step-06.png)
 7. Read **Readiness Check**. → You see: **The concept map the Readiness Check closed with.**
    ![Task 8 step 7](screenshots/instructor/task-08-step-07.png)
-8. Click **Trace**. → You see: **The run’s trace** with the columns **No.**, **Clock left**, **Event**, **What it says** and **Record**.
+8. Click **Trace** in the row of views under the student’s name. → You see: **The run’s trace** with the columns **No.**, **Clock left**, **Event**, **What it says** and **Record**.
    ![Task 8 step 8](screenshots/instructor/task-08-step-08.png)
 9. Click **Bands**. → You see: **The seven bands** and **0 of 7 decided**.
    ![Task 8 step 9](screenshots/instructor/task-08-step-09.png)
-10. On **Framing**, click the button that begins **Confirm the draft**. → You see: **The decision is on the record.** and **1 of 7 decided**.
+10. On **Framing**, the first of the seven cards, click the button under its note field that begins **Confirm the draft**. → You see: **The decision is on the record.** and **1 of 7 decided**.
    ![Task 8 step 10](screenshots/instructor/task-08-step-10.png)
 11. On **Verification**, choose **Professional** (or **Proficient** when the draft is already Professional). → You see: the button **Record Professional instead** (or **Record Proficient instead**).
    ![Task 8 step 11](screenshots/instructor/task-08-step-11.png)
 12. Type **Guide note. Check the memo date.** in **Note for the student (optional)** on **Verification**. → You see: **Guide note. Check the memo date.** in the field.
    ![Task 8 step 12](screenshots/instructor/task-08-step-12.png)
-13. Click **Record Professional instead** (or **Record Proficient instead**). → You see: **2 of 7 decided** and **Note to the student: Guide note. Check the memo date.**
+13. Click **Record Professional instead** (or **Record Proficient instead**). → You see: on **Verification**, **Note to the student: Guide note. Check the memo date.**
    ![Task 8 step 13](screenshots/instructor/task-08-step-13.png)
 14. Click **Confirm the remaining drafts**. → You see: the dialog **Confirm the remaining drafts?** and **Confirming these writes course export version 1.**
    ![Task 8 step 14](screenshots/instructor/task-08-step-14.png)
 15. Click **Put the remaining drafts on the record**. → You see: **7 of 7 decided** and the chip **Confirmed**.
    ![Task 8 step 15](screenshots/instructor/task-08-step-15.png)
-16. Read **Points under this course’s mapping**. → You see: **From the seven bands on the record**, **Total over the assessed dimensions (7)** and **Enter the bands, the mapping and the points in the gradebook of record. Tassl holds no grade.**
+16. Read **Points under this course’s mapping**, below the seven cards. → You see: **From the seven bands on the record**, **Total over the assessed dimensions (7)** and **Enter the bands, the mapping and the points in the gradebook of record. Tassl holds no grade.**
    ![Task 8 step 16](screenshots/instructor/task-08-step-16.png)
 17. Read **Course exports** on the same view. → You see: **The bands were confirmed** and the link **Download version 1**.
    ![Task 8 step 17](screenshots/instructor/task-08-step-17.png)
@@ -335,13 +335,13 @@ Two rail items never appear for an instructor seat: **Runs** belongs to student 
    ![Task 9 step 2](screenshots/instructor/task-09-step-02.png)
 3. Click the **Assignments** tab. → You see: the row **Guide run**.
    ![Task 9 step 3](screenshots/instructor/task-09-step-03.png)
-4. Click **Guide run**. → You see: the heading **Guide run** and the row **Student Two** in **Runs** with the link **Open the replay**.
+4. Click **Guide run**. → You see: in **Runs**, the row **Student Two** with the link **Open the replay**.
    ![Task 9 step 4](screenshots/instructor/task-09-step-04.png)
 5. Click **Open the replay** on the **Student Two** row. → You see: the heading **Student Two**.
    ![Task 9 step 5](screenshots/instructor/task-09-step-05.png)
 6. Click **Actions**. → You see: **Corrections** and **No correction has been entered on this run.**
    ![Task 9 step 6](screenshots/instructor/task-09-step-06.png)
-7. Click **Enter a correction on C3…**. → You see: the dialog **Enter a correction on claim C3?** and **What went wrong?** with **The claim carried a defect nobody placed** selected.
+7. Click **Enter a correction on C3…**, under **C3** in the **Claims** list. → You see: the dialog **Enter a correction on claim C3?** and **What went wrong?** with **The claim carried a defect nobody placed** selected.
    ![Task 9 step 7](screenshots/instructor/task-09-step-07.png)
 8. Tick **Credit the student’s challenge as correct**. → You see: the box ticked.
    ![Task 9 step 8](screenshots/instructor/task-09-step-08.png)
@@ -353,7 +353,7 @@ Two rail items never appear for an instructor seat: **Runs** belongs to student 
    ![Task 9 step 11](screenshots/instructor/task-09-step-11.png)
 12. Read the button **Arm the outage** and the line under it. → You see: **This run is not in a state that can take an outage. One can be armed while the student is working, answering the Turn, or paused.**
    ![Task 9 step 12](screenshots/instructor/task-09-step-12.png)
-13. Click **Review** in the rail. → You see: **Open the replay for Student One**.
+13. Click **Review** in the rail on the left. → You see: **Open the replay for Student One**.
    ![Task 9 step 13](screenshots/instructor/task-09-step-13.png)
 14. Click **Open the replay for Student One**. → You see: the heading **Student One**.
    ![Task 9 step 14](screenshots/instructor/task-09-step-14.png)

@@ -25,7 +25,7 @@ const actions = vi.hoisted(() => ({
   answerDefenseQuestionAction: vi.fn(),
   completeDefenseAction: vi.fn(),
 }))
-const router = vi.hoisted(() => ({ refresh: vi.fn() }))
+const router = vi.hoisted(() => ({ refresh: vi.fn(), replace: vi.fn() }))
 
 // The real modules drag the defense service and the database into jsdom.
 vi.mock('@/server/modules/defense/actions', () => ({
@@ -68,6 +68,7 @@ beforeEach(() => {
   actions.answerDefenseQuestionAction.mockReset()
   actions.completeDefenseAction.mockReset()
   router.refresh.mockReset()
+  router.replace.mockReset()
   sessionStorage.clear()
 })
 
@@ -365,7 +366,10 @@ describe('DefenseInterview', () => {
       ok: true,
       data: { next: null, followUpQuestion: null },
     })
-    actions.completeDefenseAction.mockResolvedValue({ ok: true, data: { id: RUN_ID } })
+    actions.completeDefenseAction.mockResolvedValue({
+      ok: true,
+      data: { id: RUN_ID, links: { next: `/runs/${RUN_ID}` } },
+    })
     render(<DefenseInterview runId={RUN_ID} questions={QUESTIONS} />)
 
     await user.click(screen.getByRole('button', { name: enUS['defense.finish'] }))
@@ -403,7 +407,10 @@ describe('DefenseInterview', () => {
           : { ok: true, data: { next: null, followUpQuestion: null } },
       ),
     )
-    actions.completeDefenseAction.mockResolvedValue({ ok: true, data: { id: RUN_ID } })
+    actions.completeDefenseAction.mockResolvedValue({
+      ok: true,
+      data: { id: RUN_ID, links: { next: `/runs/${RUN_ID}` } },
+    })
     render(<DefenseInterview runId={RUN_ID} questions={QUESTIONS} />)
 
     await user.click(screen.getByRole('button', { name: enUS['defense.finish'] }))
@@ -419,7 +426,9 @@ describe('DefenseInterview', () => {
     expect(actions.answerDefenseQuestionAction).toHaveBeenCalledTimes(2)
     // Nothing under the scrim claims the answer failed: the run holds one.
     expect(screen.queryByText(enUS['defense.finishFailed'])).not.toBeInTheDocument()
-    expect(router.refresh).toHaveBeenCalled()
+    // And the student is sent where the completing call said the run goes — the status screen, not
+    // wherever a re-read would have found the run once the scoring job had had its turn (D-720).
+    expect(router.replace).toHaveBeenCalledWith(`/runs/${RUN_ID}`)
   })
 
   it('re-reads the interview when the finish is stopped by something else after a stale question', async () => {

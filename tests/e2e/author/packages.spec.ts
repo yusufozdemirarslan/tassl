@@ -20,7 +20,7 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type { Locator, Page } from '@playwright/test'
 import { suiteName } from '../fixture-package'
-import { expect, signInAs, signOut, test } from '../fixtures'
+import { expect, signInAs, signOut, test, walkPagesTo } from '../fixtures'
 
 /** The fixture the seed imports (06 §5 item 4); this spec brings the same document in by hand. */
 const FIXTURE_PATH = join(
@@ -128,10 +128,10 @@ test('an instructor starts a package from a seed case, imports one whole, and re
   ).toBeVisible()
 
   // The seeded Meridian Roast family: a confirmed version, and uncalibrated because no cohort has
-  // run it. It is the oldest package in the institution and the list is newest first, so it is on
-  // the first page of any seeded database.
+  // run it. It is the oldest package in the institution and the list is newest first (D-020), so on
+  // a database this suite has already written packages to it is behind "Show more packages".
   const seededRow = page.getByRole('row').filter({ hasText: 'meridian-roast' })
-  await expect(seededRow).toBeVisible()
+  await walkPagesTo(page, seededRow, 'Show more packages', 'Packages')
   await expect(
     seededRow.getByRole('link', { name: 'Open Meridian Roast (fixture), version 1' }),
   ).toBeVisible()

@@ -16,7 +16,7 @@ pnpm lint                # eslint + prettier check
 pnpm typecheck           # tsc --noEmit
 pnpm test                # vitest unit (jsdom)
 pnpm test:integration    # vitest against Postgres (TEST_DATABASE_URL)
-pnpm test:e2e            # playwright (builds, seeds, starts the app)
+pnpm test:e2e            # playwright, the four engine projects (builds, seeds, starts the app)
 pnpm evals               # AI evals (mock in CI; real provider locally with a key)
 pnpm db:generate | db:migrate | db:seed | db:reset -- --dev
 pnpm openapi:generate | openapi:check

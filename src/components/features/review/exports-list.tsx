@@ -68,8 +68,14 @@ export function ExportsList({ runId, exports }: ExportsListProps) {
               <TableCell className="whitespace-normal">{REASON_LABELS[row.reason]()}</TableCell>
               <TableCell className="whitespace-normal">{formatDateTime(row.createdAt)}</TableCell>
               <TableCell>
+                {/* The file name is named here as well as in the response header (D-719): an
+                    engine that disregards `content-disposition` disregards its filename too. */}
                 <a
                   href={`/api/v1/runs/${runId}/exports/${String(row.version)}`}
+                  download={t('record.courseExportFileName', {
+                    runId,
+                    version: String(row.version),
+                  })}
                   className="text-primary text-meta focus-visible:outline-focus inline-flex min-h-10 items-center rounded-sm underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2"
                 >
                   {t('review.exportDownload', { version: row.version })}

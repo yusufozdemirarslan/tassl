@@ -38,6 +38,26 @@ Local production build env: `.env.test` (gitignored; recreate from the block in 
 ## Open fix in progress
 - (none)
 
+## Session of 2026-09-10 (afternoon): the triage of the first clean ×3 run
+The ×3 run of all three engines finished 861 passed / 15 failed (1.2 h) and the CI `guides` job failed
+on webkit. Five clusters, each root-caused and adversarially verified, then fixed at the root:
+
+| Cluster | Verdict | Fix |
+|---|---|---|
+| `meridian-roast` absent from /packages (firefox ×2, webkit ×3, in two specs) and `Decision Run 1 (walkthrough)` absent from /runs (webkit ×3) | test defect — every list is a cursor page, a seeded row is the oldest row there is | `walkPagesTo()` (D-718), QA-046 |
+| webkit lands on /debrief instead of /runs/{id} after **Finish it** (1 of 3, two specs) | **product** — the destination was re-derived by a guard that races the scoring job | navigate to the completing call's `links.next` (D-720), QA-043 |
+| CI guides: webkit never fires the download for **Export package JSON** | **product** — `content-disposition` alone; WebKit navigates. Safari could not export at all | `download` on the four export anchors (D-719), QA-042 |
+| twelve `The destination stream closed early.` in the CI server log | **product (ops)** — a client disconnect reached Sentry untagged, and `NFR-007 error burst` fires on ten untagged events in five minutes | filter at `onRequestError` (D-721), QA-044 |
+| (found while verifying the runs-row cluster) /runs printed **Not started** and **Start** over a live run | **product** — two independently paged lists joined; past 100 runs the join went partial and Start then refused with `RUN_ACTIVE_EXISTS` | `listMyRunsForAssignments` (D-722), QA-045 |
+
+Also closed: the guide rewording of the C16 second reading had drifted from thirteen `test.step` titles
+(the spec now matches: 28 tasks, 321 steps); D-716 and D-717 rows were missing for work already in the
+tree; `/api/health` in production answers `"version":""`, not `"dev"` — the two prose claims that said
+otherwise now say what it answers; and C12's fourth project, Mobile Safari, did not exist (D-723,
+QA-047 — `mobile-safari` on `devices['iPhone 14']` running the eight smoke specs).
+
+Verification in flight: `db:reset` → `build` → the four projects ×3 → `pnpm test:guides`.
+
 ## Worklist from the understand pass (each becomes a FIXED-ISSUES row when fixed)
 - C1: Node 24 portable at `~/.tassl-tools/node24/node-v24.21.0-win-x64` for builds; add eslint `no-console`; remove unused `next-themes`; cspell; depcheck; clean-clone build; gitleaks full history; client bundle secret grep; env parity (add `DEMO_MODE`, `SENTRY_TRACES_SAMPLE_RATE` to production).
 - C2: web-vitals spec skips on firefox/webkit → scope perf specs to chromium in the config; `--repeat-each=3`.

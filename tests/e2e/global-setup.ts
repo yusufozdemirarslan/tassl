@@ -492,6 +492,16 @@ export async function resetGuideData(organizationId: string): Promise<void> {
   // The guide's own rows: courses, sections, assignments, runs and packages named "Guide …".
   await purgeNamed(organizationId, GUIDE_PREFIX, 'guide-')
 
+  // And the engine suites' packages, which are not the guide's rows but sit on the guide's screens
+  // (D-724). The shelf is a 20-row page ordered newest first, so once the engine specs have added
+  // twenty of their own the seeded Meridian Roast family — the oldest package there is — is behind
+  // "Show more packages", and the guide's own step ("You see: … the row **Meridian Roast
+  // (fixture)**") stops being true of the screen it photographs. A reader's installation has one
+  // package on that shelf; so does the guide chain, whatever ran before it on this database. The
+  // guide steps are not walked through the pages, because the guide describes the first screen a
+  // reader meets and its screenshot has to be that screen.
+  await purgeSuitePackages(organizationId, SUITE_PREFIX)
+
   // The seats' sessions from earlier rehearsals. Every guide task signs its seat in afresh, and
   // the Signed-in devices list a task reads (Student guide Task 16) is the seat's live sessions as
   // the auth library lists them, which stops at a hundred: a seat rehearsed often enough on one

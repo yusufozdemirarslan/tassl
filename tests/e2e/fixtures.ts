@@ -9,7 +9,7 @@
 import 'dotenv/config'
 import { readFile, readdir } from 'node:fs/promises'
 import { join } from 'node:path'
-import { expect, test as base, type Page } from '@playwright/test'
+import { expect, test as base, type Locator, type Page } from '@playwright/test'
 
 export { expect } from '@playwright/test'
 export { axe } from './a11y/axe'
@@ -225,6 +225,45 @@ export async function signOut(page: Page): Promise<void> {
     throw new Error(`Sign-out failed: ${response.status()} ${await response.text()}`)
   }
   await page.context().clearCookies()
+}
+
+// ---------------------------------------------------------------------------------------------
+// Paged lists
+// ---------------------------------------------------------------------------------------------
+
+/**
+ * Presses "Show more …" until `target` is on the page (D-718).
+ *
+ * Every list in the app is a cursor page ordered `created_at desc, id desc` (D-020), so a seeded
+ * row is the oldest row there is and sits on the last page, not the first. On a fresh deployment
+ * — which is what the smoke lane meets against production — the first page is also the last, the
+ * loop body never runs, and the assertion is exactly as strict as a bare `toBeVisible()`. On a
+ * database this suite has been writing to for an hour it is behind "Show more", and walking to it
+ * proves the list and its paging together rather than the page the test happened to land on.
+ *
+ * A missing seeded row still fails, and says which: the walk runs out of pages and reports the
+ * absent "Show more" link rather than passing quietly.
+ */
+export async function walkPagesTo(
+  page: Page,
+  target: Locator,
+  showMore: string,
+  heading: string,
+): Promise<void> {
+  // One more than MAX_LIMIT pages of MAX_LIMIT rows: past any list this suite can build, and a
+  // bound rather than a `while (true)` that a broken link would spin in.
+  for (let visited = 0; visited < 101 && !(await target.isVisible()); visited += 1) {
+    const more = page.getByRole('link', { name: showMore })
+    await expect(more).toBeVisible()
+    // The next page is a navigation carrying a new cursor. The walk waits for that cursor to
+    // change, because the old page keeps its heading and its link until the new one lands, and a
+    // second press on the same link only asks for the same page again.
+    const before = new URL(page.url()).searchParams.get('cursor')
+    await more.click()
+    await page.waitForURL((url) => url.searchParams.get('cursor') !== before)
+    await expect(page.getByRole('heading', { level: 1, name: heading })).toBeVisible()
+  }
+  await expect(target).toBeVisible()
 }
 
 // ---------------------------------------------------------------------------------------------

@@ -17,7 +17,7 @@ import type { Locator } from '@playwright/test'
 // check, and a refusal on the page — is scanned inside the package it creates, in
 // ../author/confirm-workspace.spec.ts.
 import { seededPackage } from '../fixture-package'
-import { axe, expect, signInAs, signOut, test } from '../fixtures'
+import { axe, expect, signInAs, signOut, test, walkPagesTo } from '../fixtures'
 
 const CONCEPTS =
   'private label margin, shelf space allocation, brand cannibalization, cost to serve'
@@ -26,11 +26,20 @@ test('the Phase 5 authoring screens have no axe violations', async ({ page }) =>
   await signInAs(page, 'instructor')
   const seeded = seededPackage()
 
-  // UI-040, the shelf, with the seeded family on it.
+  // UI-040, the shelf. The first page is scanned, because it is the one page that is populated on
+  // any database and the only one carrying "Show more packages" — a strictly richer scan than the
+  // last page. The seeded family is then walked to: it is the oldest package there is, so on a
+  // database this suite has been writing to it is pages away (D-020, D-718).
   await page.goto('/packages')
   await expect(page.getByRole('heading', { level: 1, name: 'Packages' })).toBeVisible()
-  await expect(page.getByRole('row').filter({ hasText: 'meridian-roast' })).toBeVisible()
+  await expect(page.getByRole('row').nth(1)).toBeVisible()
   await axe(page)
+  await walkPagesTo(
+    page,
+    page.getByRole('row').filter({ hasText: 'meridian-roast' }),
+    'Show more packages',
+    'Packages',
+  )
 
   // UI-041, the seed form in the state an author is in halfway through it: a title, the key derived
   // from it, four concept chips, and the fields that are still empty saying so. Nothing is

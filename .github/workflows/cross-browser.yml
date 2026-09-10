@@ -96,7 +96,7 @@ jobs:
       - uses: ./.github/actions/setup
       - run: pnpm exec playwright install --with-deps ${{ matrix.browser }}
       # playwright.config.ts webServer runs: pnpm db:reset && pnpm build && pnpm start (D-073).
-      - run: pnpm test:e2e --project=${{ matrix.browser }}
+      - run: pnpm exec playwright test --project=${{ matrix.browser }}
       - uses: actions/upload-artifact@v7
         if: always()
         with:

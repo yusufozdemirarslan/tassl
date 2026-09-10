@@ -50,6 +50,11 @@ function guideProjects() {
         name,
         use: { ...device },
         testMatch,
+        // No retry (D-717). The guide specs are serial groups, and Playwright retries a serial
+        // group from its first test — which would create a second "Guide course 2026" and fail the
+        // next task with a strict-mode violation instead of the failure that started it. A guide
+        // chain that fails is read, not re-rolled.
+        retries: 0,
         ...(previous === undefined ? {} : { dependencies: [previous] }),
       })
       previous = name
@@ -108,6 +113,24 @@ export default defineConfig({
       name: 'webkit',
       use: { ...devices['Desktop Safari'] },
       testIgnore: [/guides\//, /perf\//],
+    },
+    // The fourth project the QA prompt names (C12): Mobile Safari, on the phone profile C11 reads
+    // the app at — 390x844, three-times pixels, touch, and the iPhone user agent (D-723).
+    //
+    // Scoped to the smoke specs, which is the whole demo surface a phone has to hold: the home
+    // page, both seats signing in, and one screen per persona. That walk exercises what a phone
+    // changes — the rail is a fixed bottom bar below `md`, the header menus are taps, the tables
+    // wrap — while the geometry of the four dense screens is already proven at 360 px on this
+    // engine by `tests/e2e/responsive/viewports.spec.ts`, which resizes and so cannot run in a
+    // context that has a device's fixed screen.
+    //
+    // The guide chain stays on the desktop engines: the guides say "in the rail on the left" and
+    // their screenshots are 1440x900 (D-714), which is a true description of the app at that width
+    // and a false one at 390.
+    {
+      name: 'mobile-safari',
+      use: { ...devices['iPhone 14'] },
+      testMatch: /smoke\//,
     },
     ...guideProjects(),
   ],

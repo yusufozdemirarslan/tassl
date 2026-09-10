@@ -281,9 +281,16 @@ export function VersionHeader({ version, confirmHref, generationHref }: VersionH
         }
         actions={
           version.restricted ? undefined : (
-            // The API route answers with `content-disposition: attachment`, so the browser saves
-            // the file instead of navigating away from this screen.
-            <a href={exportHref} className={buttonVariants({ variant: 'secondary' })}>
+            // A download, not a navigation (D-719). `download` is the DOM's own decision, taken
+            // at the press and before any response is read, so an engine that does not act on
+            // `content-disposition` cannot replace this screen with the JSON — WebKit does not, and
+            // did exactly that. The name is the one the route sets, from the same catalogue key, so
+            // the header and the attribute cannot drift.
+            <a
+              href={exportHref}
+              download={t('package.exportFileName', { familyKey: version.familyKey })}
+              className={buttonVariants({ variant: 'secondary' })}
+            >
               {t('packageVersion.export')}
             </a>
           )

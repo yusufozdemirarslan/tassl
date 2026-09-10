@@ -16,8 +16,10 @@ export const runtime = 'nodejs'
 // something is wrong. So it does the one thing the proxy did for it, with the same helper, so an
 // inbound id is echoed and a missing one is minted exactly as everywhere else.
 // `SENTRY_RELEASE` is inlined at build time by next.config.ts (`env`), so it is the SHA the deploy
-// was built from even though production.yml detaches `.git` before `vercel deploy` and Vercel
-// therefore sets no `VERCEL_GIT_COMMIT_SHA` at runtime — before this, production answered "dev".
+// was built from even though production.yml detaches `.git` before `vercel deploy`. Vercel then
+// sets `VERCEL_GIT_COMMIT_SHA` to the empty string rather than leaving it unset, so the `??` this
+// replaces never reached its fallback: production answered `"version":""`, which names no commit
+// and is not even the honest "dev". Each rung is taken only when it holds a non-empty string.
 const version = (): string =>
   process.env.SENTRY_RELEASE || process.env.VERCEL_GIT_COMMIT_SHA || 'dev'
 

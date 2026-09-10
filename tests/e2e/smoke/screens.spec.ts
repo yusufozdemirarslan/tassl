@@ -1,6 +1,6 @@
 // Smoke, the screens half: the home page loads, both demo seats sign in, and one screen per persona
 // renders with its own heading. Read-only against the deployment PLAYWRIGHT_BASE_URL names.
-import { expect, test } from '../fixtures'
+import { expect, test, walkPagesTo } from '../fixtures'
 
 test.describe('@smoke screens', () => {
   test('@smoke the sign-in page renders with its form and the security headers', async ({
@@ -27,22 +27,12 @@ test.describe('@smoke screens', () => {
     await expect(page.getByRole('heading', { level: 1, name: 'Home' })).toBeVisible()
     await page.getByRole('link', { name: 'Courses', exact: true }).click()
     await expect(page.getByRole('heading', { level: 1, name: 'Courses' })).toBeVisible()
-    // The seeded course is on the first page of a fresh database (production); on a database the
-    // local suites have added courses to it sits behind "Show more", so the pages are walked, which
-    // proves the list and its paging together rather than assuming the page it is on.
-    const seeded = page.getByText('Marketing Strategy Walkthrough').first()
-    for (let pageIndex = 0; pageIndex < 30 && !(await seeded.isVisible()); pageIndex += 1) {
-      const more = page.getByRole('link', { name: 'Show more courses' })
-      await expect(more).toBeVisible()
-      // The next page is a navigation with a new cursor; the walk waits for it, because the old
-      // page keeps its heading and its link until the new one lands and a second press on the same
-      // link only asks for the same page again.
-      const cursorBefore = new URL(page.url()).searchParams.get('cursor')
-      await more.click()
-      await page.waitForURL((url) => url.searchParams.get('cursor') !== cursorBefore)
-      await expect(page.getByRole('heading', { level: 1, name: 'Courses' })).toBeVisible()
-    }
-    await expect(seeded).toBeVisible()
+    await walkPagesTo(
+      page,
+      page.getByText('Marketing Strategy Walkthrough').first(),
+      'Show more courses',
+      'Courses',
+    )
     await page.getByRole('link', { name: 'Review', exact: true }).click()
     await expect(page.getByRole('heading', { level: 1, name: 'Review' })).toBeVisible()
   })
@@ -55,7 +45,15 @@ test.describe('@smoke screens', () => {
     await expect(page.getByRole('heading', { level: 1, name: 'Home' })).toBeVisible()
     await page.getByRole('link', { name: 'Runs', exact: true }).click()
     await expect(page.getByRole('heading', { level: 1, name: 'Runs' })).toBeVisible()
-    await expect(page.getByText('Decision Run 1 (walkthrough)').first()).toBeVisible()
+    // The seeded assignments are the oldest of the seat, so they are the last rows of the last
+    // page: on the suite's own database the three of them fall off page 1 once other specs have
+    // enrolled this seat in a hundred assignments of their own.
+    await walkPagesTo(
+      page,
+      page.getByRole('row').filter({ hasText: 'Decision Run 1 (walkthrough)' }).first(),
+      'Show more assignments',
+      'Runs',
+    )
   })
 
   test('@smoke the admin sees the assistant mode the deployment runs with', async ({

@@ -14,17 +14,17 @@ Tassl treats nothing it observes as misconduct. There is no total score, no rank
 
 **Signing in.** Open the installation's address (locally `http://localhost:3000`, in production `https://tassl.vercel.app`). Tassl sends a signed-out visitor to **Sign in to Tassl**. Sign in with the email address **student1@tassl.local** (the seat "Student One", a Student in section A of the course "Marketing Strategy Walkthrough" at Walkthrough University). The password is the seed password: on a local build and in CI it is **Walkthrough-Pass-2026** (the value of `SEED_PASSWORD` in `.env.test`); in production it is the value of the Vercel production variable `SEED_PASSWORD`, also kept in `~/.config/tassl/seed-password.txt` on the builder's machine. This guide does not print the production password. **Keep me signed in** is ticked by default; a session lasts 30 days.
 
-**The first screen.** After sign-in you land on **Home**. The line above the heading names your institution, **Walkthrough University**; the heading is **Home** and the sentence under it reads **What needs your attention, and what is coming up.** The one panel a Student has is **Your runs**: a table with the columns **Assignment**, **Attempt**, **State** and **Next**, listing every assignment in your sections. Before you start anything, each row reads **Not started** in both **Attempt** and **State**, and **Next** offers **Start**. On a fresh demo database the seeded seat has three rows: **Decision Run 1 (walkthrough)**, **Decision Run 1 (sound)** and **Auto-lock test run**. Once the Instructor guide has been followed on the same installation, its assignment **Guide run** is listed too, with one row for each attempt on it (attempts 1 and 2); the screenshots in this guide were taken after that guide, so they show five rows. A link **All runs** appears on this panel only when there are more than five rows.
+**The first screen.** After sign-in you land on **Home**. The line above the heading names your institution, **Walkthrough University**; the heading is **Home** and the sentence under it reads **What needs your attention, and what is coming up.** The one panel a Student has is **Your runs**: a table with the columns **Assignment**, **Attempt**, **State** and **Next**, listing every assignment in your sections. On a fresh demo database, where nothing has been started yet, every row reads **Not started** in both **Attempt** and **State** and offers **Start** in **Next**, and the seeded seat has three rows: **Decision Run 1 (walkthrough)**, **Decision Run 1 (sound)** and **Auto-lock test run**. Once the Instructor guide has been followed on the same installation, its assignment **Guide run** is listed too, with one row for each attempt on it: the row for attempt 1 reads **Voided** in **State** and offers **Continue on attempt 2** in **Next**, and the row for attempt 2 reads **Not started** and offers **Start**. The screenshots in this guide were taken after that guide, so they show five rows. A link **All runs** appears on this panel only when there are more than five rows.
 
 **Navigation map.** Everything a Student can reach, in the order it appears:
 
 - **Skip to main content** — the first link on every page; it is visible when you reach it with the Tab key and jumps past the header.
 - **Home** (rail) — the page above.
-- **Runs** (rail) — every assignment and where your run on it has got to; the **Next** column carries **Start**, **Continue**, **Respond to the Turn**, **Defend the decision**, **Read the debrief** or **Open the Judgment Record**, whichever fits the run's state.
+- **Runs** (rail) — every assignment and where your run on it has got to; the **Next** column carries **Start**, **Continue**, **Continue on attempt 2**, **Respond to the Turn**, **Defend the decision**, **Read the debrief** or **Open the Judgment Record**, whichever fits the run's state.
 - **Walkthrough University** (header) — the institution you are working in. A **Switch institution** menu appears here only when you belong to two or more.
-- **Notifications** (the bell in the header) — what Tassl has told you, newest first, with an unread count on the bell.
-- **Account** (the person icon in the header) — a menu with **Settings** (the tabs **Profile**, **Security** and **Data**), **Privacy**, **Terms** and **Sign out**.
-- Inside a run, a band stays at the top of every screen with the assignment's name, a chip naming the run's state (**Framing**, **Working**, **Paused**, **Decision locked**, **Turn open** and so on) and the clock that is running. The rail stays in place.
+- The bell icon at the top right of the header (named **Notifications**) — what Tassl has told you, newest first, with an unread count on the bell.
+- The person icon beside it (named **Account**) — a menu with **Settings** (the tabs **Profile**, **Security** and **Data**), **Privacy**, **Terms** and **Sign out**.
+- Inside a run, a band stays at the top of the screen while the page scrolls under it. It holds three things and nothing else: the assignment's name, with the chip **Walkthrough** beside it on a practice assignment; a chip naming the run's state (**Framing**, **Working**, **Paused**, **Decision locked**, **Turn open** and so on); and, while one of them is running, the working clock or the **Turn window** clock. The Readiness Check's eight-minute clock and the countdown to the Turn are inside the page's own panels, not in the band. The rail scrolls away with the page.
 
 A Student does not see **Courses**, **Review**, **Packages** or **Admin**; those rail items belong to other seats.
 
@@ -48,7 +48,7 @@ A Student does not see **Courses**, **Review**, **Packages** or **Admin**; those
    ![Task 1 step 4](screenshots/student/task-01-step-04.png)
 5. Find the rail beside the page, starting with **Home**. → You see: two items, **Home** and **Runs**, and nothing else in the rail.
    ![Task 1 step 5](screenshots/student/task-01-step-05.png)
-6. Find the header, which starts with the link **Tassl**. → You see: **Walkthrough University**, the **Notifications** bell and the **Account** button.
+6. Find the header, which starts with the link **Tassl**. → You see: **Walkthrough University** beside it, and at the top right a bell icon (named **Notifications**) with the unread count on it and, next to that, a person icon (named **Account**).
    ![Task 1 step 6](screenshots/student/task-01-step-06.png)
 7. Click **Runs** in the rail. → You see: the heading **Runs** and a table with the columns **Assignment**, **Attempt**, **State** and **Next**.
    ![Task 1 step 7](screenshots/student/task-01-step-07.png)
@@ -98,9 +98,9 @@ A Student does not see **Courses**, **Review**, **Packages** or **Admin**; those
 
 1. Find the clock beside **0 of 16 answered**. → You see: it counting down from eight minutes.
    ![Task 3 step 1](screenshots/student/task-03-step-01.png)
-2. Find the row of numbered buttons **1** to **16** under the clock. → You see: sixteen numbered buttons, none of them filled in yet, and the hint **The arrow keys move between items. An item you have answered is filled in.**
+2. Find the row of numbered buttons **1** to **16** under the clock. → You see: sixteen numbered buttons, the first of them solid because it is the item on screen and the other fifteen plain, and under them the hint **The arrow keys move between items. An item you have answered is filled in.**
    ![Task 3 step 2](screenshots/student/task-03-step-02.png)
-3. Choose the first of the four answers under **Item 1 of 16**. → You see: **1 of 16 answered** and the item's button in the toolbar filled in.
+3. Choose the first of the four answers under **Item 1 of 16**. → You see: the counter above the numbered buttons now reading **1 of 16 answered**. The buttons themselves do not change: the solid one is the item you are on, not the item you have answered.
    ![Task 3 step 3](screenshots/student/task-03-step-03.png)
 4. Click **Next item**. → You see: **Item 2 of 16**.
    ![Task 3 step 4](screenshots/student/task-03-step-04.png)
@@ -152,7 +152,7 @@ A Student does not see **Courses**, **Review**, **Packages** or **Admin**; those
 
 *Steps:*
 
-1. Scroll to **Your frame**, the panel below **Evidence Room**. → You see: **The decision**, **Load-bearing assumptions** with **Assumption 1**, **Assumption 2** and **Assumption 3**, **Your position now**, **Confidence** with a slider and a number box, and a counter such as **0 of 50 words** under each text field.
+1. Scroll to **Your frame**, the panel below **Evidence Room**. → You see: the heading **Your frame**, the field **The decision** with the counter **0 of 50 words** under it, and **Load-bearing assumptions** with the three fields **Assumption 1**, **Assumption 2** and **Assumption 3**. **Your position now** and **Confidence** follow further down the panel.
    ![Task 5 step 1](screenshots/student/task-05-step-01.png)
 2. Type **Guide decision, back the premium tier with most of the quarterly budget** in **The decision**. → You see: **12 of 50 words**.
    ![Task 5 step 2](screenshots/student/task-05-step-02.png)
@@ -160,15 +160,15 @@ A Student does not see **Courses**, **Review**, **Packages** or **Admin**; those
    ![Task 5 step 3](screenshots/student/task-05-step-03.png)
 4. Type **Guide assumption two, value tier demand is flat** in **Assumption 2**. → You see: **8 of 25 words**.
    ![Task 5 step 4](screenshots/student/task-05-step-04.png)
-5. Type **Guide assumption three, the board wants growth** in **Assumption 3**. → You see: **7 of 25 words**.
+5. Type **Guide assumption three, the board wants growth** in **Assumption 3**. → You see: **7 of 25 words** under **Assumption 3**.
    ![Task 5 step 5](screenshots/student/task-05-step-05.png)
-6. Type **Guide position, lean premium because the payback looks short** in **Your position now**. → You see: **9 of 100 words**.
+6. Type **Guide position, lean premium because the payback looks short** in **Your position now**. → You see: **9 of 100 words** under **Your position now**.
    ![Task 5 step 6](screenshots/student/task-05-step-06.png)
-7. Type **60** in the number box beside **Confidence**. → You see: **60** in the box and the slider beside it at the same place.
+7. Type **60** in the number box beside **Confidence**. → You see: under the heading **Confidence**, **60** in the number box and the slider beside it at the same place.
    ![Task 5 step 7](screenshots/student/task-05-step-07.png)
 8. Click **Lock the frame**. → You see: the dialog **Lock the frame permanently?** with **A locked frame is never edited, replaced, or restored — not by you, and not by your instructor. Locking it unlocks the assistant and starts the working clock.**
    ![Task 5 step 8](screenshots/student/task-05-step-08.png)
-9. Click **Lock it**. → You see: the chip **Working** in the band, a clock counting down from **25:00**, and the field **Your request** under **AI assistant**; above it, **Your frame** now reads **Locked** with **Confidence at the frame** **60 of 100**.
+9. Click **Lock it**. → You see: in the band at the top, the chip **Working** and a clock counting down from **25:00**; in the page under it, the empty field **Your request** with **0 of 2000 characters** and the button **Ask the assistant**. Scrolling back up, **Your frame** now reads **Locked** with **Confidence at the frame** **60 of 100**.
    ![Task 5 step 9](screenshots/student/task-05-step-09.png)
 
 *If something goes wrong:*
@@ -218,7 +218,7 @@ A Student does not see **Courses**, **Review**, **Packages** or **Admin**; those
    ![Task 7 step 4](screenshots/student/task-07-step-04.png)
 5. Type **What is the price sensitivity, is the value tier saturated, and what did the survey find?** → You see: **89 of 2000 characters**.
    ![Task 7 step 5](screenshots/student/task-07-step-05.png)
-6. Click **Ask the assistant**. → You see: **Reply complete. 3 claims surfaced.** and the cards **Claim C5**, **Claim C7** and **Claim C8**, in that order.
+6. Click **Ask the assistant**. → You see: **Reply complete. 3 claims surfaced.**, the request read back under **You asked**, and the first of the three cards the reply raised, **Claim C5**; scrolling down, **Claim C7** and **Claim C8** follow it in that order.
    ![Task 7 step 6](screenshots/student/task-07-step-06.png)
 7. Click **Verify** under **Claim C5**. → You see: **Verify** selected on **Claim C5**.
    ![Task 7 step 7](screenshots/student/task-07-step-07.png)
@@ -291,25 +291,25 @@ A Student does not see **Courses**, **Review**, **Packages** or **Admin**; those
 
 *Steps:*
 
-1. Scroll to **Your decision brief**. → You see: the heading, under it **It saves as you type; nothing is filed until you lock the decision.**, and the first of its fields, **Your recommendation**; below it come **Why**, **Load-bearing assumptions**, **What would change your mind**, **The figures you are betting on** and **Confidence**.
+1. Scroll to **Your decision brief**. → You see: the heading, under it **What you recommend, what it rests on, and what would change your mind. It saves as you type; nothing is filed until you lock the decision.**, and the first two of its fields, **Your recommendation** and **Why**; scrolling down, **Load-bearing assumptions**, **What would change your mind**, **The figures you are betting on** and **Confidence** follow in that order.
    ![Task 10 step 1](screenshots/student/task-10-step-01.png)
-2. Type **Guide recommendation, move most of the budget to premium this quarter** in **Your recommendation**. → You see: **11 of 120 words**.
+2. Type **Guide recommendation, move most of the budget to premium this quarter** in **Your recommendation**. → You see: **11 of 120 words** under **Your recommendation**.
    ![Task 10 step 2](screenshots/student/task-10-step-02.png)
-3. Type **Guide reasoning, the premium payback is short and retention is strong** in **Why**. → You see: **11 of 250 words**.
+3. Type **Guide reasoning, the premium payback is short and retention is strong** in **Why**. → You see: **11 of 250 words** under **Why**.
    ![Task 10 step 3](screenshots/student/task-10-step-03.png)
-4. Type **Guide brief assumption one, payback stays near eleven months** in **Assumption 1**. → You see: **9 of 25 words**.
+4. Type **Guide brief assumption one, payback stays near eleven months** in **Assumption 1**. → You see: **9 of 25 words** under **Assumption 1**, the first field of **Load-bearing assumptions**.
    ![Task 10 step 4](screenshots/student/task-10-step-04.png)
-5. Type **Guide brief assumption two, premium retention holds** in **Assumption 2**. → You see: **7 of 25 words**.
+5. Type **Guide brief assumption two, premium retention holds** in **Assumption 2**. → You see: **7 of 25 words** under **Assumption 2**.
    ![Task 10 step 5](screenshots/student/task-10-step-05.png)
-6. Type **Guide brief assumption three, the value tier is saturated** in **Assumption 3**. → You see: **9 of 25 words**.
+6. Type **Guide brief assumption three, the value tier is saturated** in **Assumption 3**. → You see: **9 of 25 words** under **Assumption 3**.
    ![Task 10 step 6](screenshots/student/task-10-step-06.png)
-7. Type **Guide, a payback figure above sixteen months** in **What would change your mind**. → You see: **7 of 60 words**.
+7. Type **Guide, a payback figure above sixteen months** in **What would change your mind**. → You see: **7 of 60 words** under **What would change your mind**.
    ![Task 10 step 7](screenshots/student/task-10-step-07.png)
-8. Type **60** in **Share of the quarter's acquisition budget going to premium, in percent**. → You see: **60** in the field, which takes digits only.
+8. Type **60** in **Share of the quarter's acquisition budget going to premium, in percent**. → You see: **60** in that field, the first one under **The figures you are betting on**; it takes digits only.
    ![Task 10 step 8](screenshots/student/task-10-step-08.png)
-9. Type **11** in **Premium payback you are betting on, in months**. → You see: **Saved.** beside **Lock the decision**.
+9. Type **11** in **Premium payback you are betting on, in months**. → You see: **11** in that field and **Saved.** beside **Lock the decision**.
    ![Task 10 step 9](screenshots/student/task-10-step-09.png)
-10. Type **62** in the number box beside **Confidence**. → You see: **Saved.** beside **Lock the decision**.
+10. Type **62** in the number box beside **Confidence**. → You see: **62** in the box under the heading **Confidence**, and **Saved.** beside **Lock the decision**.
    ![Task 10 step 10](screenshots/student/task-10-step-10.png)
 11. Type **What is the value tier payback?** in **Your request**. → You see: **31 of 2000 characters**.
    ![Task 10 step 11](screenshots/student/task-10-step-11.png)

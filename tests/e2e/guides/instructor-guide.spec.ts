@@ -229,7 +229,7 @@ test('Task 1: Sign in and find your way around', async ({ page, shot }) => {
     await shot(1, 8, nothingWaiting)
   })
 
-  await test.step('1.9 Click Packages in the rail.', async () => {
+  await test.step('1.9 Click Packages in the rail on the left.', async () => {
     await rail(page).getByRole('link', { name: 'Packages', exact: true }).click()
     await expect(page.getByRole('heading', { level: 1, name: 'Packages' })).toBeVisible()
     await expect(
@@ -244,14 +244,14 @@ test('Task 1: Sign in and find your way around', async ({ page, shot }) => {
     await shot(1, 10)
   })
 
-  await test.step('1.11 Click the Notifications bell in the header.', async () => {
+  await test.step('1.11 Click the bell icon at the top right (named Notifications).', async () => {
     await page.getByRole('link', { name: /^Notifications:/ }).click()
     await expect(page.getByRole('heading', { level: 1, name: 'Notifications' })).toBeVisible()
     await expect(page.getByText('What Tassl has told you, newest first.')).toBeVisible()
     await shot(1, 11)
   })
 
-  await test.step('1.12 Click the Account button in the header (your name is part of its label).', async () => {
+  await test.step('1.12 Click the person icon at the top right (named Account).', async () => {
     await openAccountMenu(page)
     await expect(page.getByRole('menuitem', { name: 'Settings' })).toBeVisible()
     await expect(page.getByRole('menuitem', { name: 'Privacy' })).toBeVisible()
@@ -499,7 +499,7 @@ test('Task 4: Set the course policy and the grade mapping', async ({ page, shot 
     await shot(4, 7)
   })
 
-  await test.step('4.8 Click the Mapping tab.', async () => {
+  await test.step('4.8 Click the Mapping tab under the course heading.', async () => {
     await courseViews(page).getByRole('link', { name: 'Mapping', exact: true }).click()
     await page.waitForURL(/\?tab=mapping$/)
     await expect(
@@ -634,7 +634,7 @@ test('Task 5: Read a scenario package', async ({ page, shot }) => {
     await shot(5, 8, deserved)
   })
 
-  await test.step('5.9 Click All claims.', async () => {
+  await test.step('5.9 Click All claims at the top of the Claims panel.', async () => {
     await page.getByRole('link', { name: 'All claims' }).click()
     // The caption sits under the table, so scrolling to it puts the table's last rows in frame.
     const caption = page.getByText('Claims and their per-variant states')
@@ -642,7 +642,7 @@ test('Task 5: Read a scenario package', async ({ page, shot }) => {
     await shot(5, 9, caption)
   })
 
-  await test.step('5.10 Click Export package JSON.', async () => {
+  await test.step('5.10 Click Export package JSON at the top right, beside the package title.', async () => {
     const exportLink = page.getByRole('link', { name: 'Export package JSON' })
     const [download] = await Promise.all([page.waitForEvent('download'), exportLink.click()])
     expect(download.suggestedFilename()).toBe('tassl-package-meridian-roast.json')
@@ -819,7 +819,7 @@ test('Task 7: Follow your students’ runs', async ({ page, playwright, shot }) 
     await shot(7, 4, row)
   })
 
-  await test.step('7.5 Click Review in the rail.', async () => {
+  await test.step('7.5 Click Review in the rail on the left.', async () => {
     await rail(page).getByRole('link', { name: 'Review', exact: true }).click()
     await expect(
       page.getByRole('heading', { level: 2, name: 'Runs waiting for you' }),
@@ -840,7 +840,7 @@ test('Task 7: Follow your students’ runs', async ({ page, playwright, shot }) 
     await shot(7, 6, note)
   })
 
-  await test.step('7.7 Click Home in the rail.', async () => {
+  await test.step('7.7 Click Home in the rail on the left.', async () => {
     await rail(page).getByRole('link', { name: 'Home', exact: true }).click()
     const review = page.locator('#home-review')
     await expect(review).toContainText('Student Two')
@@ -930,7 +930,7 @@ test('Task 8: Review a scored run', async ({ page, shot }) => {
     await shot(8, 7, description)
   })
 
-  await test.step('8.8 Click Trace.', async () => {
+  await test.step('8.8 Click Trace in the row of views under the student’s name.', async () => {
     await replayViews(page).getByRole('link', { name: 'Trace', exact: true }).click()
     await expect(page.getByRole('heading', { level: 2, name: 'The run’s trace' })).toBeVisible()
     for (const column of ['No.', 'Clock left', 'Event', 'What it says', 'Record']) {
@@ -946,7 +946,7 @@ test('Task 8: Review a scored run', async ({ page, shot }) => {
     await shot(8, 9)
   })
 
-  await test.step('8.10 On Framing, click the button that begins Confirm the draft.', async () => {
+  await test.step('8.10 On Framing, the first of the seven cards, click the button under its note field that begins Confirm the draft.', async () => {
     await card('framing')
       .getByRole('button', { name: /^Confirm the draft: / })
       .click()
@@ -1019,7 +1019,7 @@ test('Task 8: Review a scored run', async ({ page, shot }) => {
     await shot(8, 15)
   })
 
-  await test.step('8.16 Read Points under this course’s mapping.', async () => {
+  await test.step('8.16 Read Points under this course’s mapping, below the seven cards.', async () => {
     const points = page.locator('#replay-points')
     await expect(points.getByText('From the seven bands on the record')).toBeVisible({
       timeout: ACTION_TIMEOUT_MS,
@@ -1101,7 +1101,7 @@ test('Task 9: Correct a claim, arm the outage control, and void a run', async ({
 
   const correction = page.getByRole('dialog')
 
-  await test.step('9.7 Click Enter a correction on C3….', async () => {
+  await test.step('9.7 Click Enter a correction on C3…, under C3 in the Claims list.', async () => {
     await page.getByRole('button', { name: 'Enter a correction on C3…' }).click()
     await expect(
       correction.getByRole('heading', { name: 'Enter a correction on claim C3?' }),
@@ -1165,7 +1165,7 @@ test('Task 9: Correct a claim, arm the outage control, and void a run', async ({
     await shot(9, 12, stateLine)
   })
 
-  await test.step('9.13 Click Review in the rail.', async () => {
+  await test.step('9.13 Click Review in the rail on the left.', async () => {
     await rail(page).getByRole('link', { name: 'Review', exact: true }).click()
     const open = page.getByRole('link', { name: 'Open the replay for Student One' })
     await expect(open).toBeVisible()

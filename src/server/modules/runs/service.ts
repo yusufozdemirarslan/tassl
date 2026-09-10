@@ -398,6 +398,29 @@ export async function listMyRuns(
 }
 
 /**
+ * The actor's attempts on the assignments named, newest first (D-722).
+ *
+ * The runs screen shows one row per attempt and one row per assignment nobody has attempted, which
+ * means joining two lists. Paging them independently was wrong: the page asked for its hundred
+ * assignments and, separately, for the hundred newest runs, so a student past a hundred runs met
+ * assignments whose attempts had fallen outside that window rendered as **Not started** with a
+ * **Start** that then refused them — `RUN_ACTIVE_EXISTS` over a run the screen had just denied.
+ * Keying the attempts to the assignments on the page makes the join total by construction.
+ *
+ * The actor is the whole scope, as in `listMyRuns`: the query is keyed by their id, so another
+ * student's run is not reachable from here whatever assignment ids are passed.
+ */
+export async function listMyRunsForAssignments(
+  actor: SessionUser,
+  assignmentIds: readonly string[],
+): Promise<RunSummary[]> {
+  const tenantId = await activeTenant(actor)
+  if (!tenantId) return []
+  const items = await repo.listRunsForStudentAssignments(tenantId, actor.id, assignmentIds)
+  return items.map((item) => toRunSummary(item.run))
+}
+
+/**
  * The run the actor already has on this assignment, or null.
  *
  * It exists for one caller: `Idempotency-Key` on `POST /assignments/{assignmentId}/runs` (07 §1,
