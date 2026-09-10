@@ -113,6 +113,30 @@ export const test = suite.extend<{
     async ({ page }, provide) => {
       const errors: string[] = []
       const pending: Promise<void>[] = []
+      // What was logged, worked out in the page at the moment it is logged (D-716). Reading an
+      // object argument afterwards through its handle fails whenever the page has moved on since —
+      // Firefox then reported the whole message as "JSHandle@object", which names nothing and left
+      // a real defect undiagnosable. The override formats the arguments and hands the original
+      // console.error one string, so the text Playwright receives is already the whole story.
+      await page.addInitScript(() => {
+        const original = console.error.bind(console)
+        const describe = (value: unknown): string => {
+          if (value instanceof Error) {
+            return `${value.name}: ${value.message} ${value.stack ?? ''}`
+          }
+          if (typeof value === 'object' && value !== null) {
+            try {
+              return JSON.stringify(value)
+            } catch {
+              return String(value)
+            }
+          }
+          return String(value)
+        }
+        console.error = (...args: unknown[]): void => {
+          original(args.map(describe).join(' '))
+        }
+      })
       const ignored = (text: string): boolean =>
         IGNORED_CONSOLE_PATTERNS.some((pattern) => pattern.test(text))
       page.on('pageerror', (error) => {
