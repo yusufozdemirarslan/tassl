@@ -117,6 +117,17 @@ test('an instructor confirms every element of a package and freezes the version'
   // The assertions are unchanged; only the patience (D-188).
   test.setTimeout(300_000)
 
+  // The three outcomes of "Confirm and freeze" get a stated wait of their own (D-730).
+  //
+  // `confirmVersion` reads the whole version and every confirmation before it can say which of the
+  // three answers is the true one, and on the way through it validates the package and builds the
+  // export snapshot that has to ride with the transition. Measured on this suite's own server, with
+  // its two workers on one Postgres: 207, 452, 712, 1276, 1430, 1827 and 4200 ms across a run. The
+  // default five seconds is under the top of that range, so the assertion was failing on a press
+  // that had been made and was still being answered — a measurement of the machine, not of the
+  // screen. This is what the act costs; the number is written down rather than made to disappear.
+  const CONFIRM_ANSWER_MS = 20_000
+
   const title = suiteName('Confirm workspace package')
   const total = elementCount(
     JSON.parse(readFileSync(FIXTURE_PATH, 'utf8')) as PackageExportDocument,
@@ -173,7 +184,7 @@ test('an instructor confirms every element of a package and freezes the version'
 
   await expect(
     page.getByText('Every element needs a decision before the version can be confirmed.'),
-  ).toBeVisible()
+  ).toBeVisible({ timeout: CONFIRM_ANSWER_MS })
   await expect(page.getByRole('heading', { level: 3, name: 'Waiting on a decision' })).toBeVisible()
   // The refusal names every element it is refusing for, and each name is the way to that element.
   const waitingForD5 = page.getByRole('button', { name: 'D5', exact: true })
@@ -238,7 +249,9 @@ test('an instructor confirms every element of a package and freezes the version'
   await expect(confirmDialog).toContainText(`${String(total)} of ${String(total)} decided`)
   await expect(confirmDialog).toContainText('Not checked yet')
   await confirmDialog.getByRole('button', { name: 'Confirm and freeze' }).click()
-  await expect(page.getByText('Confirm you have read the teaching note first.')).toBeVisible()
+  await expect(page.getByText('Confirm you have read the teaching note first.')).toBeVisible({
+    timeout: CONFIRM_ANSWER_MS,
+  })
   // The refusal is about one control, so the refusal puts the author on it.
   await expect(teachingNote).toBeFocused()
 
@@ -253,7 +266,9 @@ test('an instructor confirms every element of a package and freezes the version'
   await expect(confirmDialog).toContainText('Checked against the answer space and the claims')
   await expect(confirmDialog).toContainText('All met')
   await confirmDialog.getByRole('button', { name: 'Confirm and freeze' }).click()
-  await expect(page.getByText('Version 1 is confirmed and frozen.')).toBeVisible()
+  await expect(page.getByText('Version 1 is confirmed and frozen.')).toBeVisible({
+    timeout: CONFIRM_ANSWER_MS,
+  })
 
   // Nothing on the screen invites an edit the service has already stopped taking.
   await expect(confirmVersion).toHaveCount(0)

@@ -17,23 +17,46 @@ Local production build env: `.env.test` (gitignored; recreate from the block in 
 - Pending after the writers: rebuild if they changed src/, run `pnpm test:guides` on the main database, review screenshots, commit Part B, then C1–C17.
 
 ## C-section status (🟢 = finished, ◐ = partly done, ○ = not started)
-- C1 ◐ typecheck/lint/build green; audit --prod no high/critical; depcheck config + unused deps to remove (next-themes, shadcn, @faker-js/faker, typescript-eslint — pending `pnpm remove` once no agent runs); no console.log (eslint rule); cspell clean; clean-clone build green (Node 24); gitleaks clean; bundle secret grep clean; env parity green (DEMO_MODE and SENTRY_TRACES_SAMPLE_RATE added to Vercel production).
-- C2 ○ `--repeat-each=3` E2E run pending (after the spec writers).
-- C3 ◐ API coverage gate written and green (two untested endpoints got tests); COVERAGE.md walk pending.
-- C4 ◐ classmate → 404 on reviewer endpoints (D-703); per-account lockout (D-704); authz-matrix generation pending.
-- C5 🟢 prompt-injection battery (17 tests, security project); assistant mode chip; provider-down = pause path covered by existing tests.
-- C6 ◐ drift gate green; demo:reset green; seed all-walkthrough; Neon backup branch `pre-demo-backup-20260909` created (3 branches); cold start measured 2.2 s; nothing polls /api/ready (D-698).
-- C7 ◐ envelope fuzz + 1 MiB body cap (D-702); offline/long-input UI checks pending.
-- C8 ○ k6 portable ready; load run against a preview pending.
-- C9 ◐ headers verified on production; robots.txt; lockout; body cap; raw SQL parameterised (report); open-redirect check pending.
-- C10 ○ axe suite exists (34 screens); keyboard-only spec exists; rerun pending.
-- C11 ◐ impeccable detect 0 findings; viewport/copy fixes pending.
-- C12 ○ guide tests on three engines pending.
-- C13 ○ Sentry alert rule via browser pending; PostHog verification pending.
-- C14 ◐ env set; rollback target recorded in the runbook; branch protection needs the `checks / guides` context added.
-- C15 ◐ kill switch built; demo:warm and demo:reset built and passing; PRE-DEMO-CHECKLIST written.
-- C16 ○ pending Part B.
-- C17 ○ pending.
+Read with the two lists below: what each row rests on is in the evidence section, and what is still
+open is named in the row itself.
+
+- C1 🟢 lint, typecheck, build, `audit --prod`, depcheck, `no-console`, cspell, clean-clone build on
+  Node 24, gitleaks over the full history, the client-bundle secret grep, env parity, `db:drift`,
+  `openapi:check` and the bundle budgets are all green on this branch.
+- C2 ◐ the clean `--repeat-each=3` pass over the four projects is running. Two earlier passes each
+  found real defects (QA-042…QA-046, QA-055, and the regression QA-043's first attempt introduced),
+  which is what the repeats are for; the clean one is the evidence.
+- C3 🟢 the API-coverage gate is green, and the requirement register's two joins — every id covered
+  exactly once, every test path it names openable — are now a test rather than a habit (QA-048).
+- C4 🟢 a classmate meets 404 on every reviewer endpoint (D-703), the per-account lockout exists
+  (D-704), and `tests/integration/authz-matrix.test.ts` is 17 cases over role × route, IDOR and
+  immutability.
+- C5 🟢 seventeen prompt-injection cases in their own vitest project; the assistant-mode chip; the
+  provider-down pause path.
+- C6 🟢 no migration drift, `demo:reset` green, all three seeded assignments walkthrough, the Neon
+  backup branch, a measured 2.2 s cold start, and nothing polling `/api/ready` (D-698).
+- C7 🟢 envelope fuzz and the 1 MiB body cap (D-702); the network dropping mid-act is proven on
+  every engine (QA-053); pasted markup, zero-width and bidirectional characters were already
+  covered, and what happens to an emoji is now stated (QA-054).
+- C8 ◐ Lighthouse and every bundle budget green. The k6 run against the PR preview is the open half,
+  and it needs the preview deploy, which needs these checks green.
+- C9 🟢 headers verified on production, `robots.txt`, the lockout, the body cap, parameterised SQL,
+  and the open-redirect check built from a character code so an editor cannot disarm it (QA-033).
+- C10 ◐ the axe suite (34 screens) and the keyboard-only run are in the pass above.
+- C11 🟢 `impeccable detect` 0 findings, the audit done at 1440×900 and 390×844, the two tables that
+  forced a minimum width fixed, and the phone is now a project rather than a reading (QA-047).
+- C12 ◐ chromium, firefox, webkit and `mobile-safari` in the pass above; `cross-browser.yml`
+  matrixes all three engines it can run (QA-059).
+- C13 ◐ `/api/health` and `/api/ready` answer 200 in production; Sentry receives events and the three
+  cron monitors exist; PostHog's last hop is verified in the Events view. **Open:** the fifteen
+  alert rules of 13 §7 that are not cron monitors need a Sentry token carrying `alerts:write` — the
+  one on this machine is `org:ci` and answers 403 to every alert endpoint. That is a secret value,
+  which the prompt names as the one human input.
+- C14 🟢 eighteen production variables, `env:check` green, the rollback target in the runbook, and
+  branch protection carrying all eleven `checks / …` contexts.
+- C15 🟢 all four: the runtime assistant-mode switch, `demo:warm`, `demo:reset`, and the checklist.
+- C16 ◐ the guide chain is the last stage of the pass above.
+- C17 ○ merge, deploy, live smoke, `demo:warm`, `env:check`, and the walkthrough against production.
 
 ## Open fix in progress
 - (none)
@@ -86,6 +109,14 @@ competing for the machine, so none is yet a finding):
 
 A separate database `tassl_test_cov` exists for `pnpm test:coverage`, so the coverage gate can be
 measured without touching the database an e2e run is using.
+
+**Open, and to settle after that measurement:** `docs/tech/14-testing-strategy.md` §3 says the line
+thresholds (`src/server/**` ≥ 80 %, `src/components/**` ≥ 70 %) are enforced "in the `unit` job
+(unit + integration combined via `pnpm test:coverage`)". They are not: the `unit` job runs
+`pnpm test`, and no workflow runs `pnpm test:coverage` at all, so the documented gate has never run.
+The cheap resolution is to make the **integration** job run it — that job already pays for Postgres
+and already runs the integration project — and to correct §3's row to say so; the reason to measure
+first is that turning a gate on is only honest if what it measures already clears it.
 
 ## Worklist from the understand pass (each becomes a FIXED-ISSUES row when fixed)
 - C1: Node 24 portable at `~/.tassl-tools/node24/node-v24.21.0-win-x64` for builds; add eslint `no-console`; remove unused `next-themes`; cspell; depcheck; clean-clone build; gitleaks full history; client bundle secret grep; env parity (add `DEMO_MODE`, `SENTRY_TRACES_SAMPLE_RATE` to production).

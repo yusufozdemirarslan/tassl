@@ -459,10 +459,12 @@ export function DefenseInterview({ runId, questions: initial }: DefenseInterview
    * The refusal stands and is shown — the text the student just wrote was not filed, and saying so
    * is the honest thing — and the tree is re-read so that the answer the run already holds takes the
    * box's place rather than leaving them looking at a form for a question that is closed (D-368).
+   * A run that has moved past the defense altogether is the same case one screen wider, and the
+   * same re-read carries them to it (D-729).
    */
   function answerOne(question: Question, input: { text: string; durationMs: number }): void {
     void submit(question, input).then((written) => {
-      if (written.alreadyAnswered) refresh()
+      if (written.alreadyAnswered || movedOn(written.code)) refresh()
     })
   }
 
