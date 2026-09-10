@@ -1549,13 +1549,14 @@ test('Task 12: Answer the defense', async ({ page, shot }) => {
     await expect(questions).toContainText('Answered')
     const caption = questions.getByText('Follow-up', { exact: true })
     await expect(caption).toBeVisible()
-    // The follow-up is drawn by the re-render that files the answer, and its own empty box under
-    // its own caption is what the guide describes: the box is found from the caption's item, not
-    // from whichever box the screen was holding a moment before.
-    const followUpAnswer = caption.locator('xpath=ancestor::li[1]').getByLabel('Your answer')
-    await expect(followUpAnswer).toBeVisible()
-    await expect(followUpAnswer).toHaveValue('')
-    await shot(12, 4, followUpAnswer)
+    // Only the current question carries a box, and a follow-up takes the last sequence (D-344), so
+    // the follow-up item drawn under Question 1 has no box and the one empty box is under Question 2.
+    await expect(caption.locator('xpath=ancestor::li[1]').getByLabel('Your answer')).toHaveCount(0)
+    const answerBox = questions.getByLabel('Your answer')
+    await expect(answerBox).toHaveCount(1)
+    await expect(answerBox).toHaveValue('')
+    await expect(answerBox.locator('xpath=ancestor::li[1]')).toContainText('Question 2')
+    await shot(12, 4, answerBox)
   })
 
   await test.step('12.5 Answer all but the last question with Guide, 16 months because the memo says so via Submit answer.', async () => {

@@ -15,7 +15,7 @@ Students, teaching assistants and platform admins have other guides; this one co
 
 **The first screen.** After sign-in you land on **Home**, headed by your institution's name (**Walkthrough University** in the demo) and the line **What needs your attention, and what is coming up.** Four panels follow:
 
-- **Your runs** — the runs you take as a student. An instructor seat with no student role reads **Nothing to do yet**.
+- **Your runs** — the runs you take as a student. It appears only on a seat that is enrolled as a student somewhere; an instructor seat with no student role does not see it.
 - **Review** — runs of your sections that have draft bands waiting for your decision, each with **Open the replay for** the student's name; when there are none it reads **Nothing waiting**. **Open the review queue** opens the Review page.
 - **Packages** — package versions of your institution that are still being confirmed, or **Nothing to confirm**. **Open the shelf** opens the Packages page.
 - **Courses** — your courses with their term and counts, each with **Open** and the course name. **Open all courses** opens the Courses page.
@@ -52,7 +52,7 @@ Two rail items never appear for an instructor seat: **Runs** belongs to student 
    ![Task 1 step 4](screenshots/instructor/task-01-step-04.png)
 5. Read the rail under **Tassl** on the left. → You see: **Home**, **Courses**, **Review** and **Packages**.
    ![Task 1 step 5](screenshots/instructor/task-01-step-05.png)
-6. Read the panels on **Home**. → You see: **Your runs**, **Review**, **Packages** and **Courses**.
+6. Read the panels on **Home**. → You see: **Review**, **Packages** and **Courses**.
    ![Task 1 step 6](screenshots/instructor/task-01-step-06.png)
 7. Click **Courses** in the rail. → You see: the heading **Courses** and the row **Marketing Strategy Walkthrough**.
    ![Task 1 step 7](screenshots/instructor/task-01-step-07.png)

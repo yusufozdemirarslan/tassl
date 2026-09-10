@@ -393,7 +393,7 @@ A Student does not see **Courses**, **Review**, **Packages** or **Admin**; those
    ![Task 12 step 2](screenshots/student/task-12-step-02.png)
 3. Type **I went with what I remembered and did not note where it came from.** in **Your answer**. → You see: **66 of 5000 characters**.
    ![Task 12 step 3](screenshots/student/task-12-step-03.png)
-4. Click **Submit answer**. → You see: your answer under the question with **Answered** and the time, and beneath it the caption **Follow-up** over a second question with a fresh **Your answer**.
+4. Click **Submit answer**. → You see: your answer under the question with **Answered** and the time; beneath it the caption **Follow-up** over a second question, which has no box yet because a follow-up is answered in its turn at the end; and the empty **Your answer** box under **Question 2**.
    ![Task 12 step 4](screenshots/student/task-12-step-04.png)
 5. Answer all but the last question with **Guide, 16 months because the memo says so** via **Submit answer**. → You see: one question left with an empty **Your answer**.
    ![Task 12 step 5](screenshots/student/task-12-step-05.png)

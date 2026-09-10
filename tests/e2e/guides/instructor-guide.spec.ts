@@ -201,10 +201,11 @@ test('Task 1: Sign in and find your way around', async ({ page, shot }) => {
   })
 
   await test.step('1.6 Read the panels on Home.', async () => {
-    for (const panel of ['Your runs', 'Review', 'Packages', 'Courses']) {
+    // An instructor seat with no student role has no Your runs panel (QA-026).
+    for (const panel of ['Review', 'Packages', 'Courses']) {
       await expect(page.getByRole('heading', { level: 2, name: panel, exact: true })).toBeVisible()
     }
-    // The fourth panel is below the fold; the shot scrolls to it so all four are in frame.
+    // The third panel is below the fold; the shot scrolls to it so all three are in frame.
     await shot(1, 6, page.locator('#home-courses'))
   })
 
