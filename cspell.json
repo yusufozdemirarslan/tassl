@@ -59,7 +59,16 @@
     "webkit",
     "chromium",
     "envs",
-    "rehearsal"
+    "rehearsal",
+    "alives",
+    "autocapture",
+    "Contentful",
+    "ective",
+    "evals",
+    "genai",
+    "Prerendering",
+    "Worklist",
+    "worklist"
   ],
   "flagWords": ["TBD", "TODO", "lorem"],
   "ignoreRegExpList": [
