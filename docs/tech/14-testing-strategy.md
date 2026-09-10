@@ -29,7 +29,7 @@
 
 | Gate | Threshold | Enforced by |
 |---|---|---|
-| Lines on `src/server/**` | ≥ 80 % | `vitest --coverage` thresholds in the `unit` job (unit + integration combined via `pnpm test:coverage`) |
+| Lines on `src/server/**` | ≥ 80 % | `vitest --coverage` thresholds in the `integration` job (unit + integration combined via `pnpm test:coverage`), which is the job that already has a Postgres; `unit` stays fast feedback (D-732) |
 | Lines on `src/components/**` | ≥ 70 % | same |
 | API endpoints with an integration test | 100 % | `tests/integration/api/coverage.test.ts` reads the OpenAPI registry and asserts every `operationId` appears in `tests/integration/**` (grep on `op('<operationId>')` helper) |
 | PRD user flows with an E2E test | 100 % | `tests/e2e/coverage.test.ts` asserts every flow id in `tests/e2e/flows.json` (the flows of `01-prd-analysis.md` §6 plus auth, authoring, admin) has a spec file |

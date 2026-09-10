@@ -86,11 +86,17 @@ jobs:
       - uses: ./.github/actions/setup
       - run: pnpm test
 
+  # This job also carries the coverage thresholds (14 §3, D-732). They are declared in
+  # `vitest.config.ts` and enforce lines on `src/server/**` and `src/components/**` over the unit and
+  # integration projects together, which is what `pnpm test:coverage` runs — and until now nothing
+  # ran it, so a documented gate had never once fired. It belongs here rather than in `unit`, where
+  # 14 §3 first put it: this is the job that already pays for a Postgres and already runs the
+  # integration project, and `unit` stays two minutes of fast feedback.
   integration:
     name: integration
     needs: unit
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     services:
       postgres:
         image: postgres:17-alpine
@@ -108,7 +114,7 @@ jobs:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/setup
       - run: pnpm db:migrate
-      - run: pnpm test:integration
+      - run: pnpm test:coverage
 
   build:
     name: build
