@@ -97,6 +97,16 @@ export async function findCourse(courseId: string): Promise<CourseRow | null> {
   return rows[0] ?? null
 }
 
+/** The section's organization; null when the id is unknown (D-710). */
+export async function findSection(sectionId: string): Promise<{ organizationId: string } | null> {
+  const rows = await db
+    .select({ organizationId: sections.organizationId })
+    .from(sections)
+    .where(eq(sections.id, sectionId))
+    .limit(1)
+  return rows[0] ?? null
+}
+
 /** True when the user holds an `instructor` section membership in one of the course's sections. */
 export async function teachesCourse(userId: string, courseId: string): Promise<boolean> {
   const rows = await db

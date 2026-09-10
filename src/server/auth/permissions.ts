@@ -16,6 +16,7 @@ import {
   findOrganizationRole,
   findPackage,
   findRunContext,
+  findSection,
   findSectionMembership,
   teachesCourse,
 } from '@/server/auth/queries'
@@ -99,7 +100,15 @@ export async function requireSectionRole(
   roles: readonly SectionRole[],
 ): Promise<SectionScope> {
   const membership = await findSectionMembership(actor.id, sectionId)
-  if (!membership) forbidden()
+  if (!membership) {
+    // A section in an institution the actor does not belong to, or no section at all, answers
+    // NOT_FOUND (08 §5 "Cross-tenant"): a section id must not be confirmable from another tenant.
+    // A member of the institution with no seat on the section is FORBIDDEN (D-710).
+    const section = await findSection(sectionId)
+    if (!section) notFound()
+    if (!(await findOrganizationRole(actor.id, section.organizationId))) notFound()
+    forbidden()
+  }
   const role = membership.role as SectionRole
   if (!roles.includes(role)) forbidden()
   return { sectionId, role, organizationId: membership.organizationId }
