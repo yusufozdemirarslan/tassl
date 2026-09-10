@@ -25,7 +25,7 @@ export const AXE_TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa']
 export async function axe(page: Page): Promise<void> {
   // A page is scanned once it has its title. Next streams `generateMetadata` output after the
   // first flush, so for a moment after a navigation the document has no <title>; a scan in that
-  // moment reports `document-title` on a page that has one (QA-042). A page that never gets a title
+  // moment reports `document-title` on a page that has one (QA-051). A page that never gets a title
   // fails here, with the same words axe would use.
   await expect(page, 'document-title: Documents must have <title> element').toHaveTitle(/./)
   // Colours are read when nothing is mid-transition. A dialog fading out, or a button between its

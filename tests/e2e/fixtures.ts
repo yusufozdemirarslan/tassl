@@ -51,6 +51,13 @@ export const test = base.extend({
  * itself is asked whether the document arrived — Firefox says cancelled even when it did, because
  * the promise loses the race and not the page. The same wait runs on arrival, so a spec never types
  * into a form React has not attached to yet (D-199).
+ *
+ * The promise loses the page in a second way, and the answer is the same one (D-727). Firefox
+ * sometimes never settles it at all: `/verify-email` returned in 26 ms, its thirty-two subresources
+ * in under 100 ms each, the document rendered — and `page.goto` was still waiting fifty-nine
+ * seconds later, until the test's own budget ended it with the page on screen behind it. So a
+ * navigation is given a bound of its own, well inside that budget, and a navigation that passes it
+ * asks the page the same question a cancelled one does.
  */
 function settleBeforeNavigating(page: Page): Page {
   const goto = page.goto.bind(page)
@@ -67,6 +74,19 @@ function settleBeforeNavigating(page: Page): Page {
   /** Firefox's marker for "the load you asked for was cancelled by another one". */
   const wasCancelled = (error: unknown): boolean =>
     error instanceof Error && error.message.includes('NS_BINDING_ABORTED')
+
+  const timedOut = (error: unknown): boolean =>
+    error instanceof Error && error.name === 'TimeoutError'
+
+  /**
+   * A navigation's own bound, when the caller names none.
+   *
+   * Two settles and two attempts have to fit inside the suite's sixty-second test budget with room
+   * for the assertions that follow, and the point is only to reach the question below sooner than
+   * the test timeout does — a page this app serves in a hundred milliseconds is not fifteen seconds
+   * from arriving. A caller that passes its own timeout keeps it.
+   */
+  const NAVIGATION_MS = 15_000
 
   /** One first try and one retry; past that the page is asked what actually happened. */
   const ATTEMPTS = 2
@@ -92,6 +112,14 @@ function settleBeforeNavigating(page: Page): Page {
         await settle()
         return answer
       } catch (error) {
+        // A navigation that timed out is not asked for again: the browser is already wherever it
+        // got to, and a second attempt would spend the rest of the test's budget proving it. The
+        // page is asked directly instead, on the first failure.
+        if (timedOut(error)) {
+          await settle()
+          if (await arrived()) return null
+          throw error
+        }
         // A cancelled load did not happen, so asking again asserts nothing that was not asked for.
         // Anything else is the spec's own failure and is raised where it was thrown.
         if (!wasCancelled(error)) throw error
@@ -110,8 +138,9 @@ function settleBeforeNavigating(page: Page): Page {
     }
   }
 
-  page.goto = async (url, options) => navigate(() => goto(url, options))
-  page.reload = async (options) => navigate(() => reload(options))
+  page.goto = async (url, options) =>
+    navigate(() => goto(url, { timeout: NAVIGATION_MS, ...options }))
+  page.reload = async (options) => navigate(() => reload({ timeout: NAVIGATION_MS, ...options }))
   return page
 }
 

@@ -19,6 +19,35 @@ process.env.DATABASE_URL = TEST_DATABASE_URL
 process.env.DATABASE_URL_UNPOOLED = TEST_DATABASE_URL
 
 /**
+ * The suite drives a deployment rather than a server of its own (D-725).
+ *
+ * Build-plan step 15.5 walks the guide chain against production. Two things have to move together
+ * there: the browser goes to `PLAYWRIGHT_BASE_URL`, and the setup and the between-stage resets —
+ * which run in *this* process, through `@/server/db/client` — have to reach the same deployment's
+ * database. Point only the first and the chain drives production while `resetGuideData` cleans the
+ * local test database: silently the wrong one, so the second task meets the "Guide course 2026"
+ * the first run left on production and fails on a duplicate row rather than on anything true.
+ *
+ * So it is refused rather than allowed to happen quietly, and the local `webServer` is not started:
+ * `pnpm db:reset` refuses a URL that does not look like a test database, which is the right refusal
+ * and the wrong moment for it.
+ */
+const BASE_URL = process.env.PLAYWRIGHT_BASE_URL ?? 'http://localhost:3000'
+
+/** This machine, under either of the two names it answers to. */
+const isLocal = (host: string): boolean => host === 'localhost' || host === '127.0.0.1'
+
+const againstADeployment = !isLocal(new URL(BASE_URL).hostname)
+
+if (againstADeployment && isLocal(new URL(TEST_DATABASE_URL).hostname)) {
+  throw new Error(
+    `PLAYWRIGHT_BASE_URL is ${BASE_URL}, a deployment, but TEST_DATABASE_URL still points at a ` +
+      "local database. Set TEST_DATABASE_URL to that deployment's connection string, so the " +
+      'setup and the guide resets clean the database the browser is driving.',
+  )
+}
+
+/**
  * The guide-driven suite as a chain of projects (docs/prompts/02-qa-and-guides.md Part B, D-693,
  * D-707). Per engine: a reset, the instructor guide, the student guide, a reset, the demo path —
  * each project depending on the previous one, and the first of an engine on the last of the
@@ -64,6 +93,25 @@ function guideProjects() {
 }
 
 // docs/tech/04-repo-structure.md §9. CI installs chromium only and runs --project=chromium (D-126).
+const LOCAL_SERVER = {
+  command: 'pnpm db:reset && pnpm build && pnpm start',
+  url: 'http://localhost:3000/api/health',
+  reuseExistingServer: !process.env.CI,
+  timeout: 240000,
+  env: {
+    LLM_PROVIDER: 'mock',
+    FEATURE_AI: 'false',
+    EMAIL_TRANSPORT: 'console',
+    APP_ENV: 'test',
+    // The forced-failure spec and every scored/done poll depend on these two; pinned here so a
+    // local .env that differs cannot change what the suite proves.
+    FEATURE_TEST_CONTROLS: 'true',
+    JOBS_DRAIN_ON_ENQUEUE: 'true',
+    DATABASE_URL: TEST_DATABASE_URL,
+    DATABASE_URL_UNPOOLED: TEST_DATABASE_URL,
+  },
+} as const
+
 export default defineConfig({
   testDir: 'tests/e2e',
   fullyParallel: false,
@@ -84,7 +132,7 @@ export default defineConfig({
   retries: process.env.CI ? 1 : 0,
   reporter: process.env.CI ? [['github'], ['html', { open: 'never' }]] : 'list',
   use: {
-    baseURL: process.env.PLAYWRIGHT_BASE_URL ?? 'http://localhost:3000',
+    baseURL: BASE_URL,
     trace: 'retain-on-failure',
   },
   // Two families of projects.
@@ -134,22 +182,7 @@ export default defineConfig({
     },
     ...guideProjects(),
   ],
-  webServer: {
-    command: 'pnpm db:reset && pnpm build && pnpm start',
-    url: 'http://localhost:3000/api/health',
-    reuseExistingServer: !process.env.CI,
-    timeout: 240000,
-    env: {
-      LLM_PROVIDER: 'mock',
-      FEATURE_AI: 'false',
-      EMAIL_TRANSPORT: 'console',
-      APP_ENV: 'test',
-      // The forced-failure spec and every scored/done poll depend on these two; pinned here so a
-      // local .env that differs cannot change what the suite proves.
-      FEATURE_TEST_CONTROLS: 'true',
-      JOBS_DRAIN_ON_ENQUEUE: 'true',
-      DATABASE_URL: TEST_DATABASE_URL,
-      DATABASE_URL_UNPOOLED: TEST_DATABASE_URL,
-    },
-  },
+  // No local server when the suite is driving a deployment: there is nothing to build here, and
+  // the reset inside that command would be aimed at the deployment's own database (D-725).
+  ...(againstADeployment ? {} : { webServer: LOCAL_SERVER }),
 })
