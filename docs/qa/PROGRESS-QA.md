@@ -55,3 +55,12 @@ Local production build env: `.env.test` (gitignored; recreate from the block in 
 
 ## Next command
 - When the guide workflow finishes: read `docs/guides/*.md`, fix format problems, run `pnpm exec tsx scripts/check-guide-coverage.ts` (expect spec-missing errors only), then Part B.
+
+## Evidence gathered so far (for QA-REPORT.md)
+- Sentry (browser, 2026-09-09 17:20 ET): project `tassl` has the project alert "Send a notification for high priority issues" with the action Email; the test event `ops.sentry_test` is issue TASSL-1; cron monitors `nightly-backup` and `restore-drill` exist (the drill's last check-in before today was an error, from the run D-690 fixed).
+- Backups: `backup.yml` runs at 2026-09-09 01:01, 03:53 and 08:18 UTC all `success` (the "last three" reading of launch-checklist row 4).
+- Restore drill: run 34406394294 on `main`, dispatched 21:20 UTC, `success` in 3 min 15 s (21:20:49 → 21:24:04): the nightly artifact restored onto a throwaway Neon branch, smoke passed against it, the branch deleted, the Sentry cron monitor checked in. Launch-checklist row 5 is `pass`.
+- Neon: branches `main`, `preview/pr-31`, `pre-demo-backup-20260909` (3 of 10); compute 6157 s used this month; storage 36 MB; cold start on `/api/ready` 2.23 s, warm 0.16 s.
+- Vercel production variables (18): APP_ENV BETTER_AUTH_SECRET CRON_SECRET DATABASE_URL DATABASE_URL_UNPOOLED DEMO_MODE EMAIL_FROM EMAIL_TRANSPORT FEATURE_AI LLM_API_KEY LLM_BASE_URL LLM_PROVIDER NEXT_PUBLIC_APP_URL NEXT_PUBLIC_POSTHOG_KEY NEXT_PUBLIC_SENTRY_DSN SEED_PASSWORD SENTRY_TRACES_SAMPLE_RATE TASSL_APP_DB_PASSWORD; `pnpm env:check` green (41 schema keys; /api/ready 200).
+- `demo:warm` against production 2026-09-09 16:05 ET: 14 pages, all 200; first page 2.5 s, the rest 146–335 ms.
+- Impeccable `detect`: 0 open findings.

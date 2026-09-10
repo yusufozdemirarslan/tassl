@@ -290,13 +290,20 @@ export function NeutralizeDialog({
                         creditChallenge: credit,
                         note: note.trim(),
                       })
-                      if (!answer.ok) {
-                        setError(answer.error.message)
-                        return
-                      }
-                      setResult({
-                        recompute: answer.data.recompute as Recompute,
-                        exportVersion: answer.data.exportVersion,
+                      // An update made after an `await` is outside the transition unless it is
+                      // wrapped again (React 19, useTransition). Unwrapped, the answer painted one
+                      // commit before `pending` fell, and a Close pressed in that gap was refused
+                      // by the guard on `onOpenChange`; wrapped, the answer and the end of the
+                      // pending state land in the same commit (D-706).
+                      startTransition(() => {
+                        if (!answer.ok) {
+                          setError(answer.error.message)
+                          return
+                        }
+                        setResult({
+                          recompute: answer.data.recompute as Recompute,
+                          exportVersion: answer.data.exportVersion,
+                        })
                       })
                     })
                   }}

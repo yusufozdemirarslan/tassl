@@ -11,6 +11,7 @@ import { defineRoute, type RouteContext, type RouteHandler } from '@/server/http
 import { toErrorResponse } from '@/server/http/errors'
 import { attachRouteSpec, getRouteSpec, type RegisteredRoute } from '@/server/http/openapi-registry'
 import { getOrCreateRequestId } from '@/server/logging/request-id'
+import { resetRateLimiter } from '@/server/rate-limit/index'
 import {
   acknowledgePolicy,
   addAddendum,
@@ -553,4 +554,43 @@ export const advanceClockRoute: RouteHandler = attachRouteSpec(
     return advanceClockJson(request, routeCtx)
   },
   { ...specOf(advanceClockJson), documented: false },
+)
+
+/**
+ * `POST /api/v1/test/rate-limits/reset` — `APP_ENV=test` only, absent from OpenAPI, same shape as
+ * the advance-clock route above.
+ *
+ * The guide-driven suite runs the same seat through the same screens on three engines in one
+ * server process, and two of its controls live in the process's memory rather than in a table: the
+ * `auth` failed-sign-in window (D-704) and the two-an-hour data export (identity). A reset between
+ * engines empties every window, which is what a fresh server would have done; nothing else about
+ * the process changes, and outside a test process the path answers 404 before a session is read.
+ */
+const resetRateLimitsJson = defineRoute(
+  {
+    auth: 'session',
+    output: z.object({ reset: z.literal(true) }),
+    rateLimit: { bucket: 'write' },
+    openapi: {
+      operationId: 'resetTestRateLimits',
+      summary: 'Empty the in-memory rate-limit windows (test only)',
+      tags: TAGS,
+    },
+  },
+  async () => {
+    resetRateLimiter()
+    return { reset: true as const }
+  },
+)
+
+export const resetRateLimitsRoute: RouteHandler = attachRouteSpec(
+  async (request, routeCtx) => {
+    try {
+      assertTestEnvironment()
+    } catch (error) {
+      return toErrorResponse(error, getOrCreateRequestId(request.headers))
+    }
+    return resetRateLimitsJson(request, routeCtx)
+  },
+  { ...specOf(resetRateLimitsJson), documented: false },
 )

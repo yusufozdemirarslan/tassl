@@ -36,6 +36,9 @@ const RUNNER_KEYS = new Set([
  */
 const SCRIPT_KEYS: Record<string, string> = {
   TASSL_APP_DB_PASSWORD: 'scripts/db-app-role.ts (Step 15.1: the least-privileged app role)',
+  // Written by Vercel itself when Protection Bypass for Automation is generated; read by the load
+  // test (tests/load/core-flow.js, the `x-vercel-protection-bypass` header) and never by the app.
+  VERCEL_AUTOMATION_BYPASS_SECRET: 'tests/load/core-flow.js (preview deployments sit behind Vercel Authentication)',
 }
 
 /**

@@ -25,7 +25,7 @@ Students, teaching assistants and platform admins have other guides; this one co
 - **Skip to main content** — the first link on every page; it jumps past the header and the rail.
 - **Tassl** (header) — Home.
 - **Home** (rail) — the four panels above.
-- **Courses** (rail) — every course in the institution; a course opens with the views **Sections**, **Assignments**, **Policy** and **Mapping**. A section row has a **Roster** link; an assignment row opens the assignment page, which links to **Course exports**.
+- **Courses** (rail) — every course in the institution; a course opens with the views **Sections**, **Assignments**, **Policy** and **Mapping**. A section row has a **Roster** link; an assignment row opens the assignment page, whose **Runs** table has **Open the replay** for every run and which links to **Course exports**.
 - **Review** (rail) — **Runs waiting for you**: every scored run of a section you review, newest first, each with **Open the replay for** the student. The replay has the views **Overview**, **Bands**, **Trace**, **Package** and **Actions**.
 - **Packages** (rail) — the scenario packages of the institution and **New package from a seed case**; a package row opens its latest version, from which you reach the generation screen and the confirmation workspace.
 - **Notifications** (the bell in the header) — what Tassl has told you, newest first.
@@ -335,40 +335,38 @@ Two rail items never appear for an instructor seat: **Runs** belongs to student 
    ![Task 9 step 2](screenshots/instructor/task-09-step-02.png)
 3. Click **Assignments** in **Course views**. → You see: the row **Guide run**.
    ![Task 9 step 3](screenshots/instructor/task-09-step-03.png)
-4. Click **Guide run**. → You see: the heading **Guide run** and the link **Course exports**.
+4. Click **Guide run**. → You see: the heading **Guide run** and the row **Student Two** in **Runs** with the link **Open the replay**.
    ![Task 9 step 4](screenshots/instructor/task-09-step-04.png)
-5. Click **Course exports**. → You see: the heading **Course exports** and **Every version written**.
+5. Click **Open the replay** in the **Student Two** row (its link is labelled **Open the replay for Student Two**). → You see: the heading **Student Two**.
    ![Task 9 step 5](screenshots/instructor/task-09-step-05.png)
-6. Click **Open the replay**. → You see: the heading **Student Two**.
+6. Click **Actions**. → You see: **Corrections** and **No correction has been entered on this run.**
    ![Task 9 step 6](screenshots/instructor/task-09-step-06.png)
-7. Click **Actions**. → You see: **Corrections** and **No correction has been entered on this run.**
+7. Click **Enter a correction on C3…**. → You see: the dialog **Enter a correction on claim C3?** and **What went wrong?** with **The claim carried a defect nobody placed** selected.
    ![Task 9 step 7](screenshots/instructor/task-09-step-07.png)
-8. Click **Enter a correction on C3…**. → You see: the dialog **Enter a correction on claim C3?** and **What went wrong?** with **The claim carried a defect nobody placed** selected.
+8. Tick **Credit the student’s challenge as correct**. → You see: the box ticked.
    ![Task 9 step 8](screenshots/instructor/task-09-step-08.png)
-9. Tick **Credit the student’s challenge as correct**. → You see: the box ticked.
+9. Click **Enter the correction**. → You see: **What the correction moved**, **A correction can raise a band and never lowers one.** and **Export version 2 was written.**
    ![Task 9 step 9](screenshots/instructor/task-09-step-09.png)
-10. Click **Enter the correction**. → You see: **What the correction moved**, **A correction can raise a band and never lowers one.** and **Export version 2 was written.**
+10. Click **Close**. → You see: **Corrections on this run** listing **C3** and **The student’s challenge was credited.**
    ![Task 9 step 10](screenshots/instructor/task-09-step-10.png)
-11. Click **Close**. → You see: **Corrections on this run** listing **C3** and **The student’s challenge was credited.**
+11. Read **Test controls**. → You see: **Arm one assistant outage** and **It exists for step 7 of the walkthrough, where the run has to meet an outage the student did not ask for and carry on without the assistant.**
    ![Task 9 step 11](screenshots/instructor/task-09-step-11.png)
-12. Read **Test controls**. → You see: **Arm one assistant outage** and **It exists for step 7 of the walkthrough, where the run has to meet an outage the student did not ask for and carry on without the assistant.**
+12. Read the button **Arm the outage** and the line under it. → You see: **This run is not in a state that can take an outage. One can be armed while the student is working, answering the Turn, or paused.**
    ![Task 9 step 12](screenshots/instructor/task-09-step-12.png)
-13. Read the button **Arm the outage** and the line under it. → You see: **This run is not in a state that can take an outage. One can be armed while the student is working, answering the Turn, or paused.**
+13. Click **Review** in the rail. → You see: **Open the replay for Student One**.
    ![Task 9 step 13](screenshots/instructor/task-09-step-13.png)
-14. Click **Review** in the rail. → You see: **Open the replay for Student One**.
+14. Click **Open the replay for Student One**. → You see: the heading **Student One**.
    ![Task 9 step 14](screenshots/instructor/task-09-step-14.png)
-15. Click **Open the replay for Student One**. → You see: the heading **Student One**.
+15. Click **Actions**. → You see: **Void this run** and **A voided run carries no partial result, and no export written afterwards names it. Offer another run in its place when the student should still take one.**
    ![Task 9 step 15](screenshots/instructor/task-09-step-15.png)
-16. Click **Actions**. → You see: **Void this run** and **A voided run carries no partial result, and no export written afterwards names it. Offer another run in its place when the student should still take one.**
+16. Click **Void this run…**. → You see: the dialog **Void this run?** and **Why is the run being voided?**
    ![Task 9 step 16](screenshots/instructor/task-09-step-16.png)
-17. Click **Void this run…**. → You see: the dialog **Void this run?** and **Why is the run being voided?**
+17. Choose **It was a walkthrough run**. → You see: **It was a walkthrough run** selected.
    ![Task 9 step 17](screenshots/instructor/task-09-step-17.png)
-18. Choose **It was a walkthrough run**. → You see: **It was a walkthrough run** selected.
+18. Tick **Offer the student another run**. → You see: **Variant for the new run** reading **The other variant**.
    ![Task 9 step 18](screenshots/instructor/task-09-step-18.png)
-19. Tick **Offer the student another run**. → You see: **Variant for the new run** reading **The other variant**.
+19. Click **Void the run**. → You see: **The run is voided and another has been offered.** and **This run is voided. It carries no partial result, and no export written afterwards names it.**
    ![Task 9 step 19](screenshots/instructor/task-09-step-19.png)
-20. Click **Void the run**. → You see: **The run is voided and another has been offered.** and **This run is voided. It carries no partial result, and no export written afterwards names it.**
-   ![Task 9 step 20](screenshots/instructor/task-09-step-20.png)
 
 *If something goes wrong:*
 
@@ -439,7 +437,7 @@ Two rail items never appear for an instructor seat: **Runs** belongs to student 
    ![Task 11 step 13](screenshots/instructor/task-11-step-13.png)
 14. Open **Documents** in **Elements** and click **D1**. → You see: the heading **Document · D1**.
    ![Task 11 step 14](screenshots/instructor/task-11-step-14.png)
-15. Click **Reject**. → You see: **Reject D1** and the field **Why this element is rejected**.
+15. Click **Reject**. → You see: the panel **Reject Document · D1** with **Say what is wrong with it. The note is kept with the decision, and the element stays in the version until it is re-authored.** and the field **Why this element is rejected**.
    ![Task 11 step 15](screenshots/instructor/task-11-step-15.png)
 16. Type **Guide rejection. The dateline reads as an internal memo.** in **Why this element is rejected**. → You see: the sentence in the field.
    ![Task 11 step 16](screenshots/instructor/task-11-step-16.png)
@@ -447,7 +445,7 @@ Two rail items never appear for an instructor seat: **Runs** belongs to student 
    ![Task 11 step 17](screenshots/instructor/task-11-step-17.png)
 18. Click **D1** in **Elements** again. → You see: **Rejected, and waiting to be re-authored**.
    ![Task 11 step 18](screenshots/instructor/task-11-step-18.png)
-19. Click **Rewrite**. → You see: **Rewrite D1** and **A new draft is written for every document in this version, this one included.**
+19. Click **Rewrite**. → You see: the panel **Rewrite Document · D1** with **A new draft is written for every document in this version, this one included.**
    ![Task 11 step 19](screenshots/instructor/task-11-step-19.png)
 20. Click **Rewrite every document in this version**. → You see: **A new draft of D1 was asked for.** and **Writing a new draft**.
    ![Task 11 step 20](screenshots/instructor/task-11-step-20.png)
@@ -539,7 +537,7 @@ Two rail items never appear for an instructor seat: **Runs** belongs to student 
 
 **A course, an assignment or a replay answers Not found.** Tassl answers **Not found** rather than refusing: the course belongs to an institution you are not an instructor in, the address is wrong, or, for a replay, you hold no **Instructor** or **Teaching assistant** row on the run's section roster. The **Course exports** page says **Replay needs a place in the section** in that last case. Add yourself to the section roster and open it again.
 
-**A student's run does not appear on Review.** The queue lists runs at **Scored** for sections where you hold a roster row; a run that is still in progress is not there yet, and a run you have confirmed has left it. Open the assignment page for the run's state, or the assignment's **Course exports** for **Open the replay** on a confirmed run.
+**A student's run does not appear on Review.** The queue lists runs at **Scored** for sections where you hold a roster row; a run that is still in progress is not there yet, and a run you have confirmed has left it. Open the assignment page for the run's state and its **Open the replay** link, or the assignment's **Course exports** for **Open the replay** on a confirmed run.
 
 **New assignment is greyed out.** The line under it says why: **An assignment belongs to a section. Add a section to this course first.** or **An assignment runs on a confirmed scenario package version. Confirm one, then configure the assignment.**
 
@@ -597,7 +595,7 @@ Two rail items never appear for an instructor seat: **Runs** belongs to student 
 - **Correction** — the instructor's act of taking a claim Tassl got wrong out of one run's arithmetic; Verification and Calibration are read again, a band can rise and never falls, and a new export version is written.
 - **Void** — the instructor's act of ending a run that cannot be scored; it keeps no partial result and no export, and can re-offer another run.
 - **Re-offer** — the fresh attempt a void offers, on the other variant unless the instructor chooses one; the student's list shows Continue on attempt 2.
-- **Replay** — the instructor's view of one run with the views Overview, Bands, Trace, Package and Actions, reached from Review or from Course exports.
+- **Replay** — the instructor's view of one run with the views Overview, Bands, Trace, Package and Actions, reached from Review, from the assignment's Runs table, or from Course exports.
 - **Mapping** — the course's band-to-points table, Novice 1, Developing 2, Proficient 3 and Professional 4 by default; applying a change re-exports every confirmed run.
 - **Points** — the mean of a run's mapped bands over the dimensions it was assessed on, written into the course export beside the bands and the mapping; never shown on the Judgment Record.
 - **Weight** — what one run is worth in the gradebook, set on the course as Default run weight and overridable on the assignment.

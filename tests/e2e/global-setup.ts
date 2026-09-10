@@ -65,8 +65,10 @@ import {
   scenarioVariants,
   sectionMemberships,
   seedRecords,
+  session,
   stakeholders,
   sycophancyProbes,
+  user,
   variantClaimStates,
   sections,
 } from '@/server/db/schema'
@@ -489,6 +491,15 @@ export async function resetGuideData(organizationId: string): Promise<void> {
   }
   // The guide's own rows: courses, sections, assignments, runs and packages named "Guide …".
   await purgeNamed(organizationId, GUIDE_PREFIX, 'guide-')
+
+  // The seats' sessions from earlier rehearsals. Every guide task signs its seat in afresh, and
+  // the Signed-in devices list a task reads (Student guide Task 16) is the seat's live sessions as
+  // the auth library lists them, which stops at a hundred: a seat rehearsed often enough on one
+  // database stopped listing its newest session as "This device". A rehearsal's sessions are as
+  // much residue as its runs, and nothing in the suite relies on one outliving its test.
+  const seats = await db.select({ id: user.id }).from(user).where(like(user.email, '%@tassl.local'))
+  const seatIds = seats.map((row) => row.id)
+  if (seatIds.length > 0) await db.delete(session).where(inArray(session.userId, seatIds))
 }
 
 export default async function globalSetup(): Promise<void> {

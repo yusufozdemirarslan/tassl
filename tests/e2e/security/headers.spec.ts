@@ -187,3 +187,20 @@ test.describe('security headers', () => {
     expect(violations).toEqual([])
   })
 })
+
+// C9 of docs/prompts/02-qa-and-guides.md: the sign-in page's `next` parameter is reduced to a
+// same-site path on the server (`resolveNext` in src/app/(public)/(auth)/sign-in/page.tsx), so an
+// absolute URL, a protocol-relative host or a backslash path cannot send a signed-in person off the
+// site. Proven through the form, which is the only thing that reads the value.
+test.describe('open redirect on sign-in', () => {
+  for (const evil of ['https://evil.example/', '//evil.example/', '/\evil.example', 'javascript:alert(1)']) {
+    test(`next=${evil} lands on /home after sign-in`, async ({ page }) => {
+      await page.goto(`/sign-in?next=${encodeURIComponent(evil)}`)
+      await page.getByLabel('Email address').fill('student2@tassl.local')
+      await page.getByLabel('Password').fill(process.env.SEED_PASSWORD ?? 'Walkthrough-Pass-2026')
+      await page.getByRole('button', { name: 'Sign in' }).click()
+      await expect(page).toHaveURL(/\/home$/)
+      await expect(page.getByRole('heading', { level: 1, name: 'Home' })).toBeVisible()
+    })
+  }
+})

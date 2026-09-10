@@ -110,7 +110,7 @@ A Student does not see **Courses**, **Review**, **Packages** or **Admin**; those
    ![Task 3 step 6](screenshots/student/task-03-step-06.png)
 7. Click **Submit**. → You see: the heading **What the check read** and the sentence **There is no score here, no total and no comparison with anyone else, and nothing on this page counts toward your grade.**
    ![Task 3 step 7](screenshots/student/task-03-step-07.png)
-8. Scroll to **The ideas this scenario turns on**. → You see: one sentence per idea, each starting **You showed a working grasp of**, ending **looks thin.** or starting **We could not tell about**, with no number anywhere on the page.
+8. Scroll to **The ideas this scenario turns on**. → You see: one sentence per idea, each starting **You showed a working grasp of**, ending **looks thin.** or starting **We could not tell about**, with no number anywhere in the panel.
    ![Task 3 step 8](screenshots/student/task-03-step-08.png)
 9. Click **Open the scenario**. → You see: the heading **The scenario** and **Read the brief and as much of the Evidence Room as you want to. The working clock starts when you lock your frame, so reading now costs you nothing.**
    ![Task 3 step 9](screenshots/student/task-03-step-09.png)
@@ -208,7 +208,7 @@ A Student does not see **Courses**, **Review**, **Packages** or **Admin**; those
 
 *Steps:*
 
-1. Find **Your stance** on the **Claim C3** card in the assistant's reply. → You see: five choices, **Accept**, **Verify**, **Challenge**, **Reject** and **Escalate**, and the hint **It costs no clock time, and you can change it while the run is open; both are kept.**
+1. Find **Your stance** on the **Claim C3** card in the assistant's reply (after a reload, the card is in the **Delegation Log**). → You see: five choices, **Accept**, **Verify**, **Challenge**, **Reject** and **Escalate**, and the hint **It costs no clock time, and you can change it while the run is open; both are kept.**
    ![Task 7 step 1](screenshots/student/task-07-step-01.png)
 2. Click **Accept**. → You see: **Accept** selected on **Claim C3**.
    ![Task 7 step 2](screenshots/student/task-07-step-02.png)
@@ -399,7 +399,7 @@ A Student does not see **Courses**, **Review**, **Packages** or **Admin**; those
    ![Task 12 step 5](screenshots/student/task-12-step-05.png)
 6. Scroll to **What you filed** in the right column. → You see: **Your addendum**, and **Your Turn response** with **Revise**, your **Why**, and **Confidence after the Turn** **48 of 100**.
    ![Task 12 step 6](screenshots/student/task-12-step-06.png)
-7. Click **Finish the defense**. → You see: the dialog **Finish the defense?** with **The defense is filed once and is not reopened. Your run goes to scoring from here.** and **One question has no answer. Unanswered questions count as no answer, and are filed empty.**
+7. Click **Finish the defense**. → You see: the dialog **Finish the defense?** with **One question has no answer. Unanswered questions count as no answer, and are filed empty.** and the buttons **Keep answering** and **Finish it**.
    ![Task 12 step 7](screenshots/student/task-12-step-07.png)
 8. Click **Finish it**. → You see: the heading **Run status**.
    ![Task 12 step 8](screenshots/student/task-12-step-08.png)

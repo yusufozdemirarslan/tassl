@@ -54,11 +54,22 @@ const pad = (n: number): string => String(n).padStart(2, '0')
  * the test.
  */
 const IGNORED_CONSOLE_PATTERNS: RegExp[] = [
-  // WebKit reports a cancelled fetch (a navigation that outran an in-flight poll) as an error.
-  /Fetch API cannot load .* due to access control checks/,
+  // WebKit reports a cancelled fetch (a navigation that outran an in-flight poll, or a link
+  // prefetch the sign-out's navigation cut short) as an error — as a console line, or as an
+  // unhandled rejection whose whole message is the URL and this phrase.
+  /due to access control checks/,
   /Load failed/,
   // Firefox announces a navigation that pre-empted a load; Playwright's own fixture retries it.
   /NS_BINDING_ABORTED/,
+  // Chromium and WebKit report every fetch the server answers with an error status as a failed
+  // resource. The one such answer a guide describes is the assistant outage (Student guide Task 15):
+  // the delegation is refused with ASSISTANT_UNAVAILABLE, 503, and the run pauses — which is the
+  // product working, and the step asserts the paused dialog itself.
+  /Failed to load resource: the server responded with a status of 503/,
+  // WebKit raises this as a window error when a layout pass leaves a ResizeObserver with more to
+  // report than one frame delivers; the spec calls it a benign notice, nothing is undelivered for
+  // long, and no other engine reports it. It surfaces around Base UI's sheets and the graphs.
+  /ResizeObserver loop completed with undelivered notifications/,
 ]
 
 export const test = suite.extend<{
@@ -89,11 +100,16 @@ export const test = suite.extend<{
   consoleGuard: [
     async ({ page }, provide) => {
       const errors: string[] = []
-      page.on('pageerror', (error) => errors.push(`pageerror: ${error.message}`))
+      const ignored = (text: string): boolean =>
+        IGNORED_CONSOLE_PATTERNS.some((pattern) => pattern.test(text))
+      page.on('pageerror', (error) => {
+        if (ignored(error.message)) return
+        errors.push(`pageerror: ${error.message}`)
+      })
       page.on('console', (message) => {
         if (message.type() !== 'error') return
         const text = message.text()
-        if (IGNORED_CONSOLE_PATTERNS.some((pattern) => pattern.test(text))) return
+        if (ignored(text)) return
         errors.push(`console.error: ${text}`)
       })
       await provide()

@@ -133,7 +133,13 @@ export async function listVersionClaims(
 
 /**
  * Surfaces a claim once per run: the first call inserts the row and reports `inserted: true`; later
- * calls leave the existing row untouched (already-surfaced claims are referenced, not re-surfaced).
+ * calls leave the existing row untouched (already-surfaced claims are referenced, not re-surfaced,
+ * D-267) — with one exception. A claim raised again inside the Turn window is put in front of the
+ * student again: the Turn's authored `window_claim_ids` are meant to name claims the student has
+ * already met (the seeded Turn names the payback claim its message is about), and the window's own
+ * rule already makes such a claim relied on (D-077). So an existing row is marked `in_turn_window`
+ * when the surfacing is, which is what the Turn screen and FR-111's gate read; `surfaced_at` and
+ * `surfaced_by` keep the instant the student first met it (D-705).
  */
 export async function upsertRunClaim(
   runId: string,
@@ -149,6 +155,14 @@ export async function upsertRunClaim(
 
   const existing = await findRunClaim(runId, values.claimId, dbx)
   if (!existing) throw new AppError('INTERNAL_ERROR', 'The surfaced claim could not be read back.')
+  if (values.inTurnWindow && !existing.inTurnWindow) {
+    const [raised] = await dbx
+      .update(runClaims)
+      .set({ inTurnWindow: true, updatedAt: new Date() })
+      .where(eq(runClaims.id, existing.id))
+      .returning()
+    return { runClaim: raised ?? existing, inserted: false }
+  }
   return { runClaim: existing, inserted: false }
 }
 

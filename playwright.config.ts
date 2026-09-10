@@ -18,6 +18,46 @@ const TEST_DATABASE_URL =
 process.env.DATABASE_URL = TEST_DATABASE_URL
 process.env.DATABASE_URL_UNPOOLED = TEST_DATABASE_URL
 
+/**
+ * The guide-driven suite as a chain of projects (docs/prompts/02-qa-and-guides.md Part B, D-693,
+ * D-707). Per engine: a reset, the instructor guide, the student guide, a reset, the demo path —
+ * each project depending on the previous one, and the first of an engine on the last of the
+ * previous engine. The resets (`reset.setup.ts`) take the previous stage's runs off the seeded
+ * assignments and empty the server's in-memory rate-limit windows, which is what lets one seat
+ * walk the same screens fifteen times in one server. `pnpm test:guides` names the last project and
+ * Playwright runs the whole chain through its dependencies.
+ */
+function guideProjects() {
+  const engines = [
+    ['chromium', devices['Desktop Chrome']],
+    ['firefox', devices['Desktop Firefox']],
+    ['webkit', devices['Desktop Safari']],
+  ] as const
+  const spec = (file: string) => new RegExp(`guides[/]${file.replace(/[.]/g, '[.]')}$`)
+  const stages = [
+    ['reset-1', spec('reset.setup.ts')],
+    ['instructor', spec('instructor-guide.spec.ts')],
+    ['student', spec('learner-guide.spec.ts')],
+    ['reset-2', spec('reset.setup.ts')],
+    ['demo', spec('demo-path.spec.ts')],
+  ] as const
+  const projects = []
+  let previous: string | undefined
+  for (const [engine, device] of engines) {
+    for (const [stage, testMatch] of stages) {
+      const name = `guides-${engine}-${stage}`
+      projects.push({
+        name,
+        use: { ...device },
+        testMatch,
+        ...(previous === undefined ? {} : { dependencies: [previous] }),
+      })
+      previous = name
+    }
+  }
+  return projects
+}
+
 // docs/tech/04-repo-structure.md §9. CI installs chromium only and runs --project=chromium (D-126).
 export default defineConfig({
   testDir: 'tests/e2e',
@@ -64,23 +104,7 @@ export default defineConfig({
       use: { ...devices['Desktop Safari'] },
       testIgnore: [/guides\//, /perf\//],
     },
-    {
-      name: 'guides-chromium',
-      use: { ...devices['Desktop Chrome'] },
-      testMatch: /guides\/.*\.spec\.ts$/,
-    },
-    {
-      name: 'guides-firefox',
-      use: { ...devices['Desktop Firefox'] },
-      testMatch: /guides\/.*\.spec\.ts$/,
-      dependencies: ['guides-chromium'],
-    },
-    {
-      name: 'guides-webkit',
-      use: { ...devices['Desktop Safari'] },
-      testMatch: /guides\/.*\.spec\.ts$/,
-      dependencies: ['guides-firefox'],
-    },
+    ...guideProjects(),
   ],
   webServer: {
     command: 'pnpm db:reset && pnpm build && pnpm start',
