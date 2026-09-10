@@ -91,7 +91,7 @@ Two rail items never appear for an instructor seat: **Runs** belongs to student 
    ![Task 2 step 5](screenshots/instructor/task-02-step-05.png)
 6. Read the line under the heading **Guide course 2026**. → You see: **Term 2026-fall**.
    ![Task 2 step 6](screenshots/instructor/task-02-step-06.png)
-7. Read **Course views**. → You see: **Sections**, **Assignments**, **Policy** and **Mapping**.
+7. Read the row of tabs under the heading. → You see: **Sections**, **Assignments**, **Policy** and **Mapping**.
    ![Task 2 step 7](screenshots/instructor/task-02-step-07.png)
 
 *If something goes wrong:*
@@ -107,7 +107,7 @@ Two rail items never appear for an instructor seat: **Runs** belongs to student 
 
 1. Click **Courses** in the rail. → You see: the row **Guide course 2026**.
    ![Task 3 step 1](screenshots/instructor/task-03-step-01.png)
-2. Click **Guide course 2026** (its link is labelled **Open Guide course 2026**). → You see: **Sections** and **No sections yet**.
+2. Click **Guide course 2026** on its row. → You see: **Sections** and **No sections yet**.
    ![Task 3 step 2](screenshots/instructor/task-03-step-02.png)
 3. Click **New section**. → You see: the dialog **New section** with **Sections divide one course into rosters. An assignment is configured on a section.**
    ![Task 3 step 3](screenshots/instructor/task-03-step-03.png)
@@ -115,7 +115,7 @@ Two rail items never appear for an instructor seat: **Runs** belongs to student 
    ![Task 3 step 4](screenshots/instructor/task-03-step-04.png)
 5. Click **Add section**. → You see: the message **Section Guide section added.** and the row **Guide section**.
    ![Task 3 step 5](screenshots/instructor/task-03-step-05.png)
-6. Click **Roster** in the **Guide section** row (its link is labelled **Open the roster for Guide section**). → You see: **Section roster** and **Nobody is in this section yet**.
+6. Click **Roster** on the **Guide section** row. → You see: **Section roster** and **Nobody is in this section yet**.
    ![Task 3 step 6](screenshots/instructor/task-03-step-06.png)
 7. Type **student2@tassl.local** in **Email address** under **Add member**. → You see: **Role in this section** reading **Student**.
    ![Task 3 step 7](screenshots/instructor/task-03-step-07.png)
@@ -148,9 +148,9 @@ Two rail items never appear for an instructor seat: **Runs** belongs to student 
 
 1. Click **Courses** in the rail. → You see: the row **Guide course 2026**.
    ![Task 4 step 1](screenshots/instructor/task-04-step-01.png)
-2. Click **Guide course 2026**. → You see: the heading **Guide course 2026** and **Course views**.
+2. Click **Guide course 2026**. → You see: the heading **Guide course 2026** and the tabs **Sections**, **Assignments**, **Policy** and **Mapping**.
    ![Task 4 step 2](screenshots/instructor/task-04-step-02.png)
-3. Click **Policy** in **Course views**. → You see: **Policy and weight**, the legend **Outside-AI policy** and **Declared** selected.
+3. Click the **Policy** tab. → You see: **Policy and weight**, the legend **Outside-AI policy** and **Declared** selected.
    ![Task 4 step 3](screenshots/instructor/task-04-step-03.png)
 4. Choose **In-Environment Only**. → You see: **The course asks students to work only with the assistant inside Tassl. A declaration of outside use is still recorded and shown to you, with no scoring effect; what follows is your call.**
    ![Task 4 step 4](screenshots/instructor/task-04-step-04.png)
@@ -160,7 +160,7 @@ Two rail items never appear for an instructor seat: **Runs** belongs to student 
    ![Task 4 step 6](screenshots/instructor/task-04-step-06.png)
 7. Click **Save policy**. → You see: **Policy saved.**
    ![Task 4 step 7](screenshots/instructor/task-04-step-07.png)
-8. Click **Mapping** in **Course views**. → You see: **Band-to-points mapping** and the fields **Novice**, **Developing**, **Proficient** and **Professional**.
+8. Click the **Mapping** tab. → You see: **Band-to-points mapping** and the fields **Novice**, **Developing**, **Proficient** and **Professional**.
    ![Task 4 step 8](screenshots/instructor/task-04-step-08.png)
 9. Type **5** in **Professional**. → You see: **5** in the field.
    ![Task 4 step 9](screenshots/instructor/task-04-step-09.png)
@@ -185,7 +185,7 @@ Two rail items never appear for an instructor seat: **Runs** belongs to student 
 
 1. Click **Packages** in the rail. → You see: the row **Meridian Roast (fixture)** with **Confirmed** and **Uncalibrated**.
    ![Task 5 step 1](screenshots/instructor/task-05-step-01.png)
-2. Click **Meridian Roast (fixture)** (its link is labelled **Open Meridian Roast (fixture), version 1**). → You see: the heading **Meridian Roast (fixture)** and **This version**.
+2. Click **Meridian Roast (fixture)** on its row. → You see: the heading **Meridian Roast (fixture)** and **This version**.
    ![Task 5 step 2](screenshots/instructor/task-05-step-02.png)
 3. Read **This version**. → You see: **Status** with **Confirmed**, **Working clock** with **25 min** and **Turn delay** with **1 min 30 s**.
    ![Task 5 step 3](screenshots/instructor/task-05-step-03.png)
@@ -197,11 +197,11 @@ Two rail items never appear for an instructor seat: **Runs** belongs to student 
    ![Task 5 step 6](screenshots/instructor/task-05-step-06.png)
 7. Read **Claims**. → You see: **Claims and their per-variant states** with the columns **Defective variant** and **Sound variant**.
    ![Task 5 step 7](screenshots/instructor/task-05-step-07.png)
-8. Click **C3** in the **Claims** table (its link is labelled **Open claim C3** followed by the claim). → You see: **Claim C3**, **Where it comes from** and **What it deserved, and why**.
+8. Click **C3** in the **Claims** table. → You see: **Claim C3**, **Where it comes from** and **What it deserved, and why**.
    ![Task 5 step 8](screenshots/instructor/task-05-step-08.png)
 9. Click **All claims**. → You see: **Claims and their per-variant states**.
    ![Task 5 step 9](screenshots/instructor/task-05-step-09.png)
-10. Click **Export package JSON**. → You see: your browser saves the file **tassl-package-meridian-roast.json**.
+10. Click **Export package JSON**. → You see: the version page unchanged, with the link **Export package JSON** still on it; your browser saves the file **tassl-package-meridian-roast.json**.
    ![Task 5 step 10](screenshots/instructor/task-05-step-10.png)
 
 *If something goes wrong:*
@@ -220,7 +220,7 @@ Two rail items never appear for an instructor seat: **Runs** belongs to student 
    ![Task 6 step 1](screenshots/instructor/task-06-step-01.png)
 2. Click **Guide course 2026**. → You see: the heading **Guide course 2026**.
    ![Task 6 step 2](screenshots/instructor/task-06-step-02.png)
-3. Click **Assignments** in **Course views**. → You see: **Assignments** and **No assignments yet**.
+3. Click the **Assignments** tab. → You see: **Assignments** and **No assignments yet**.
    ![Task 6 step 3](screenshots/instructor/task-06-step-03.png)
 4. Click **New assignment**. → You see: the dialog **New assignment** and **This assignment goes to Guide section, the only section of this course.**
    ![Task 6 step 4](screenshots/instructor/task-06-step-04.png)
@@ -234,7 +234,7 @@ Two rail items never appear for an instructor seat: **Runs** belongs to student 
    ![Task 6 step 8](screenshots/instructor/task-06-step-08.png)
 9. Type **2** in **Weight**. → You see: **The course sets 3. Leave this empty to follow it.**
    ![Task 6 step 9](screenshots/instructor/task-06-step-09.png)
-10. Turn on the **Walkthrough** switch. → You see: **A practice assignment. A run on it can be deleted; a run that counts is voided instead.**
+10. Turn on the **Walkthrough** switch. → You see: **A practice assignment. A run on it can be deleted; a run that counts is voided instead.** and, at the foot of the dialog, the button **Create assignment**.
    ![Task 6 step 10](screenshots/instructor/task-06-step-10.png)
 11. Click **Create assignment**. → You see: **Guide run is ready.**, the heading **Guide run** and the chip **Walkthrough**.
    ![Task 6 step 11](screenshots/instructor/task-06-step-11.png)
@@ -259,9 +259,9 @@ Two rail items never appear for an instructor seat: **Runs** belongs to student 
    ![Task 7 step 1](screenshots/instructor/task-07-step-01.png)
 2. Click **Guide course 2026**. → You see: the heading **Guide course 2026**.
    ![Task 7 step 2](screenshots/instructor/task-07-step-02.png)
-3. Click **Assignments** in **Course views**. → You see: the row **Guide run** with **Decision run** and **Open now**.
+3. Click the **Assignments** tab. → You see: the row **Guide run** with **Decision run** and **Open now**.
    ![Task 7 step 3](screenshots/instructor/task-07-step-03.png)
-4. Click **Guide run** (its link is labelled **Configure Guide run**). → You see: **Runs** with the row **Student Two**, the state **Scored**, **0 of 7** and **None yet**.
+4. Click **Guide run** on its row. → You see: **Runs** with the row **Student Two**, the state **Scored**, **0 of 7** and **None yet**.
    ![Task 7 step 4](screenshots/instructor/task-07-step-04.png)
 5. Click **Review** in the rail. → You see: **Runs waiting for you** with **Student Two**, **Scored**, **0 of 7** and **Open the replay for Student Two**.
    ![Task 7 step 5](screenshots/instructor/task-07-step-05.png)
@@ -333,11 +333,11 @@ Two rail items never appear for an instructor seat: **Runs** belongs to student 
    ![Task 9 step 1](screenshots/instructor/task-09-step-01.png)
 2. Click **Guide course 2026**. → You see: the heading **Guide course 2026**.
    ![Task 9 step 2](screenshots/instructor/task-09-step-02.png)
-3. Click **Assignments** in **Course views**. → You see: the row **Guide run**.
+3. Click the **Assignments** tab. → You see: the row **Guide run**.
    ![Task 9 step 3](screenshots/instructor/task-09-step-03.png)
 4. Click **Guide run**. → You see: the heading **Guide run** and the row **Student Two** in **Runs** with the link **Open the replay**.
    ![Task 9 step 4](screenshots/instructor/task-09-step-04.png)
-5. Click **Open the replay** in the **Student Two** row (its link is labelled **Open the replay for Student Two**). → You see: the heading **Student Two**.
+5. Click **Open the replay** on the **Student Two** row. → You see: the heading **Student Two**.
    ![Task 9 step 5](screenshots/instructor/task-09-step-05.png)
 6. Click **Actions**. → You see: **Corrections** and **No correction has been entered on this run.**
    ![Task 9 step 6](screenshots/instructor/task-09-step-06.png)
@@ -384,7 +384,7 @@ Two rail items never appear for an instructor seat: **Runs** belongs to student 
    ![Task 10 step 1](screenshots/instructor/task-10-step-01.png)
 2. Click **Guide course 2026**. → You see: the heading **Guide course 2026**.
    ![Task 10 step 2](screenshots/instructor/task-10-step-02.png)
-3. Click **Assignments** in **Course views**. → You see: the row **Guide run**.
+3. Click the **Assignments** tab. → You see: the row **Guide run**.
    ![Task 10 step 3](screenshots/instructor/task-10-step-03.png)
 4. Click **Guide run**. → You see: the heading **Guide run** and the link **Course exports**.
    ![Task 10 step 4](screenshots/instructor/task-10-step-04.png)
@@ -392,7 +392,7 @@ Two rail items never appear for an instructor seat: **Runs** belongs to student 
    ![Task 10 step 5](screenshots/instructor/task-10-step-05.png)
 6. Read the **Every version written** table. → You see: **Student Two** under **Student**, **A correction was entered** on version **2** and **The bands were confirmed** on version **1**.
    ![Task 10 step 6](screenshots/instructor/task-10-step-06.png)
-7. Click **Download version 2**. → You see: your browser saves a file whose name begins **tassl-course-export-** and ends **-v2.json**.
+7. Click **Download version 2**. → You see: the **Every version written** table unchanged; your browser saves a file whose name begins **tassl-course-export-** and ends **-v2.json**.
    ![Task 10 step 7](screenshots/instructor/task-10-step-07.png)
 8. Click **Back to the assignment**. → You see: the heading **Guide run**.
    ![Task 10 step 8](screenshots/instructor/task-10-step-08.png)
@@ -437,7 +437,7 @@ Two rail items never appear for an instructor seat: **Runs** belongs to student 
    ![Task 11 step 13](screenshots/instructor/task-11-step-13.png)
 14. Open **Documents** in **Elements** and click **D1**. → You see: the heading **Document · D1**.
    ![Task 11 step 14](screenshots/instructor/task-11-step-14.png)
-15. Click **Reject**. → You see: the panel **Reject Document · D1** with **Say what is wrong with it. The note is kept with the decision, and the element stays in the version until it is re-authored.** and the field **Why this element is rejected**.
+15. Click **Reject**. → You see: under the buttons, **Say what is wrong with it. The note is kept with the decision, and the element stays in the version until it is re-authored.** and the field **Why this element is rejected**.
    ![Task 11 step 15](screenshots/instructor/task-11-step-15.png)
 16. Type **Guide rejection. The dateline reads as an internal memo.** in **Why this element is rejected**. → You see: the sentence in the field.
    ![Task 11 step 16](screenshots/instructor/task-11-step-16.png)
@@ -445,7 +445,7 @@ Two rail items never appear for an instructor seat: **Runs** belongs to student 
    ![Task 11 step 17](screenshots/instructor/task-11-step-17.png)
 18. Click **D1** in **Elements** again. → You see: **Rejected, and waiting to be re-authored**.
    ![Task 11 step 18](screenshots/instructor/task-11-step-18.png)
-19. Click **Rewrite**. → You see: the panel **Rewrite Document · D1** with **A new draft is written for every document in this version, this one included.**
+19. Click **Rewrite**. → You see: under the buttons, **A new draft is written for every document in this version, this one included.** and the button **Rewrite every document in this version**.
    ![Task 11 step 19](screenshots/instructor/task-11-step-19.png)
 20. Click **Rewrite every document in this version**. → You see: **A new draft of D1 was asked for.** and **Writing a new draft**.
    ![Task 11 step 20](screenshots/instructor/task-11-step-20.png)

@@ -204,7 +204,8 @@ test('Task 1: Sign in and find your way around', async ({ page, shot }) => {
     for (const panel of ['Your runs', 'Review', 'Packages', 'Courses']) {
       await expect(page.getByRole('heading', { level: 2, name: panel, exact: true })).toBeVisible()
     }
-    await shot(1, 6)
+    // The fourth panel is below the fold; the shot scrolls to it so all four are in frame.
+    await shot(1, 6, page.locator('#home-courses'))
   })
 
   await test.step('1.7 Click Courses in the rail.', async () => {
@@ -222,8 +223,9 @@ test('Task 1: Sign in and find your way around', async ({ page, shot }) => {
     await expect(
       page.getByRole('heading', { level: 2, name: 'Runs waiting for you' }),
     ).toBeVisible()
-    await expect(page.getByRole('heading', { level: 3, name: 'Nothing waiting' })).toBeVisible()
-    await shot(1, 8)
+    const nothingWaiting = page.getByRole('heading', { level: 3, name: 'Nothing waiting' })
+    await expect(nothingWaiting).toBeVisible()
+    await shot(1, 8, nothingWaiting)
   })
 
   await test.step('1.9 Click Packages in the rail.', async () => {
@@ -309,7 +311,7 @@ test('Task 2: Create a course', async ({ page, shot }) => {
     await shot(2, 6)
   })
 
-  await test.step('2.7 Read Course views.', async () => {
+  await test.step('2.7 Read the row of tabs under the heading.', async () => {
     for (const view of ['Sections', 'Assignments', 'Policy', 'Mapping']) {
       await expect(courseViews(page).getByRole('link', { name: view, exact: true })).toBeVisible()
     }
@@ -336,7 +338,7 @@ test('Task 3: Add a section and its students', async ({ page, shot }) => {
     await shot(3, 1)
   })
 
-  await test.step('3.2 Click Guide course 2026 (its link is labelled Open Guide course 2026).', async () => {
+  await test.step('3.2 Click Guide course 2026 on its row.', async () => {
     await openGuideCourse(page)
     await expect(page.getByRole('heading', { level: 2, name: 'Sections' })).toBeVisible()
     await expect(page.getByRole('heading', { level: 3, name: 'No sections yet' })).toBeVisible()
@@ -367,7 +369,7 @@ test('Task 3: Add a section and its students', async ({ page, shot }) => {
     await shot(3, 5)
   })
 
-  await test.step('3.6 Click Roster in the Guide section row (its link is labelled Open the roster for Guide section).', async () => {
+  await test.step('3.6 Click Roster on the Guide section row.', async () => {
     await page.getByRole('link', { name: `Open the roster for ${SECTION_NAME}` }).click()
     await expect(page.getByRole('heading', { level: 1, name: 'Section roster' })).toBeVisible()
     await expect(
@@ -452,11 +454,13 @@ test('Task 4: Set the course policy and the grade mapping', async ({ page, shot 
 
   await test.step('4.2 Click Guide course 2026.', async () => {
     await openGuideCourse(page)
-    await expect(courseViews(page)).toBeVisible()
+    for (const view of ['Sections', 'Assignments', 'Policy', 'Mapping']) {
+      await expect(courseViews(page).getByRole('link', { name: view, exact: true })).toBeVisible()
+    }
     await shot(4, 2)
   })
 
-  await test.step('4.3 Click Policy in Course views.', async () => {
+  await test.step('4.3 Click the Policy tab.', async () => {
     await courseViews(page).getByRole('link', { name: 'Policy', exact: true }).click()
     await page.waitForURL(/\?tab=policy$/)
     await expect(page.getByRole('heading', { level: 2, name: 'Policy and weight' })).toBeVisible()
@@ -494,7 +498,7 @@ test('Task 4: Set the course policy and the grade mapping', async ({ page, shot 
     await shot(4, 7)
   })
 
-  await test.step('4.8 Click Mapping in Course views.', async () => {
+  await test.step('4.8 Click the Mapping tab.', async () => {
     await courseViews(page).getByRole('link', { name: 'Mapping', exact: true }).click()
     await page.waitForURL(/\?tab=mapping$/)
     await expect(
@@ -561,7 +565,7 @@ test('Task 5: Read a scenario package', async ({ page, shot }) => {
     await shot(5, 1)
   })
 
-  await test.step('5.2 Click Meridian Roast (fixture) (its link is labelled Open Meridian Roast (fixture), version 1).', async () => {
+  await test.step('5.2 Click Meridian Roast (fixture) on its row.', async () => {
     await page.getByRole('link', { name: 'Open Meridian Roast (fixture), version 1' }).click()
     await expect(
       page.getByRole('heading', { level: 1, name: 'Meridian Roast (fixture)' }),
@@ -587,7 +591,7 @@ test('Task 5: Read a scenario package', async ({ page, shot }) => {
     for (const column of ['Element type', 'Decisions', 'By', 'Latest decision']) {
       await expect(record.getByRole('columnheader', { name: column, exact: true })).toBeVisible()
     }
-    await shot(5, 4)
+    await shot(5, 4, record.getByRole('columnheader', { name: 'Latest decision', exact: true }))
   })
 
   await test.step('5.5 Read Authoring record.', async () => {
@@ -595,7 +599,7 @@ test('Task 5: Read a scenario package', async ({ page, shot }) => {
     await expect(record.getByText('Generating model')).toBeVisible()
     await expect(record.getByRole('heading', { name: 'The seed case' })).toBeVisible()
     await expect(record.getByRole('heading', { name: 'Re-skin log' })).toBeVisible()
-    await shot(5, 5)
+    await shot(5, 5, record.getByRole('heading', { name: 'Re-skin log' }))
   })
 
   await test.step('5.6 Read Authoring measures.', async () => {
@@ -609,7 +613,7 @@ test('Task 5: Read a scenario package', async ({ page, shot }) => {
     ]) {
       await expect(measures.getByText(measure, { exact: true })).toBeVisible()
     }
-    await shot(5, 6)
+    await shot(5, 6, measures.getByText('Review time per element', { exact: true }))
   })
 
   await test.step('5.7 Read Claims.', async () => {
@@ -617,30 +621,33 @@ test('Task 5: Read a scenario package', async ({ page, shot }) => {
     await expect(claims.getByText('Claims and their per-variant states')).toBeVisible()
     await expect(claims.getByRole('columnheader', { name: 'Defective variant' })).toBeVisible()
     await expect(claims.getByRole('columnheader', { name: 'Sound variant' })).toBeVisible()
-    await shot(5, 7)
+    await shot(5, 7, claims.getByRole('columnheader', { name: 'Sound variant' }))
   })
 
-  await test.step('5.8 Click C3 in the Claims table (its link is labelled Open claim C3 followed by the claim).', async () => {
+  await test.step('5.8 Click C3 in the Claims table.', async () => {
     await page.getByRole('link', { name: /^Open claim\s*C3\b/ }).click()
     await expect(page.getByRole('heading', { level: 2, name: 'Claim C3' })).toBeVisible()
     await expect(page.getByRole('heading', { name: 'Where it comes from' })).toBeVisible()
-    await expect(page.getByRole('heading', { name: 'What it deserved, and why' })).toBeVisible()
-    await shot(5, 8)
+    const deserved = page.getByRole('heading', { name: 'What it deserved, and why' })
+    await expect(deserved).toBeVisible()
+    await shot(5, 8, deserved)
   })
 
   await test.step('5.9 Click All claims.', async () => {
     await page.getByRole('link', { name: 'All claims' }).click()
-    await expect(page.getByText('Claims and their per-variant states')).toBeVisible()
-    await shot(5, 9)
+    // The caption sits under the table, so scrolling to it puts the table's last rows in frame.
+    const caption = page.getByText('Claims and their per-variant states')
+    await expect(caption).toBeVisible()
+    await shot(5, 9, caption)
   })
 
   await test.step('5.10 Click Export package JSON.', async () => {
-    const [download] = await Promise.all([
-      page.waitForEvent('download'),
-      page.getByRole('link', { name: 'Export package JSON' }).click(),
-    ])
+    const exportLink = page.getByRole('link', { name: 'Export package JSON' })
+    const [download] = await Promise.all([page.waitForEvent('download'), exportLink.click()])
     expect(download.suggestedFilename()).toBe('tassl-package-meridian-roast.json')
-    await shot(5, 10)
+    // A download leaves the page as it was; the shot shows the link that started it.
+    await expect(exportLink).toBeVisible()
+    await shot(5, 10, exportLink)
   })
 })
 
@@ -663,7 +670,7 @@ test('Task 6: Create an assignment', async ({ page, shot }) => {
     await shot(6, 2)
   })
 
-  await test.step('6.3 Click Assignments in Course views.', async () => {
+  await test.step('6.3 Click the Assignments tab.', async () => {
     await courseViews(page).getByRole('link', { name: 'Assignments', exact: true }).click()
     await page.waitForURL(/\?tab=assignments$/)
     await expect(page.getByRole('heading', { level: 2, name: 'Assignments' })).toBeVisible()
@@ -673,17 +680,20 @@ test('Task 6: Create an assignment', async ({ page, shot }) => {
 
   const dialog = await test.step('6.4 Click New assignment.', async () => {
     const opened = await openDialog(page, 'New assignment', 'New assignment')
-    await expect(
-      opened.getByText(`This assignment goes to ${SECTION_NAME}, the only section of this course.`),
-    ).toBeVisible()
-    await shot(6, 4)
+    // The dialog is taller than the viewport and scrolls inside itself, so every step of it
+    // shoots the field it fills, and the last one the footer button the next step presses.
+    const sectionLine = opened.getByText(
+      `This assignment goes to ${SECTION_NAME}, the only section of this course.`,
+    )
+    await expect(sectionLine).toBeVisible()
+    await shot(6, 4, sectionLine)
     return opened
   })
 
   await test.step('6.5 Type Guide run in Assignment name.', async () => {
     await dialog.getByLabel('Assignment name').fill(ASSIGNMENT_NAME)
     await expect(dialog.getByLabel('Assignment name')).toHaveValue(ASSIGNMENT_NAME)
-    await shot(6, 5)
+    await shot(6, 5, dialog.getByLabel('Assignment name'))
   })
 
   await test.step('6.6 Choose Meridian Roast (fixture) · version 1 in Scenario package version.', async () => {
@@ -692,34 +702,35 @@ test('Task 6: Create an assignment', async ({ page, shot }) => {
     await page.getByRole('option', { name: /^Meridian Roast \(fixture\) · version 1/ }).click()
     await expect(select).toContainText('Meridian Roast (fixture) · version 1')
     await expect(select).toContainText('Uncalibrated')
-    await shot(6, 6)
+    await shot(6, 6, select)
   })
 
   await test.step('6.7 Choose Defective under Variant.', async () => {
     await dialog.getByRole('radio', { name: 'Defective' }).check()
     await expect(dialog.getByRole('radio', { name: 'Defective' })).toBeChecked()
-    await expect(
-      dialog.getByText('The assistant states one consequential claim that does not hold up.'),
-    ).toBeVisible()
-    await shot(6, 7)
+    const variantLine = dialog.getByText(
+      'The assistant states one consequential claim that does not hold up.',
+    )
+    await expect(variantLine).toBeVisible()
+    await shot(6, 7, variantLine)
   })
 
   await test.step('6.8 Type 600 in Working clock (seconds).', async () => {
     await dialog.getByLabel('Working clock (seconds)').fill('600')
     await expect(dialog.getByLabel('Working clock (seconds)')).toHaveValue('600')
-    await expect(
-      dialog.getByText('The package sets 1500 seconds. Leave this empty to follow it.'),
-    ).toBeVisible()
-    await shot(6, 8)
+    const clockHint = dialog.getByText(
+      'The package sets 1500 seconds. Leave this empty to follow it.',
+    )
+    await expect(clockHint).toBeVisible()
+    await shot(6, 8, clockHint)
   })
 
   await test.step('6.9 Type 2 in Weight.', async () => {
     await dialog.getByLabel('Weight').fill('2')
     await expect(dialog.getByLabel('Weight')).toHaveValue('2')
-    await expect(
-      dialog.getByText('The course sets 3. Leave this empty to follow it.'),
-    ).toBeVisible()
-    await shot(6, 9)
+    const weightHint = dialog.getByText('The course sets 3. Leave this empty to follow it.')
+    await expect(weightHint).toBeVisible()
+    await shot(6, 9, weightHint)
   })
 
   await test.step('6.10 Turn on the Walkthrough switch.', async () => {
@@ -731,7 +742,9 @@ test('Task 6: Create an assignment', async ({ page, shot }) => {
         'A practice assignment. A run on it can be deleted; a run that counts is voided instead.',
       ),
     ).toBeVisible()
-    await shot(6, 10)
+    const create = dialog.getByRole('button', { name: 'Create assignment' })
+    await expect(create).toBeVisible()
+    await shot(6, 10, create)
   })
 
   await test.step('6.11 Click Create assignment.', async () => {
@@ -746,19 +759,19 @@ test('Task 6: Create an assignment', async ({ page, shot }) => {
   await test.step('6.12 Read Configuration.', async () => {
     await expect(page.getByRole('heading', { level: 2, name: 'Configuration' })).toBeVisible()
     await expect(page.getByText('What every run on this assignment is taken under.')).toBeVisible()
-    await expect(page.getByRole('button', { name: 'Save configuration' })).toBeVisible()
-    await shot(6, 12)
+    const save = page.getByRole('button', { name: 'Save configuration' })
+    await expect(save).toBeVisible()
+    await shot(6, 12, save)
   })
 
   await test.step('6.13 Read Runs.', async () => {
     await expect(page.getByRole('heading', { level: 2, name: 'Runs' })).toBeVisible()
     await expect(page.getByRole('heading', { level: 3, name: 'No runs yet' })).toBeVisible()
-    await expect(
-      page.getByText(
-        'Once a student starts this assignment, their run appears here with its state and its replay.',
-      ),
-    ).toBeVisible()
-    await shot(6, 13)
+    const emptyLine = page.getByText(
+      'Once a student starts this assignment, their run appears here with its state and its replay.',
+    )
+    await expect(emptyLine).toBeVisible()
+    await shot(6, 13, emptyLine)
   })
 })
 
@@ -784,7 +797,7 @@ test('Task 7: Follow your students’ runs', async ({ page, playwright, shot }) 
     await shot(7, 2)
   })
 
-  await test.step('7.3 Click Assignments in Course views.', async () => {
+  await test.step('7.3 Click the Assignments tab.', async () => {
     await courseViews(page).getByRole('link', { name: 'Assignments', exact: true }).click()
     await page.waitForURL(/\?tab=assignments$/)
     const row = page.getByRole('row').filter({ hasText: ASSIGNMENT_NAME })
@@ -794,7 +807,7 @@ test('Task 7: Follow your students’ runs', async ({ page, playwright, shot }) 
     await shot(7, 3)
   })
 
-  await test.step('7.4 Click Guide run (its link is labelled Configure Guide run).', async () => {
+  await test.step('7.4 Click Guide run on its row.', async () => {
     await page.getByRole('link', { name: `Configure ${ASSIGNMENT_NAME}` }).click()
     await expect(page.getByRole('heading', { level: 2, name: 'Runs' })).toBeVisible()
     const row = page.getByRole('row').filter({ hasText: 'Student Two' })
@@ -802,7 +815,7 @@ test('Task 7: Follow your students’ runs', async ({ page, playwright, shot }) 
     await expect(row).toContainText('Scored')
     await expect(row).toContainText('0 of 7')
     await expect(row).toContainText('None yet')
-    await shot(7, 4)
+    await shot(7, 4, row)
   })
 
   await test.step('7.5 Click Review in the rail.', async () => {
@@ -815,16 +828,15 @@ test('Task 7: Follow your students’ runs', async ({ page, playwright, shot }) 
     await expect(row).toContainText('Scored')
     await expect(row).toContainText('0 of 7')
     await expect(row.getByRole('link', { name: 'Open the replay for Student Two' })).toBeVisible()
-    await shot(7, 5)
+    await shot(7, 5, row)
   })
 
   await test.step('7.6 Read the note under the Runs waiting for you table.', async () => {
-    await expect(
-      page.getByText(
-        'Which variant a student drew is on the replay rather than in this list, so this screen can be shown to a room.',
-      ),
-    ).toBeVisible()
-    await shot(7, 6)
+    const note = page.getByText(
+      'Which variant a student drew is on the replay rather than in this list, so this screen can be shown to a room.',
+    )
+    await expect(note).toBeVisible()
+    await shot(7, 6, note)
   })
 
   await test.step('7.7 Click Home in the rail.', async () => {
@@ -853,8 +865,9 @@ test('Task 8: Review a scored run', async ({ page, shot }) => {
 
   await test.step('8.1 Click Review in the rail.', async () => {
     await rail(page).getByRole('link', { name: 'Review', exact: true }).click()
-    await expect(page.getByRole('link', { name: 'Open the replay for Student Two' })).toBeVisible()
-    await shot(8, 1)
+    const open = page.getByRole('link', { name: 'Open the replay for Student Two' })
+    await expect(open).toBeVisible()
+    await shot(8, 1, open)
   })
 
   await test.step('8.2 Click Open the replay for Student Two.', async () => {
@@ -864,6 +877,11 @@ test('Task 8: Review a scored run', async ({ page, shot }) => {
     for (const view of ['Overview', 'Bands', 'Trace', 'Package', 'Actions']) {
       await expect(replayViews(page).getByRole('link', { name: view, exact: true })).toBeVisible()
     }
+    // The graphs arrive in a later chunk; the shot waits for the first one to have rendered so
+    // the panel in frame is the drawn graph and not its loading state.
+    await expect(page.getByRole('button', { name: 'Show data table' }).first()).toBeVisible({
+      timeout: GRAPH_TIMEOUT_MS,
+    })
     await shot(8, 2)
   })
 
@@ -878,7 +896,7 @@ test('Task 8: Review a scored run', async ({ page, shot }) => {
         timeout: GRAPH_TIMEOUT_MS,
       })
     }
-    await shot(8, 3)
+    await shot(8, 3, page.getByRole('heading', { name: 'Frame beside decision' }))
   })
 
   await test.step('8.4 Click the first Show data table.', async () => {
@@ -890,24 +908,25 @@ test('Task 8: Review a scored run', async ({ page, shot }) => {
   await test.step('8.5 Read Defense transcript.', async () => {
     await expect(page.getByRole('heading', { level: 2, name: 'Defense transcript' })).toBeVisible()
     await expect(page.getByRole('heading', { level: 3, name: 'Question 1' })).toBeVisible()
-    await expect(
-      page.locator('#replay-defense').getByText('Expected-answer notes').first(),
-    ).toBeVisible()
-    await shot(8, 5)
+    const notes = page.locator('#replay-defense').getByText('Expected-answer notes').first()
+    await expect(notes).toBeVisible()
+    await shot(8, 5, notes)
   })
 
   await test.step('8.6 Read Delegation log.', async () => {
     await expect(page.getByRole('heading', { level: 2, name: 'Delegation log' })).toBeVisible()
-    await expect(
-      page.getByText('Every request the student made of the assistant, and what came back.'),
-    ).toBeVisible()
-    await shot(8, 6)
+    const description = page.getByText(
+      'Every request the student made of the assistant, and what came back.',
+    )
+    await expect(description).toBeVisible()
+    await shot(8, 6, description)
   })
 
   await test.step('8.7 Read Readiness Check.', async () => {
     await expect(page.getByRole('heading', { level: 2, name: 'Readiness Check' })).toBeVisible()
-    await expect(page.getByText('The concept map the Readiness Check closed with.')).toBeVisible()
-    await shot(8, 7)
+    const description = page.getByText('The concept map the Readiness Check closed with.')
+    await expect(description).toBeVisible()
+    await shot(8, 7, description)
   })
 
   await test.step('8.8 Click Trace.', async () => {
@@ -933,8 +952,10 @@ test('Task 8: Review a scored run', async ({ page, shot }) => {
     await expect(page.getByText('The decision is on the record.')).toBeVisible({
       timeout: ACTION_TIMEOUT_MS,
     })
-    await expect(page.getByText('1 of 7 decided')).toBeVisible({ timeout: ACTION_TIMEOUT_MS })
-    await shot(8, 10)
+    // The counter re-renders with the page after the action; it is what proves the decision took.
+    const counter = page.getByText('1 of 7 decided')
+    await expect(counter).toBeVisible({ timeout: ACTION_TIMEOUT_MS })
+    await shot(8, 10, counter)
   })
 
   await test.step('8.11 On Verification, choose Professional (or Proficient when the draft is already Professional).', async () => {
@@ -966,11 +987,12 @@ test('Task 8: Review a scored run', async ({ page, shot }) => {
     await card('verification')
       .getByRole('button', { name: `Record ${label} instead` })
       .click()
-    await expect(page.getByText('2 of 7 decided')).toBeVisible({ timeout: ACTION_TIMEOUT_MS })
+    const counter = page.getByText('2 of 7 decided')
+    await expect(counter).toBeVisible({ timeout: ACTION_TIMEOUT_MS })
     await expect(
       card('verification').getByText(`Note to the student: ${OVERRIDE_NOTE}`),
     ).toBeVisible({ timeout: ACTION_TIMEOUT_MS })
-    await shot(8, 13)
+    await shot(8, 13, counter)
   })
 
   const remaining = page.getByRole('alertdialog')
@@ -1002,19 +1024,19 @@ test('Task 8: Review a scored run', async ({ page, shot }) => {
       timeout: ACTION_TIMEOUT_MS,
     })
     await expect(points.getByText('Total over the assessed dimensions (7)')).toBeVisible()
-    await expect(
-      points.getByText(
-        'Enter the bands, the mapping and the points in the gradebook of record. Tassl holds no grade.',
-      ),
-    ).toBeVisible()
-    await shot(8, 16)
+    const gradebookLine = points.getByText(
+      'Enter the bands, the mapping and the points in the gradebook of record. Tassl holds no grade.',
+    )
+    await expect(gradebookLine).toBeVisible()
+    await shot(8, 16, gradebookLine)
   })
 
   await test.step('8.17 Read Course exports on the same view.', async () => {
     const exports = page.locator('#replay-exports')
     await expect(exports.getByText('The bands were confirmed')).toBeVisible()
-    await expect(exports.getByRole('link', { name: 'Download version 1' })).toBeVisible()
-    await shot(8, 17)
+    const download = exports.getByRole('link', { name: 'Download version 1' })
+    await expect(download).toBeVisible()
+    await shot(8, 17, download)
   })
 })
 
@@ -1044,7 +1066,7 @@ test('Task 9: Correct a claim, arm the outage control, and void a run', async ({
     await shot(9, 2)
   })
 
-  await test.step('9.3 Click Assignments in Course views.', async () => {
+  await test.step('9.3 Click the Assignments tab.', async () => {
     await courseViews(page).getByRole('link', { name: 'Assignments', exact: true }).click()
     await page.waitForURL(/\?tab=assignments$/)
     await expect(page.getByRole('row').filter({ hasText: ASSIGNMENT_NAME })).toBeVisible()
@@ -1060,10 +1082,10 @@ test('Task 9: Correct a claim, arm the outage control, and void a run', async ({
     await expect(row.getByRole('link', { name: 'Open the replay for Student Two' })).toHaveText(
       'Open the replay',
     )
-    await shot(9, 4)
+    await shot(9, 4, row)
   })
 
-  await test.step('9.5 Click Open the replay in the Student Two row (its link is labelled Open the replay for Student Two).', async () => {
+  await test.step('9.5 Click Open the replay on the Student Two row.', async () => {
     await page.getByRole('link', { name: 'Open the replay for Student Two' }).click()
     await expect(page.getByRole('heading', { level: 1, name: 'Student Two' })).toBeVisible()
     await shot(9, 5)
@@ -1114,39 +1136,39 @@ test('Task 9: Correct a claim, arm the outage control, and void a run', async ({
   await test.step('9.10 Click Close.', async () => {
     // `.first()`: the dialog primitive draws its own icon-only close beside the footer's (D-316).
     await correction.getByRole('button', { name: 'Close' }).first().click()
-    await expect(page.getByRole('heading', { name: 'Corrections on this run' })).toBeVisible()
+    const corrections = page.getByRole('heading', { name: 'Corrections on this run' })
+    await expect(corrections).toBeVisible()
     await expect(page.getByText('The student’s challenge was credited.')).toBeVisible({
       timeout: ACTION_TIMEOUT_MS,
     })
     await expect(page.getByRole('link', { name: 'C3', exact: true })).toBeVisible()
-    await shot(9, 10)
+    await shot(9, 10, corrections)
   })
 
   await test.step('9.11 Read Test controls.', async () => {
     await expect(page.getByRole('heading', { level: 2, name: 'Test controls' })).toBeVisible()
     await expect(page.getByRole('heading', { name: 'Arm one assistant outage' })).toBeVisible()
-    await expect(
-      page.getByText(
-        'It exists for step 7 of the walkthrough, where the run has to meet an outage the student did not ask for and carry on without the assistant.',
-      ),
-    ).toBeVisible()
-    await shot(9, 11)
+    const purpose = page.getByText(
+      'It exists for step 7 of the walkthrough, where the run has to meet an outage the student did not ask for and carry on without the assistant.',
+    )
+    await expect(purpose).toBeVisible()
+    await shot(9, 11, purpose)
   })
 
   await test.step('9.12 Read the button Arm the outage and the line under it.', async () => {
     await expect(page.getByRole('button', { name: 'Arm the outage' })).toBeVisible()
-    await expect(
-      page.getByText(
-        'This run is not in a state that can take an outage. One can be armed while the student is working, answering the Turn, or paused.',
-      ),
-    ).toBeVisible()
-    await shot(9, 12)
+    const stateLine = page.getByText(
+      'This run is not in a state that can take an outage. One can be armed while the student is working, answering the Turn, or paused.',
+    )
+    await expect(stateLine).toBeVisible()
+    await shot(9, 12, stateLine)
   })
 
   await test.step('9.13 Click Review in the rail.', async () => {
     await rail(page).getByRole('link', { name: 'Review', exact: true }).click()
-    await expect(page.getByRole('link', { name: 'Open the replay for Student One' })).toBeVisible()
-    await shot(9, 13)
+    const open = page.getByRole('link', { name: 'Open the replay for Student One' })
+    await expect(open).toBeVisible()
+    await shot(9, 13, open)
   })
 
   await test.step('9.14 Click Open the replay for Student One.', async () => {
@@ -1158,12 +1180,11 @@ test('Task 9: Correct a claim, arm the outage control, and void a run', async ({
   await test.step('9.15 Click Actions.', async () => {
     await replayViews(page).getByRole('link', { name: 'Actions', exact: true }).click()
     await expect(page.getByRole('heading', { level: 2, name: 'Void this run' })).toBeVisible()
-    await expect(
-      page.getByText(
-        'A voided run carries no partial result, and no export written afterwards names it. Offer another run in its place when the student should still take one.',
-      ),
-    ).toBeVisible()
-    await shot(9, 15)
+    const voidLine = page.getByText(
+      'A voided run carries no partial result, and no export written afterwards names it. Offer another run in its place when the student should still take one.',
+    )
+    await expect(voidLine).toBeVisible()
+    await shot(9, 15, voidLine)
   })
 
   const voidDialog = page.getByRole('dialog')
@@ -1225,7 +1246,7 @@ test('Task 10: Export results to the gradebook', async ({ page, shot }) => {
     await shot(10, 2)
   })
 
-  await test.step('10.3 Click Assignments in Course views.', async () => {
+  await test.step('10.3 Click the Assignments tab.', async () => {
     await courseViews(page).getByRole('link', { name: 'Assignments', exact: true }).click()
     await page.waitForURL(/\?tab=assignments$/)
     await expect(page.getByRole('row').filter({ hasText: ASSIGNMENT_NAME })).toBeVisible()
@@ -1255,7 +1276,11 @@ test('Task 10: Export results to the gradebook', async ({ page, shot }) => {
 
   await test.step('10.6 Read the Every version written table.', async () => {
     const table = page.locator('#assignment-exports')
-    await expect(table.getByRole('columnheader', { name: 'Student' })).toBeVisible()
+    // The header reads exactly "Student" (QA-030 retired "Student seat"); `exact` so a longer
+    // header does not pass as a substring.
+    const studentColumn = table.getByRole('columnheader', { name: 'Student', exact: true })
+    await expect(studentColumn).toBeVisible()
+    await expect(studentColumn).toHaveText('Student')
     const corrected = table.getByRole('row').filter({ hasText: 'A correction was entered' })
     await expect(corrected).toContainText('Student Two')
     await expect(corrected.getByRole('cell').nth(1)).toHaveText('2')
@@ -1271,6 +1296,8 @@ test('Task 10: Export results to the gradebook', async ({ page, shot }) => {
       page.getByRole('link', { name: 'Download version 2' }).click(),
     ])
     expect(download.suggestedFilename()).toMatch(/^tassl-course-export-.+-v2\.json$/)
+    // A download leaves the page as it was; the shot shows the table the link sits in.
+    await expect(page.locator('#assignment-exports')).toBeVisible()
     await shot(10, 7)
   })
 
@@ -1364,8 +1391,9 @@ test('Task 11: Author a new scenario package from a seed case', async ({ page, s
 
   await test.step('11.10 Type Guide seed case text for the walkthrough. five times in Seed case text.', async () => {
     await page.getByLabel('Seed case text').fill(Array(5).fill(SEED_SENTENCE).join(' '))
-    await expect(page.getByText(/ of 200,000 characters$/)).toBeVisible()
-    await shot(11, 10)
+    const counter = page.getByText(/ of 200,000 characters$/)
+    await expect(counter).toBeVisible()
+    await shot(11, 10, counter)
   })
 
   await test.step('11.11 Click Create and generate.', async () => {
@@ -1385,7 +1413,8 @@ test('Task 11: Author a new scenario package from a seed case', async ({ page, s
     const steps = page.getByRole('list', { name: 'The seven steps' })
     await expect(steps.getByText('Done', { exact: true })).toHaveCount(7)
     await expect(page.getByRole('link', { name: 'Open confirmation workspace' })).toBeVisible()
-    await shot(11, 12)
+    // The seventh row is the lowest thing the step names; with it in frame the rows above are too.
+    await shot(11, 12, steps.getByText('Done', { exact: true }).last())
   })
 
   await test.step('11.13 Click Open confirmation workspace.', async () => {
@@ -1410,8 +1439,8 @@ test('Task 11: Author a new scenario package from a seed case', async ({ page, s
 
   await test.step('11.15 Click Reject.', async () => {
     await page.getByRole('button', { name: 'Reject', exact: true }).click()
-    // The panel is named after the editor's heading; its name is what a screen reader announces,
-    // and the sentence under it is what a sighted reader sees.
+    // The panel is named after the editor's heading; its name is what a screen reader announces
+    // and nothing a sighted reader sees, so the guide names the sentence and the field instead.
     const panel = page.getByRole('group', { name: 'Reject Document · D1' })
     await expect(panel).toBeVisible()
     await expect(
@@ -1419,31 +1448,37 @@ test('Task 11: Author a new scenario package from a seed case', async ({ page, s
         'Say what is wrong with it. The note is kept with the decision, and the element stays in the version until it is re-authored.',
       ),
     ).toBeVisible()
-    await expect(panel.getByLabel('Why this element is rejected')).toBeVisible()
-    await shot(11, 15)
+    const note = panel.getByLabel('Why this element is rejected')
+    await expect(note).toBeVisible()
+    await shot(11, 15, note)
   })
 
   await test.step('11.16 Type Guide rejection. The dateline reads as an internal memo. in Why this element is rejected.', async () => {
-    await page.getByLabel('Why this element is rejected').fill(REJECTION_NOTE)
-    await expect(page.getByLabel('Why this element is rejected')).toHaveValue(REJECTION_NOTE)
-    await shot(11, 16)
+    const note = page.getByLabel('Why this element is rejected')
+    await note.fill(REJECTION_NOTE)
+    await expect(note).toHaveValue(REJECTION_NOTE)
+    await shot(11, 16, note)
   })
 
   await test.step('11.17 Click Reject element.', async () => {
     await page.getByRole('button', { name: 'Reject element' }).click()
     await expect(page.getByText('D1 rejected.')).toBeVisible()
-    await expect(page.locator('#confirm-progress')).toContainText('1 rejected')
-    await shot(11, 17)
+    const progress = page.locator('#confirm-progress')
+    await expect(progress).toContainText('1 rejected')
+    await shot(11, 17, progress.getByText(/1 rejected/))
   })
 
   await test.step('11.18 Click D1 in Elements again.', async () => {
     await treeItem('D1').click()
-    await expect(page.getByText('Rejected, and waiting to be re-authored')).toBeVisible()
-    await shot(11, 18)
+    const rejected = page.getByText('Rejected, and waiting to be re-authored')
+    await expect(rejected).toBeVisible()
+    await shot(11, 18, rejected)
   })
 
   await test.step('11.19 Click Rewrite.', async () => {
     await page.getByRole('button', { name: 'Rewrite', exact: true }).click()
+    // Named the same way as the reject panel: the group's name is for a screen reader, and the
+    // guide names the sentence and the button a sighted reader sees.
     const panel = page.getByRole('group', { name: 'Rewrite Document · D1' })
     await expect(panel).toBeVisible()
     await expect(
@@ -1451,14 +1486,17 @@ test('Task 11: Author a new scenario package from a seed case', async ({ page, s
         'A new draft is written for every document in this version, this one included.',
       ),
     ).toBeVisible()
-    await shot(11, 19)
+    const rewrite = panel.getByRole('button', { name: 'Rewrite every document in this version' })
+    await expect(rewrite).toBeVisible()
+    await shot(11, 19, rewrite)
   })
 
   await test.step('11.20 Click Rewrite every document in this version.', async () => {
     await page.getByRole('button', { name: 'Rewrite every document in this version' }).click()
     await expect(page.getByText('A new draft of D1 was asked for.')).toBeVisible()
-    await expect(page.locator('#confirm-progress')).toContainText('Writing a new draft')
-    await shot(11, 20)
+    const progress = page.locator('#confirm-progress')
+    await expect(progress).toContainText('Writing a new draft')
+    await shot(11, 20, progress.getByText('Writing a new draft'))
   })
 
   await test.step('11.21 Wait for Writing a new draft to finish.', async () => {
@@ -1471,8 +1509,9 @@ test('Task 11: Author a new scenario package from a seed case', async ({ page, s
 
   await test.step('11.22 Click D2 in Elements.', async () => {
     await treeItem('D2').click()
-    await expect(page.getByRole('heading', { level: 2, name: 'Document · D2' })).toBeVisible()
-    await shot(11, 22)
+    const heading = page.getByRole('heading', { level: 2, name: 'Document · D2' })
+    await expect(heading).toBeVisible()
+    await shot(11, 22, heading)
   })
 
   await test.step('11.23 Type Guide document title in Title.', async () => {
@@ -1484,8 +1523,9 @@ test('Task 11: Author a new scenario package from a seed case', async ({ page, s
   await test.step('11.24 Click Save edits.', async () => {
     await page.getByRole('button', { name: 'Save edits' }).click()
     await expect(page.getByText('D2 saved. The edit is recorded as its decision.')).toBeVisible()
-    await expect(editor).toContainText('Edited')
-    await shot(11, 24)
+    const edited = editor.getByText('Edited', { exact: true })
+    await expect(edited).toBeVisible()
+    await shot(11, 24, edited)
   })
 
   await test.step('11.25 Click Next undecided element.', async () => {
@@ -1508,8 +1548,9 @@ test('Task 11: Author a new scenario package from a seed case', async ({ page, s
       decided += 1
       await expect(progress).toHaveText(`${String(decided)} of ${String(total)} confirmed`)
     }
-    await expect(page.getByText('Every element has a decision.')).toBeVisible()
-    await shot(11, 26)
+    const complete = page.getByText('Every element has a decision.')
+    await expect(complete).toBeVisible()
+    await shot(11, 26, complete)
   })
 
   await test.step('11.27 Tick Teaching note checked against the answer space and claims.', async () => {
@@ -1610,8 +1651,11 @@ test('Task 12: Manage notifications, your account, and sign out', async ({ page,
     await expect(page.getByRole('heading', { level: 2, name: 'Password' })).toBeVisible()
     await expect(page.getByRole('heading', { level: 2, name: 'Signed-in devices' })).toBeVisible()
     // The device list is fetched after the page paints.
-    await expect(page.getByText('This device')).toBeVisible({ timeout: ACTION_TIMEOUT_MS })
-    await shot(12, 6)
+    const thisDevice = page.getByText('This device')
+    await expect(thisDevice).toBeVisible({ timeout: ACTION_TIMEOUT_MS })
+    // Step 5's toast sits over the badge until it times out; the shot waits for it to go.
+    await expect(page.getByText('Your name is saved.')).toBeHidden({ timeout: ACTION_TIMEOUT_MS })
+    await shot(12, 6, thisDevice)
   })
 
   await test.step('12.7 Click Data.', async () => {
@@ -1641,9 +1685,6 @@ test('Task 12: Manage notifications, your account, and sign out', async ({ page,
 
   await test.step('12.10 Click the Account button in the header.', async () => {
     await openAccountMenu(page)
-    await expect(page.getByRole('menuitem', { name: 'Settings' })).toBeVisible()
-    await expect(page.getByRole('menuitem', { name: 'Privacy' })).toBeVisible()
-    await expect(page.getByRole('menuitem', { name: 'Terms' })).toBeVisible()
     await expect(page.getByRole('menuitem', { name: 'Settings' })).toBeVisible()
     await expect(page.getByRole('menuitem', { name: 'Privacy' })).toBeVisible()
     await expect(page.getByRole('menuitem', { name: 'Terms' })).toBeVisible()

@@ -14,7 +14,7 @@ Tassl treats nothing it observes as misconduct. There is no total score, no rank
 
 **Signing in.** Open the installation's address (locally `http://localhost:3000`, in production `https://tassl.vercel.app`). Tassl sends a signed-out visitor to **Sign in to Tassl**. Sign in with the email address **student1@tassl.local** (the seat "Student One", a Student in section A of the course "Marketing Strategy Walkthrough" at Walkthrough University). The password is the seed password: on a local build and in CI it is **Walkthrough-Pass-2026** (the value of `SEED_PASSWORD` in `.env.test`); in production it is the value of the Vercel production variable `SEED_PASSWORD`, also kept in `~/.config/tassl/seed-password.txt` on the builder's machine. This guide does not print the production password. **Keep me signed in** is ticked by default; a session lasts 30 days.
 
-**The first screen.** After sign-in you land on **Home**. The line above the heading names your institution, **Walkthrough University**; the heading is **Home** and the sentence under it reads **What needs your attention, and what is coming up.** The one panel a Student has is **Your runs**: a table with the columns **Assignment**, **Attempt**, **State** and **Next**, listing every assignment in your sections. Before you start anything, each row reads **Not started** in both **Attempt** and **State**, and **Next** offers **Start**. The seeded seat has three rows: **Decision Run 1 (walkthrough)**, **Decision Run 1 (sound)** and **Auto-lock test run**. A link **All runs** appears on this panel only when there are more than five rows.
+**The first screen.** After sign-in you land on **Home**. The line above the heading names your institution, **Walkthrough University**; the heading is **Home** and the sentence under it reads **What needs your attention, and what is coming up.** The one panel a Student has is **Your runs**: a table with the columns **Assignment**, **Attempt**, **State** and **Next**, listing every assignment in your sections. Before you start anything, each row reads **Not started** in both **Attempt** and **State**, and **Next** offers **Start**. On a fresh demo database the seeded seat has three rows: **Decision Run 1 (walkthrough)**, **Decision Run 1 (sound)** and **Auto-lock test run**. Once the Instructor guide has been followed on the same installation, its assignment **Guide run** is listed too, with one row for each attempt on it (attempts 1 and 2); the screenshots in this guide were taken after that guide, so they show five rows. A link **All runs** appears on this panel only when there are more than five rows.
 
 **Navigation map.** Everything a Student can reach, in the order it appears:
 
@@ -96,9 +96,9 @@ A Student does not see **Courses**, **Review**, **Packages** or **Admin**; those
 
 *Steps:*
 
-1. Find the clock beside **0 of 16 answered**. → You see: it counting down from **08:00**.
+1. Find the clock beside **0 of 16 answered**. → You see: it counting down from eight minutes.
    ![Task 3 step 1](screenshots/student/task-03-step-01.png)
-2. Find the **Items** toolbar under the clock. → You see: sixteen numbered buttons and the hint **The arrow keys move between items. An item you have answered is filled in.**
+2. Find the row of numbered buttons **1** to **16** under the clock. → You see: sixteen numbered buttons, none of them filled in yet, and the hint **The arrow keys move between items. An item you have answered is filled in.**
    ![Task 3 step 2](screenshots/student/task-03-step-02.png)
 3. Choose the first of the four answers under **Item 1 of 16**. → You see: **1 of 16 answered** and the item's button in the toolbar filled in.
    ![Task 3 step 3](screenshots/student/task-03-step-03.png)
@@ -127,7 +127,7 @@ A Student does not see **Courses**, **Review**, **Packages** or **Admin**; those
 
 *Steps:*
 
-1. Find **Scenario brief** at the top of the left column. → You see: the brief, beginning **Meridian Roast sells single-origin coffee by subscription.**
+1. Find **Scenario brief**, the first panel under the heading **The scenario**. → You see: the brief, beginning **Meridian Roast sells single-origin coffee by subscription.**
    ![Task 4 step 1](screenshots/student/task-04-step-01.png)
 2. Scroll to **Evidence Room**. → You see: nine documents, each with its author and date, among them **Board minutes, 28 August 2026**, and the sentence **Tassl records which ones you open and how long each stays open; it draws no conclusion from that.**
    ![Task 4 step 2](screenshots/student/task-04-step-02.png)
@@ -135,7 +135,7 @@ A Student does not see **Courses**, **Review**, **Packages** or **Admin**; those
    ![Task 4 step 3](screenshots/student/task-04-step-03.png)
 4. Click **Close** beside **Board minutes, 28 August 2026**. → You see: the text gone and the button reading **Open** again.
    ![Task 4 step 4](screenshots/student/task-04-step-04.png)
-5. Scroll to **AI assistant** in the right column. → You see: **The assistant unlocks the moment you lock your frame. It stays locked until then so that the position you write is yours.**
+5. Scroll to **AI assistant**, the panel below **Your frame**. → You see: **The assistant unlocks the moment you lock your frame. It stays locked until then so that the position you write is yours.**
    ![Task 4 step 5](screenshots/student/task-04-step-05.png)
 6. Scroll to **Your decision brief**. → You see: **The brief is what you hand in: a recommendation, the reasoning under it, and what would change your mind. It opens after you lock your frame.**
    ![Task 4 step 6](screenshots/student/task-04-step-06.png)
@@ -152,7 +152,7 @@ A Student does not see **Courses**, **Review**, **Packages** or **Admin**; those
 
 *Steps:*
 
-1. Scroll to **Your frame** in the right column. → You see: **The decision**, **Load-bearing assumptions** with **Assumption 1**, **Assumption 2** and **Assumption 3**, **Your position now**, **Confidence**, and a counter such as **0 of 50 words** under each text field.
+1. Scroll to **Your frame**, the panel below **Evidence Room**. → You see: **The decision**, **Load-bearing assumptions** with **Assumption 1**, **Assumption 2** and **Assumption 3**, **Your position now**, **Confidence** with a slider and a number box, and a counter such as **0 of 50 words** under each text field.
    ![Task 5 step 1](screenshots/student/task-05-step-01.png)
 2. Type **Guide decision, back the premium tier with most of the quarterly budget** in **The decision**. → You see: **12 of 50 words**.
    ![Task 5 step 2](screenshots/student/task-05-step-02.png)
@@ -164,11 +164,11 @@ A Student does not see **Courses**, **Review**, **Packages** or **Admin**; those
    ![Task 5 step 5](screenshots/student/task-05-step-05.png)
 6. Type **Guide position, lean premium because the payback looks short** in **Your position now**. → You see: **9 of 100 words**.
    ![Task 5 step 6](screenshots/student/task-05-step-06.png)
-7. Type **60** in **Confidence as a number**. → You see: **60** in the field and the slider **Confidence, 0 to 100** at the same place.
+7. Type **60** in the number box beside **Confidence**. → You see: **60** in the box and the slider beside it at the same place.
    ![Task 5 step 7](screenshots/student/task-05-step-07.png)
 8. Click **Lock the frame**. → You see: the dialog **Lock the frame permanently?** with **A locked frame is never edited, replaced, or restored — not by you, and not by your instructor. Locking it unlocks the assistant and starts the working clock.**
    ![Task 5 step 8](screenshots/student/task-05-step-08.png)
-9. Click **Lock it**. → You see: the chip **Working** in the band, a clock counting down from **25:00**, **Your frame** reading **Locked** with **Confidence at the frame** **60 of 100**, and the field **Your request** under **AI assistant**.
+9. Click **Lock it**. → You see: the chip **Working** in the band, a clock counting down from **25:00**, and the field **Your request** under **AI assistant**; above it, **Your frame** now reads **Locked** with **Confidence at the frame** **60 of 100**.
    ![Task 5 step 9](screenshots/student/task-05-step-09.png)
 
 *If something goes wrong:*
@@ -193,7 +193,7 @@ A Student does not see **Courses**, **Review**, **Packages** or **Admin**; those
    ![Task 6 step 4](screenshots/student/task-06-step-04.png)
 5. Click **Save**. → You see: **Saved.**
    ![Task 6 step 5](screenshots/student/task-06-step-05.png)
-6. Click **Mark as used** beside **Claim C3** under **Delegation 1**. → You see: the chip **Used** on the claim and the sentence **Marking a claim used records that you leaned on it. A mark stays on the record.**
+6. Click **Mark as used** beside **Claim C3** under **Delegation 1**. → You see: the chip **Used** on **Claim C3**, in place of the button.
    ![Task 6 step 6](screenshots/student/task-06-step-06.png)
 
 *If something goes wrong:*
@@ -218,7 +218,7 @@ A Student does not see **Courses**, **Review**, **Packages** or **Admin**; those
    ![Task 7 step 4](screenshots/student/task-07-step-04.png)
 5. Type **What is the price sensitivity, is the value tier saturated, and what did the survey find?** → You see: **89 of 2000 characters**.
    ![Task 7 step 5](screenshots/student/task-07-step-05.png)
-6. Click **Ask the assistant**. → You see: **Reply complete. 3 claims surfaced.** and the cards **Claim C5**, **Claim C8** and **Claim C7**.
+6. Click **Ask the assistant**. → You see: **Reply complete. 3 claims surfaced.** and the cards **Claim C5**, **Claim C7** and **Claim C8**, in that order.
    ![Task 7 step 6](screenshots/student/task-07-step-06.png)
 7. Click **Verify** under **Claim C5**. → You see: **Verify** selected on **Claim C5**.
    ![Task 7 step 7](screenshots/student/task-07-step-07.png)
@@ -243,7 +243,7 @@ A Student does not see **Courses**, **Review**, **Packages** or **Admin**; those
    ![Task 8 step 1](screenshots/student/task-08-step-01.png)
 2. Click **Source Trace**. → You see: a panel **Source Trace on claim C5** with **Document**, **Passage**, **Date** and **Author**, and **This check cost one minute of your working clock.**
    ![Task 8 step 2](screenshots/student/task-08-step-02.png)
-3. Click **Close** on the panel. → You see: the panel gone and the button **Read it again** on **Claim C5**.
+3. Click the × (Close) button at the top right of the panel. → You see: the panel gone and the button **Read it again** on **Claim C5**.
    ![Task 8 step 3](screenshots/student/task-08-step-03.png)
 4. Click **Reject** under **Claim C8**. → You see: **Reject** selected and the line **Changed from Accept.**
    ![Task 8 step 4](screenshots/student/task-08-step-04.png)
@@ -251,7 +251,7 @@ A Student does not see **Courses**, **Review**, **Packages** or **Admin**; those
    ![Task 8 step 5](screenshots/student/task-08-step-05.png)
 6. Type **Guide, I cannot tell whether the survey sample was large enough** in **What you cannot settle**. → You see: **63 of 280 characters**.
    ![Task 8 step 6](screenshots/student/task-08-step-06.png)
-7. Click **Send it**. → You see: on **Claim C7**, **You wrote** with your sentence, **They answered** beginning **Rowan Adeyemi, research operations.**, and **This escalation cost 5 minutes of your working clock.**
+7. Click **Send it**. → You see: on **Claim C7**, **Escalate** now selected in the stance row with the line **Changed from Verify.**, then **You wrote** with your sentence, **They answered** beginning **Rowan Adeyemi, research operations.**, and **This escalation cost 5 minutes of your working clock.**
    ![Task 8 step 7](screenshots/student/task-08-step-07.png)
 8. Click the button **Escalate** beneath the stance row on **Claim C5**. → You see: the dialog **Escalate to a colleague** with **You have one escalation left in this run.**
    ![Task 8 step 8](screenshots/student/task-08-step-08.png)
@@ -291,7 +291,7 @@ A Student does not see **Courses**, **Review**, **Packages** or **Admin**; those
 
 *Steps:*
 
-1. Scroll to **Your decision brief**. → You see: **It saves as you type; nothing is filed until you lock the decision.** and the fields **Your recommendation**, **Why**, **Load-bearing assumptions**, **What would change your mind**, **The figures you are betting on** and **Confidence**.
+1. Scroll to **Your decision brief**. → You see: the heading, under it **It saves as you type; nothing is filed until you lock the decision.**, and the first of its fields, **Your recommendation**; below it come **Why**, **Load-bearing assumptions**, **What would change your mind**, **The figures you are betting on** and **Confidence**.
    ![Task 10 step 1](screenshots/student/task-10-step-01.png)
 2. Type **Guide recommendation, move most of the budget to premium this quarter** in **Your recommendation**. → You see: **11 of 120 words**.
    ![Task 10 step 2](screenshots/student/task-10-step-02.png)
@@ -309,13 +309,13 @@ A Student does not see **Courses**, **Review**, **Packages** or **Admin**; those
    ![Task 10 step 8](screenshots/student/task-10-step-08.png)
 9. Type **11** in **Premium payback you are betting on, in months**. → You see: **Saved.** beside **Lock the decision**.
    ![Task 10 step 9](screenshots/student/task-10-step-09.png)
-10. Type **62** in **Confidence as a number**. → You see: **Saved.** beside **Lock the decision**.
+10. Type **62** in the number box beside **Confidence**. → You see: **Saved.** beside **Lock the decision**.
    ![Task 10 step 10](screenshots/student/task-10-step-10.png)
 11. Type **What is the value tier payback?** in **Your request**. → You see: **31 of 2000 characters**.
    ![Task 10 step 11](screenshots/student/task-10-step-11.png)
 12. Click **Ask the assistant**. → You see: **Reply complete. One claim surfaced.** and a card **Claim C1**.
    ![Task 10 step 12](screenshots/student/task-10-step-12.png)
-13. Click **Mark as used** beside **Claim C1** under **Delegation 3**. → You see: the chip **Used** on **Claim C1** and, under **Lock the decision**, **One claim you leaned on has no stance yet. Filing asks for one on it.**
+13. Click **Mark as used** beside **Claim C1**, under **Claims in this reply** in **Delegation 3** of the **Delegation Log**. → You see: the chip **Used** on **Claim C1** and, under **Lock the decision** in **Your decision brief**, **One claim you leaned on has no stance yet. Filing asks for one on it.**
    ![Task 10 step 13](screenshots/student/task-10-step-13.png)
 14. Click **Lock the decision**. → You see: the dialog **File this decision?** with **What will be filed** listing your recommendation and **Confidence 62 of 100**.
    ![Task 10 step 14](screenshots/student/task-10-step-14.png)
@@ -348,9 +348,9 @@ A Student does not see **Courses**, **Review**, **Packages** or **Admin**; those
 
 *Steps:*
 
-1. Find the panel **The Turn** at the top of **Decision locked**. → You see: a clock **Time until the Turn** counting down and **A message from the world arrives shortly, and the run reopens for 12 minutes so you can hold, revise or reverse.**
+1. Find the panel **The Turn** at the top of **Decision locked**. → You see: under its heading, a clock counting down, and **A message from the world arrives shortly, and the run reopens for 12 minutes so you can hold, revise or reverse.**
    ![Task 11 step 1](screenshots/student/task-11-step-01.png)
-2. Wait for **Time until the Turn** to reach zero, about 90 seconds after you filed. → You see: the heading **The Turn** and the panel **What arrived** with the chip **Stakeholder message**.
+2. Wait for the clock under **The Turn** to reach zero, about 90 seconds after you filed. → You see: the heading **The Turn** and the panel **What arrived** with the chip **Stakeholder message**.
    ![Task 11 step 2](screenshots/student/task-11-step-02.png)
 3. Find **Turn window** in the band at the top. → You see: a clock beside it counting down from **12:00**.
    ![Task 11 step 3](screenshots/student/task-11-step-03.png)
@@ -362,7 +362,7 @@ A Student does not see **Courses**, **Review**, **Packages** or **Admin**; those
    ![Task 11 step 6](screenshots/student/task-11-step-06.png)
 7. Click **Challenge** under **Claim C3**. → You see: **Challenge** selected and the line **Changed from Verify.**
    ![Task 11 step 7](screenshots/student/task-11-step-07.png)
-8. Find **What you can work with** in the right column. → You see: **The assistant and the Evidence Room are open again until the window closes. Checks and escalations cost window time exactly as they cost clock time before the lock.** above **Evidence Room** and **AI assistant**.
+8. Scroll past **Your response**. → You see: the sentence **The assistant and the Evidence Room are open again until the window closes. Checks and escalations cost window time exactly as they cost clock time before the lock.** and, under it, the panel **What you filed before this arrived**; **Evidence Room** and **AI assistant** follow further down.
    ![Task 11 step 8](screenshots/student/task-11-step-08.png)
 9. Scroll to **What you filed before this arrived**. → You see: **The frame you locked** beside **The decision you filed**, neither of them editable.
    ![Task 11 step 9](screenshots/student/task-11-step-09.png)
@@ -397,7 +397,7 @@ A Student does not see **Courses**, **Review**, **Packages** or **Admin**; those
    ![Task 12 step 4](screenshots/student/task-12-step-04.png)
 5. Answer all but the last question with **Guide, 16 months because the memo says so** via **Submit answer**. → You see: one question left with an empty **Your answer**.
    ![Task 12 step 5](screenshots/student/task-12-step-05.png)
-6. Scroll to **What you filed** in the right column. → You see: **Your addendum**, and **Your Turn response** with **Revise**, your **Why**, and **Confidence after the Turn** **48 of 100**.
+6. Scroll to **What you filed**, below **Questions**. → You see: **Your addendum**, and **Your Turn response** with **Revise**, your **Why**, and **Confidence after the Turn** **48 of 100**.
    ![Task 12 step 6](screenshots/student/task-12-step-06.png)
 7. Click **Finish the defense**. → You see: the dialog **Finish the defense?** with **One question has no answer. Unanswered questions count as no answer, and are filed empty.** and the buttons **Keep answering** and **Finish it**.
    ![Task 12 step 7](screenshots/student/task-12-step-07.png)
@@ -422,9 +422,9 @@ A Student does not see **Courses**, **Review**, **Packages** or **Admin**; those
    ![Task 13 step 2](screenshots/student/task-13-step-02.png)
 3. Click **Read the debrief**. → You see: the heading **Run Debrief**, the chip **Draft**, and **Every band below is a draft. Your instructor reads the run and confirms or changes each one; when they do, this page shows what they decided in place of the draft.**
    ![Task 13 step 3](screenshots/student/task-13-step-03.png)
-4. Scroll down **Run Debrief** from top to bottom. → You see: twelve sections in this order, **Your frame beside your decision**, **Claim by claim**, **Defects the decision rested on**, **Where the assistant changed its position**, **Your confidence through the run**, **The Turn beside your frozen frame**, **Where the clock went**, **How this run could have gone**, **The seven dimensions**, **What your course does with the bands**, **One thing this run did** and **Two questions**.
+4. Scroll down **Run Debrief** from top to bottom. → You see: twelve sections, the first of them **Your frame beside your decision**; in order, they are **Your frame beside your decision**, **Claim by claim**, **Defects the decision rested on**, **Where the assistant changed its position**, **Your confidence through the run**, **The Turn beside your frozen frame**, **Where the clock went**, **How this run could have gone**, **The seven dimensions**, **What your course does with the bands**, **One thing this run did** and **Two questions**.
    ![Task 13 step 4](screenshots/student/task-13-step-04.png)
-5. Scroll to **The seven dimensions**. → You see: seven cards, **Framing**, **Delegation**, **Verification**, **Calibration**, **Decision Quality**, **Adaptation** and **Ownership**, each labelled **Draft band**.
+5. Scroll to **The seven dimensions**. → You see: the heading and, under it, seven cards, **Framing**, **Delegation**, **Verification**, **Calibration**, **Decision Quality**, **Adaptation** and **Ownership**, each labelled **Draft band**.
    ![Task 13 step 5](screenshots/student/task-13-step-05.png)
 6. Scroll to **What your course does with the bands**. → You see: **Provisional points, draft** and **No draft band reaches a gradebook, and this number is in no export.**
    ![Task 13 step 6](screenshots/student/task-13-step-06.png)
@@ -432,7 +432,7 @@ A Student does not see **Courses**, **Review**, **Packages** or **Admin**; those
    ![Task 13 step 7](screenshots/student/task-13-step-07.png)
 8. Click **Read the debrief**. → You see: the chip **Confirmed** and **Your instructor has read this run. Each band below is what they decided, with any note they wrote.**
    ![Task 13 step 8](screenshots/student/task-13-step-08.png)
-9. Scroll to **The seven dimensions**. → You see: **Confirmed band** on every card and **Your instructor wrote** under each, followed by the note or **Your instructor wrote no note on this dimension.**
+9. Scroll to **The seven dimensions**. → You see: the heading and, under it, **Confirmed band** on every card and **Your instructor wrote** under each, followed by the note or **Your instructor wrote no note on this dimension.**
    ![Task 13 step 9](screenshots/student/task-13-step-09.png)
 10. Scroll to **Two questions**. → You see: the fields **Which single stance would you change, and to what?** and **What will you do differently in the next run like this?**, each with **Up to 100 words.**
    ![Task 13 step 10](screenshots/student/task-13-step-10.png)
@@ -463,13 +463,13 @@ A Student does not see **Courses**, **Review**, **Packages** or **Admin**; those
    ![Task 14 step 3](screenshots/student/task-14-step-03.png)
 4. Click **Show data table** under **Stance matrix**. → You see: a table with the columns **Stance taken** and **Stance warranted** in place of the graph, and the button now reading **Show graph**.
    ![Task 14 step 4](screenshots/student/task-14-step-04.png)
-5. Scroll to **The seven dimensions**. → You see: seven cards each labelled **Confirmed band**, with **Your instructor wrote** under each.
+5. Scroll to **The seven dimensions**. → You see: the heading and, under it, seven cards each labelled **Confirmed band**, with **Your instructor wrote** under each.
    ![Task 14 step 5](screenshots/student/task-14-step-05.png)
 6. Scroll to **How this run was set up**. → You see: **Mode** reading **Standard** and **Variant** reading **Defective**.
    ![Task 14 step 6](screenshots/student/task-14-step-06.png)
 7. Find the sentence under **Download record**. → You see: **A JSON file of this run: the events, the graphs and the confirmed bands. It carries no course arithmetic, so nothing in it is a grade.**
    ![Task 14 step 7](screenshots/student/task-14-step-07.png)
-8. Click **Download record**. → You see: your browser saving a file named tassl-record- followed by the run id and .json.
+8. Click **Download record**. → You see: the **Judgment Record** page unchanged, while your browser saves a file named tassl-record- followed by the run id and .json.
    ![Task 14 step 8](screenshots/student/task-14-step-08.png)
 9. Scroll to **Four-run trajectory** at the bottom of the page. → You see: the label **Illustrative sample data** and **These four runs are invented and describe no student, including you.**
    ![Task 14 step 9](screenshots/student/task-14-step-09.png)
@@ -516,7 +516,7 @@ A Student does not see **Courses**, **Review**, **Packages** or **Admin**; those
    ![Task 15 step 14](screenshots/student/task-15-step-14.png)
 15. Click **Ask the assistant**. → You see: the dialog **The run is paused** with **The assistant did not answer.** and **Your clock stopped when it happened, and the time this pause takes is given back to you when you resume. Nothing you have done is lost.**
    ![Task 15 step 15](screenshots/student/task-15-step-15.png)
-16. Click **Resume the run**. → You see: the dialog gone, the chip **Working** in the band, and in **Delegation Log** an entry reading **No answer came back. The run paused, your clock stopped, and the time was given back when you resumed.**
+16. Click **Resume the run**. → You see: the dialog gone, the chip **Working** in the band, the red line the failed request left in **AI assistant**, **The assistant did not answer, so the run is paused and the clock has stopped. Nothing you did was lost.**, and further down, in **Delegation Log**, an entry reading **No answer came back. The run paused, your clock stopped, and the time was given back when you resumed.**
    ![Task 15 step 16](screenshots/student/task-15-step-16.png)
 17. Type **What is the premium payback?** in **Your request**, replacing what is there. → You see: **28 of 2000 characters**.
    ![Task 15 step 17](screenshots/student/task-15-step-17.png)
@@ -572,7 +572,7 @@ A Student does not see **Courses**, **Review**, **Packages** or **Admin**; those
 
 **When it is unavailable.** If a reply does not come back, the run pauses. A dialog **The run is paused** says **The assistant did not answer.** and **Your clock stopped when it happened, and the time this pause takes is given back to you when you resume. Nothing you have done is lost.** Its one button is **Resume the run**; until you press it the assistant panel reads **The run is paused, so the assistant is not answering. Resume the run and ask again.** and no document opens. The failed request stays in the log as **No answer came back. The run paused, your clock stopped, and the time was given back when you resumed.** After you resume, the next request answers as usual. If the installation's model budget is spent, the panel says **The assistant is unavailable: usage limit reached. Your clock stopped, and the run is paused.** and the same dialog follows.
 
-**The scripted assistant.** An installation can run the assistant from a built-in fixture instead of a model provider; this is the demo's default and the setting a Platform admin sees on the Flags screen. Its replies are fixed: the same request always gets the same words, each claim is quoted verbatim, and the prose carries no figures of its own. The screens look identical, nothing on a Student screen says which is in use, and everything in this guide works the same way. With a live model, a figure the assistant states that is in no claim and no document you have opened is marked with a chip and the sentence **This figure is not in a claim or in a document you have opened. That says where it came from, not whether it is right.**
+**The scripted assistant.** An installation can run the assistant from a built-in fixture instead of a model provider; this is the demo's default and the setting a Platform admin sees on the Flags screen. Its replies are fixed: the same request always gets the same words, each claim is quoted verbatim, and the prose carries no figures of its own. The screens are the same either way and everything in this guide works the same way; the one thing that says which is in use is the chip in the header of the **AI assistant** panel, **Scripted assistant** or **Live model**. With a live model, a figure the assistant states that is in no claim and no document you have opened is marked with a chip and the sentence **This figure is not in a claim or in a document you have opened. That says where it came from, not whether it is right.**
 
 **What costs clock time.** Asking costs no clock time, and taking a stance costs none. **Check it** on a claim offers the checks the author wrote for it: **Source Trace** costs 1 minute, **Replication Check** 3 minutes and **Decomposition Check** 4 minutes of the working clock, charged when the check starts; **Read it again** reopens a finished check for nothing. The **Escalate** button under a claim opens **Escalate to a colleague**: one sentence of at least three words and at most 280 characters, 5 minutes of the working clock, two per run. Inside the Turn window the same checks and escalations cost window time instead. A request is at most 2000 characters, and more than ten requests in a minute are answered with **That is a lot of requests in a short time. Try again in {seconds} seconds.**
 

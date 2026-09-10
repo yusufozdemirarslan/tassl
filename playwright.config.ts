@@ -71,6 +71,11 @@ export default defineConfig({
   // A full-page axe scan plus a real sign-in is more than Playwright's 30 s default allows on a
   // loaded machine; the assertions are unchanged, only the patience (D-188).
   timeout: 60_000,
+  // Two workers everywhere (D-715). Playwright's default is half the cores, which on an eight-core
+  // laptop is four browsers against one Postgres and one Next server at once; under that load a
+  // Firefox test that reloads three times ran past its sixty seconds while every assertion in it was
+  // true. Two is what the GitHub runner has, so a local run and a CI run share one clock.
+  workers: 2,
   retries: process.env.CI ? 1 : 0,
   reporter: process.env.CI ? [['github'], ['html', { open: 'never' }]] : 'list',
   use: {

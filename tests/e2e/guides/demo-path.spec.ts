@@ -23,10 +23,15 @@
 // both cases: the page moves itself.
 //
 // Rows 12 and 22 reach a live run's replay from the assignment page — the Replay column of
-// D-695 — rather than from a typed address, which is the one change this spec made to the runbook.
+// D-695 — rather than from a typed address, as the runbook's warm-up and break-glass do too.
+//
+// The step titles are the runbook's Click cells, which name every control by the words a sighted
+// presenter sees; the locators underneath keep the accessible names (a `Start` button is found as
+// "Start Decision Run 1 (walkthrough)", the account icon as "Account: Student One"), so a title
+// and the locator it drives can differ in wording and never in target.
 import { mkdirSync } from 'node:fs'
 import { join } from 'node:path'
-import type { Page } from '@playwright/test'
+import type { Locator, Page } from '@playwright/test'
 import {
   SCREENSHOT_ROOT,
   SEED_PASSWORD,
@@ -485,11 +490,17 @@ test('@smoke the demo path, click by click', async ({
   const instructorErrors = guardConsole(instructor)
 
   // Screenshots, one per row, under the demo persona: `task-01-step-NN.png`, the demo path being
-  // the runbook's one task. Written by chromium alone, as ./fixtures' `shot` writes.
+  // the runbook's one task. Written by chromium alone, as ./fixtures' `shot` writes, and with the
+  // same third argument: `show` is what the row's Say describes when that sits below the fold, and
+  // it is scrolled into view on every engine before chromium captures (D-714).
   const screenshots = join(SCREENSHOT_ROOT, 'demo')
   mkdirSync(screenshots, { recursive: true })
-  const capture = async (step: number, target: Page): Promise<void> => {
+  const capture = async (step: number, target: Page, show?: Locator): Promise<void> => {
     await target.waitForLoadState('domcontentloaded')
+    if (show) {
+      await expect(show).toBeVisible()
+      await show.scrollIntoViewIfNeeded()
+    }
     if (browserName !== 'chromium') return
     await target.screenshot({
       path: join(screenshots, `task-01-step-${String(step).padStart(2, '0')}.png`),
@@ -514,7 +525,7 @@ test('@smoke the demo path, click by click', async ({
     await capture(1, instructor)
   })
 
-  await test.step('2 Packages → the row Meridian Roast (fixture) shows Confirmed and Uncalibrated → Open Meridian Roast (fixture), version 1 → read This version (Working clock, Turn delay), Confirmation record, Claims.', async () => {
+  await test.step('2 Packages → the row Meridian Roast (fixture) shows Confirmed and Uncalibrated → Meridian Roast (fixture) on that row → read This version (Working clock, Turn delay), Confirmation record, Claims.', async () => {
     await rail(instructor, 'Packages').click()
     await expect(instructor.getByRole('heading', { level: 1, name: 'Packages' })).toBeVisible()
     const row = instructor.getByRole('row').filter({ hasText: PACKAGE })
@@ -526,14 +537,14 @@ test('@smoke the demo path, click by click', async ({
     const identity = instructor.locator('#version-identity')
     await expect(identity).toContainText('Working clock')
     await expect(identity).toContainText('Turn delay')
-    await expect(
-      instructor.getByRole('heading', { level: 2, name: 'Confirmation record' }),
-    ).toBeVisible()
+    const record = instructor.getByRole('heading', { level: 2, name: 'Confirmation record' })
+    await expect(record).toBeVisible()
     await expect(instructor.getByRole('heading', { level: 2, name: 'Claims' })).toBeVisible()
-    await capture(2, instructor)
+    // The Say's "this table" is the confirmation record, which sits under the version's identity.
+    await capture(2, instructor, record)
   })
 
-  await test.step('3 Courses → Open Marketing Strategy Walkthrough → Assignments → Configure Decision Run 1 (walkthrough) → point at Scenario package version, the Variant radios Defective and Sound, Working clock (seconds), the Walkthrough switch.', async () => {
+  await test.step('3 Courses → Marketing Strategy Walkthrough → Assignments → Decision Run 1 (walkthrough) → point at Scenario package version, the Variant radios Defective and Sound, Working clock (seconds), the Walkthrough switch.', async () => {
     await rail(instructor, 'Courses').click()
     await expect(instructor.getByRole('heading', { level: 1, name: 'Courses' })).toBeVisible()
     await instructor.getByRole('link', { name: `Open ${COURSE}` }).click()
@@ -569,7 +580,7 @@ test('@smoke the demo path, click by click', async ({
   // B. The student runs the defective variant
   // =========================================================================================
 
-  await test.step('5 Sign in as student1@tassl.local → Runs → Start Decision Run 1 (walkthrough) → the page Before you begin: This run counts toward the course grade. Run one counts., Weight 2.5 percent of the course grade, Declare what you use outside Tassl, the table What a confirmed band is worth, The working clock 25 minutes with Uncalibrated, The Readiness Check comes first → Begin the Readiness Check.', async () => {
+  await test.step('5 Sign in as student1@tassl.local → Runs → Start on the Decision Run 1 (walkthrough) row → the page Before you begin: This run counts toward the course grade. Run one counts., Weight 2.5 percent of the course grade, Declare what you use outside Tassl, the table What a confirmed band is worth, The working clock 25 minutes with Uncalibrated, The Readiness Check comes first → Begin the Readiness Check.', async () => {
     await page.goto('/sign-in')
     await signInThroughTheForm(page, STUDENT_ONE_EMAIL)
     await page.bringToFront()
@@ -608,12 +619,12 @@ test('@smoke the demo path, click by click', async ({
     await capture(5, page)
   })
 
-  await test.step('6 Readiness Check: the timer starts at 08:00; answer each of the 16 items and press Next item until 16 of 16 answered → Submit the check → Submit the Readiness Check? → Submit → What the check read → Open the scenario.', async () => {
+  await test.step('6 Readiness Check: the clock starts at 08:00; answer each of the 16 items and press Next item until 16 of 16 answered → Submit the check → Submit the Readiness Check? → Submit → What the check read → Open the scenario.', async () => {
     await takeTheReadinessCheck(page, runId)
     await capture(6, page)
   })
 
-  await test.step('7 The scenario: read Scenario brief aloud in part → in Evidence Room press Open Board minutes, 28 August 2026, skim, Close Board minutes, 28 August 2026 → Open Premium Tier Positioning Review (February 2025 board deck), skim, close it. Point at the AI assistant panel: "The assistant unlocks the moment you lock your frame."', async () => {
+  await test.step('7 The scenario: read Scenario brief aloud in part → in Evidence Room press Open on Board minutes, 28 August 2026, skim, Close on it → Open on Premium Tier Positioning Review (February 2025 board deck), skim, Close on it. Point at the AI assistant panel: "The assistant unlocks the moment you lock your frame."', async () => {
     await expect(
       page.locator('#scenario-brief').getByRole('heading', { level: 2, name: 'Scenario brief' }),
     ).toBeVisible()
@@ -635,7 +646,7 @@ test('@smoke the demo path, click by click', async ({
     await capture(7, page)
   })
 
-  await test.step('8 Your frame: The decision "Whether to move the quarter\'s acquisition budget toward the premium tier, and how far." → Assumption 1 "The premium payback figure in the board deck still holds." → Assumption 2 "The value tier is close to saturation." → Assumption 3 "Premium cohorts retain at the level the deck reports." → Your position now "I lean toward shifting a larger share of the budget to premium, because the deck\'s payback looks short and the value tier looks saturated. I have not checked either figure yet." → Confidence as a number 55 → Lock the frame → Lock the frame permanently? → Lock it. The chip reads Working, the Working clock counts down from 25:00, Your request appears.', async () => {
+  await test.step('8 Your frame: The decision "Whether to move the quarter\'s acquisition budget toward the premium tier, and how far." → Assumption 1 "The premium payback figure in the board deck still holds." → Assumption 2 "The value tier is close to saturation." → Assumption 3 "Premium cohorts retain at the level the deck reports." → Your position now "I lean toward shifting a larger share of the budget to premium, because the deck\'s payback looks short and the value tier looks saturated. I have not checked either figure yet." → Confidence as a number 55 → Lock the frame → Lock the frame permanently? → Lock it. The chip reads Working, the clock beside it counts down from 25:00, Your request appears.', async () => {
     await expect(page.getByRole('heading', { level: 2, name: 'Your frame' })).toBeVisible()
     await lockTheFrame(page, FRAME)
     await expect(page.locator('[data-state="working"]')).toContainText('Working')
@@ -657,7 +668,7 @@ test('@smoke the demo path, click by click', async ({
     await capture(9, page)
   })
 
-  await test.step('10 On Claim C5: Check claim C5 → Source Trace 1 min → the dialog Source Trace on claim C5 shows Document, Passage, Date, Author and This check cost one minute of your working clock. → close it → Your stance on claim C5 → Verify. On Claim C8: Reject. On Claim C7: Escalate claim C7 → Escalate to a colleague shows You have 2 escalations left in this run. → What you cannot settle "I cannot tell whether the survey sample is representative." → Send it → the card shows You wrote, They answered ("Rowan Adeyemi, research operations. Two things about that number.") and This escalation cost 5 minutes of your working clock. Leave Claim C3 with no stance.', async () => {
+  await test.step('10 On Claim C5: Check it → Source Trace 1 min → the dialog Source Trace on claim C5 shows Document, Passage, Date, Author and This check cost one minute of your working clock. → close it → under Your stance choose Verify. On Claim C8: Reject. On Claim C7: Escalate → Escalate to a colleague shows You have 2 escalations left in this run. → What you cannot settle "I cannot tell whether the survey sample is representative." → Send it → the card shows You wrote, They answered ("Rowan Adeyemi, research operations. Two things about that number.") and This escalation cost 5 minutes of your working clock. Leave Claim C3 with no stance.', async () => {
     const assistant = page.locator('#assistant-panel')
     const card = (key: string) => assistant.getByRole('article', { name: `Claim ${key}` })
 
@@ -695,7 +706,7 @@ test('@smoke the demo path, click by click', async ({
     await capture(10, page)
   })
 
-  await test.step('11 Delegation Log: Why you asked, delegation 1 "I wanted the payback figure before sizing the premium share." → Save → Saved. → Mark claim C3 as used → You marked this claim used in the Delegation Log. Then Declare outside-tool use → What you used, and what for "A calculator, to check the division." → Record it → Recorded. It sits with the run and changes nothing about it.', async () => {
+  await test.step('11 Delegation Log: Why you asked under the first delegation "I wanted the payback figure before sizing the premium share." → Save → Saved. → Mark as used beside Claim C3 → You marked this claim used in the Delegation Log. Then Declare outside-tool use → What you used, and what for "A calculator, to check the division." → Record it → Recorded. It sits with the run and changes nothing about it.', async () => {
     const log = page.locator('#delegation-log')
     const entry = log.getByRole('article', { name: 'Delegation 1', exact: true })
     await entry.getByLabel('Why you asked, delegation 1').fill(WHY_ASKED)
@@ -714,7 +725,7 @@ test('@smoke the demo path, click by click', async ({
     await capture(11, page)
   })
 
-  await test.step('12 Instructor profile: Courses → Open Marketing Strategy Walkthrough → Assignments → Configure Decision Run 1 (walkthrough) → in Runs, Open the replay for Student One → Actions → Test controls → Arm the outage → toast One assistant outage is armed for this run. Student profile: Your request "What does the survey say about premium?" → Ask the assistant → the dialog The run is paused with The assistant did not answer. and the Paused clock → Resume the run → the clock runs again; the log row reads No answer came back. The run paused, your clock stopped, and the time was given back when you resumed.', async () => {
+  await test.step('12 Instructor profile: Courses → Marketing Strategy Walkthrough → Assignments → Decision Run 1 (walkthrough) → in Runs, Open the replay on the Student One row → Actions → Test controls → Arm the outage → toast One assistant outage is armed for this run. Student profile: Your request "What does the survey say about premium?" → Ask the assistant → the dialog The run is paused with The assistant did not answer. and the clock reading Paused → Resume the run → the clock runs again; the log row reads No answer came back. The run paused, your clock stopped, and the time was given back when you resumed.', async () => {
     // Each seat is a window, and the presenter Alt-Tabs to the one they act in (runbook §5); the
     // window is brought to the front at every seat change for the same reason. Firefox, which
     // focuses one window at a time, otherwise lets a click land in a background window without
@@ -755,7 +766,7 @@ test('@smoke the demo path, click by click', async ({
     )
   })
 
-  await test.step('13 Your decision brief: Your recommendation "Move the premium share of the quarter\'s acquisition budget from 15 percent to 40 percent, on the eleven-month payback." → Why "The positioning review puts premium payback at eleven months and the value tier is saturated, so the marginal dollar earns more on premium. The survey supports demand. I did not trace the payback figure to its source." → Assumption 1 "Premium payback is eleven months." → Assumption 2 "The value tier is saturated." → Assumption 3 "Premium cohorts retain at 78 percent at month three." → What would change your mind "A payback figure above fifteen months, or premium retention well below the deck\'s number." → Confidence as a number 62 → Share of the quarter\'s acquisition budget going to premium, in percent 40 → Premium payback you are betting on, in months 11 → Saved. and the line One claim you leaned on has no stance yet. Filing asks for one on it. → Lock the decision → the dialog A claim you leaned on has no stance names the payback claim → Go to the claim → on Claim C3 choose Accept → Lock the decision → File this decision? with What will be filed → File it → the page Decision locked: The decision you filed, The frame you locked, The Turn with Time until the Turn → Add an addendum → Your addendum "I did not trace the payback figure; with more time I would check it first." → Add it → One addendum per run, and this run has its one.', async () => {
+  await test.step('13 Your decision brief: Your recommendation "Move the premium share of the quarter\'s acquisition budget from 15 percent to 40 percent, on the eleven-month payback." → Why "The positioning review puts premium payback at eleven months and the value tier is saturated, so the marginal dollar earns more on premium. The survey supports demand. I did not trace the payback figure to its source." → Assumption 1 "Premium payback is eleven months." → Assumption 2 "The value tier is saturated." → Assumption 3 "Premium cohorts retain at 78 percent at month three." → What would change your mind "A payback figure above fifteen months, or premium retention well below the deck\'s number." → Confidence as a number 62 → Share of the quarter\'s acquisition budget going to premium, in percent 40 → Premium payback you are betting on, in months 11 → Saved. and the line One claim you leaned on has no stance yet. Filing asks for one on it. → Lock the decision → File this decision? → File it → the dialog A claim you leaned on has no stance names the payback claim → Go to the claim → on Claim C3 choose Accept → Lock the decision → File this decision? with What will be filed → File it → the page Decision locked: The Turn with the countdown to it, The decision you filed, The frame you locked → Add an addendum → Your addendum "I did not trace the payback figure; with more time I would check it first." → Add it → One addendum per run, and this run has its one.', async () => {
     const editor = page.locator('#brief-editor-panel')
     await editor.getByLabel('Your recommendation').fill(BRIEF.recommendation)
     await editor.getByLabel('Why', { exact: true }).fill(BRIEF.why)
@@ -821,7 +832,7 @@ test('@smoke the demo path, click by click', async ({
     await capture(13, page)
   })
 
-  await test.step('14 Wait for the Turn: Time until the Turn reaches 00:00 → The Turn is due now. This page opens it as soon as it lands. → the page The Turn: What arrived with Stakeholder message ("Ellery here … 61 percent, not the 78 …"), the Turn window clock at 12:00, What this puts in front of you with Claim C2 and Claim C3 → on Claim C2 choose Verify; leave Claim C3 on Accept → What you are doing about the decision → Revise → Why "Month-three retention on cohort P2 is 61 percent, not 78, so the premium payback is longer than I bet on. I hold the direction and cut the premium share back." → Confidence as a number 48 → File the response → the page The defense.', async () => {
+  await test.step('14 Wait for the Turn: the countdown under The Turn reaches 00:00 → The Turn is due now. This page opens it as soon as it lands. → the page The Turn: What arrived with Stakeholder message ("Ellery here … 61 percent, not the 78 …"), the Turn window clock at 12:00, What this puts in front of you with Claim C2 and Claim C3 → on Claim C2 choose Verify; leave Claim C3 on Accept → What you are doing about the decision → Revise → Why "Month-three retention on cohort P2 is 61 percent, not 78, so the premium payback is longer than I bet on. I hold the direction and cut the premium share back." → Confidence as a number 48 → File the response → the page The defense.', async () => {
     // The countdown ends at the run's own `turn.dueAt`; the wait is whatever is left of it. The
     // page moves itself when the Turn lands — the band's poll sees `turn_open` and the locked
     // page's guard opens the Turn — so nothing here presses anything.
@@ -921,9 +932,8 @@ test('@smoke the demo path, click by click', async ({
     await matrix.getByRole('button', { name: 'Show graph' }).click()
     await expect(matrix.getByRole('button', { name: 'Show data table' })).toBeVisible()
 
-    await expect(
-      instructor.getByRole('heading', { level: 2, name: 'Defense transcript' }),
-    ).toBeVisible()
+    const transcript = instructor.getByRole('heading', { level: 2, name: 'Defense transcript' })
+    await expect(transcript).toBeVisible()
     await expect(
       instructor.locator('#replay-defense').getByText('Expected-answer notes').first(),
     ).toBeVisible()
@@ -933,10 +943,8 @@ test('@smoke the demo path, click by click', async ({
     await expect(
       instructor.getByRole('heading', { level: 2, name: 'Conditions recorded on this run' }),
     ).toBeVisible()
-    await instructor
-      .getByRole('heading', { level: 2, name: 'Defense transcript' })
-      .scrollIntoViewIfNeeded()
-    await capture(16, instructor)
+    // The Say describes what sits under the graphs, so the transcript is what the image shows.
+    await capture(16, instructor, transcript)
 
     await openReplayTab(instructor, 'Trace')
     await expect(
@@ -1024,7 +1032,7 @@ test('@smoke the demo path, click by click', async ({
   // D. The student closes the run
   // =========================================================================================
 
-  await test.step('19 Runs → Read the debrief → Run Debrief with the chip Confirmed; every card reads Confirmed band; the Verification card reads Your instructor decided this dimension differently. and Your instructor wrote with the note → Defects the decision rested on: Claim C3, What was wrong with it, Where it came from, The check that would have shown it → Confidence line, The Turn beside your frozen frame, Clock timeline, How this run could have gone ("Written by the scenario\'s author, not about this run."), One thing this run did, Confirmed points → Two questions: Which single stance would you change, and to what? "Challenge on C3: the deck was superseded." → What will you do differently in the next run like this? "Trace every figure I type into a named field." → File both answers → Both answers are filed and this run is closed.', async () => {
+  await test.step('19 Runs → Read the debrief on the Decision Run 1 (walkthrough) row → Run Debrief with the chip Confirmed; every card reads Confirmed band; the Verification card reads Your instructor decided this dimension differently. and Your instructor wrote with the note → Defects the decision rested on: Claim C3, What was wrong with it, Where it came from, The check that would have shown it → Confidence line, The Turn beside your frozen frame, Clock timeline, How this run could have gone ("Written by the scenario\'s author, not about this run."), One thing this run did, Confirmed points → Two questions: Which single stance would you change, and to what? "Challenge on C3: the deck was superseded." → What will you do differently in the next run like this? "Trace every figure I type into a named field." → File both answers → Both answers are filed and this run is closed.', async () => {
     await page.bringToFront()
     await rail(page, 'Runs').click()
     await expect(page.getByRole('heading', { level: 1, name: 'Runs' })).toBeVisible()
@@ -1088,7 +1096,7 @@ test('@smoke the demo path, click by click', async ({
     await capture(19, page)
   })
 
-  await test.step('20 Runs → Open the Judgment Record → Judgment Record: The four graphs, The seven dimensions (seven Confirmed band cards), How this run was set up with Mode Standard and Variant Defective → Download record.', async () => {
+  await test.step('20 Runs → Open the Judgment Record on the Decision Run 1 (walkthrough) row → Judgment Record: The four graphs, The seven dimensions (seven Confirmed band cards), How this run was set up with Mode Standard and Variant Defective → Download record.', async () => {
     await page.bringToFront()
     await rail(page, 'Runs').click()
     await expect(page.getByRole('heading', { level: 1, name: 'Runs' })).toBeVisible()
@@ -1125,7 +1133,7 @@ test('@smoke the demo path, click by click', async ({
   // E. The auto-lock branch, the correction and the void
   // =========================================================================================
 
-  await test.step('21 Student profile, at the start of part C: Runs → Start Auto-lock test run → Begin the Readiness Check → answer the 16 items → Submit the check → Submit → Open the scenario → fill Your frame with one sentence in each field and 50 in Confidence as a number → Lock the frame → Lock it → the Working clock reads 02:00 → touch nothing. After two minutes the page moves on its own to Decision locked with Left empty. on every text field and No figure. on both figures.', async () => {
+  await test.step('21 Student profile, at the start of part C: Runs → Start on the Auto-lock test run row → Begin the Readiness Check → answer the 16 items → Submit the check → Submit → Open the scenario → fill Your frame with one sentence in each field and 50 in Confidence as a number → Lock the frame → Lock it → the clock beside the Working chip reads 02:00 → touch nothing. After two minutes the page moves on its own to Decision locked with Left empty. on every text field and No figure. on both figures.', async () => {
     await page.bringToFront()
     await rail(page, 'Runs').click()
     await expect(page.getByRole('heading', { level: 1, name: 'Runs' })).toBeVisible()
@@ -1143,7 +1151,6 @@ test('@smoke the demo path, click by click', async ({
     await expect(page.getByRole('timer', { name: 'Working clock' })).toHaveText(
       /^0[12]:[0-5][0-9]$/,
     )
-    await capture(21, page)
 
     // Two minutes, and the page moves on its own: the band's poll sees `decision_locked` and
     // the workspace's guard opens the locked page.
@@ -1163,9 +1170,16 @@ test('@smoke the demo path, click by click', async ({
     await expect(filed.getByText('Left empty.', { exact: true })).toHaveCount(6)
     // And the two figures the package names, each without a value.
     await expect(filed.getByRole('listitem').filter({ hasText: 'No figure.' })).toHaveCount(2)
+    // The row's Say is about the filed-as-it-stands brief, so the image is the locked page with
+    // the empty fields in view rather than the workspace the clock ran out on.
+    await capture(
+      21,
+      page,
+      filed.getByRole('heading', { level: 2, name: 'The decision you filed' }),
+    )
   })
 
-  await test.step('22 Instructor profile, after part D. First the correction, on Student One\'s replay: Courses → Open Marketing Strategy Walkthrough → Assignments → Configure Decision Run 1 (walkthrough) → Open the replay for Student One → Actions → Corrections → Enter a correction on C3… → Enter a correction on claim C3? → What went wrong? → Something else → Note (optional) "Demonstration of a correction." → Enter the correction → What the correction moved with Export version 2 was written. → Close. Then the void, on the auto-lock run\'s replay: Courses → Open Marketing Strategy Walkthrough → Assignments → Configure Auto-lock test run → Open the replay for Student One → Actions → Void this run… → Void this run? → Why is the run being voided? → It was a walkthrough run → tick Offer the student another run → Void the run → toast The run is voided and another has been offered. and the banner This run is voided. It carries no partial result, and no export written afterwards names it. Student profile: Runs → the auto-lock row reads This attempt was voided. and offers Continue on attempt 2.', async () => {
+  await test.step('22 Instructor profile, after part D. First the correction, on Student One\'s replay: Courses → Marketing Strategy Walkthrough → Assignments → Decision Run 1 (walkthrough) → in Runs, Open the replay on the Student One row → Actions → Corrections → Enter a correction on C3… → Enter a correction on claim C3? → What went wrong? → Something else → Note (optional) "Demonstration of a correction." → Enter the correction → What the correction moved with Export version 2 was written. → Close. Then the void, on the auto-lock run\'s replay: Courses → Marketing Strategy Walkthrough → Assignments → Auto-lock test run → in Runs, Open the replay on the Student One row → Actions → Void this run… → Void this run? → Why is the run being voided? → It was a walkthrough run → tick Offer the student another run → Void the run → toast The run is voided and another has been offered. and the banner This run is voided. It carries no partial result, and no export written afterwards names it. Student profile: Runs → the auto-lock row reads This attempt was voided. and offers Continue on attempt 2.', async () => {
     await instructor.bringToFront()
     const corrected = await openTheReplayFromTheAssignment(instructor, WALKTHROUGH_RUN, STUDENT_ONE)
     expect(corrected).toBe(runId)
@@ -1225,7 +1239,7 @@ test('@smoke the demo path, click by click', async ({
   // F. The sound variant, seats swapped
   // =========================================================================================
 
-  await test.step('23 Student profile: Account → Sign out → Sign in as student2@tassl.local → Runs → Start Decision Run 1 (sound) → Begin the Readiness Check → answer the 16 items → Submit the check → Submit → Open the scenario → Your frame with the same five texts as step 8 and 55 → Lock the frame → Lock it.', async () => {
+  await test.step('23 Student profile: the icon button at the top right named Account: Student One → Sign out → Sign in as student2@tassl.local → Runs → Start on the Decision Run 1 (sound) row → Begin the Readiness Check → answer the 16 items → Submit the check → Submit → Open the scenario → Your frame with the same five texts as step 8 and 55 → Lock the frame → Lock it.', async () => {
     await page.bringToFront()
     await page.getByRole('button', { name: `Account: ${STUDENT_ONE}` }).click()
     await page.getByRole('menuitem', { name: 'Sign out' }).click()
@@ -1248,7 +1262,7 @@ test('@smoke the demo path, click by click', async ({
     await capture(23, page)
   })
 
-  await test.step('24 Your request "What is the value tier payback?" → Ask the assistant → Reply complete. One claim surfaced. → on Claim C1 choose Accept → in Delegation Log press Mark claim C1 as used → Your decision brief: Your recommendation "Hold the premium share at 15 percent and put the marginal dollar into the value tier." → Why "The value tier payback is short and its retention holds; premium is unproven at scale." → the three assumptions "Value tier payback holds." / "Premium retention is unproven." / "The budget is fixed for the quarter." → What would change your mind "A premium payback under twelve months on a traced figure." → Confidence as a number 60 → Share of the quarter\'s acquisition budget going to premium, in percent 15 → Lock the decision → File this decision? → File it → Decision locked.', async () => {
+  await test.step('24 Your request "What is the value tier payback?" → Ask the assistant → Reply complete. One claim surfaced. → on Claim C1 choose Accept → in Delegation Log press Mark as used beside Claim C1 → Your decision brief: Your recommendation "Hold the premium share at 15 percent and put the marginal dollar into the value tier." → Why "The value tier payback is short and its retention holds; premium is unproven at scale." → the three assumptions "Value tier payback holds." / "Premium retention is unproven." / "The budget is fixed for the quarter." → What would change your mind "A premium payback under twelve months on a traced figure." → Confidence as a number 60 → Share of the quarter\'s acquisition budget going to premium, in percent 15 → Lock the decision → File this decision? → File it → Decision locked.', async () => {
     const assistant = page.locator('#assistant-panel')
     await ask(page, SOUND_REQUEST, 'Reply complete. One claim surfaced.')
     await expect(assistant.getByRole('article', { name: 'Claim C1' })).toBeVisible()
@@ -1336,10 +1350,15 @@ test('@smoke the demo path, click by click', async ({
     await expect(ownershipRow).toContainText('Not counted')
     await expect(points).toContainText('Total over the assessed dimensions (6)')
     await expect(points).toContainText(/\) \/ 6 = \d+\.\d{3}/)
-    await capture(26, instructor)
+    // The Say is about the division, which is the points table under the seven cards.
+    await capture(
+      26,
+      instructor,
+      points.getByRole('heading', { level: 2, name: 'Points under this course’s mapping' }),
+    )
   })
 
-  await test.step('27 Student profile: Runs → Read the debrief → chip Confirmed → Claim by claim: the Claim C1 row reads Your stance Accept, Warranted Accept, Same, and "This variant authored the claim as sound." → Defects the decision rested on reads Not drawn for this run with "Your filed decision rested on no claim this variant authored as defective." → the Ownership card reads Your instructor recorded this dimension as unassessed, so it is left out of the arithmetic. → answer Two questions → File both answers → Runs → Open the Judgment Record → Variant Sound. On any run screen, reload it and press Tab once: the first link is Skip to main content; on any graph press Show data table, then Show graph.', async () => {
+  await test.step('27 Student profile: Runs → Read the debrief on the Decision Run 1 (sound) row → chip Confirmed → Claim by claim: the Claim C1 row reads Your stance Accept, Warranted Accept, Same, and "This variant authored the claim as sound." → Defects the decision rested on reads Not drawn for this run with "Your filed decision rested on no claim this variant authored as defective." → the Ownership card reads Your instructor recorded this dimension as unassessed, so it is left out of the arithmetic. → answer Two questions → File both answers → Runs → Open the Judgment Record on the Decision Run 1 (sound) row → Variant Sound. On any run screen, reload it and press Tab once: the first link is Skip to main content; on any graph press Show data table, then Show graph.', async () => {
     await page.bringToFront()
     await rail(page, 'Runs').click()
     await expect(page.getByRole('heading', { level: 1, name: 'Runs' })).toBeVisible()

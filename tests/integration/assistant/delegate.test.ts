@@ -17,7 +17,7 @@
 //      over 2,000 characters is refused before a provider is asked anything (11 §3).
 //   6. The `llm` bucket holds at ten calls a minute (D-026), proven through the route.
 // @db:truncate
-import { afterAll, beforeEach, describe, expect, it } from 'vitest'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { asUser, truncateAll } from '@tests/setup/integration'
 import {
   claimByKey,
@@ -349,11 +349,24 @@ describe('POST /runs/{runId}/delegations', () => {
 
   it('holds at ten calls a minute on the llm bucket (D-026)', async () => {
     const runId = await runInWorking(fx)
+    // The bucket is a sliding window over two fixed minutes (`src/server/rate-limit/memory.ts`),
+    // which weights the previous minute by how much of the current one has passed. Eleven calls
+    // that straddle a minute boundary can therefore count as fewer than ten, which is the
+    // algorithm, not a defect — and a loop of eleven streamed replies takes long enough on a loaded
+    // runner to straddle one about a third of the time. The clock is held at one second past a
+    // minute boundary for the whole loop, so every call lands in one window and the eleventh is
+    // the eleventh. Only `Date` is faked: the stream and the database keep their real timers.
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(Math.floor(Date.now() / 60_000) * 60_000 + 1_000)
     const statuses: number[] = []
-    for (let attempt = 0; attempt < 11; attempt += 1) {
-      const response = await post(runId, `What is the premium payback? attempt ${attempt}`)
-      statuses.push(response.status)
-      await response.text()
+    try {
+      for (let attempt = 0; attempt < 11; attempt += 1) {
+        const response = await post(runId, `What is the premium payback? attempt ${attempt}`)
+        statuses.push(response.status)
+        await response.text()
+      }
+    } finally {
+      vi.useRealTimers()
     }
 
     expect(statuses.slice(0, 10)).toEqual(Array.from({ length: 10 }, () => 200))

@@ -27,10 +27,20 @@ export async function axe(page: Page): Promise<void> {
   // rest and hover fills (150 ms, `transition-colors`), has a blended foreground and background that
   // neither state has — axe once read a submit button inside a closing dialog at 4.19:1 while both
   // of its real states clear 4.5:1 (QA-036). Every running animation and transition is awaited
-  // first; a screen with none resolves at once.
-  await page.evaluate(() =>
-    Promise.all(document.getAnimations().map((animation) => animation.finished.catch(() => null))),
-  )
+  // first; a screen with none resolves at once. Only animations with an end are awaited — a
+  // skeleton's pulse or a spinner never finishes, and waiting on it hung every scan of the component
+  // gallery on Firefox — and the wait is capped at two seconds so nothing can hold a scan.
+  await page.evaluate(() => {
+    const finite = document
+      .getAnimations()
+      .filter((animation) =>
+        Number.isFinite(animation.effect?.getComputedTiming().endTime ?? Infinity),
+      )
+    return Promise.race([
+      Promise.all(finite.map((animation) => animation.finished.catch(() => null))),
+      new Promise((resolve) => setTimeout(resolve, 2_000)),
+    ])
+  })
   const results = await new AxeBuilder({ page }).withTags([...AXE_TAGS]).analyze()
 
   const detail = results.violations.map((violation) => ({

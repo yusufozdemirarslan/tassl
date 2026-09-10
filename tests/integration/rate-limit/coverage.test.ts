@@ -232,10 +232,13 @@ describe('the exemptions', () => {
     expect(rateLimit?.enabled).toBe(true)
     expect(rateLimit?.max).toBeGreaterThan(0)
     expect(rateLimit?.window).toBeGreaterThan(0)
-    // 08 §2.6: ten a minute per IP on the four endpoints an attacker would grind.
+    // 08 §2.6 and D-712: per client address, sized for a section arriving from one campus address —
+    // sign-in 120 a minute, sign-up 60 — and the two routes that send an email at the ten-a-minute
+    // bombing ceiling. Guessing is stopped per account by the lockout of D-704, not here.
+    expect(rateLimit?.max).toBe(600)
     expect(rateLimit?.customRules).toMatchObject({
-      '/sign-in/email': { window: 60, max: 10 },
-      '/sign-up/email': { window: 60, max: 10 },
+      '/sign-in/email': { window: 60, max: 120 },
+      '/sign-up/email': { window: 60, max: 60 },
       '/request-password-reset': { window: 60, max: 10 },
       '/send-verification-email': { window: 60, max: 10 },
     })

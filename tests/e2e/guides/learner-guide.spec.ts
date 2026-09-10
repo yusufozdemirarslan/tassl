@@ -219,10 +219,20 @@ async function counterOf(page: Page, field: Locator): Promise<Locator> {
   return page.locator(`[id="${id ?? ''}"]`)
 }
 
-/** Types the guide's value and reads the counter the guide quotes back. */
-async function typeAndCount(page: Page, field: Locator, text: string, counter: string) {
+/**
+ * Types the guide's value and reads the counter the guide quotes back. The counter is handed back
+ * so a step whose counter sits below the fold can name it as what its screenshot is of.
+ */
+async function typeAndCount(
+  page: Page,
+  field: Locator,
+  text: string,
+  counter: string,
+): Promise<Locator> {
   await field.fill(text)
-  await expect(await counterOf(page, field)).toHaveText(counter)
+  const count = await counterOf(page, field)
+  await expect(count).toHaveText(counter)
+  return count
 }
 
 /**
@@ -495,8 +505,10 @@ test('Task 3: Take the Readiness Check', async ({ page, shot }) => {
     await shot(3, 1)
   })
 
-  await test.step('3.2 Find the Items toolbar under the clock.', async () => {
+  await test.step('3.2 Find the row of numbered buttons 1 to 16 under the clock.', async () => {
     await expect(navigator.getByRole('button')).toHaveCount(16)
+    // None filled in yet: every one of the sixteen still names itself as not answered.
+    await expect(navigator.getByRole('button', { name: /, not answered$/ })).toHaveCount(16)
     await expect(
       page.getByText('The arrow keys move between items. An item you have answered is filled in.'),
     ).toBeVisible()
@@ -590,7 +602,7 @@ test('Task 4: Read the brief and open the Evidence Room', async ({ page, shot })
   const room = page.locator('#evidence-room')
   const MINUTES = 'Board minutes, 28 August 2026'
 
-  await test.step('4.1 Find Scenario brief at the top of the left column.', async () => {
+  await test.step('4.1 Find Scenario brief, the first panel under the heading The scenario.', async () => {
     const brief = page.locator('#scenario-brief')
     await expect(brief.getByRole('heading', { name: 'Scenario brief' })).toBeVisible()
     await expect(brief).toContainText('Meridian Roast sells single-origin coffee by subscription.')
@@ -616,7 +628,7 @@ test('Task 4: Read the brief and open the Evidence Room', async ({ page, shot })
     await expect(reader).toBeVisible({ timeout: ACTION_TIMEOUT_MS })
     expect((await reader.innerText()).trim().length).toBeGreaterThan(0)
     await expect(room.getByRole('button', { name: `Close ${MINUTES}` })).toBeVisible()
-    await shot(4, 3)
+    await shot(4, 3, reader)
   })
 
   await test.step('4.4 Click Close beside Board minutes, 28 August 2026.', async () => {
@@ -626,7 +638,7 @@ test('Task 4: Read the brief and open the Evidence Room', async ({ page, shot })
     await shot(4, 4)
   })
 
-  await test.step('4.5 Scroll to AI assistant in the right column.', async () => {
+  await test.step('4.5 Scroll to AI assistant, the panel below Your frame.', async () => {
     const assistant = assistantPanel(page)
     await assistant.scrollIntoViewIfNeeded()
     await expect(assistant.getByRole('heading', { name: 'AI assistant' })).toBeVisible()
@@ -661,7 +673,7 @@ test('Task 5: Lock your frame', async ({ page, shot }) => {
   await page.goto(`/runs/${runId}/work`)
   await expect(page.getByRole('heading', { level: 1, name: 'The scenario' })).toBeVisible()
 
-  await test.step('5.1 Scroll to Your frame in the right column.', async () => {
+  await test.step('5.1 Scroll to Your frame, the panel below Evidence Room.', async () => {
     const heading = page.getByRole('heading', { name: 'Your frame' })
     await heading.scrollIntoViewIfNeeded()
     await expect(heading).toBeVisible()
@@ -671,8 +683,12 @@ test('Task 5: Lock your frame', async ({ page, shot }) => {
       await expect(page.getByLabel(`Assumption ${String(n)}`)).toBeVisible()
     await expect(page.getByLabel('Your position now')).toBeVisible()
     await expect(page.getByText('Confidence', { exact: true })).toBeVisible()
+    await expect(page.getByRole('slider', { name: 'Confidence, 0 to 100' })).toBeVisible()
+    const number = page.getByRole('spinbutton', { name: 'Confidence as a number' })
+    await expect(number).toBeVisible()
     await expect(await counterOf(page, page.getByLabel('The decision'))).toHaveText('0 of 50 words')
-    await shot(5, 1)
+    // The form is taller than the viewport; the confidence control is the last thing named.
+    await shot(5, 1, number)
   })
 
   await test.step('5.2 Type Guide decision, back the premium tier with most of the quarterly budget in The decision.', async () => {
@@ -681,8 +697,13 @@ test('Task 5: Lock your frame', async ({ page, shot }) => {
   })
 
   await test.step('5.3 Type Guide assumption one, premium payback is under a year in Assumption 1.', async () => {
-    await typeAndCount(page, page.getByLabel('Assumption 1'), FRAME.assumptions[0], '9 of 25 words')
-    await shot(5, 3)
+    const counter = await typeAndCount(
+      page,
+      page.getByLabel('Assumption 1'),
+      FRAME.assumptions[0],
+      '9 of 25 words',
+    )
+    await shot(5, 3, counter)
   })
 
   await test.step('5.4 Type Guide assumption two, value tier demand is flat in Assumption 2.', async () => {
@@ -696,11 +717,16 @@ test('Task 5: Lock your frame', async ({ page, shot }) => {
   })
 
   await test.step('5.6 Type Guide position, lean premium because the payback looks short in Your position now.', async () => {
-    await typeAndCount(page, page.getByLabel('Your position now'), FRAME.position, '9 of 100 words')
-    await shot(5, 6)
+    const counter = await typeAndCount(
+      page,
+      page.getByLabel('Your position now'),
+      FRAME.position,
+      '9 of 100 words',
+    )
+    await shot(5, 6, counter)
   })
 
-  await test.step('5.7 Type 60 in Confidence as a number.', async () => {
+  await test.step('5.7 Type 60 in the number box beside Confidence.', async () => {
     const number = page.getByRole('spinbutton', { name: 'Confidence as a number' })
     await number.fill(FRAME.confidence)
     await expect(number).toHaveValue(FRAME.confidence)
@@ -708,7 +734,7 @@ test('Task 5: Lock your frame', async ({ page, shot }) => {
     await expect(page.getByRole('slider', { name: 'Confidence, 0 to 100' })).toHaveValue(
       FRAME.confidence,
     )
-    await shot(5, 7)
+    await shot(5, 7, number)
   })
 
   await test.step('5.8 Click Lock the frame.', async () => {
@@ -733,8 +759,10 @@ test('Task 5: Lock your frame', async ({ page, shot }) => {
     await expect(frame).toContainText('Locked')
     await expect(frame).toContainText('Confidence at the frame')
     await expect(frame).toContainText(`${FRAME.confidence} of 100`)
-    await expect(assistantPanel(page).getByLabel('Your request')).toBeVisible()
-    await shot(5, 9)
+    const request = assistantPanel(page).getByLabel('Your request')
+    await expect(request).toBeVisible()
+    // The band and its clock are sticky; of the rest, the request field is the furthest down.
+    await shot(5, 9, request)
   })
 })
 
@@ -768,7 +796,7 @@ test('Task 6: Ask the assistant', async ({ page, shot }) => {
     await expect(replyCard(page, 'C3')).toContainText(
       'Premium payback is about 11 months, so the premium tier returns its acquisition cost inside the fiscal year.',
     )
-    await shot(6, 2)
+    await shot(6, 2, replyCard(page, 'C3'))
   })
 
   await test.step('6.3 Scroll to Delegation Log.', async () => {
@@ -802,12 +830,9 @@ test('Task 6: Ask the assistant', async ({ page, shot }) => {
     const card = logCard(page, 'C3')
     await expect(card).toContainText('Used', { timeout: ACTION_TIMEOUT_MS })
     await expect(card).toContainText('You marked this claim used in the Delegation Log.')
-    await expect(
-      log.getByText(
-        'Marking a claim used records that you leaned on it. A mark stays on the record.',
-      ),
-    ).toBeVisible()
-    await shot(6, 6)
+    // In place of the button: a mark is not taken back, so the control that made it is gone.
+    await expect(entry.getByRole('button', { name: 'Mark claim C3 as used' })).toHaveCount(0)
+    await shot(6, 6, card)
   })
 })
 
@@ -833,14 +858,19 @@ test('Task 7: Take a stance on every claim', async ({ page, shot }) => {
       await expect(group.getByRole('radio', { name: stance })).toBeVisible()
     }
     // The hint is said once, at the head of whichever panel is holding the card.
-    await expect(
-      page
-        .getByText(
-          'It costs no clock time, and you can change it while the run is open; both are kept.',
-        )
-        .first(),
-    ).toBeVisible()
-    await shot(7, 1)
+    const hint = page
+      .getByText(
+        'It costs no clock time, and you can change it while the run is open; both are kept.',
+      )
+      .first()
+    await expect(hint).toBeVisible()
+    // The hint is above the card in the same panel, further than half a viewport: the hint is put
+    // at the top of the frame (the page's scroll padding keeps it clear of the band) so the stance
+    // row below it is in the same frame, and the row is what the capture is of.
+    await hint.evaluate((node) => {
+      node.scrollIntoView({ block: 'start' })
+    })
+    await shot(7, 1, group)
   })
 
   await test.step('7.2 Click Accept.', async () => {
@@ -850,8 +880,9 @@ test('Task 7: Take a stance on every claim', async ({ page, shot }) => {
 
   await test.step('7.3 Click Verify.', async () => {
     await takeStance(page, c3, 'C3', 'Verify')
-    await expect(c3).toContainText('Changed from Accept.')
-    await shot(7, 3)
+    const changed = c3.getByText('Changed from Accept.')
+    await expect(changed).toBeVisible()
+    await shot(7, 3, changed)
   })
 
   await test.step('7.4 Click into Your request.', async () => {
@@ -874,8 +905,14 @@ test('Task 7: Take a stance on every claim', async ({ page, shot }) => {
       'Reply complete. 3 claims surfaced.',
       { timeout: ACTION_TIMEOUT_MS },
     )
-    for (const key of ['C5', 'C8', 'C7']) await expect(replyCard(page, key)).toBeVisible()
-    await shot(7, 6)
+    // In that order: the three cards are drawn in the reply's own order, and the guide names them
+    // in it.
+    const cards = assistant.getByRole('article', { name: /^Claim C/ })
+    await expect(cards).toHaveCount(3)
+    for (const [index, key] of ['C5', 'C7', 'C8'].entries()) {
+      await expect(cards.nth(index).getByRole('heading', { name: `Claim ${key}` })).toBeVisible()
+    }
+    await shot(7, 6, replyCard(page, 'C8'))
   })
 
   await test.step('7.7 Click Verify under Claim C5.', async () => {
@@ -890,7 +927,7 @@ test('Task 7: Take a stance on every claim', async ({ page, shot }) => {
 
   await test.step('7.9 Click Verify under Claim C7.', async () => {
     await takeStance(page, replyCard(page, 'C7'), 'C7', 'Verify')
-    await shot(7, 9)
+    await shot(7, 9, replyCard(page, 'C7').getByRole('heading', { name: 'Claim C7' }))
   })
 })
 
@@ -929,7 +966,7 @@ test('Task 8: Check a claim and escalate one', async ({ page, shot }) => {
     await shot(8, 2)
   })
 
-  await test.step('8.3 Click Close on the panel.', async () => {
+  await test.step('8.3 Click the × (Close) button at the top right of the panel.', async () => {
     const sheet = page.getByRole('dialog')
     await sheet.getByRole('button', { name: 'Close' }).click()
     await expect(sheet).toBeHidden()
@@ -965,12 +1002,20 @@ test('Task 8: Check a claim and escalate one', async ({ page, shot }) => {
     const dialog = page.getByRole('dialog')
     await dialog.getByRole('button', { name: 'Send it' }).click()
     await expect(dialog).toBeHidden({ timeout: ACTION_TIMEOUT_MS })
+    // Sending an escalation takes the Escalate stance where the student had another (D-285), and
+    // the one they had is kept beside it.
+    await expect(stanceGroup(c7, 'C7').getByRole('radio', { name: 'Escalate' })).toHaveAttribute(
+      'aria-checked',
+      'true',
+      { timeout: ACTION_TIMEOUT_MS },
+    )
+    await expect(c7).toContainText('Changed from Verify.')
     await expect(c7).toContainText('You wrote', { timeout: ACTION_TIMEOUT_MS })
     await expect(c7).toContainText(ESCALATION)
     await expect(c7).toContainText('They answered')
     await expect(c7).toContainText('Rowan Adeyemi, research operations.')
     await expect(c7).toContainText('This escalation cost 5 minutes of your working clock.')
-    await shot(8, 7)
+    await shot(8, 7, c7.getByRole('heading', { name: 'Claim C7' }))
   })
 
   await test.step('8.8 Click the button Escalate beneath the stance row on Claim C5.', async () => {
@@ -1024,16 +1069,15 @@ test('Task 9: Declare outside-tool use', async ({ page, shot }) => {
   await test.step('9.2 Click the button Declare outside-tool use.', async () => {
     await declaration.getByRole('button', { name: 'Declare outside-tool use' }).click()
     await expect(declaration.getByLabel('What you used, and what for')).toBeVisible()
-    await expect(
-      declaration.getByText('One sentence is enough. At most 500 characters.'),
-    ).toBeVisible()
-    await shot(9, 2)
+    const hint = declaration.getByText('One sentence is enough. At most 500 characters.')
+    await expect(hint).toBeVisible()
+    await shot(9, 2, hint)
   })
 
   await test.step('9.3 Type Guide, a calculator for the payback arithmetic in What you used, and what for.', async () => {
     const field = declaration.getByLabel('What you used, and what for')
-    await typeAndCount(page, field, DECLARATION, '46 of 500 characters')
-    await shot(9, 3)
+    const counter = await typeAndCount(page, field, DECLARATION, '46 of 500 characters')
+    await shot(9, 3, counter)
   })
 
   await test.step('9.4 Click Record it.', async () => {
@@ -1087,7 +1131,8 @@ test('Task 10: Write your decision brief and file it', async ({ page, shot }) =>
 
   await test.step('10.1 Scroll to Your decision brief.', async () => {
     await editor.scrollIntoViewIfNeeded()
-    await expect(editor.getByRole('heading', { name: 'Your decision brief' })).toBeVisible()
+    const heading = editor.getByRole('heading', { name: 'Your decision brief' })
+    await expect(heading).toBeVisible()
     await expect(editor).toContainText(
       'It saves as you type; nothing is filed until you lock the decision.',
     )
@@ -1097,7 +1142,8 @@ test('Task 10: Write your decision brief and file it', async ({ page, shot }) =>
     await expect(editor.getByLabel('What would change your mind')).toBeVisible()
     await expect(editor.getByText('The figures you are betting on')).toBeVisible()
     await expect(editor.getByText('Confidence', { exact: true })).toBeVisible()
-    await shot(10, 1)
+    // The editor is taller than a viewport: the capture is of its top, heading first.
+    await shot(10, 1, heading)
   })
 
   await test.step('10.2 Type Guide recommendation, move most of the budget to premium this quarter in Your recommendation.', async () => {
@@ -1141,13 +1187,13 @@ test('Task 10: Write your decision brief and file it', async ({ page, shot }) =>
   })
 
   await test.step('10.6 Type Guide brief assumption three, the value tier is saturated in Assumption 3.', async () => {
-    await typeAndCount(
+    const counter = await typeAndCount(
       page,
       editor.getByLabel('Assumption 3'),
       BRIEF.assumptions[2],
       '9 of 25 words',
     )
-    await shot(10, 6)
+    await shot(10, 6, counter)
   })
 
   await test.step('10.7 Type Guide, a payback figure above sixteen months in What would change your mind.', async () => {
@@ -1175,13 +1221,13 @@ test('Task 10: Write your decision brief and file it', async ({ page, shot }) =>
   await test.step('10.9 Type 11 in Premium payback you are betting on, in months.', async () => {
     await editor.getByLabel('Premium payback you are betting on, in months').fill(BRIEF.payback)
     await waitForSaved((draft) => JSON.stringify(draft.namedValues ?? {}).includes(BRIEF.payback))
-    await shot(10, 9)
+    await shot(10, 9, lockButton)
   })
 
-  await test.step('10.10 Type 62 in Confidence as a number.', async () => {
+  await test.step('10.10 Type 62 in the number box beside Confidence.', async () => {
     await editor.getByLabel('Confidence as a number').fill(BRIEF.confidence)
     await waitForSaved((draft) => draft.confidence === Number(BRIEF.confidence))
-    await shot(10, 10)
+    await shot(10, 10, lockButton)
   })
 
   await test.step('10.11 Type What is the value tier payback? in Your request.', async () => {
@@ -1197,20 +1243,22 @@ test('Task 10: Write your decision brief and file it', async ({ page, shot }) =>
       { timeout: ACTION_TIMEOUT_MS },
     )
     await expect(replyCard(page, 'C1')).toBeVisible()
-    await shot(10, 12)
+    await shot(10, 12, replyCard(page, 'C1'))
   })
 
-  await test.step('10.13 Click Mark as used beside Claim C1 under Delegation 3.', async () => {
+  await test.step('10.13 Click Mark as used beside Claim C1, under Claims in this reply in Delegation 3 of the Delegation Log.', async () => {
     const entry = log.getByRole('article', { name: 'Delegation 3', exact: true })
+    await expect(entry.getByRole('heading', { name: 'Claims in this reply' })).toBeVisible()
     await entry.getByRole('button', { name: 'Mark claim C1 as used' }).click()
     const card = logCard(page, 'C1')
     await expect(card).toContainText('Used', { timeout: ACTION_TIMEOUT_MS })
     await expect(card).toContainText('You marked this claim used in the Delegation Log.')
-    await expect(editor.locator('#brief-lock-preflight')).toHaveText(
+    const preflight = editor.locator('#brief-lock-preflight')
+    await expect(preflight).toHaveText(
       'One claim you leaned on has no stance yet. Filing asks for one on it.',
       { timeout: ACTION_TIMEOUT_MS },
     )
-    await shot(10, 13)
+    await shot(10, 13, preflight)
   })
 
   await test.step('10.14 Click Lock the decision.', async () => {
@@ -1218,8 +1266,10 @@ test('Task 10: Write your decision brief and file it', async ({ page, shot }) =>
     await expect(confirm).toContainText('File this decision?')
     await expect(confirm).toContainText('What will be filed')
     await expect(confirm).toContainText(BRIEF.recommendation)
-    await expect(confirm).toContainText(`Confidence ${BRIEF.confidence} of 100`)
-    await shot(10, 14)
+    // The read-back scrolls inside the dialog; the confidence line is its last entry.
+    const confidence = confirm.getByText(`Confidence ${BRIEF.confidence} of 100`)
+    await expect(confidence).toBeVisible()
+    await shot(10, 14, confidence)
   })
 
   await test.step('10.15 Click File it.', async () => {
@@ -1238,7 +1288,7 @@ test('Task 10: Write your decision brief and file it', async ({ page, shot }) =>
     const card = replyCard(page, 'C1')
     await expect(card).toBeFocused()
     await expect(card).toContainText('No stance yet')
-    await shot(10, 16)
+    await shot(10, 16, card)
   })
 
   await test.step('10.17 Click Accept under Claim C1.', async () => {
@@ -1266,8 +1316,9 @@ test('Task 10: Write your decision brief and file it', async ({ page, shot }) =>
     await expect(filed).toContainText(`${BRIEF.confidence} of 100`)
     await expect(filed).toContainText('Premium payback you are betting on, in months')
     await expect(filed).toContainText(BRIEF.payback)
-    await expect(page.getByRole('heading', { name: 'The frame you locked' })).toBeVisible()
-    await shot(10, 19)
+    const frameHeading = page.getByRole('heading', { name: 'The frame you locked' })
+    await expect(frameHeading).toBeVisible()
+    await shot(10, 19, frameHeading)
   })
 
   await test.step('10.20 Click Add an addendum.', async () => {
@@ -1327,7 +1378,7 @@ test('Task 11: Respond to the Turn', async ({ page, shot }) => {
     await shot(11, 1)
   })
 
-  await test.step('11.2 Wait for Time until the Turn to reach zero, about 90 seconds after you filed.', async () => {
+  await test.step('11.2 Wait for the clock under The Turn to reach zero, about 90 seconds after you filed.', async () => {
     // Locally the test-only route shifts the run's timeline past the Turn (D-109); the page is
     // then waited on as a person would wait on it — the band's poll moves it to the Turn.
     await advanceRunClock(page, runId, PAST_THE_TURN_MS)
@@ -1385,14 +1436,22 @@ test('Task 11: Respond to the Turn', async ({ page, shot }) => {
     await shot(11, 7)
   })
 
-  await test.step('11.8 Find What you can work with in the right column.', async () => {
+  await test.step('11.8 Scroll past Your response.', async () => {
+    // Below the response form is the reference region, which opens with the sentence and then
+    // holds the frozen record, the room and the assistant, in that order.
     const aside = page.getByRole('complementary', { name: 'What you can work with' })
-    await expect(aside).toContainText(
+    const note = aside.getByText(
       'The assistant and the Evidence Room are open again until the window closes. Checks and escalations cost window time exactly as they cost clock time before the lock.',
     )
+    await note.scrollIntoViewIfNeeded()
+    await expect(note).toBeVisible()
+    const frozenHeading = page
+      .locator('#turn-frozen')
+      .getByRole('heading', { name: 'What you filed before this arrived' })
+    await expect(frozenHeading).toBeVisible()
     await expect(aside.getByRole('heading', { name: 'Evidence Room' })).toBeVisible()
     await expect(aside.getByRole('heading', { name: 'AI assistant' })).toBeVisible()
-    await shot(11, 8)
+    await shot(11, 8, frozenHeading)
   })
 
   await test.step('11.9 Scroll to What you filed before this arrived.', async () => {
@@ -1488,9 +1547,15 @@ test('Task 12: Answer the defense', async ({ page, shot }) => {
     await questions.getByRole('button', { name: 'Submit answer' }).click()
     await expect(questions.getByText(FROM_MEMORY)).toBeVisible({ timeout: ACTION_TIMEOUT_MS })
     await expect(questions).toContainText('Answered')
-    await expect(questions.getByText('Follow-up', { exact: true })).toBeVisible()
-    await expect(questions.getByLabel('Your answer')).toHaveValue('')
-    await shot(12, 4)
+    const caption = questions.getByText('Follow-up', { exact: true })
+    await expect(caption).toBeVisible()
+    // The follow-up is drawn by the re-render that files the answer, and its own empty box under
+    // its own caption is what the guide describes: the box is found from the caption's item, not
+    // from whichever box the screen was holding a moment before.
+    const followUpAnswer = caption.locator('xpath=ancestor::li[1]').getByLabel('Your answer')
+    await expect(followUpAnswer).toBeVisible()
+    await expect(followUpAnswer).toHaveValue('')
+    await shot(12, 4, followUpAnswer)
   })
 
   await test.step('12.5 Answer all but the last question with Guide, 16 months because the memo says so via Submit answer.', async () => {
@@ -1518,7 +1583,7 @@ test('Task 12: Answer the defense', async ({ page, shot }) => {
     await shot(12, 5)
   })
 
-  await test.step('12.6 Scroll to What you filed in the right column.', async () => {
+  await test.step('12.6 Scroll to What you filed, below Questions.', async () => {
     const filed = page.getByRole('complementary', { name: 'What you filed' })
     await filed.scrollIntoViewIfNeeded()
     await expect(filed.getByRole('heading', { name: 'What you filed' })).toBeVisible()
@@ -1526,9 +1591,11 @@ test('Task 12: Answer the defense', async ({ page, shot }) => {
     await expect(filed.getByRole('heading', { name: 'Your Turn response' })).toBeVisible()
     await expect(filed).toContainText('Revise')
     await expect(filed).toContainText(TURN.why)
-    await expect(filed).toContainText('Confidence after the Turn')
+    const confidence = filed.getByText('Confidence after the Turn')
+    await expect(confidence).toBeVisible()
     await expect(filed).toContainText(`${TURN.confidence} of 100`)
-    await shot(12, 6)
+    // The Turn response is the last block of the panel, and the confidence its last line.
+    await shot(12, 6, confidence)
   })
 
   await test.step('12.7 Click Finish the defense.', async () => {
@@ -1603,20 +1670,25 @@ test('Task 13: Read your result and your debrief', async ({ page, request, shot 
       nodes.map((node) => node.querySelector('h2')?.textContent?.trim() ?? ''),
     )
     expect(titles).toEqual([...DEBRIEF_SECTIONS])
-    await sections.last().scrollIntoViewIfNeeded()
-    await shot(13, 4)
+    // Top to bottom, one section at a time, as a reader scrolls it; twelve sections do not fit one
+    // frame, so the capture is of the first, and the guide lists the rest in order.
+    for (let index = 0; index < DEBRIEF_SECTIONS.length; index += 1) {
+      await sections.nth(index).scrollIntoViewIfNeeded()
+    }
+    await shot(13, 4, sections.first().getByRole('heading', { level: 2 }))
   })
 
   await test.step('13.5 Scroll to The seven dimensions.', async () => {
     await bands.scrollIntoViewIfNeeded()
-    await expect(bands.getByRole('heading', { name: 'The seven dimensions' })).toBeVisible()
+    const heading = bands.getByRole('heading', { name: 'The seven dimensions' })
+    await expect(heading).toBeVisible()
     for (const dimension of DIMENSIONS) {
       await expect(
         bands.getByRole('heading', { level: 3, name: dimension, exact: true }),
       ).toBeVisible()
     }
     await expect(bands.getByText('Draft band')).toHaveCount(7)
-    await shot(13, 5)
+    await shot(13, 5, heading)
   })
 
   await test.step('13.6 Scroll to What your course does with the bands.', async () => {
@@ -1663,13 +1735,15 @@ test('Task 13: Read your result and your debrief', async ({ page, request, shot 
 
   await test.step('13.9 Scroll to The seven dimensions.', async () => {
     await bands.scrollIntoViewIfNeeded()
+    const heading = bands.getByRole('heading', { name: 'The seven dimensions' })
+    await expect(heading).toBeVisible()
     await expect(bands.getByText('Confirmed band')).toHaveCount(7)
     await expect(bands.getByText('Draft band')).toHaveCount(0)
     await expect(
       bands.getByRole('heading', { name: 'Your instructor wrote', exact: true }),
     ).toHaveCount(7)
     await expect(bands.getByText('Your instructor wrote no note on this dimension.')).toHaveCount(7)
-    await shot(13, 9)
+    await shot(13, 9, heading)
   })
 
   await test.step('13.10 Scroll to Two questions.', async () => {
@@ -1769,7 +1843,8 @@ test('Task 14: Open your Judgment Record', async ({ page, shot }) => {
       })
     }
     await expect(graphs.getByRole('button', { name: 'Show data table' })).toHaveCount(4)
-    await shot(14, 3)
+    // Four graphs are more than one frame; the last named is what the capture is of.
+    await shot(14, 3, graphs.getByRole('heading', { name: 'Frame beside decision' }))
   })
 
   await test.step('14.4 Click Show data table under Stance matrix.', async () => {
@@ -1785,7 +1860,8 @@ test('Task 14: Open your Judgment Record', async ({ page, shot }) => {
   await test.step('14.5 Scroll to The seven dimensions.', async () => {
     const bands = page.locator('#record-bands')
     await bands.scrollIntoViewIfNeeded()
-    await expect(bands.getByRole('heading', { name: 'The seven dimensions' })).toBeVisible()
+    const heading = bands.getByRole('heading', { name: 'The seven dimensions' })
+    await expect(heading).toBeVisible()
     for (const dimension of DIMENSIONS) {
       await expect(
         bands.getByRole('heading', { level: 3, name: dimension, exact: true }),
@@ -1795,7 +1871,7 @@ test('Task 14: Open your Judgment Record', async ({ page, shot }) => {
     await expect(
       bands.getByRole('heading', { name: 'Your instructor wrote', exact: true }),
     ).toHaveCount(7)
-    await shot(14, 5)
+    await shot(14, 5, heading)
   })
 
   await test.step('14.6 Scroll to How this run was set up.', async () => {
@@ -1945,13 +2021,13 @@ test('Task 15: Continue after an assistant outage', async ({ page, request, shot
   })
 
   await test.step('15.11 Type Guide outage position, hold in Your position now.', async () => {
-    await typeAndCount(
+    const counter = await typeAndCount(
       page,
       page.getByLabel('Your position now'),
       OUTAGE_FRAME.position,
       '4 of 100 words',
     )
-    await shot(15, 11)
+    await shot(15, 11, counter)
   })
 
   await test.step('15.12 Click Lock the frame.', async () => {
@@ -1965,8 +2041,9 @@ test('Task 15: Continue after an assistant outage', async ({ page, request, shot
     const band = page.locator('[data-state="working"]')
     await expect(band).toBeVisible({ timeout: ACTION_TIMEOUT_MS })
     await expect(band).toContainText('Working')
-    await expect(assistant.getByLabel('Your request')).toBeVisible()
-    await shot(15, 13)
+    const request = assistant.getByLabel('Your request')
+    await expect(request).toBeVisible()
+    await shot(15, 13, request)
   })
 
   await test.step('15.14 Type What is the premium payback? in Your request.', async () => {
@@ -2004,10 +2081,18 @@ test('Task 15: Continue after an assistant outage', async ({ page, request, shot
     const band = page.locator('[data-state="working"]')
     await expect(band).toBeVisible({ timeout: ACTION_TIMEOUT_MS })
     await expect(band).toContainText('Working')
-    await expect(delegationLog(page)).toContainText(
+    // The refusal the request met stays on the panel after the resume — the record of what
+    // happened, replaced by the next request — while the log names the gap in its own words.
+    await expect(
+      assistant.getByText(
+        'The assistant did not answer, so the run is paused and the clock has stopped. Nothing you did was lost.',
+      ),
+    ).toBeVisible()
+    const entry = delegationLog(page).getByText(
       'No answer came back. The run paused, your clock stopped, and the time was given back when you resumed.',
     )
-    await shot(15, 16)
+    await expect(entry).toBeVisible()
+    await shot(15, 16, entry)
   })
 
   await test.step('15.17 Type What is the premium payback? in Your request, replacing what is there.', async () => {
@@ -2023,7 +2108,7 @@ test('Task 15: Continue after an assistant outage', async ({ page, request, shot
       { timeout: ACTION_TIMEOUT_MS },
     )
     await expect(replyCard(page, 'C3')).toBeVisible()
-    await shot(15, 18)
+    await shot(15, 18, replyCard(page, 'C3'))
   })
 })
 
@@ -2095,10 +2180,14 @@ test('Task 16: Manage notifications, your account, and sign out', async ({ page,
       await expect(page.getByLabel(label, { exact: true })).toBeVisible()
     }
     await expect(page.getByRole('heading', { name: 'Signed-in devices' })).toBeVisible()
-    await expect(page.getByText('This device', { exact: true })).toBeVisible({
+    const badge = page.getByText('This device', { exact: true })
+    await expect(badge).toBeVisible({ timeout: ACTION_TIMEOUT_MS })
+    // "Everything is marked read." is a toast, raised two clicks ago and still up for a few
+    // seconds in the corner the badge sits in; the capture waits for it to go.
+    await expect(page.getByText('Everything is marked read.')).toBeHidden({
       timeout: ACTION_TIMEOUT_MS,
     })
-    await shot(16, 5)
+    await shot(16, 5, badge)
   })
 
   await test.step('16.6 Click Data.', async () => {
