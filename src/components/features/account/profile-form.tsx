@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useForm } from 'react-hook-form'
 import { object, type output } from 'zod/mini'
@@ -14,6 +13,7 @@ import { settings } from '@/lib/i18n/messages/settings'
 import { scopedT } from '@/lib/i18n/scoped'
 import { updateProfileAction } from '@/server/modules/identity/actions'
 import { FormAlert, SubmitButton } from './form-feedback'
+import { useRefresh } from '@/lib/hooks/use-refresh'
 
 // A settings screen whose one field is the name the auth screens already word and validate.
 const t = scopedT(auth, settings)
@@ -31,7 +31,7 @@ const profileSchema = object({ name: nameField })
 type ProfileValues = output<typeof profileSchema>
 
 export function ProfileForm({ name, email }: { name: string; email: string }) {
-  const router = useRouter()
+  const refresh = useRefresh()
   const [formError, setFormError] = useState<string | null>(null)
 
   const {
@@ -62,7 +62,7 @@ export function ProfileForm({ name, email }: { name: string; email: string }) {
     // render, and the form is no longer dirty.
     reset({ name: result.data.name })
     toast.success(t('settings.profileSaved'))
-    router.refresh()
+    refresh()
   }
 
   return (

@@ -33,6 +33,7 @@ import { t } from '@/lib/i18n/messages/assignment'
 import { toastSuccess } from '@/lib/toast'
 import { createAssignmentAction, updateAssignmentAction } from '@/server/modules/courses/actions'
 import type { AssignmentVariantOption, PackageVersionOption } from './package-version-option'
+import { useRefresh } from '@/lib/hooks/use-refresh'
 
 // UI-032's configuration form, used twice: the course detail's "New assignment" (step 4.2 renders
 // it with a `sectionId`) and this assignment's own screen (`assignment`). Both write through the
@@ -151,6 +152,7 @@ export function AssignmentForm({
   assignment,
 }: AssignmentFormProps) {
   const router = useRouter()
+  const refresh = useRefresh()
   const [formError, setFormError] = useState<string | null>(null)
   const locked = assignment?.inUse === true
 
@@ -237,7 +239,7 @@ export function AssignmentForm({
       }
       reset(values)
       toastSuccess(t('assignment.saved'))
-      router.refresh()
+      refresh()
       return
     }
 
@@ -254,7 +256,7 @@ export function AssignmentForm({
     }
     toastSuccess(t('assignment.created', { label: result.data.label }))
     router.push(`/assignments/${result.data.id}` as Route)
-    router.refresh()
+    refresh()
   }
 
   const lockedNoteId = 'assignment-locked'

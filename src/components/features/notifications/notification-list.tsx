@@ -3,7 +3,6 @@
 import { useState, useTransition } from 'react'
 import Link from 'next/link'
 import type { Route } from 'next'
-import { useRouter } from 'next/navigation'
 import {
   CheckCheckIcon,
   CircleAlertIcon,
@@ -29,11 +28,12 @@ import {
   markNotificationReadAction,
 } from '@/server/modules/notifications/actions'
 import type { NotificationType, NotificationView } from '@/server/modules/notifications/schema'
+import { useRefresh } from '@/lib/hooks/use-refresh'
 
 // UI-011. The first page is server-rendered and handed in; this component owns the three things a
 // list does after that: append the next page by cursor, mark one row read, mark everything read.
 //
-// The rows shown are the server's page plus whatever "Load more" has appended, so a `router.refresh()`
+// The rows shown are the server's page plus whatever "Load more" has appended, so a `refresh()`
 // after a read mark flows straight through — the marked row arrives from the server already read,
 // and the optimistic set only covers the moment in between.
 
@@ -65,7 +65,7 @@ type NotificationListProps = {
 }
 
 export function NotificationList({ initial, initialCursor }: NotificationListProps) {
-  const router = useRouter()
+  const refresh = useRefresh()
   const [appended, setAppended] = useState<NotificationView[]>([])
   const [cursor, setCursor] = useState<string | null>(initialCursor)
   const [readIds, setReadIds] = useState<ReadonlySet<string>>(new Set())
@@ -104,7 +104,7 @@ export function NotificationList({ initial, initialCursor }: NotificationListPro
         showActionError(result.error)
         return
       }
-      router.refresh()
+      refresh()
     })
   }
 
@@ -119,7 +119,7 @@ export function NotificationList({ initial, initialCursor }: NotificationListPro
         return
       }
       toast.success(t('notifications.markedAllRead'))
-      router.refresh()
+      refresh()
     })
   }
 

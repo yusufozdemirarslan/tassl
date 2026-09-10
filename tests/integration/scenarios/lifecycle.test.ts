@@ -878,9 +878,14 @@ describe('confirmVersion refuses in the order 10 §4 gives', () => {
     )
     expect(refused.code).toBe('PACKAGE_INVALID')
     expect(refused.details).toMatchObject({ rules: ['CLAIM_CONCEPT_UNKNOWN'] })
-    const failures = (refused.details as { failures: { code: string; elementIds: string[] }[] })
-      .failures
+    const failures = (
+      refused.details as {
+        failures: { code: string; elementIds: string[]; elementKeys: string[] }[]
+      }
+    ).failures
     expect(failures[0]?.elementIds).toEqual([claims.get('C5')])
+    // And the key beside the id, which is what a screen prints (UI-044, UI-041).
+    expect(failures[0]?.elementKeys).toEqual(['C5'])
 
     // The same report reaches the workspace through the version view (FR-194).
     const view = await scenarios.getPackageVersion(fx.author, versionId)
@@ -888,6 +893,10 @@ describe('confirmVersion refuses in the order 10 §4 gives', () => {
     expect(view.validation.failures.map((failure) => failure.code)).toEqual([
       'CLAIM_CONCEPT_UNKNOWN',
     ])
+    expect(view.validation.failures[0]).toMatchObject({
+      elementIds: [claims.get('C5')],
+      elementKeys: ['C5'],
+    })
 
     // Putting the concept back makes the package confirmable again.
     await scenarios.updateElement(fx.author, versionId, 'claim', claims.get('C5')!, {
@@ -965,6 +974,16 @@ describe('confirmVersion freezes the version', () => {
     expect(view.confirmationRecord).toHaveLength(decided.length)
     for (const row of view.confirmationRecord) {
       expect(row).toMatchObject({ decision: 'confirmed', decidedBy: fx.instructor.id })
+    }
+    // Each row carries the element's key for the record's Element column (UI-044): a singleton's
+    // is null, a row element's is what the workspace lists it under.
+    const recordKeys = new Map(
+      view.confirmationRecord.map((row) => [`${row.elementType}:${row.elementId}`, row.elementKey]),
+    )
+    expect(recordKeys.get(`claim:${(await claimIdsByKey(versionId)).get('C3')}`)).toBe('C3')
+    expect(recordKeys.get('brief:null')).toBeNull()
+    for (const row of view.confirmationRecord) {
+      if (row.elementId !== null) expect(row.elementKey).toEqual(expect.any(String))
     }
 
     // The export-format snapshot was written with the transition (07 §6, SYS-026).

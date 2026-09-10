@@ -45,6 +45,7 @@ export default async function ReviewQueuePage() {
           studentName: run.studentName,
           attemptNo: run.attemptNo,
           state: run.state,
+          underReview: run.scoringStatus === 'held',
           decisionsMade: run.decisionsMade,
           latestExportVersion: run.latestExportVersion,
         }))}

@@ -4,7 +4,7 @@ import { scopedT } from '../scoped'
 export const packageNew = {
   'packageNew.title': 'New package from a seed case',
   'packageNew.description':
-    'A package is built from a case you hold the rights to adapt. Name the family, list the concepts a run on it exercises, record the license you are relying on, and paste the case itself.',
+    'A scenario package is built from a case you hold the rights to adapt. Name the family, list the concepts a run on it exercises, record the license you are relying on, and paste the case itself.',
   'packageNew.packageTitle': 'The package',
   'packageNew.packageDescription':
     'What the family is called here and what it teaches. The family key travels with every export and no two packages in one institution may share it.',

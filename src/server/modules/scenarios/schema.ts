@@ -1015,6 +1015,12 @@ export type PageQuery = Parsed<typeof PageQuerySchema>
 export const ValidationFailureSchema = z.object({
   code: z.string().min(1),
   elementIds: z.array(z.string()).default([]),
+  /**
+   * The same elements by the key an author knows them by (`C3`, `D1`, `defective:C3`), one per
+   * entry of `elementIds` and in the same order. A screen prints these; the ids are for the
+   * workspace to address the element with.
+   */
+  elementKeys: z.array(z.string()).default([]),
   message: z.string(),
 })
 export type ValidationFailure = Parsed<typeof ValidationFailureSchema>
@@ -1033,6 +1039,12 @@ export const ElementConfirmationViewSchema = z.object({
   id: z.uuid(),
   elementType: ElementTypeSchema,
   elementId: z.uuid().nullable(),
+  /**
+   * The element's own key (`C3`, `D1`, `defective:C3`) on the version's record, where a row is
+   * read beside a hundred others; null for a singleton, and absent on the confirmation an element
+   * carries for itself, which already sits under its key.
+   */
+  elementKey: z.string().nullable().optional(),
   revision: z.int(),
   decision: ConfirmationDecisionSchema,
   note: z.string(),

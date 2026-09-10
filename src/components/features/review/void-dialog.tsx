@@ -1,7 +1,6 @@
 'use client'
 
 import { useId, useState, useTransition } from 'react'
-import { useRouter } from 'next/navigation'
 import { TriangleAlertIcon } from 'lucide-react'
 import { FormAlert } from '@/components/features/account/form-feedback'
 import { Button } from '@/components/ui/button'
@@ -21,6 +20,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { t } from '@/lib/i18n/messages/review'
 import { toastSuccess } from '@/lib/toast'
 import { voidRunAction } from '@/server/modules/review/actions'
+import { useRefresh } from '@/lib/hooks/use-refresh'
 
 // UI-033 → `VoidDialog` (FR-002, FR-008, FR-183, D-120).
 //
@@ -64,7 +64,7 @@ const VARIANT_LABELS: Record<'defective' | 'sound', () => string> = {
 }
 
 export function VoidDialog({ runId, variants, exported }: VoidDialogProps) {
-  const router = useRouter()
+  const refresh = useRefresh()
   const fieldId = useId()
   const [open, setOpen] = useState(false)
   const [pending, startTransition] = useTransition()
@@ -245,7 +245,7 @@ export function VoidDialog({ runId, variants, exported }: VoidDialogProps) {
                       : t('review.voidDoneWithReoffer'),
                   )
                   setOpen(false)
-                  router.refresh()
+                  refresh()
                 })
               }}
             >

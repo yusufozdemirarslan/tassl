@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { Clock } from './clock'
 import { clockSeconds, useClock } from '@/lib/hooks/use-clock'
 import { t } from '@/lib/i18n/messages/decision'
+import { useRefresh } from '@/lib/hooks/use-refresh'
 
 // UI-024, the wait for the Turn (FR-110), and the A11y line UI-024 asks for.
 //
@@ -40,6 +41,7 @@ export type TurnWaitProps = {
 
 export function TurnWait({ remainingMs, panelId }: TurnWaitProps) {
   const router = useRouter()
+  const refresh = useRefresh()
   const remaining = useClock(remainingMs === null ? null : { remainingMs, frozen: false })
   const seconds = remaining === null ? null : clockSeconds(remaining)
   const [due, setDue] = useState(false)
@@ -54,8 +56,8 @@ export function TurnWait({ remainingMs, panelId }: TurnWaitProps) {
     document.getElementById(panelId)?.focus({ preventScroll: true })
     // And the page is asked for again, which is the read that delivers the Turn and the render that
     // redirects to it (see the header).
-    router.refresh()
-  }, [seconds, panelId, router])
+    refresh()
+  }, [seconds, panelId, router, refresh])
 
   return (
     <div className="flex flex-col gap-3">

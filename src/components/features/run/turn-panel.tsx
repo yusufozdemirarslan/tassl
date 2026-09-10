@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useId, useState } from 'react'
-import { useRouter } from 'next/navigation'
 import { Loader2Icon, PencilLineIcon } from 'lucide-react'
 import { FormAlert } from '@/components/features/account/form-feedback'
 import { Panel } from '@/components/layout/panel'
@@ -26,6 +25,7 @@ import { countWords } from '@/lib/words'
 import { respondToTurnAction } from '@/server/modules/runs/actions'
 import type { TurnResponseKindValue } from '@/server/modules/runs/schema'
 import { useRunWork } from './run-work-context'
+import { useRefresh } from '@/lib/hooks/use-refresh'
 
 // UI-025: the response to the Turn (FR-112, FR-113).
 //
@@ -176,7 +176,7 @@ export type TurnPanelProps = {
 }
 
 export function TurnPanel({ runId, claims }: TurnPanelProps) {
-  const router = useRouter()
+  const refresh = useRefresh()
   const fieldId = useId()
   const legendId = useId()
   const { announce } = useRunWork()
@@ -258,7 +258,7 @@ export function TurnPanel({ runId, claims }: TurnPanelProps) {
           // replaces this tree and a student working by screen reader would otherwise learn that
           // their response landed only from the heading of the screen after it.
           announce(t('turn.filed'))
-          router.refresh()
+          refresh()
           return
         }
         setFiling(false)

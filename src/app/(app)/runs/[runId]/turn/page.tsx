@@ -5,6 +5,7 @@ import {
   AssistantPanel,
   ClaimCard,
   ClaimControls,
+  DeclarationControl,
   TurnPanel,
 } from '@/components/features/run/deferred-panels'
 import { EvidenceRoom } from '@/components/features/run/evidence-room'
@@ -246,6 +247,12 @@ export default async function RunTurnPage({ params }: PageProps<'/runs/[runId]/t
               submitVariant="secondary"
               assistantMode={assistantMode}
             />
+
+            {/* FR-061 puts the outside-tool declaration on every working-period screen, and the
+                Turn window is one: the room and the assistant are open again, and so is whatever
+                else the student reaches for. The same control the workspace draws, under the
+                assistant it sits beside there. */}
+            <DeclarationControl runId={turn.run.id} />
           </aside>
         </div>
       </RunWorkProvider>

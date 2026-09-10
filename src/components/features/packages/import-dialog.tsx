@@ -281,21 +281,28 @@ function issuePath(path: unknown): string | null {
   return t('packageImport.problemAt', { path: parts.join('.') })
 }
 
+/** The strings of an untyped array, and nothing from anything else. */
+function strings(value: unknown): string[] {
+  return Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === 'string')
+    : []
+}
+
 /** `PACKAGE_INVALID.details.failures`, and the same shape in a successful import's report. */
 function toValidationProblems(failures: unknown): Problem[] {
   if (!Array.isArray(failures)) return []
   return failures.filter(isRecord).map((failure, index) => {
-    const elementIds = Array.isArray(failure.elementIds)
-      ? failure.elementIds.filter((id): id is string => typeof id === 'string')
-      : []
+    const elementIds = strings(failure.elementIds)
+    // The keys are what the author can find in the file (`C3`, `D1`); the ids are database rows
+    // that did not exist when the document was written, and stand in only when no key came.
+    const elementKeys = strings(failure.elementKeys)
+    const named = elementKeys.length === elementIds.length ? elementKeys : elementIds
     return {
       id: `rule-${index}`,
       code: asString(failure.code) ?? 'PACKAGE_INVALID',
       message: asString(failure.message) ?? t('packageImport.problemUnnamed'),
       where:
-        elementIds.length > 0
-          ? t('packageImport.problemElements', { keys: elementIds.join(', ') })
-          : null,
+        named.length > 0 ? t('packageImport.problemElements', { keys: named.join(', ') }) : null,
     }
   })
 }

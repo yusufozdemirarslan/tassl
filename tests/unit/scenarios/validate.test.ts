@@ -1825,3 +1825,52 @@ describe('RESKIN_LOG_EMPTY', () => {
     )
   })
 })
+
+// ---------------------------------------------------------------------------------------------
+// Element keys beside the ids
+// ---------------------------------------------------------------------------------------------
+
+describe('elementKeys', () => {
+  it('names each element at fault by the key an author reads it by, in id order', () => {
+    const version = validVersion()
+    version.documents = version.documents.filter((document) => document.key !== 'D6')
+
+    const failure = validatePackage(version).failures.find(
+      (item) => item.code === 'TRACE_DOCUMENT_MISSING',
+    )
+    expect(failure).toBeDefined()
+    expect(failure?.elementIds.length).toBeGreaterThan(0)
+    expect(failure?.elementKeys).toHaveLength(failure?.elementIds.length ?? -1)
+    // Every entry is a key (`C3`, `defective:C3`), never one of the ids beside it.
+    for (const [index, id] of (failure?.elementIds ?? []).entries()) {
+      expect(failure?.elementKeys[index]).not.toBe(id)
+      expect(failure?.elementKeys[index]).toMatch(/^(?:defective:|sound:)?[A-Z]\d+$/)
+    }
+  })
+
+  it('spells a claim state as the workspace does, variant then claim', () => {
+    const version = validVersion()
+    const sound = version.variants.find((variant) => variant.key === 'sound')
+    const state = sound?.claimStates[0]
+    if (state === undefined) throw new Error('the valid package has a sound variant with states')
+    state.planted = true
+
+    const failure = validatePackage(version).failures.find(
+      (item) => item.code === 'DEFECTIVE_VARIANT_PLANT',
+    )
+    expect(failure?.elementIds).toEqual([state.claimId])
+    const claim = version.claims.find((item) => item.id === state.claimId)
+    expect(failure?.elementKeys).toEqual([claim?.key])
+  })
+
+  it('is empty exactly when no single element is at fault', () => {
+    const version = validVersion()
+    version.brief = words(201)
+    expect(
+      validatePackage(version).failures.find((item) => item.code === 'BRIEF_TOO_LONG'),
+    ).toMatchObject({
+      elementIds: [],
+      elementKeys: [],
+    })
+  })
+})

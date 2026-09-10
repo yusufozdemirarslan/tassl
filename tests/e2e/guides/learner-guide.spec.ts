@@ -2063,6 +2063,8 @@ test('Task 16: Manage notifications, your account, and sign out', async ({ page,
     await expect(menu).toContainText('Student One')
     await expect(menu).toContainText(seatEmail('student1'))
     await expect(menu.getByRole('menuitem', { name: 'Settings' })).toBeVisible()
+    await expect(menu.getByRole('menuitem', { name: 'Privacy' })).toBeVisible()
+    await expect(menu.getByRole('menuitem', { name: 'Terms' })).toBeVisible()
     await expect(menu.getByRole('menuitem', { name: 'Sign out' })).toBeVisible()
     await shot(16, 3)
   })

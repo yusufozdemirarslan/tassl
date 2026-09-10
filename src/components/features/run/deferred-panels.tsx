@@ -52,7 +52,7 @@ export const AssistantPanel = dynamic(() =>
 /** The `working` screen's log (FR-060, FR-063, FR-084). Carries the claim and stance controls. */
 export const DelegationLog = dynamic(() => import('./delegation-log').then((m) => m.DelegationLog))
 
-/** The `working` screen's outside-tool declaration (FR-061, FR-062, FR-006). */
+/** The outside-tool declaration (FR-061, FR-062, FR-006), on the `working` screen and the Turn window. */
 export const DeclarationControl = dynamic(() =>
   import('./declaration-control').then((m) => m.DeclarationControl),
 )

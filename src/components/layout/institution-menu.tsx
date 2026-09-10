@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { useRouter } from 'next/navigation'
 import { Loader2Icon } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -17,6 +16,7 @@ import { t } from '@/lib/i18n/messages/shell'
 import { setActiveInstitutionAction } from '@/server/modules/tenancy/actions'
 import { InstitutionTriggerContent, institutionTriggerClassName } from './header-menu-triggers'
 import type { Institution } from './institution-switcher'
+import { useRefresh } from '@/lib/hooks/use-refresh'
 
 type InstitutionMenuProps = {
   institutions: Institution[]
@@ -39,7 +39,7 @@ export function InstitutionMenu({
   open,
   onOpenChange,
 }: InstitutionMenuProps) {
-  const router = useRouter()
+  const refresh = useRefresh()
   const [pending, startTransition] = useTransition()
   const [switching, setSwitching] = useState<string | null>(null)
   const showActionError = useActionErrorToast()
@@ -55,7 +55,7 @@ export function InstitutionMenu({
         return
       }
       toast.success(t('shell.institutionSwitched', { name: result.data.name }))
-      router.refresh()
+      refresh()
     })
   }
 

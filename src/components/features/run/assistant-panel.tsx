@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useState, type ReactNode } from 'react'
-import { useRouter } from 'next/navigation'
 import { Loader2Icon, TriangleAlertIcon } from 'lucide-react'
 import { FormAlert } from '@/components/features/account/form-feedback'
 import { EmptyState } from '@/components/layout/empty-state'
@@ -20,6 +19,7 @@ import type { TracedDocument } from './action-result-sheet'
 import { AssistantModeChip } from './assistant-mode-chip'
 import { ClaimCard, ClaimControls } from './claim-card'
 import { useRunWork } from './run-work-context'
+import { useRefresh } from '@/lib/hooks/use-refresh'
 
 // UI-023, middle column in `working`: the AI assistant (FR-050 to FR-053, FR-056, AI-002).
 //
@@ -224,7 +224,7 @@ export function AssistantPanel({
   submitVariant = 'primary',
   assistantMode,
 }: AssistantPanelProps) {
-  const router = useRouter()
+  const refresh = useRefresh()
   const { setWorked } = useRunWork()
   const [request, setRequest] = useState('')
   const [invalid, setInvalid] = useState<string | null>(null)
@@ -237,14 +237,14 @@ export function AssistantPanel({
       // The request the student typed has landed and been echoed above the reply; the box is theirs
       // again. It is cleared here rather than at the press so a failed request is still in it.
       setRequest('')
-      router.refresh()
+      refresh()
     },
     onFailed: (failure) => {
       // `ASSISTANT_UNAVAILABLE` means the run is now paused and the clock is stopped (FR-001), and
       // `ASSISTANT_LOCKED` means this screen is behind the run. Both are answered by the server
       // render: the first draws the paused overlay, the second sends the student where they belong.
       if (failure.code === 'ASSISTANT_UNAVAILABLE' || failure.code === 'ASSISTANT_LOCKED') {
-        router.refresh()
+        refresh()
       }
     },
   })

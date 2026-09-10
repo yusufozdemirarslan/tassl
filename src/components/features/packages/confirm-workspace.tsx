@@ -46,6 +46,7 @@ import {
   type WorkspaceElement,
 } from './element-model'
 import { fieldsFor } from './element-editors/specs'
+import { useRefresh } from '@/lib/hooks/use-refresh'
 
 // UI-043 (FR-192, FR-027, FR-198). The room where an author signs a scenario element by element.
 //
@@ -127,17 +128,11 @@ function readFailures(details: unknown): ValidationFailure[] {
   if (!Array.isArray(failures)) return []
   return failures.flatMap((entry): ValidationFailure[] => {
     if (typeof entry !== 'object' || entry === null) return []
-    const { code, message, elementIds } = entry as Record<string, unknown>
+    const { code, message, elementIds, elementKeys } = entry as Record<string, unknown>
     if (typeof code !== 'string' || typeof message !== 'string') return []
-    return [
-      {
-        code,
-        message,
-        elementIds: Array.isArray(elementIds)
-          ? elementIds.filter((id): id is string => typeof id === 'string')
-          : [],
-      },
-    ]
+    const strings = (value: unknown): string[] =>
+      Array.isArray(value) ? value.filter((id): id is string => typeof id === 'string') : []
+    return [{ code, message, elementIds: strings(elementIds), elementKeys: strings(elementKeys) }]
   })
 }
 
@@ -183,6 +178,7 @@ function SigningLine({ term, value, mono }: { term: string; value: string; mono?
 export function ConfirmWorkspace(props: ConfirmWorkspaceProps) {
   const { packageId, versionId, version, frozen, canEdit, canConfirm, versionHref } = props
   const router = useRouter()
+  const refresh = useRefresh()
 
   // The server is the record; an override is the gap between an action's answer and the render
   // that follows it. The props take the element back when they carry a decision the override has
@@ -593,7 +589,7 @@ export function ConfirmWorkspace(props: ConfirmWorkspaceProps) {
           ? t('confirm.regenerateDoneToast', { name: regenerating.key })
           : t('confirm.regenerateDoneDraftToast', { name: regenerating.key }),
       )
-      router.refresh()
+      refresh()
     }
 
     const poll = async (): Promise<void> => {
@@ -621,7 +617,7 @@ export function ConfirmWorkspace(props: ConfirmWorkspaceProps) {
       stopped = true
       if (timer !== undefined) clearTimeout(timer)
     }
-  }, [regenerating, versionId, router])
+  }, [regenerating, versionId, router, refresh])
 
   const confirmVersion = useCallback(async (): Promise<void> => {
     setConfirming(true)

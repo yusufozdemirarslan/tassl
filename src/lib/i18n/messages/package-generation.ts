@@ -15,10 +15,10 @@
 // a rule the package no longer breaks, and `ruleSettled` says exactly that rather than inventing
 // one.
 //
-// **A control says what it does not do.** The retry starts the pipeline again at step one; it does
-// not resume in the middle, and it does not touch an element an author has already confirmed. Both
-// halves are on the screen beside the button, because the second half is the one that decides
-// whether the press is safe.
+// **A control says what it does.** The retry resumes at the first step that has not finished — it
+// does not start again at step 1, which would rewrite rows the later steps depend on (D-683) — and
+// it does not touch an element an author has already confirmed. Both halves are on the screen
+// beside the button, because the second half is the one that decides whether the press is safe.
 import { scopedT } from '../scoped'
 
 export const packageGeneration = {
@@ -83,7 +83,7 @@ export const packageGeneration = {
   'generation.retry': 'Run generation again',
   'generation.retryPending': 'Starting…',
   'generation.retryNote':
-    'Generation starts again at step 1; it does not resume where it stopped. Every element you have confirmed is kept exactly as it is, and every other element a step reaches is replaced.',
+    'Generation resumes at the first step that has not finished; the steps already done are not run again. Every element you have confirmed is kept exactly as it is, and every other element a step reaches is replaced.',
 
   // ---------------------------------------------------------------------------------------
   // Starting it

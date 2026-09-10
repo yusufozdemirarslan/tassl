@@ -251,6 +251,8 @@ test('Task 1: Sign in and find your way around', async ({ page, shot }) => {
   await test.step('1.12 Click the Account button in the header (your name is part of its label).', async () => {
     await openAccountMenu(page)
     await expect(page.getByRole('menuitem', { name: 'Settings' })).toBeVisible()
+    await expect(page.getByRole('menuitem', { name: 'Privacy' })).toBeVisible()
+    await expect(page.getByRole('menuitem', { name: 'Terms' })).toBeVisible()
     await expect(page.getByRole('menuitem', { name: 'Sign out' })).toBeVisible()
     await shot(1, 12)
   })
@@ -1253,7 +1255,7 @@ test('Task 10: Export results to the gradebook', async ({ page, shot }) => {
 
   await test.step('10.6 Read the Every version written table.', async () => {
     const table = page.locator('#assignment-exports')
-    await expect(table.getByRole('columnheader', { name: 'Student seat' })).toBeVisible()
+    await expect(table.getByRole('columnheader', { name: 'Student' })).toBeVisible()
     const corrected = table.getByRole('row').filter({ hasText: 'A correction was entered' })
     await expect(corrected).toContainText('Student Two')
     await expect(corrected.getByRole('cell').nth(1)).toHaveText('2')
@@ -1583,6 +1585,8 @@ test('Task 12: Manage notifications, your account, and sign out', async ({ page,
   await test.step('12.3 Click the Account button in the header.', async () => {
     await openAccountMenu(page)
     await expect(page.getByRole('menuitem', { name: 'Settings' })).toBeVisible()
+    await expect(page.getByRole('menuitem', { name: 'Privacy' })).toBeVisible()
+    await expect(page.getByRole('menuitem', { name: 'Terms' })).toBeVisible()
     await expect(page.getByRole('menuitem', { name: 'Sign out' })).toBeVisible()
     await shot(12, 3)
   })
@@ -1637,6 +1641,12 @@ test('Task 12: Manage notifications, your account, and sign out', async ({ page,
 
   await test.step('12.10 Click the Account button in the header.', async () => {
     await openAccountMenu(page)
+    await expect(page.getByRole('menuitem', { name: 'Settings' })).toBeVisible()
+    await expect(page.getByRole('menuitem', { name: 'Privacy' })).toBeVisible()
+    await expect(page.getByRole('menuitem', { name: 'Terms' })).toBeVisible()
+    await expect(page.getByRole('menuitem', { name: 'Settings' })).toBeVisible()
+    await expect(page.getByRole('menuitem', { name: 'Privacy' })).toBeVisible()
+    await expect(page.getByRole('menuitem', { name: 'Terms' })).toBeVisible()
     await expect(page.getByRole('menuitem', { name: 'Sign out' })).toBeVisible()
     await shot(12, 10)
   })

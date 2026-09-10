@@ -29,7 +29,7 @@ Students, teaching assistants and platform admins have other guides; this one co
 - **Review** (rail) — **Runs waiting for you**: every scored run of a section you review, newest first, each with **Open the replay for** the student. The replay has the views **Overview**, **Bands**, **Trace**, **Package** and **Actions**.
 - **Packages** (rail) — the scenario packages of the institution and **New package from a seed case**; a package row opens its latest version, from which you reach the generation screen and the confirmation workspace.
 - **Notifications** (the bell in the header) — what Tassl has told you, newest first.
-- **Account** (the header button that carries your name) — **Settings**, with the sections **Profile**, **Security** and **Data**, and **Sign out**.
+- **Account** (the header button that carries your name) — **Settings**, with the sections **Profile**, **Security** and **Data**, then **Privacy**, **Terms** and **Sign out**.
 - The institution name in the header becomes a **Switch institution** menu when you belong to more than one.
 
 Two rail items never appear for an instructor seat: **Runs** belongs to student seats and **Admin** to platform admins.
@@ -64,7 +64,7 @@ Two rail items never appear for an instructor seat: **Runs** belongs to student 
    ![Task 1 step 10](screenshots/instructor/task-01-step-10.png)
 11. Click the **Notifications** bell in the header. → You see: the heading **Notifications** and **What Tassl has told you, newest first.**
    ![Task 1 step 11](screenshots/instructor/task-01-step-11.png)
-12. Click the **Account** button in the header (your name is part of its label). → You see: the menu items **Settings** and **Sign out**.
+12. Click the **Account** button in the header (your name is part of its label). → You see: the menu items **Settings**, **Privacy**, **Terms** and **Sign out**.
    ![Task 1 step 12](screenshots/instructor/task-01-step-12.png)
 
 *If something goes wrong:*
@@ -390,7 +390,7 @@ Two rail items never appear for an instructor seat: **Runs** belongs to student 
    ![Task 10 step 4](screenshots/instructor/task-10-step-04.png)
 5. Click **Course exports**. → You see: the heading **Course exports**, **Every version written** and **Enter bands, mapping, and points in the gradebook of record; Tassl holds no grade.**
    ![Task 10 step 5](screenshots/instructor/task-10-step-05.png)
-6. Read the **Every version written** table. → You see: **Student Two** under **Student seat**, **A correction was entered** on version **2** and **The bands were confirmed** on version **1**.
+6. Read the **Every version written** table. → You see: **Student Two** under **Student**, **A correction was entered** on version **2** and **The bands were confirmed** on version **1**.
    ![Task 10 step 6](screenshots/instructor/task-10-step-06.png)
 7. Click **Download version 2**. → You see: your browser saves a file whose name begins **tassl-course-export-** and ends **-v2.json**.
    ![Task 10 step 7](screenshots/instructor/task-10-step-07.png)
@@ -486,7 +486,7 @@ Two rail items never appear for an instructor seat: **Runs** belongs to student 
    ![Task 12 step 1](screenshots/instructor/task-12-step-01.png)
 2. Click **Mark all read**. → You see: **Everything is marked read.**
    ![Task 12 step 2](screenshots/instructor/task-12-step-02.png)
-3. Click the **Account** button in the header. → You see: the menu items **Settings** and **Sign out**.
+3. Click the **Account** button in the header. → You see: the menu items **Settings**, **Privacy**, **Terms** and **Sign out**.
    ![Task 12 step 3](screenshots/instructor/task-12-step-03.png)
 4. Click **Settings**. → You see: the heading **Account settings**, the panel **Profile** and **Your name** reading **Instructor Seat**.
    ![Task 12 step 4](screenshots/instructor/task-12-step-04.png)
@@ -500,7 +500,7 @@ Two rail items never appear for an instructor seat: **Runs** belongs to student 
    ![Task 12 step 8](screenshots/instructor/task-12-step-08.png)
 9. Click **Keep my account**. → You see: the panel **Delete account** with its button **Delete my account** and no dialog.
    ![Task 12 step 9](screenshots/instructor/task-12-step-09.png)
-10. Click the **Account** button in the header. → You see: the menu item **Sign out**.
+10. Click the **Account** button in the header. → You see: the menu items **Settings**, **Privacy**, **Terms** and **Sign out**.
    ![Task 12 step 10](screenshots/instructor/task-12-step-10.png)
 11. Click **Sign out**. → You see: **Sign in to Tassl**.
    ![Task 12 step 11](screenshots/instructor/task-12-step-11.png)

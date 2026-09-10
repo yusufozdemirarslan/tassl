@@ -2,7 +2,6 @@
 
 import { useId, useState } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
 import type { Route } from 'next'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useForm } from 'react-hook-form'
@@ -25,6 +24,7 @@ import {
 } from '@/components/ui/table'
 import { t } from '@/lib/i18n/messages/courses'
 import { changeMappingAction, previewMappingChangeAction } from '@/server/modules/courses/actions'
+import { useRefresh } from '@/lib/hooks/use-refresh'
 
 // UI-030 → Mapping, in the two steps FR-206 takes it in (PRD §7.19, D-095).
 //
@@ -130,7 +130,7 @@ const points = (value: number | null): string =>
   value === null ? t('courses.mappingPreviewNoPoints') : value.toFixed(3)
 
 export function MappingEditor({ courseId, mapping, readOnly = false }: MappingEditorProps) {
-  const router = useRouter()
+  const refresh = useRefresh()
   const fieldId = useId()
   const acknowledgeId = `${fieldId}-acknowledge`
   const [formError, setFormError] = useState<string | null>(null)
@@ -211,11 +211,13 @@ export function MappingEditor({ courseId, mapping, readOnly = false }: MappingEd
           proficient: String(result.data.mapping.proficient),
           professional: String(result.data.mapping.professional),
         })
-        router.refresh()
+        refresh()
       },
       () => {
+        // The request never reached the action, so there is no envelope to quote; the sentence
+        // says the apply did not happen rather than restating what applying does.
         setApplying(false)
-        setFormError(t('courses.mappingApplyNote'))
+        setFormError(t('courses.mappingApplyFailed'))
       },
     )
   }

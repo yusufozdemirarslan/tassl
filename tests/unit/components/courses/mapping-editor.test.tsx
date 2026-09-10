@@ -197,6 +197,37 @@ describe('MappingEditor (UI-030 → Mapping)', () => {
     expect(screen.getByText(enUS['courses.mappingPreviewUnchanged'])).toBeInTheDocument()
   })
 
+  it('says the apply did not happen when the request never reaches the action', async () => {
+    actions.changeMappingAction.mockRejectedValue(new Error('network'))
+    const user = renderEditor()
+    await toPreview(user)
+    await user.click(acknowledge())
+    await user.click(applyButton())
+
+    const alert = await screen.findByRole('alert')
+    await waitFor(() => expect(alert).toHaveTextContent(enUS['courses.mappingApplyFailed']))
+    // The explanatory note beside the button is what applying does, not what went wrong.
+    expect(alert).not.toHaveTextContent(enUS['courses.mappingApplyNote'])
+    expect(toasts.success).not.toHaveBeenCalled()
+  })
+
+  it('quotes the envelope when the action refuses the apply', async () => {
+    actions.changeMappingAction.mockResolvedValue({
+      ok: false,
+      error: { code: 'FORBIDDEN', message: 'Only the instructor of this course sets its mapping.' },
+    })
+    const user = renderEditor()
+    await toPreview(user)
+    await user.click(acknowledge())
+    await user.click(applyButton())
+
+    const alert = await screen.findByRole('alert')
+    await waitFor(() =>
+      expect(alert).toHaveTextContent('Only the instructor of this course sets its mapping.'),
+    )
+    expect(alert).not.toHaveTextContent(enUS['courses.mappingApplyNote'])
+  })
+
   it('refuses to apply until the re-export acknowledgement is ticked, and says so at the box', async () => {
     const user = renderEditor()
     await toPreview(user)

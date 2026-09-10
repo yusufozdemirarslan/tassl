@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
 import { Loader2Icon } from 'lucide-react'
 import {
   AlertDialog,
@@ -40,6 +39,7 @@ import { toastError, toastSuccess } from '@/lib/toast'
 import { listUsersAction, setPlatformRoleAction } from '@/server/modules/admin/actions'
 import type { AdminUser, AdminUserPage, PlatformRole } from '@/server/modules/admin/schema'
 import { PLATFORM_ROLE_ITEMS, PLATFORM_ROLE_LABELS } from './platform-roles'
+import { useRefresh } from '@/lib/hooks/use-refresh'
 
 // UI-050's users table. The first page is rendered on the server; this component owns the two
 // things the screen does with it — set a platform role, and ask for the page after this one.
@@ -70,7 +70,7 @@ export function UserTable({
   query: string
   selfId: string
 }) {
-  const router = useRouter()
+  const refresh = useRefresh()
   const [items, setItems] = useState<readonly AdminUser[]>(initial.items)
   const [cursor, setCursor] = useState<string | null>(initial.nextCursor)
   const [loading, setLoading] = useState(false)
@@ -110,7 +110,7 @@ export function UserTable({
       }),
     )
     // The audit log on the next tab has a new row in it.
-    router.refresh()
+    refresh()
   }
 
   if (items.length === 0) {

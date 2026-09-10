@@ -47,7 +47,9 @@ export type RunListProps = {
  * Turn" is what is being asked of them, and `links.next` is where it happens.
  */
 const NEXT_ACTION: Record<RunStateValue, (() => string) | null> = {
-  assigned: () => t('run.actionContinue'),
+  // A run in `assigned` has been offered and not begun: its screen is "Before you begin", so the
+  // word is the one the row with no attempt yet carries, and Continue is kept for every later state.
+  assigned: () => t('run.actionStart'),
   readiness: () => t('run.actionContinue'),
   framing: () => t('run.actionContinue'),
   working: () => t('run.actionContinue'),

@@ -394,7 +394,7 @@ export const review = {
     'What you write is kept on the run’s own record. Only the reason above is used in any count of voided runs.',
   'review.voidReoffer': 'Offer the student another run',
   'review.voidReofferHint':
-    'The new run uses the other variant of this scenario unless you choose one.',
+    'The new run uses the other variant of this scenario package unless you choose one.',
   'review.voidVariantLabel': 'Variant for the new run',
   'review.voidVariantAuto': 'The other variant',
   'review.voidVariantDefective': 'Defective',
@@ -538,7 +538,7 @@ export const review = {
     'The first export for a run is written when all seven of its bands carry a decision. Every correction after that writes another.',
   'review.assignmentExportsCaption': 'Every course export written on this assignment.',
   'review.assignmentExportsColumnRun': 'Run',
-  'review.assignmentExportsColumnStudent': 'Student seat',
+  'review.assignmentExportsColumnStudent': 'Student',
   'review.assignmentExportsRunLink': 'Open the replay',
   // D-517: the course's instructor may read this history without holding a row in the section, and
   // the replay asks for that row. Saying so is better than a link that answers 404.

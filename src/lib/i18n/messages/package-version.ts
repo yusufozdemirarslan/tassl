@@ -64,7 +64,7 @@ export const packageVersion = {
   // Program lead (08 §4, D-211): admitted to the measures and nothing else, and told so.
   'packageVersion.restrictedTitle': 'Measures only',
   'packageVersion.restrictedBody':
-    'Your seat reads how this version was built — how long confirmation took, how much was rewritten, who signed it — and not what it contains. The brief, the claims, the element-by-element record and the rule report stay with the people who author and teach the scenario.',
+    'Your seat reads how this version was built — how long confirmation took, how much was rewritten, who signed it — and not what it contains. The brief, the claims, the element-by-element record and the rule report stay with the people who author and teach the scenario package.',
 
   'packageVersion.recordTitle': 'Confirmation record',
   'packageVersion.recordDescription':
@@ -169,7 +169,7 @@ export const packageVersion = {
 
   'packageVersion.claimsTitle': 'Claims',
   'packageVersion.claimsDescription':
-    'Every claim the assistant can state in this scenario, and what each variant makes of it. Open a claim to see its source, what it deserved, and how a student could have checked it.',
+    'Every claim the assistant can state in this scenario package, and what each variant makes of it. Open a claim to see its source, what it deserved, and how a student could have checked it.',
   'packageVersion.claimsCaption': 'Claims and their per-variant states',
   'packageVersion.columnClaim': 'Claim',
   'packageVersion.columnImportance': 'Importance',

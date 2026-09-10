@@ -10472,11 +10472,17 @@ paths:
                               type: array
                               items:
                                 type: string
+                            elementKeys:
+                              default: []
+                              type: array
+                              items:
+                                type: string
                             message:
                               type: string
                           required:
                             - code
                             - elementIds
+                            - elementKeys
                             - message
                           additionalProperties: false
                     required:
@@ -11972,6 +11978,10 @@ paths:
                               format: uuid
                               pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
                             - type: "null"
+                        elementKey:
+                          type:
+                            - string
+                            - "null"
                         revision:
                           type: integer
                           minimum: -9007199254740991
@@ -12141,11 +12151,17 @@ paths:
                               type: array
                               items:
                                 type: string
+                            elementKeys:
+                              default: []
+                              type: array
+                              items:
+                                type: string
                             message:
                               type: string
                           required:
                             - code
                             - elementIds
+                            - elementKeys
                             - message
                           additionalProperties: false
                     required:
@@ -12550,6 +12566,10 @@ paths:
                                 format: uuid
                                 pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
                               - type: "null"
+                          elementKey:
+                            type:
+                              - string
+                              - "null"
                           revision:
                             type: integer
                             minimum: -9007199254740991
@@ -12806,6 +12826,10 @@ paths:
                               format: uuid
                               pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
                             - type: "null"
+                        elementKey:
+                          type:
+                            - string
+                            - "null"
                         revision:
                           type: integer
                           minimum: -9007199254740991
@@ -12975,11 +12999,17 @@ paths:
                               type: array
                               items:
                                 type: string
+                            elementKeys:
+                              default: []
+                              type: array
+                              items:
+                                type: string
                             message:
                               type: string
                           required:
                             - code
                             - elementIds
+                            - elementKeys
                             - message
                           additionalProperties: false
                     required:
@@ -13220,6 +13250,10 @@ paths:
                                 format: uuid
                                 pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
                               - type: "null"
+                          elementKey:
+                            type:
+                              - string
+                              - "null"
                           revision:
                             type: integer
                             minimum: -9007199254740991
@@ -13375,6 +13409,10 @@ paths:
                         format: uuid
                         pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
                       - type: "null"
+                  elementKey:
+                    type:
+                      - string
+                      - "null"
                   revision:
                     type: integer
                     minimum: -9007199254740991

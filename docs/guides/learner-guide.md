@@ -23,7 +23,7 @@ Tassl treats nothing it observes as misconduct. There is no total score, no rank
 - **Runs** (rail) — every assignment and where your run on it has got to; the **Next** column carries **Start**, **Continue**, **Respond to the Turn**, **Defend the decision**, **Read the debrief** or **Open the Judgment Record**, whichever fits the run's state.
 - **Walkthrough University** (header) — the institution you are working in. A **Switch institution** menu appears here only when you belong to two or more.
 - **Notifications** (the bell in the header) — what Tassl has told you, newest first, with an unread count on the bell.
-- **Account** (the person icon in the header) — a menu with **Settings** (the tabs **Profile**, **Security** and **Data**) and **Sign out**.
+- **Account** (the person icon in the header) — a menu with **Settings** (the tabs **Profile**, **Security** and **Data**), **Privacy**, **Terms** and **Sign out**.
 - Inside a run, a band stays at the top of every screen with the assignment's name, a chip naming the run's state (**Framing**, **Working**, **Paused**, **Decision locked**, **Turn open** and so on) and the clock that is running. The rail stays in place.
 
 A Student does not see **Courses**, **Review**, **Packages** or **Admin**; those rail items belong to other seats.
@@ -539,7 +539,7 @@ A Student does not see **Courses**, **Review**, **Packages** or **Admin**; those
    ![Task 16 step 1](screenshots/student/task-16-step-01.png)
 2. Click **Mark all read**. → You see: **Everything is marked read.**
    ![Task 16 step 2](screenshots/student/task-16-step-02.png)
-3. Click the **Account** button in the header. → You see: a menu with your name, your email address, **Settings** and **Sign out**.
+3. Click the **Account** button in the header. → You see: a menu with your name, your email address, **Settings**, **Privacy**, **Terms** and **Sign out**.
    ![Task 16 step 3](screenshots/student/task-16-step-03.png)
 4. Click **Settings**. → You see: the heading **Account settings**, the tabs **Profile**, **Security** and **Data**, the field **Your name**, and **Email address** reading **student1@tassl.local** and not editable.
    ![Task 16 step 4](screenshots/student/task-16-step-04.png)

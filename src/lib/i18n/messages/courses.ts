@@ -158,6 +158,7 @@ export const courses = {
   'courses.mappingAcknowledge': 'I understand every confirmed run will be re-exported.',
   'courses.mappingAcknowledgeRequired':
     'Tick the box above before applying: every confirmed run in this course gets a new export version.',
+  'courses.mappingApplyFailed': 'The mapping was not applied. Try again.',
   'courses.mappingApplyNote':
     'Applying records the change against your name and the date, writes a new export version for every confirmed run in this course, and leaves the bands exactly where they are.',
   'courses.mappingPreviewTitle': 'What would change',

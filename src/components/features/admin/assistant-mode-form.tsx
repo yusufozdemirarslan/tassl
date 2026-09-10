@@ -1,7 +1,6 @@
 'use client'
 
 import { useId, useState, useTransition } from 'react'
-import { useRouter } from 'next/navigation'
 import { Loader2Icon } from 'lucide-react'
 import { FormAlert } from '@/components/features/account/form-feedback'
 import { Button } from '@/components/ui/button'
@@ -19,6 +18,7 @@ import { t } from '@/lib/i18n/messages/admin'
 import { toastSuccess } from '@/lib/toast'
 import { setAiModeAction } from '@/server/modules/admin/actions'
 import type { AiMode, AssistantMode } from '@/server/modules/admin/schema'
+import { useRefresh } from '@/lib/hooks/use-refresh'
 
 // UI-050 → flags → the runtime assistant switch (11 §6, D-691). The one control on the screen.
 //
@@ -56,7 +56,7 @@ export type AssistantModeFormProps = {
 }
 
 export function AssistantModeForm({ aiMode, assistantMode, aiEnabled }: AssistantModeFormProps) {
-  const router = useRouter()
+  const refresh = useRefresh()
   const id = useId()
   const [pending, startTransition] = useTransition()
   const [mode, setMode] = useState<AiMode>(aiMode)
@@ -94,7 +94,7 @@ export function AssistantModeForm({ aiMode, assistantMode, aiEnabled }: Assistan
       toastSuccess(t('admin.flags.assistantModeSaved'))
       // The audit log on the next tab has a new row in it, and the provider panel above reads the
       // same answer this form now holds.
-      router.refresh()
+      refresh()
     })
   }
 

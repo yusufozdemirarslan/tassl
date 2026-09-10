@@ -27,6 +27,7 @@ import {
   type AuthFormError,
 } from './auth-feedback'
 import { GoogleButton } from './google-button'
+import { useRefresh } from '@/lib/hooks/use-refresh'
 
 const signInSchema = object({
   email: emailField,
@@ -45,6 +46,7 @@ type SignInFormProps = {
 // action), and rate limited are the five states; the message never says which field was wrong.
 export function SignInForm({ next, googleEnabled }: SignInFormProps) {
   const router = useRouter()
+  const refresh = useRefresh()
   const [formError, setFormError] = useState<AuthFormError | null>(null)
   const [status, setStatus] = useState<string | null>(null)
   const [leaving, setLeaving] = useState(false)
@@ -80,7 +82,7 @@ export function SignInForm({ next, googleEnabled }: SignInFormProps) {
     }
     setLeaving(true)
     router.push(next as Route)
-    router.refresh()
+    refresh()
   }
 
   async function resendVerification() {

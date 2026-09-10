@@ -16,6 +16,8 @@ export const shell = {
   'shell.notificationsOverflow': '{max}+',
   'shell.account': 'Account',
   'shell.settings': 'Settings',
+  'shell.privacy': 'Privacy',
+  'shell.terms': 'Terms',
   'shell.signOut': 'Sign out',
   'shell.notSignedIn': 'Not signed in',
   'nav.home': 'Home',

@@ -226,10 +226,17 @@ function Warnings({ warnings }: { warnings: readonly PackageWarningValue[] }) {
 
 /**
  * Why this draft cannot be confirmed yet, rule by rule. The shape is the product's refusal: the
- * sentence to act on in full ink on the red wash, then the rule code and the ids of the elements
+ * sentence to act on in full ink on the red wash, then the rule code and the keys of the elements
  * at fault in mono. Every failure is listed rather than the first few — `validatePackage` is total
  * for exactly this reason, and an author fixing a package needs the whole list.
  */
+/** The keys an author searches the export for (`C3`, `D1`); the ids only when the view has none. */
+function elementKeysOf(failure: ValidationFailure): readonly string[] {
+  return failure.elementKeys.length === failure.elementIds.length
+    ? failure.elementKeys
+    : failure.elementIds
+}
+
 function RuleFailures({ failures }: { failures: readonly ValidationFailure[] }) {
   return (
     <div className="border-red bg-red-soft text-ink text-body max-w-measure flex w-full items-start gap-2 rounded-md border p-3">
@@ -244,7 +251,7 @@ function RuleFailures({ failures }: { failures: readonly ValidationFailure[] }) 
                 {failure.elementIds.length === 0
                   ? failure.code
                   : `${failure.code} · ${t('packageVersion.ruleElements', {
-                      keys: failure.elementIds.join(', '),
+                      keys: elementKeysOf(failure).join(', '),
                     })}`}
               </span>
             </li>

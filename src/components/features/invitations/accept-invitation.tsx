@@ -9,6 +9,7 @@ import { useSignOut } from '@/lib/hooks/use-sign-out'
 import { t } from '@/lib/i18n/messages/invitation'
 import { acceptInvitationAction } from '@/server/modules/tenancy/actions'
 import { FormAlert } from '@/components/features/account/form-feedback'
+import { useRefresh } from '@/lib/hooks/use-refresh'
 
 // UI-005. Accepting writes the membership through the tenancy action (which is where the email is
 // checked again against the session, 08 §2.5) and then lands on /home, where the institution the
@@ -21,6 +22,7 @@ export function AcceptInvitationButton({
   organizationName: string
 }) {
   const router = useRouter()
+  const refresh = useRefresh()
   const [pending, setPending] = useState(false)
   const [failure, setFailure] = useState<string | null>(null)
 
@@ -35,7 +37,7 @@ export function AcceptInvitationButton({
     }
     toast.success(t('invitation.accepted', { name: organizationName }))
     router.push('/home')
-    router.refresh()
+    refresh()
   }
 
   return (

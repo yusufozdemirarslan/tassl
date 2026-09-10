@@ -1,7 +1,6 @@
 'use client'
 
 import { useId, useState } from 'react'
-import { useRouter } from 'next/navigation'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Controller, useForm } from 'react-hook-form'
 import { enum as enumOf, object, refine, string, type output } from 'zod/mini'
@@ -22,6 +21,7 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Textarea } from '@/components/ui/textarea'
 import { t } from '@/lib/i18n/messages/courses'
 import { updateCoursePolicyAction } from '@/server/modules/courses/actions'
+import { useRefresh } from '@/lib/hooks/use-refresh'
 
 // UI-030 → Policy (FR-205, PRD §7.19). Three things a course decides about every run under it:
 //
@@ -110,7 +110,7 @@ export function PolicyForm({
   taughtConcepts,
   readOnly = false,
 }: PolicyFormProps) {
-  const router = useRouter()
+  const refresh = useRefresh()
   const fieldId = useId()
   const [formError, setFormError] = useState<string | null>(null)
 
@@ -151,7 +151,7 @@ export function PolicyForm({
       taughtConcepts: result.data.taughtConcepts.join('\n'),
     })
     toast.success(t('courses.policySaved'))
-    router.refresh()
+    refresh()
   }
 
   return (

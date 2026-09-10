@@ -10,7 +10,13 @@ process.env.APP_ENV = 'test'
 process.env.LOG_LEVEL ??= 'warn'
 
 beforeAll(() => server.listen({ onUnhandledRequest: 'error' }))
-afterEach(() => {
+afterEach(async () => {
+  // The refresh coalescer keeps its flight in module state (D-709); a component unmounted before
+  // its transition settled would otherwise queue the next test's refresh behind it. Imported here
+  // rather than at the top: a static import would load `next/navigation` before the test file's
+  // `vi.mock` of it is registered, and every component under test would then reach the real router.
+  const { resetRefreshState } = await import('@/lib/hooks/use-refresh')
+  resetRefreshState()
   cleanup()
   server.resetHandlers()
   vi.useRealTimers()

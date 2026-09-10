@@ -36,8 +36,10 @@ import type {
 // current engine, and costs the route no JavaScript.
 //
 // A singleton element (the brief, the Turn, the counterfactual) carries no element id of its own,
-// so its row names the element type and nothing else; a row element is named by its type and the id
-// the confirmation was written against, because the record itself carries no element keys.
+// so its row names the element type and nothing else; a row element is named by its type and the
+// key the workspace shows it under (`C3`, `D1`, `defective:C3`), which the version view resolves
+// from the confirmation's element id — a reader of the record is looking for the claim they know,
+// not for a row uuid.
 //
 // The note is not one of the five columns, but a rejection with no reason on the screen is a record
 // that cannot be read: it sits under the element it belongs to, where there is room for a sentence.
@@ -202,7 +204,9 @@ function DecisionsTable({
               <span className="flex flex-col gap-0.5">
                 <span className="font-medium">{ELEMENT_LABELS[row.elementType]()}</span>
                 {row.elementId !== null && (
-                  <span className="text-ink-muted text-mono-sm font-mono">{row.elementId}</span>
+                  <span className="text-ink-muted text-mono-sm font-mono">
+                    {row.elementKey ?? row.elementId}
+                  </span>
                 )}
                 {row.note.length > 0 && (
                   <span className="text-ink-muted text-meta max-w-[52ch]">{row.note}</span>

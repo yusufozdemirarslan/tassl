@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { useRouter } from 'next/navigation'
 import { Loader2Icon } from 'lucide-react'
 import { FormAlert } from '@/components/features/account/form-feedback'
 import { EmptyState } from '@/components/layout/empty-state'
@@ -21,6 +20,7 @@ import type { TracedDocument } from './action-result-sheet'
 import { ClaimCard, ClaimControls } from './claim-card'
 import { useRunWork } from './run-work-context'
 import { StanceChip } from './stance-chip'
+import { useRefresh } from '@/lib/hooks/use-refresh'
 
 // UI-023: the Delegation Log (FR-060, FR-063, FR-084).
 //
@@ -120,7 +120,7 @@ export function DelegationLog({
   // The why lines the student has touched in this session, and the claims they have marked used.
   // Both are keyed by id and both only ever grow, so a fresh server render can be rendered against
   // them without either side having to win.
-  const router = useRouter()
+  const refresh = useRefresh()
   const [drafts, setDrafts] = useState<Record<string, string>>({})
   const [marked, setMarked] = useState<readonly string[]>([])
   const [busy, setBusy] = useState<string | null>(null)
@@ -168,7 +168,7 @@ export function DelegationLog({
         // wears "No stance yet" and the lock carries a count (D-319). Both are read on the server,
         // so this write asks for the page again. The why line does not: it changes no rule, and the
         // reason the actions revalidate nothing is that a workspace re-render should be earned.
-        router.refresh()
+        refresh()
       },
       () => {
         setBusy(null)

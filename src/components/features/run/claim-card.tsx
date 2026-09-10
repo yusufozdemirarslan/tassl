@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
-import { useRouter } from 'next/navigation'
 import { FormAlert } from '@/components/features/account/form-feedback'
 import { LabelChip } from '@/components/layout/label-chip'
 import { Button } from '@/components/ui/button'
@@ -23,6 +22,7 @@ import { EscalationDialog } from './escalation-dialog'
 import { useRunWork } from './run-work-context'
 import { StanceControl } from './stance-control'
 import { StanceChip } from './stance-chip'
+import { useRefresh } from '@/lib/hooks/use-refresh'
 
 // UI-023: one claim object, as the student meets it (FR-051, FR-052, DATA-033).
 //
@@ -191,7 +191,7 @@ export type ClaimControlsProps = {
  * claim is drawn twice on this workspace — inside the assistant's live reply, which is client state,
  * and in the Delegation Log, which the server renders — and a stance taken on one of them is one act
  * on one record. So each write updates what is on screen at once and then asks for the page again
- * (`router.refresh()`), and the copy that did not take the act learns from that render. Holding the
+ * (`refresh()`), and the copy that did not take the act learns from that render. Holding the
  * prop identity as the seed is what makes the second half work: a server render hands over a new
  * object, this resets to it, and a re-render caused by anything else does not.
  *
@@ -211,7 +211,7 @@ export function ClaimControls({
   documents = [],
   stanceHintId,
 }: ClaimControlsProps) {
-  const router = useRouter()
+  const refresh = useRefresh()
   const spentId = useId()
   const { announce } = useRunWork()
   const [held, setHeld] = useState<ClaimView>(claim)
@@ -275,7 +275,7 @@ export function ClaimControls({
           }),
         )
         // The charge landed on the clock; the band above reads it from the server (D-042).
-        router.refresh()
+        refresh()
       },
       () => {
         setRunning(false)
@@ -295,7 +295,7 @@ export function ClaimControls({
           setHeld(next)
           // The same claim is drawn in the assistant's reply and in the log; the copy that did not
           // take the stance learns from this render (see the header).
-          router.refresh()
+          refresh()
         }}
       />
 
@@ -428,7 +428,7 @@ export function ClaimControls({
             }))
             announce(t('workspace.escalationDone', { key: claim.key }))
             // Five minutes came off the clock; the band above reads it from the server.
-            router.refresh()
+            refresh()
           }}
         />
       )}

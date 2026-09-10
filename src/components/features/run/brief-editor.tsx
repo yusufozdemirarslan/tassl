@@ -1,7 +1,6 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { useRouter } from 'next/navigation'
 import { Loader2Icon } from 'lucide-react'
 import { FormAlert } from '@/components/features/account/form-feedback'
 import { Panel } from '@/components/layout/panel'
@@ -21,6 +20,7 @@ import {
 import type { BriefFieldUnitValue, BriefNamedField, BriefView } from '@/server/modules/runs/schema'
 import type { LockReadBackEntry } from './lock-dialog'
 import { useRunWork } from './run-work-context'
+import { useRefresh } from '@/lib/hooks/use-refresh'
 
 // UI-023, right column: the Decision Brief (FR-100, FR-101, FR-103, FR-108) and the Decision Lock.
 //
@@ -158,7 +158,7 @@ export function BriefEditor({
   canWrite,
   unstancedRelied = 0,
 }: BriefEditorProps) {
-  const router = useRouter()
+  const refresh = useRefresh()
   const { announce } = useRunWork()
   const [values, setValues] = useState<BriefValues>(() => valuesOf(draft, namedFields))
   const [saving, setSaving] = useState(false)
@@ -292,7 +292,7 @@ export function BriefEditor({
           // The run is in `decision_locked` now and the action invalidated this route; the server
           // render decides what stands here next. `locking` stays true until the new tree arrives.
           setConfirmOpen(false)
-          router.refresh()
+          refresh()
           return
         }
         setLocking(false)
@@ -321,7 +321,7 @@ export function BriefEditor({
         setConfirmOpen(false)
         if (result.error.code === 'ILLEGAL_TRANSITION' || result.error.code === 'RUN_LOCKED') {
           setFormError({ message: t('workspace.lockMoved') })
-          router.refresh()
+          refresh()
           return
         }
         setFormError({

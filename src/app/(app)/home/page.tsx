@@ -32,9 +32,12 @@ export const metadata: Metadata = { title: t('home.title') }
 //
 // **A panel is drawn for the seat that has the data and for nobody else.** Each read is made behind
 // the same guard its destination uses, and a refusal is `null` rather than an empty list: a student
-// gets one panel, an instructor gets four, and nobody is shown an empty box about a thing they
-// cannot do. The three reads are made in parallel and none of them can fail the page — a service
-// that refuses is a seat that has no panel, and any other error is the error boundary's.
+// gets one panel, an instructor gets three, and nobody is shown an empty box about a thing they
+// cannot do. "Your runs" follows the same rule as the rail's Runs item — it is the student's — with
+// one exception the rail shares: a person with no membership at all gets it, because its empty
+// state is where they are told an invitation is what comes next (UI-009). The reads are made in
+// parallel and none of them can fail the page — a service that refuses is a seat that has no
+// panel, and any other error is the error boundary's.
 //
 // The loading state for all of them is ./loading.tsx (the shell skeleton) and the error state is
 // ./error.tsx, so every panel inherits both.
@@ -124,9 +127,10 @@ export default async function HomePage() {
     platformRole: me.platformRole,
   })
 
+  const showsRuns = me.memberships.length === 0 || offered.includes('runs')
   const [assignments, runs, review, packages, courses] = await Promise.all([
-    listMyAssignments(actor, { limit: HOME_LIMIT }),
-    listMyRuns(actor, { limit: HOME_LIMIT }),
+    showsRuns ? listMyAssignments(actor, { limit: HOME_LIMIT }) : null,
+    showsRuns ? listMyRuns(actor, { limit: HOME_LIMIT }) : null,
     reviewRows(actor),
     packageRows(actor, organizationId, offered.includes('packages')),
     courseRows(actor, organizationId, offered.includes('courses')),
@@ -140,10 +144,12 @@ export default async function HomePage() {
         {...(eyebrow === undefined ? {} : { eyebrow })}
       />
       <div className="flex flex-col gap-6">
-        <HomeRunsPanel
-          hasMembership={me.memberships.length > 0}
-          rows={toRunListRows(assignments.items, runs.items)}
-        />
+        {showsRuns && (
+          <HomeRunsPanel
+            hasMembership={me.memberships.length > 0}
+            rows={toRunListRows(assignments?.items ?? [], runs?.items ?? [])}
+          />
+        )}
         {review !== null && <HomeReviewPanel rows={review} />}
         {packages !== null && <HomePackagesPanel rows={packages} />}
         {courses !== null && <HomeCoursesPanel rows={courses} />}

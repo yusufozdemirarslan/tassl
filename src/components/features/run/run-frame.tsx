@@ -1,13 +1,13 @@
 'use client'
 
 import { useCallback, type ReactNode } from 'react'
-import { useRouter } from 'next/navigation'
 import { LabelChip } from '@/components/layout/label-chip'
 import { useRunPoll } from '@/lib/hooks/use-run-poll'
 import { t } from '@/lib/i18n/messages/run'
 import type { RunStateValue, RunSummary } from '@/server/modules/runs/schema'
 import { Clock } from './clock'
 import { RunStateChip } from './run-state-chip'
+import { useRefresh } from '@/lib/hooks/use-refresh'
 
 // UI-027, the base. The band that sits above every `/runs/[runId]` screen: which assignment this
 // is, where the run has got to, and how long is left.
@@ -100,7 +100,7 @@ function windowReadingOf(
 }
 
 export function RunFrame({ run, label, windowRemainingMs = null, children }: RunFrameProps) {
-  const router = useRouter()
+  const refresh = useRefresh()
 
   // A poll that finds the run somewhere else re-renders the tree on the server, and the page for
   // the state it is now in decides where the student belongs. Scoring is watched with it, because
@@ -109,9 +109,9 @@ export function RunFrame({ run, label, windowRemainingMs = null, children }: Run
   const onChange = useCallback(
     (next: RunSummary, previous: RunSummary) => {
       if (next.state === previous.state && next.scoringStatus === previous.scoringStatus) return
-      router.refresh()
+      refresh()
     },
-    [router],
+    [refresh],
   )
 
   const live = useRunPoll<RunSummary>({

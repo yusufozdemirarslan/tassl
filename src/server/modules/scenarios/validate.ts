@@ -287,6 +287,8 @@ export type ValidatedTurn = { id: string }
 export type ValidatedDefenseQuestion = {
   /** The bank row, so a failure can name the question at fault (`elementIds`). */
   id: string
+  /** The question's own key, when the version carries one; the id stands in for it otherwise. */
+  key?: string
   kind: string
   claimId: string | null
   assumptionIndex: number | null
@@ -1352,17 +1354,48 @@ const RULES: readonly Rule[] = [
  */
 export function validatePackage(version: ValidatedVersion): PackageValidationResult {
   const context = buildContext(version)
+  const keyById = elementKeyIndex(version)
 
   const failures: PackageValidationFailure[] = []
   for (const rule of RULES) {
     const failure = rule.check(context)
     if (failure === null) continue
+    const elementIds = failure.elementIds ?? []
     failures.push({
       code: rule.code,
-      elementIds: failure.elementIds ?? [],
+      elementIds,
+      elementKeys: elementIds.map((id) => keyById.get(id) ?? id),
       message: failure.message,
     })
   }
 
   return { ok: failures.length === 0, failures }
+}
+
+/**
+ * Every element id the rules can name, mapped to the key an author reads it by (`C3`, `D1`,
+ * `defective:C3` — the same spelling the confirmation workspace uses for a claim state). A version
+ * read from a document already has its keys as ids (`validate-export.ts`), so the map is the
+ * identity there; a version read from the database is where it earns its keep.
+ */
+function elementKeyIndex(version: ValidatedVersion): ReadonlyMap<string, string> {
+  const index = new Map<string, string>()
+  const keyed: readonly (readonly { id: string; key: string }[])[] = [
+    version.documents,
+    version.stakeholders,
+    version.answerSpacePositions,
+    version.claims,
+    version.readinessItems,
+  ]
+  for (const rows of keyed) for (const row of rows) index.set(row.id, row.key)
+  for (const question of version.defenseQuestions) {
+    if (question.key !== undefined) index.set(question.id, question.key)
+  }
+  const claimKeyById = new Map(version.claims.map((claim) => [claim.id, claim.key]))
+  for (const variant of version.variants) {
+    for (const state of variant.claimStates) {
+      index.set(state.id, `${variant.key}:${claimKeyById.get(state.claimId) ?? state.claimId}`)
+    }
+  }
+  return index
 }

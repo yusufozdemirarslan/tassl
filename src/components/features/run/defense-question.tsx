@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
-import { useRouter } from 'next/navigation'
 import { Loader2Icon, PencilLineIcon } from 'lucide-react'
 import { FormAlert } from '@/components/features/account/form-feedback'
 import {
@@ -26,6 +25,7 @@ import {
   completeDefenseAction,
 } from '@/server/modules/defense/actions'
 import type { DefenseQuestion as Question } from '@/server/modules/defense/schema'
+import { useRefresh } from '@/lib/hooks/use-refresh'
 
 // UI-026: the interview (FR-120 to FR-126).
 //
@@ -324,11 +324,11 @@ export type DefenseInterviewProps = {
 }
 
 export function DefenseInterview({ runId, questions: initial }: DefenseInterviewProps) {
-  const router = useRouter()
+  const refresh = useRefresh()
 
   // The questions as this screen knows them: what the server rendered, plus every answer and
   // follow-up the writes below have produced. Re-seeded whenever the server hands over a different
-  // list, which is what a reload or a `router.refresh()` does.
+  // list, which is what a reload or a `refresh()` does.
   const [seed, setSeed] = useState(initial)
   const [held, setHeld] = useState<readonly Question[]>(initial)
   if (seed !== initial) {
@@ -449,7 +449,7 @@ export function DefenseInterview({ runId, questions: initial }: DefenseInterview
    */
   function answerOne(question: Question, input: { text: string; durationMs: number }): void {
     void submit(question, input).then((written) => {
-      if (written.alreadyAnswered) router.refresh()
+      if (written.alreadyAnswered) refresh()
     })
   }
 
@@ -495,7 +495,7 @@ export function DefenseInterview({ runId, questions: initial }: DefenseInterview
             ? t('defense.finishFailed')
             : `${t('defense.finishFailed')} ${t('defense.finishPartial')}`,
         )
-        if (stale) router.refresh()
+        if (stale) refresh()
         return
       }
       filed += 1
@@ -510,12 +510,12 @@ export function DefenseInterview({ runId, questions: initial }: DefenseInterview
           ? t('defense.finishFailed')
           : result.error.message || t('defense.finishFailed')
       setFinishError(filed === 0 ? said : `${said} ${t('defense.finishPartial')}`)
-      if (stale) router.refresh()
+      if (stale) refresh()
       return
     }
     setConfirmOpen(false)
     // The run is in `defense_complete` from here; the guard on this page sends the student on.
-    router.refresh()
+    refresh()
   }
 
   return (

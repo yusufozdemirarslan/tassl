@@ -48,7 +48,8 @@ export function permittedRailKeys({ roles, platformRole }: RailAudience): RailKe
  * `/runs` with Phase 6, step 6.5 (UI-020), `/review` with Phase 11, step 11.4 (UI-034) and
  * `/admin/users` with Phase 13, step 13.5 (UI-050); `permittedRailKeys` above is what decides who
  * sees each. Admin points at its first section rather than at `/admin`, which is a prefix and not a
- * screen.
+ * screen; `section` names that prefix, so the item stays lit on `/admin/flags` and `/admin/audit`
+ * the way every other item does across the screens beneath it.
  *
  * Notifications and Settings are not rail items: they live in the bell and the account menu.
  */
@@ -58,7 +59,7 @@ const READY: Partial<Record<RailKey, RailItem>> = {
   courses: { href: '/courses', label: t('nav.courses'), icon: 'courses' },
   review: { href: '/review', label: t('nav.review'), icon: 'review' },
   packages: { href: '/packages', label: t('nav.packages'), icon: 'packages' },
-  admin: { href: '/admin/users', label: t('nav.admin'), icon: 'admin' },
+  admin: { href: '/admin/users', label: t('nav.admin'), icon: 'admin', section: '/admin' },
 }
 
 export function railFor(audience: RailAudience): RailItem[] {
