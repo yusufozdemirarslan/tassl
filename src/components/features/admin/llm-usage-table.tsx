@@ -44,7 +44,7 @@ export function LlmUsageTable({ usage }: { usage: LlmUsage }) {
 
   return (
     <>
-      <Table className="min-w-2xl">
+      <Table>
         <TableCaption>{t('admin.flags.usageCaption')}</TableCaption>
         <TableHeader>
           <TableRow>

@@ -606,4 +606,4 @@ Two rail items never appear for an instructor seat: **Runs** belongs to student 
 - **Working clock** — the package's clock, twenty-five minutes on Meridian Roast, that starts when the frame is locked and is charged by checks and escalations; when it runs out the decision is filed as it stands.
 - **Test controls** — the instructor-only panel, present where FEATURE_TEST_CONTROLS is on, that arms one assistant outage in a live run for step 7 of the walkthrough.
 
-Verified by automated tests: 2026-09-09, commit 66d87fe
+Verified by automated tests: 2026-09-10, commit a70a72b

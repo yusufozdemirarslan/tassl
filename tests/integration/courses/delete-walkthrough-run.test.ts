@@ -277,7 +277,9 @@ describe('the refusals, against a run that has children', () => {
     // In the section but not teaching it: refused, and told so.
     expect(await codeOf(courses.deleteWalkthroughRun(fx.student, runId))).toBe('FORBIDDEN')
     expect(await codeOf(courses.deleteWalkthroughRun(fx.ta, runId))).toBe('FORBIDDEN')
-    expect(await codeOf(courses.deleteWalkthroughRun(fx.classmate, runId))).toBe('FORBIDDEN')
+    // A classmate is a student of the section but not of this run: the run is not theirs to know
+    // about, so the answer is NOT_FOUND rather than a refusal that confirms it exists (D-703).
+    expect(await codeOf(courses.deleteWalkthroughRun(fx.classmate, runId))).toBe('NOT_FOUND')
     // An instructor of another course in the same institution is not a member of this section, so
     // the run is not theirs to know about (08 §5).
     expect(await codeOf(courses.deleteWalkthroughRun(fx.otherInstructor, runId))).toBe('NOT_FOUND')

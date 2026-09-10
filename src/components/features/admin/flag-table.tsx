@@ -39,7 +39,7 @@ export function FlagTable({ flags }: { flags: AdminFlags }) {
   ]
 
   return (
-    <Table className="min-w-2xl">
+    <Table>
       <TableCaption>{t('admin.flags.caption')}</TableCaption>
       <TableHeader>
         <TableRow>

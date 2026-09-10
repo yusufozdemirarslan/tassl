@@ -148,4 +148,47 @@ describe('seed', () => {
       select count(*) as n from account where provider_id = 'credential' and password is not null`
     expect(Number(account?.n)).toBe(5)
   })
+
+  it('adds the load-test students and their assignment on request, idempotently (D-711)', async () => {
+    const seed = await import('@/server/db/seed')
+    const summary = (await runSeed()) as Parameters<typeof seed.ensureLoadSeats>[0]
+
+    const first = await seed.ensureLoadSeats(summary, 3)
+    expect(first.seats).toBe(3)
+    const again = await seed.ensureLoadSeats(summary, 3)
+    expect(again.assignmentId).toBe(first.assignmentId)
+
+    // Three students of the section, signed up through Better Auth with a credential each, and
+    // verified so they can sign in without an email.
+    const rows = await testSql<{ email: string; role: string; verified: boolean }[]>`
+      select u.email, sm.role, u.email_verified as verified
+      from "user" u
+      join section_memberships sm on sm.user_id = u.id
+      where u.email like 'load-student-%'
+      order by u.email`
+    expect(rows).toEqual([
+      { email: 'load-student-01@tassl.local', role: 'student', verified: true },
+      { email: 'load-student-02@tassl.local', role: 'student', verified: true },
+      { email: 'load-student-03@tassl.local', role: 'student', verified: true },
+    ])
+    const [credentials] = await testSql<{ n: string }[]>`
+      select count(*) as n from account a
+      join "user" u on u.id = a.user_id
+      where a.provider_id = 'credential' and u.email like 'load-student-%'`
+    expect(Number(credentials?.n)).toBe(3)
+
+    // One walkthrough assignment on the defective variant, written once.
+    const assignmentsNow = await testSql<
+      { label: string; walkthrough: boolean; variant: string }[]
+    >`
+      select a.label, a.is_walkthrough as walkthrough, v.key as variant
+      from assignments a join scenario_variants v on v.id = a.variant_id
+      where a.label = ${seed.LOAD_ASSIGNMENT_LABEL}`
+    expect(assignmentsNow).toEqual([
+      { label: 'Load test run', walkthrough: true, variant: 'defective' },
+    ])
+
+    // The count is bounded: a load test never asks for more accounts than two digits can name.
+    await expect(seed.ensureLoadSeats(summary, 100)).rejects.toThrow('LOAD_SEAT_COUNT_OUT_OF_RANGE')
+  })
 })

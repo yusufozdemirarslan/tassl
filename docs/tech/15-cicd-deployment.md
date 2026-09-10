@@ -982,7 +982,7 @@ Then update the two external references to the URL: the Google OAuth redirect UR
 | 7 | Sentry receiving events | `NEXT_PUBLIC_SENTRY_DSN="$(gh variable get NEXT_PUBLIC_SENTRY_DSN)" APP_ENV=production pnpm exec tsx scripts/sentry-test.ts` | the event id printed appears under Sentry → Issues within 1 min, tagged `environment:production` |
 | 8 | Sentry release tagging | Sentry → Releases | the latest release equals the `main` head sha and shows source maps |
 | 9 | PostHog receiving events | sign in at `$PROD_URL/sign-in` as `instructor@tassl.local`; PostHog → Activity → Live events | a `$pageview` for `/home` and the sign-in event from `17-analytics-events.md` arrive within 1 min |
-| 10 | Load test done (NFR-014, D-102) | §16.2 | k6 exits 0: p95 read < 400 ms, p95 write < 800 ms at 60 VUs for 10 min; summary file attached to the release PR |
+| 10 | Load test done (NFR-014, D-102) | §16.2 | k6 exits 0: p95 read < 400 ms, p95 write < 800 ms at 60 VUs for 10 min; the summary numbers recorded in `docs/qa/QA-REPORT.md` C8 |
 | 11 | Legal pages reviewed by a human | `$PROD_URL/privacy`, `$PROD_URL/terms` | the builder records the review date in the release PR description; the pages name the data collected (name, email, run traces) and the processors (Vercel, Neon, Resend, PostHog, Sentry, Xiaomi MiMo, Anthropic) |
 | 12 | Production env vars set | `npx vercel@59.11.2 env ls production --token "$VERCEL_TOKEN"` | rows exist for `DATABASE_URL`, `DATABASE_URL_UNPOOLED`, `BETTER_AUTH_SECRET`, `CRON_SECRET`, `NEXT_PUBLIC_APP_URL`, `APP_ENV`, `SEED_PASSWORD`, `NEXT_PUBLIC_SENTRY_DSN`, `NEXT_PUBLIC_POSTHOG_KEY`, `EMAIL_TRANSPORT`, `RESEND_API_KEY`, `EMAIL_FROM`, `LLM_API_KEY`, `FEATURE_AI`; no row for `FEATURE_TEST_CONTROLS` (default `true` stays, D-023: the walkthrough step 7 needs it, FR-118) |
 | 13 | Seed accounts present in production (D-040) | `DATABASE_URL="$(cat "$S/neon-url.txt")" DATABASE_URL_UNPOOLED="$(cat "$S/neon-url.txt")" SEED_PASSWORD="$(cat "$S/seed-password.txt")" pnpm db:seed` | sign-in as `student1@tassl.local` succeeds |
@@ -1007,33 +1007,24 @@ Set by `src/proxy.ts`; `12-security.md` is the authority for the CSP directive l
 | `x-request-id` | a UUID (D-086) |
 | `cache-control` on `/api/health` and `/api/ready` | `no-store` |
 
-### 16.2 Load test (k6, `scripts/load/run-loop.js`)
+### 16.2 Load test (k6, `tests/load/core-flow.js`)
 
-Install k6:
+k6 is a single binary. macOS: `brew install k6`; Ubuntu: the official k6 apt repository; Windows or a machine without a package manager: the release archive from https://github.com/grafana/k6/releases unpacked to `~/.tassl-tools/k6` and put on the PATH for the shell that runs the test (D-697).
 
-```bash
-# macOS
-brew install k6
-# Ubuntu (official k6 apt repository)
-sudo gpg -k
-sudo gpg --no-default-keyring --keyring /usr/share/keyrings/k6-archive-keyring.gpg --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys C5AD17C747E3415A3642D57D77C6C491D6AC1D69
-echo "deb [signed-by=/usr/share/keyrings/k6-archive-keyring.gpg] https://dl.k6.io/deb stable main" | sudo tee /etc/apt/sources.list.d/k6.list
-sudo apt-get update && sudo apt-get install -y k6
-```
+Target: the preview of the release PR (D-102), never production. Previews sit behind Vercel Authentication (D-101), so k6 sends the project's Protection Bypass for Automation secret on every request: Vercel → Project → Settings → Deployment Protection → Protection Bypass for Automation → Generate; Vercel stores it as the project variable `VERCEL_AUTOMATION_BYPASS_SECRET`, which is copied into the shell for this run only and is never a GitHub secret.
 
-Target: the preview of the release PR (D-102). Previews sit behind Vercel Authentication (D-101), so k6 sends the project's Protection Bypass for Automation secret: Vercel → Project → Settings → Deployment Protection → Protection Bypass for Automation → Generate; Vercel stores it as the project variable `VERCEL_AUTOMATION_BYPASS_SECRET`, which is copied into the shell for this run only and is never a GitHub secret.
+The accounts are made by the reset script on the preview's Neon branch (D-711): `pnpm demo:reset --load-users=60` performs the ordinary demo reset and adds sixty students `load-student-01@tassl.local` … `load-student-60@tassl.local` to the seeded section, with the seed password, and one walkthrough assignment "Load test run" for them; it refuses to run with `APP_ENV=production`.
 
 ```bash
 S="$HOME/.config/tassl"; NEON_PROJECT_ID="$(gh variable get NEON_PROJECT_ID)"
 PR="$(gh pr view --json number --jq .number)"                       # the release PR, checked out locally
 PREVIEW_URL="https://tassl-pr-$PR.vercel.app"
 BRANCH_URL="$(npx neon@4.14.0 connection-string "preview/pr-$PR" --project-id "$NEON_PROJECT_ID" | tr -d '\n')"
-DATABASE_URL="$BRANCH_URL" DATABASE_URL_UNPOOLED="$BRANCH_URL" SEED_PASSWORD="$(cat "$S/seed-password.txt")" pnpm exec tsx scripts/load/seed-users.ts   # 60 load-test students on the preview branch only
-k6 run -e BASE_URL="$PREVIEW_URL" -e BYPASS="$VERCEL_AUTOMATION_BYPASS_SECRET" -e SEED_PASSWORD="$(cat "$S/seed-password.txt")" \
-  -e VUS=60 -e DURATION=10m --summary-export load-summary.json scripts/load/run-loop.js
+DATABASE_URL="$BRANCH_URL" DATABASE_URL_UNPOOLED="$BRANCH_URL" SEED_PASSWORD="$(cat "$S/seed-password.txt")" APP_ENV=preview pnpm demo:reset --load-users=60
+BASE_URL="$PREVIEW_URL" BYPASS="$(cat "$S/vercel-bypass.txt")" SEED_PASSWORD="$(cat "$S/seed-password.txt")" VUS=60 DURATION=10m RAMP=1m pnpm test:load
 ```
 
-`scripts/load/run-loop.js` contract: reads `BASE_URL`, `BYPASS` (sent as the `x-vercel-protection-bypass` header on every request), `SEED_PASSWORD`, `VUS` (default 60), `DURATION` (default `10m`); each VU signs in as `load-student-NNN@tassl.local` (`NNN` = VU number, zero-padded), opens the walkthrough assignment, starts a run, and loops readiness → frame → delegation → stance → lock; requests are tagged `kind:read` or `kind:write`; thresholds `http_req_duration{kind:read}: p(95)<400`, `http_req_duration{kind:write}: p(95)<800`, `http_req_failed: rate<0.01` (NFR-008, NFR-014). `scripts/load/seed-users.ts` creates those 60 accounts in the walkthrough section idempotently and refuses to run when `APP_ENV=production`.
+`tests/load/core-flow.js` contract: reads `BASE_URL`, `BYPASS` (sent as the `x-vercel-protection-bypass` header on every request), `SEED_PASSWORD`, `VUS` (default 60), `DURATION` (default `10m`, the plateau) and `RAMP` (default `1m`, the arrival). The virtual users come online evenly over the ramp — a class arrives within a minute or two from one campus address, which the per-address sign-in ceiling of 120 a minute is sized for (D-712) — and each signs in once as `load-student-NN@tassl.local` (`NN` = VU number, zero-padded) and keeps its cookie jar. Each iteration lists the assignments, starts a run on "Load test run" (or continues the live one), acknowledges the policy, reads and submits the Readiness Check, opens a document, locks the frame, and reads the run, its claims and its workspace; requests are tagged `kind:read` or `kind:write`; thresholds `http_req_duration{kind:read}: p(95)<400`, `http_req_duration{kind:write}: p(95)<800`, `http_req_failed: rate<0.01`, `checks: rate>0.99` (NFR-008, NFR-014). `pnpm test:load` writes `tests/load/summary.json` (ignored by git); the numbers go into `docs/qa/QA-REPORT.md` C8.
 
 ### 16.3 `scripts/sentry-test.ts`
 

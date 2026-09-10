@@ -176,7 +176,7 @@ describe('every route declares a rate-limit bucket', () => {
     expect([...declared].sort()).toEqual([...BUCKETS].sort())
   })
 
-  it('declares the two routes that are deliberately absent from OpenAPI (D-613)', () => {
+  it('declares the three routes that are deliberately absent from OpenAPI (D-613, D-707)', () => {
     // The two this sweep could not see before. `documented: false` is what lets them declare a
     // bucket without the generator describing them: the delegation stream answers
     // `text/event-stream`, which openapi.yaml states by hand (D-273), and the clock control exists
@@ -194,9 +194,18 @@ describe('every route declares a rate-limit bucket', () => {
       rateLimit: 'write',
       documented: false,
     })
-    // And `documented: false` means exactly that: neither operation is in the committed document
-    // as a generated one. (`openapi:check` is the other half; this is the reason it stays green.)
-    expect(routes.filter((route) => route.spec?.documented === false)).toHaveLength(2)
+    // The third: the test-only reset of the in-memory rate-limit windows, which the guide chain
+    // presses between its stages and which, like the clock control, exists only under APP_ENV=test
+    // (D-707).
+    expect(at('/api/v1/test/rate-limits/reset')).toMatchObject({
+      operationId: 'resetTestRateLimits',
+      rateLimit: 'write',
+      documented: false,
+    })
+    // And `documented: false` means exactly that: none of the three operations is in the committed
+    // document as a generated one. (`openapi:check` is the other half; this is the reason it stays
+    // green.)
+    expect(routes.filter((route) => route.spec?.documented === false)).toHaveLength(3)
   })
 })
 

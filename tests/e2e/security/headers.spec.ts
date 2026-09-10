@@ -196,7 +196,9 @@ test.describe('open redirect on sign-in', () => {
   for (const evil of [
     'https://evil.example/',
     '//evil.example/',
-    '/\evil.example',
+    // A backslash path (`/\evil.example`), which some browsers read as `//evil.example`. Built from the
+    // character code so the backslash survives every editor and shell that strips one.
+    `/${String.fromCharCode(92)}evil.example`,
     'javascript:alert(1)',
   ]) {
     test(`next=${evil} lands on /home after sign-in`, async ({ page }) => {

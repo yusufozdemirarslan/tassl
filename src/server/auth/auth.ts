@@ -162,14 +162,20 @@ export function authOptionsFor(env: AuthEnv) {
       freshAge: 60 * 10,
       cookieCache: { enabled: true, maxAge: 60 * 5 },
     },
+    // Per client address (D-712). A section signs in from one campus address, so the ceilings are
+    // sized for a class arriving at once (NFR-014: sixty students): sign-in 120 a minute, sign-up 60,
+    // and 600 for everything else (the session reads every page makes). The routes that send an
+    // email stay at ten a minute, which is a bombing ceiling, not a classroom one. Guessing is not
+    // what these ceilings stop: the per-account lockout (D-704) refuses the eleventh failed sign-in
+    // for an address whatever client it comes from.
     rateLimit: {
       enabled: true,
       storage: 'database',
       window: 60,
-      max: 60,
+      max: 600,
       customRules: {
-        '/sign-in/email': { window: 60, max: 10 },
-        '/sign-up/email': { window: 60, max: 10 },
+        '/sign-in/email': { window: 60, max: 120 },
+        '/sign-up/email': { window: 60, max: 60 },
         '/request-password-reset': { window: 60, max: 10 },
         '/send-verification-email': { window: 60, max: 10 },
       },

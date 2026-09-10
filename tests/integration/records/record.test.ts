@@ -242,11 +242,12 @@ describe('requireCourseExportReader (08 §4, D-483)', () => {
     expect(file).toBeTruthy()
   })
 
-  it('refuses a student of the run’s section with FORBIDDEN, not with the file', async () => {
+  it('refuses the run’s own student with FORBIDDEN and a classmate with NOT_FOUND, never with the file', async () => {
     // The branch a mutation test kills silently: replacing it with `return run` leaves every suite
     // green and hands the run's grade — and its whole trace in the reviewer's form — to a classmate.
+    // The classmate is not told the run exists (D-703); the student whose run it is already knows.
     const runId = await confirmedRun()
-    expect(await codeOf(records.getCourseExport(fx.classmate, runId, 'latest'))).toBe('FORBIDDEN')
+    expect(await codeOf(records.getCourseExport(fx.classmate, runId, 'latest'))).toBe('NOT_FOUND')
     expect(await codeOf(records.getCourseExport(fx.student, runId, 'latest'))).toBe('FORBIDDEN')
   })
 

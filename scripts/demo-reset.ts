@@ -5,6 +5,10 @@
 //   DATABASE_URL=<owner string> DATABASE_URL_UNPOOLED=<owner string> SEED_PASSWORD=<production
 //   value> APP_ENV=production pnpm demo:reset                     # production, from the operator's
 //                                                                # machine (docs/guides/demo-runbook.md)
+//   pnpm demo:reset --load-users[=N]     # the same, plus the N (default 60) load-test students
+//                                        # `load-student-NN@tassl.local` and their assignment
+//                                        # "Load test run" (tests/load/core-flow.js); refused on
+//                                        # production, where no load account may exist (D-711)
 //
 // Restores the seeded demo state and then builds what the seed alone does not: runs that have been
 // through the whole loop, so the review, debrief, record and export screens are never empty when a
@@ -91,10 +95,21 @@ const log = (line: string): void => {
 
 const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms))
 
+/** `--load-users` → 60, `--load-users=25` → 25, absent → 0. */
+function loadUsersRequested(argv: readonly string[]): number {
+  const flag = argv.find((arg) => arg === '--load-users' || arg.startsWith('--load-users='))
+  if (!flag) return 0
+  const value = flag.includes('=') ? Number(flag.slice(flag.indexOf('=') + 1)) : 60
+  if (!Number.isInteger(value) || value < 1 || value > 99) {
+    throw new Error(`--load-users takes a whole number from 1 to 99, not "${flag}"`)
+  }
+  return value
+}
+
 async function main(): Promise<void> {
   const { env } = await import('@/server/config')
   const { client, db } = await import('@/server/db/client')
-  const { runSeed, SEED_USERS } = await import('@/server/db/seed')
+  const { ensureLoadSeats, runSeed, SEED_USERS } = await import('@/server/db/seed')
   const {
     assignments,
     notifications,
@@ -117,10 +132,18 @@ async function main(): Promise<void> {
   if (effectiveLlmProvider() !== 'mock') throw new Error('the reset must run on the mock provider')
 
   log(`target ${env.APP_ENV}: ${env.DATABASE_URL.replace(/\/\/[^@]*@/, '//…@')}`)
+  const loadUsers = loadUsersRequested(process.argv.slice(2))
+  if (loadUsers > 0 && env.APP_ENV === 'production') {
+    throw new Error('--load-users is refused on production: load accounts belong to a preview')
+  }
 
-  // 1. The seed.
+  // 1. The seed, and the load-test seats when asked for.
   const seed = await runSeed()
   log(`seed: ${Object.keys(seed.users).length} seats, course ${seed.courseId}`)
+  if (loadUsers > 0) {
+    const load = await ensureLoadSeats(seed, loadUsers)
+    log(`load seats: ${load.seats} students on assignment ${load.assignmentId}`)
+  }
 
   // 2. Take every rehearsal run off the demo assignments, and the seats' notifications with them.
   const demoAssignments = await db

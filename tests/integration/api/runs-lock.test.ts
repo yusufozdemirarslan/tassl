@@ -355,15 +355,20 @@ describe('POST /review/runs/{runId}/test-controls/force-assistant-failure', () =
     expect(errorOf(called).code).toBe('FORBIDDEN')
   })
 
-  it('refuses the TA and a classmate', async () => {
-    for (const seat of ['ta', 'classmate'] as const) {
+  it('refuses the TA with FORBIDDEN and a classmate with NOT_FOUND', async () => {
+    // The TA holds a seat on the section, so the run's existence is no secret from them; a
+    // classmate is told nothing beyond "no such run" (D-703).
+    for (const [seat, status] of [
+      ['ta', 403],
+      ['classmate', 404],
+    ] as const) {
       const called = await call(forceFailure.POST, {
         method: 'POST',
         path: path(),
         session: await sessionFor(seat),
         params: { runId },
       })
-      expect([seat, called.status]).toEqual([seat, 403])
+      expect([seat, called.status]).toEqual([seat, status])
     }
   })
 

@@ -14,7 +14,7 @@
 | HTTP mocking | MSW 2.15.0 | Unit tests of the openai-compatible and anthropic adapters (request shape, headers, streaming, repair retry) and of PostHog/Resend clients; never in integration tests of services (they use the mock provider) | unit |
 | Evals | `pnpm evals` | Golden datasets for AI-001 to AI-005 and rubric placements (`11-llm-integration.md` §5) | PR job `unit` runs `pnpm evals` on mock |
 | Performance | Lighthouse CI 0.15.1 | Web-vitals and bundle budgets (`16-performance-a11y-budgets.md`) | PR job `lhci` |
-| Load | k6 | Phase 15 only (`scripts/load/run-loop.js`) | manual |
+| Load | k6 | Phase 15 only (`tests/load/core-flow.js`, `pnpm test:load` against a preview; the accounts come from `pnpm demo:reset --load-users`) | manual |
 
 ## 2. Tooling and configuration
 

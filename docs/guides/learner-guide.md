@@ -637,4 +637,4 @@ A Student does not see **Courses**, **Review**, **Packages** or **Admin**; those
 - **Declaration** — **Declare outside-tool use**: a note on what you used outside Tassl and what for. It never lowers a band or a point.
 - **Walkthrough** — the chip on a practice assignment; a run on it can be deleted by the instructor instead of voided.
 
-Verified by automated tests: 2026-09-09, commit 66d87fe
+Verified by automated tests: 2026-09-10, commit a70a72b

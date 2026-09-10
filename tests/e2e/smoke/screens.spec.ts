@@ -27,7 +27,17 @@ test.describe('@smoke screens', () => {
     await expect(page.getByRole('heading', { level: 1, name: 'Home' })).toBeVisible()
     await page.getByRole('link', { name: 'Courses', exact: true }).click()
     await expect(page.getByRole('heading', { level: 1, name: 'Courses' })).toBeVisible()
-    await expect(page.getByText('Marketing Strategy Walkthrough').first()).toBeVisible()
+    // The seeded course is on the first page of a fresh database (production); on a database the
+    // local suites have added courses to it sits behind "Show more", so the pages are walked, which
+    // proves the list and its paging together rather than assuming the page it is on.
+    const seeded = page.getByText('Marketing Strategy Walkthrough').first()
+    for (let pageIndex = 0; pageIndex < 30 && !(await seeded.isVisible()); pageIndex += 1) {
+      const more = page.getByRole('link', { name: 'Show more courses' })
+      await expect(more).toBeVisible()
+      await more.click()
+      await expect(page.getByRole('heading', { level: 1, name: 'Courses' })).toBeVisible()
+    }
+    await expect(seeded).toBeVisible()
     await page.getByRole('link', { name: 'Review', exact: true }).click()
     await expect(page.getByRole('heading', { level: 1, name: 'Review' })).toBeVisible()
   })

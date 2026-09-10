@@ -185,6 +185,7 @@ describe('the append-only classification is complete', () => {
   const MUTABLE: readonly string[] = [
     'account',
     'answer_space_positions',
+    'app_settings',
     'assignments',
     'claim_neutralizations',
     'course_mapping_changes',
