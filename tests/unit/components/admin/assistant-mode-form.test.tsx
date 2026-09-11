@@ -185,6 +185,12 @@ describe('AssistantModeForm (UI-050, D-691)', () => {
       'The switch is held by the environment.',
     )
 
+    // The refusal ends the flight, and the control says so by giving its name back: while a save is
+    // in the air the button reads "Saving" and is `aria-busy`. Waiting for the resting name is
+    // waiting for the form to be idle, which is the precondition for pressing it a second time —
+    // without it the second press lands on a busy button on a machine slow enough to still be
+    // saving, and the query finds no button by that name at all (QA-070).
+    await screen.findByRole('button', { name: enUS['admin.flags.assistantModeSubmit'] })
     await user.click(saveButton())
 
     await waitFor(() => expect(alert()).toBeEmptyDOMElement())

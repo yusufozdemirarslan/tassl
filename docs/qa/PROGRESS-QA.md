@@ -133,46 +133,38 @@ first is that turning a gate on is only honest if what it measures already clear
 
 ## Next command
 
-The clean pass runs **one Playwright project per invocation** — this machine's memory is the binding
-constraint and a four-project `--repeat-each=3` was killed twice (see the memory note in
-`tassl-local-test-runners-unavailable`). The stage script is in the session scratchpad; the shape is:
+The QA run is finished and its records are in `docs/qa/QA-REPORT.md`,
+`docs/release/launch-checklist-2026-09-10.md` and
+`docs/release/walkthrough-notes-2026-09-10.md`. What follows is the release loop.
 
-```bash
-bash stage.sh "$OUT" serve                                   # db:reset + pnpm start (build once, separately)
-bash stage.sh "$OUT" chromium      --project=chromium        # each is --repeat-each=3
-bash stage.sh "$OUT" firefox       --project=firefox
-bash stage.sh "$OUT" webkit        --project=webkit
-bash stage.sh "$OUT" mobile-safari --project=mobile-safari
-bash stage.sh "$OUT" guides                                  # pnpm test:guides, the three-engine chain
-```
+**State at this point.** `main` carries every fix through QA-069; production has served `77cb94b`
+and then `81bdce5`, both verified live. The last three findings came from places nobody had looked:
 
-Nothing heavy runs beside them: a vitest coverage run or a workflow's agents alongside an e2e pass
-tips the machine over, and the failures it then produces are the machine's rather than the product's.
+- QA-066, QA-067 — the sliding-window straddle, in the account lockout and in two more windowed
+  counters. Better Auth's own limiter was read rather than assumed and is sound: it resets after a
+  window of inactivity since the last request, not on a wall-clock boundary.
+- QA-068 — `account.issuer` was `not null` and Better Auth 1.7.3 never writes it, so its schema
+  check refused every insert into `account`. Migration 0017 drops it and keys the unique index on
+  `(provider_id, account_id)`. Production had five account rows and no duplicates.
+- QA-069 — `preview-deploy` failed on every Dependabot pull request because GitHub withholds
+  repository secrets from those workflows. It was never a required context, so it only misreported.
 
-Then, in order:
+**The release loop, in order.** Each step's evidence goes in the transcript, not in a claim:
 
-1. **C8, the load test.** CI green → `preview-deploy` runs → `bash load-test.sh "$OUT" 60 10m 1m`
-   (in the scratchpad; it reads the `preview/pr-33` Neon branch, runs `pnpm demo:reset --load-users=60`
-   against it, then `pnpm test:load`). Record p95 read, p95 write, `http_req_failed` and the checks rate.
-2. **Merge** with `gh pr merge --squash --auto --delete-branch`, and watch `production.yml`.
-3. **C17.** `PLAYWRIGHT_BASE_URL=https://tassl.vercel.app pnpm test:smoke`; `pnpm demo:warm`;
-   `pnpm env:check`; re-read `/api/health` and confirm `version` is the deployed SHA (QA-002).
-4. **Step 15.5, the walkthrough against production.** The guide chain drives it, and D-725 requires
-   both halves to point at the deployment:
+1. No open pull requests; `git status` clean; `main` is the branch production builds from.
+2. `production.yml` green on `main` HEAD, and `/api/health` reports that sha.
+3. `pnpm env:check`, `pnpm demo:warm`, `PLAYWRIGHT_BASE_URL=https://tassl.vercel.app pnpm test:smoke`.
+4. `/api/health` and `/api/ready` both 200.
+5. The demo path in a real browser against production, both seats, zero console errors:
    ```bash
-   PLAYWRIGHT_BASE_URL=https://tassl.vercel.app    TEST_DATABASE_URL="$(cat ~/.config/tassl/neon-url.txt)"    SEED_PASSWORD="$(cat ~/.config/tassl/seed-password.txt)"    GUIDE_SCREENSHOT_ROOT="$OUT/prod-shots"    pnpm exec playwright test --project=guides-chromium-demo
+   PLAYWRIGHT_BASE_URL=https://tassl.vercel.app    TEST_DATABASE_URL="$(cat ~/.config/tassl/neon-url.txt)"    SEED_PASSWORD="$(cat ~/.config/tassl/seed-password.txt)"    GUIDE_SCREENSHOT_ROOT=/tmp/prod-shots pnpm test:demo-path
    ```
-   No local server is started and no local database is touched; the clock waits are real (the Turn is
-   60–120 s, the auto-lock run two minutes). Follow it with `pnpm demo:reset`.
-5. **Write the records**: `docs/release/launch-checklist-2026-09-10.md` (the 17 rows of
-   `15-cicd-deployment.md` §16, each `pass` only if its own condition was met by a command whose
-   output is summarised), `docs/release/walkthrough-notes-2026-09-10.md` (PRD §12 steps 1–17), the
-   PROGRESS.md ticks 15.3–15.6, and `docs/qa/QA-REPORT.md` ending `ALL CLEAR`.
-
-Two rows will not be `pass`, and the report says so rather than working around them: the fifteen
-Sentry alert rules that are not cron monitors need a token carrying `alerts:write` (the one here is
-`org:ci` and answers 403 to every alert endpoint), and the legal-pages review is a human act because
-PII is collected (SYS-007).
+   Then `pnpm demo:reset` against production, or the demo seats keep the walk's runs.
+6. `/admin/flags` shows the assistant mode the demo runs with, and the Model usage panel shows the
+   calls the walk made — which is how a live reply is evidenced rather than asserted.
+7. `pnpm qa:all` locally. On the builder's 16 GB it is run in stages, one Playwright project per
+   invocation, with nothing heavy beside it (see the memory note in
+   `tassl-local-test-runners-unavailable`).
 
 ## Evidence gathered so far (for QA-REPORT.md)
 - Sentry (browser, 2026-09-09 17:20 ET): project `tassl` has the project alert "Send a notification for high priority issues" with the action Email; the test event `ops.sentry_test` is issue TASSL-1; cron monitors `nightly-backup` and `restore-drill` exist (the drill's last check-in before today was an error, from the run D-690 fixed).
