@@ -3,14 +3,14 @@
 ## 1. Verdict
 
 Tassl is ready for the demo. The production deployment is **https://tassl.vercel.app**, serving
-`main` at **`77cb94b`** — `/api/health` reports the sha it is running, and `/api/ready` answers 200
+the head of **`main`** — `/api/health` reports the sha it is serving, which is the authority here rather than a number copied into this page, and `/api/ready` answers 200
 with the database, the job schema and the assistant mode it is serving on. The demo seats are
 `instructor@tassl.local` and `student1@tassl.local`, with `student2@tassl.local` carrying the
 pre-built runs, `editor@tassl.local` for authoring and `admin@tassl.local` for the flags screen; the
 production password is the Vercel variable `SEED_PASSWORD`, held on the builder's machine at
 `~/.config/tassl/seed-password.txt`. The full demo path — PRD §12 steps 1–17, the 27 rows of the
-runbook — was walked against that URL in a real browser in 7.5 minutes with zero console errors, on
-the live model, and the demo state was restored afterwards. Seventy-one defects were found and fixed
+runbook — was walked against that URL in a real browser in 10.5 minutes with zero console errors and
+zero refused requests, on the live model, and the demo state was restored afterwards. Seventy-five defects were found and fixed
 in this run; two rows of the launch checklist are not `pass`, and §2 says which and why rather than
 working around either.
 
@@ -21,24 +21,24 @@ One row per section of the QA checklist (`docs/prompts/02-qa-and-guides.md` §6)
 | Section | Status | What was tested | Found | Fixed |
 |---|---|---|---|---|
 | C1 Static, build and hygiene | 🟢 | `lint`, `typecheck`, `build`, `audit --prod`, depcheck, `no-console`, cspell, the clean-clone build on Node 24, gitleaks over the full history, the client-bundle secret grep, env parity, `db:drift`, `openapi:check` and the bundle budgets | 0 | 0 |
-| C2 Existing suites and flakiness | 🟢 | every suite, then `--repeat-each=3` over all four Playwright projects on GitHub runners — 909 test runs, 0 failed | 12 | 12 |
+| C2 Existing suites and flakiness | 🟢 | every suite, then `--repeat-each=3` over all four Playwright projects on GitHub runners — 918 test runs, 0 failed, and the unit suite read again on a busy machine | 13 | 13 |
 | C3 Functional coverage vs PRD | 🟢 | the API-coverage gate, and the requirement register's two joins — every id covered exactly once, every test path it names openable — as a test rather than a habit | 6 | 6 |
-| C4 Authentication and authorisation | 🟢 | `tests/integration/authz-matrix.test.ts` over role × route, IDOR and immutability in 17 cases; a classmate meets 404 on every reviewer endpoint; the per-account lockout | 4 | 4 |
+| C4 Authentication and authorisation | 🟢 | `tests/integration/authz-matrix.test.ts` over role × route, IDOR and immutability in 17 cases; a classmate meets 404 on every reviewer endpoint; the per-account lockout, what that lockout counts across a window boundary, and what the sign-in form does with what is typed into it | 6 | 6 |
 | C5 LLM layer | 🟢 | seventeen prompt-injection cases in their own vitest project, the assistant-mode chip, and the provider-down pause path | 0 | 0 |
-| C6 Data and database | 🟢 | no migration drift, `demo:reset`, all three seeded assignments walkthrough, the Neon backup branch, a measured 2.2 s cold start, and nothing polling `/api/ready` | 2 | 2 |
+| C6 Data and database | 🟢 | no migration drift, `demo:reset`, all three seeded assignments walkthrough, the Neon backup branch, a measured 2.2 s cold start, nothing polling `/api/ready`, and the auth schema the library actually requires | 3 | 3 |
 | C7 Resilience and error handling | 🟢 | envelope fuzz and the 1 MiB body cap; the network dropping mid-act on every engine; pasted markup, zero-width and bidirectional characters, and what happens to an emoji | 3 | 3 |
 | C8 Performance | 🟢 | Lighthouse and every bundle budget, then k6 at 60 virtual users for ten minutes against a preview: 99,580 checks, 100 % passed, 0 % failed | 2 | 2 |
-| C9 Security | 🟢 | the headers on production, `robots.txt`, the lockout, the body cap, parameterised SQL, and the open-redirect check built from a character code so an editor cannot disarm it | 3 | 3 |
+| C9 Security | 🟢 | the headers on production, `robots.txt`, the lockout, the body cap, parameterised SQL, and the open-redirect check built from a character code so an editor cannot disarm it, and every other windowed counter that shared the lockout’s arithmetic | 4 | 4 |
 | C10 Accessibility | 🟢 | the axe suite over 34 screens and the keyboard-only run, on all four projects three times each | 4 | 4 |
-| C11 UI, copy and projector readiness | 🟢 | `impeccable detect` at 0 findings, the audit at 1440×900 and 390×844, and the phone as a project rather than a reading | 15 | 15 |
-| C12 Cross-browser | 🟢 | chromium, firefox, webkit and `mobile-safari`, green three times over; `cross-browser.yml` matrixes all four | 5 | 5 |
+| C11 UI, copy and projector readiness | 🟢 | `impeccable detect` at 0 findings, the audit at 1440×900 and 390×844, the phone as a project rather than a reading, and what the two demo tabs look like on a projector | 16 | 16 |
+| C12 Cross-browser | 🟢 | chromium, firefox, webkit and `mobile-safari`, green three times over; `cross-browser.yml` matrixes all four; and the moment a page becomes pressable, which is not the moment its network goes quiet | 6 | 6 |
 | C13 Observability | ◐ | `/api/health` and `/api/ready` answer 200 in production, Sentry receives events, the three cron monitors exist, PostHog's last hop is verified in the Events view, and a closed browser tab no longer reaches Sentry as an application error. **Open:** fourteen of the alert rules in 13 §7 are not created | 2 | 2 |
-| C14 Deployment and configuration | 🟢 | eighteen production variables, `env:check`, the rollback target in the runbook, and branch protection carrying all eleven `checks / …` contexts | 1 | 1 |
-| C15 Demo safeguards | 🟢 | all four: the runtime assistant-mode switch, `demo:warm`, `demo:reset`, and the pre-demo checklist | 2 | 2 |
-| C16 Guides verified | 🟢 | 28 tasks and 321 steps matching their specs, the chain green on three engines, and every screenshot recaptured and read against its step | 3 | 3 |
+| C14 Deployment and configuration | 🟢 | eighteen production variables, `env:check`, the rollback target in the runbook, and branch protection carrying all eleven `checks / …` contexts, and every job on a pull request meaning what its colour says | 2 | 2 |
+| C15 Demo safeguards | 🟢 | all four: the runtime assistant-mode switch, `demo:warm`, `demo:reset`, the pre-demo checklist, and what the presenter is told to expect while a run scores | 3 | 3 |
+| C16 Guides verified | 🟢 | 28 tasks and 321 steps matching their specs, the chain green on three engines, every screenshot recaptured and read against its step, and the network behind the walk watched rather than assumed | 4 | 4 |
 | C17 Redeploy and live verification | 🟢 | the merge, the production deploy, `test:smoke`, `demo:warm`, `env:check`, and the walkthrough against production | 1 | 1 |
 
-The two count columns are equal in every row by construction: each of the sixty-five rows of
+The two count columns are equal in every row by construction: each of the seventy-five rows of
 `docs/qa/FIXED-ISSUES.md` carries the status `fixed`, and the register has no other status. Rows are
 shared out by the check that would have caught them, so a defect touching two sections is counted
 once. C1 and C5 have no rows of their own: what those checks produced is gates and cases rather than
@@ -57,7 +57,7 @@ the rules are stated as not created rather than worked around. Launch-checklist 
 
 ## 3. What was fixed
 
-Seventy-one defects were found and fixed. Every one has a row in `docs/qa/FIXED-ISSUES.md` under the
+Seventy-five defects were found and fixed. Every one has a row in `docs/qa/FIXED-ISSUES.md` under the
 number used here, and every one names the test that now guards it.
 
 ### The defects a person would have met
@@ -148,6 +148,12 @@ number used here, and every one names the test that now guards it.
 69. **QA-069 (P2) — a red square that meant nothing.** Every Dependabot pull request showed a failed `preview-deploy`, because GitHub withholds repository secrets from a workflow a Dependabot pull request triggers and the Neon create-branch action got no `api_key`. It is not one of the eleven required contexts, so it never blocked a merge — it only ever misreported, on every bump, which is worse than not running. `pr.yml` runs it only when the actor is not `dependabot[bot]` (D-736).
 70. **QA-070 (P2) — a second press that landed on a busy button.** `pnpm qa:all` failed at its unit stage with `Unable to find an accessible element with the role "button" and name "Save assistant mode"`, on a file that passes alone and inside a unit project that passes alone. The test pressed **Save assistant mode** twice without waiting for the first save to land, and while a save is in the air that button reads **Saving** and carries `aria-busy` — which the failure's own DOM dump shows. It now waits for the resting name to return, which is the precondition it had assumed. Every other double-press test in `tests/unit/components` was surveyed; all eleven already waited.
 71. **QA-071 (P1) — the runbook understated the wait a presenter will sit through.** The demo path failed against production waiting for **Your debrief is ready**: the run had scored, in 33.2 seconds, and the wait was 30. The worse half was the prose — the runbook told a presenter that scoring takes "a few seconds more" on the live model than the scripted assistant's five, so half a minute on **Your run is being scored** would have read as a hung page in front of an audience. On the live model scoring is seven dimensions of generation: `scored_at - defense_completed_at` reads 22.6 s for the walkthrough run and 33.2 s for the sound one. The wait is two minutes now, inside NFR-001's ten, and the runbook and the demo-path timings table both carry the measurement.
+72. **QA-072 (P1) — "zero console errors" was standing in for a claim nobody checked.** The guide suite's guard listens to `console` and `pageerror`, and every report of the walk — this one included — read that as nothing having gone wrong behind the screens. It is not the same claim. A `fetch` whose rejection the caller catches logs nothing at all; only some engines log a refused resource; so a screen could render complete while the call behind it answered 4xx, and all 28 guide tasks, 321 steps and 27 demo-path rows would still pass. Nothing had ever listened to `response` or `requestfailed` — the same shape as QA-011 and QA-062, a line that reads as coverage and proves nothing. `guardNetwork` now fails any guide test on a response of 400 or worse or a request that never arrived, with one allowance written down beside its reason: the 503 of the assistant outage the instructor arms on purpose (D-737). It found nothing on the re-walk, which is the point — the claim is now checked rather than assumed.
+73. **QA-073 (P2) — no icon anywhere.** `/favicon.ico`, `/icon` and `/apple-icon` all answered 404: no icon file convention existed under `src/app`, so Next emitted no icon link and had nothing to serve. The demo is two tabs a presenter switches between on a projector, and both carried the browser's blank default. It survived every previous pass because Playwright's headless contexts do not request `/favicon.ico` on their own — checked on all three engines, which is also what proved the new network guard would not trip over it. `src/app/icon.svg` is a "T" in the deep teal of `DESIGN.md` on the 6 px radius its tokens name; the built server serves it at 200 with `<link rel="icon" … type="image/svg+xml">`.
+
+74. **QA-074 (P1) — the sign-in form ate what was typed into it.** An address typed before the page finished hydrating disappeared, and the form then answered **Enter a valid email address** for an address that was valid. react-hook-form registers each field with the default it is given, and `defaultValues: { email: '', password: '' }` overwrote whatever the input already held; on a cold serverless start the window between a readable screen and a live one is seconds, and production's own cold `/api/ready` measured 3.16 s. It reproduced 15 times out of 15 across all three engines. The suite had a heuristic against this class already — D-182 waits for the network to fall quiet after every navigation, so no other spec ever typed that early — which is why the only thing that ever caught it was the one spec that signs in through the form, on the slowest engine. Every public auth form now adopts what is already in its inputs (D-738), and the guard types into the form with the client bundle held back a second, so the window is the same width on every engine: it fails on all three without the fix and passes on all three with it.
+
+75. **QA-075 (P2) — a press the page could not hear.** The graphs gallery failed on webkit: **Show data table** was pressed, the figure did not change, and the button that should then have read **Show graph** was never there. The graph was fine. The press landed on a page React had not taken over yet, and a reader clicking that early would have watched the same nothing happen. The lane had been waiting for the network to fall quiet and reading that as "ready" (D-182) — a proxy, not the thing: a bundle that has arrived is not a page whose buttons work, and `/dev/components` is heavy enough that WebKit goes idle inside the gap. Every navigation now waits for React to have attached to the page's `main` or `form` as well (D-739). It is the same root as QA-074 seen from the other side, and the whole lane went green on it — webkit 2.6 minutes faster than the run that failed, because a real signal costs less than the retries a proxy buys.
 
 ## 4. Operating facts
 
@@ -159,7 +165,7 @@ These are the constraints the demo runs under. Every number was measured or read
 - Route handlers cap JSON bodies at 1 MiB and answer 413 `PAYLOAD_TOO_LARGE` in the standard envelope, so a hostile body is refused before Vercel's own limit is reached (D-702).
 - Only the assigned domain is open. Preview deployments and the non-domain production URLs sit behind Vercel Authentication (D-101), so a person handed a deployment URL rather than the domain meets a Vercel login page.
 - Eighteen environment variables are set on production. `FEATURE_TEST_CONTROLS`, `LLM_MODEL`, `LLM_TIMEOUT_MS` and `LLM_FALLBACK_PROVIDER` are not among them and run at their schema defaults — `true`, `mimo-v2.5-pro`, 60,000 ms and `none`. There is no Anthropic fallback configured in production; the fallback is the scripted assistant.
-- The repository is public, so GitHub Actions minutes are not metered. The production workflow takes 41 minutes end to end — 37.5 minutes of checks and 3.3 minutes of deploy — and nothing is merged to `main` once the warm-up has started.
+- The repository is public, so GitHub Actions minutes are not metered. The production workflow takes about 50 minutes end to end — the release of 2026-09-11 spent 46.3 minutes on the eleven checks and 4.3 minutes on the deploy, the longest single jobs being `guides` at 19.9 minutes and `integration` at 19.2 — and nothing is merged to `main` once the warm-up has started.
 
 ### The database
 
@@ -167,7 +173,7 @@ These are the constraints the demo runs under. Every number was measured or read
 - At the last reading four branches of ten were in use — `main`, `preview/pr-31`, `preview/pr-35` and `pre-demo-backup-20260909` — with 2.51 CU-hours of the 100 spent this month and 37.0 MB of the 0.5 GB.
 - The compute suspends after five idle minutes. The measured cold start on `/api/ready` is 2.23 seconds; the warm response is 0.16 seconds. A page after a quiet spell takes those two seconds and then behaves normally.
 - Nothing polls `/api/ready` on a schedule (D-698) — a one-minute poll would keep the compute awake all month and spend the allowance. The only schedule that touches the deployment is the Vercel cron at 04:00 UTC that drains the job queues.
-- `pnpm demo:warm` is what wakes it on demand. Run against production on 2026-09-09 it loaded 14 pages, all 200, the first in 2.5 seconds and the rest in 146–335 ms. It takes `SEED_PASSWORD`; without it the script signs in with the local default, which production refuses.
+- `pnpm demo:warm` is what wakes it on demand. Run against production on 2026-09-11 it loaded 15 requests, all 200: cold, `/api/ready` answered in 3.16 seconds and the rest in 113–2,396 ms; run again immediately, `/api/ready` answered in 486 ms and the rest in 113–227 ms. That gap is the warm-up, and it is why the runbook warms the deployment before a demo rather than during one. It takes `SEED_PASSWORD`; without it the script signs in with the local default, which production refuses.
 - The nightly encrypted dump runs at 03:30 UTC and the restore drill runs every Monday; the last observed drill was green in 3 minutes 15 seconds (run 34406394294, 2026-09-09). The branch `pre-demo-backup-20260909` exists.
 
 ### Signing in
@@ -222,9 +228,10 @@ These are the constraints the demo runs under. Every number was measured or read
 
 ## 5. Numbers
 
-**Tests.** 2,894 unit tests in 163 files; 1,996 integration tests in 96 files against Postgres; 17
-prompt-injection cases; 909 end-to-end test runs across chromium, firefox, webkit and mobile-safari,
-three repeats each (`cross-browser.yml` run 34515616056), 0 failed; 28 guide tasks and 321 guide
+**Tests.** 2,900 unit tests in 164 files; 1,997 integration tests in 96 files against Postgres; 17
+prompt-injection cases; 918 end-to-end test runs across chromium, firefox, webkit and mobile-safari,
+three repeats each (`cross-browser.yml` run 34603187201 — chromium 300 in 19.4 m, firefox 297 in
+20.8 m, webkit 297 in 23.0 m, mobile-safari 24 in 1.4 m), 0 failed; 28 guide tasks and 321 guide
 steps mirrored one-to-one by their specs, plus the 27 demo-path rows; 32 of 33 AI evals.
 
 **Coverage.** 83.56 % of lines overall. `src/server/**` clears its 80 % threshold; `src/components/**`
@@ -252,12 +259,14 @@ branches of the ten allowed (`main`, `preview/pr-31`, `preview/pr-35`, `pre-demo
 Cold start on `/api/ready` 2.23 s; warm 0.16 s.
 
 **The live model.** Assistant mode is Live, the effective provider is `openai-compatible`, and the
-model is MiMo v2.5 Pro. During the production walkthrough it answered 13 calls for 28,225 tokens at
-0.017 USD; the month stands at 23 calls, 171,647 tokens and 0.105 USD, against ceilings of 200,000
-tokens per person per day and 20,000,000 a month. One demo run costs under 0.05 USD.
+model is MiMo v2.5 Pro. Read from `/api/v1/admin/flags` after the production walkthrough on
+2026-09-11, the day stood at 26 calls for 67,079 tokens at 0.041 USD and the month at 49 calls,
+238,726 tokens and 0.146 USD, against ceilings of 200,000 tokens per person per day and 20,000,000 a
+month. One demo run costs under 0.05 USD.
 
-**Production latency**, measured by `pnpm demo:warm` after the deploy: 14 pages, all 200, the first
-789 ms and the rest 114–479 ms, with `/api/ready` at 180 ms.
+**Production latency**, measured by `pnpm demo:warm` after the deploy: 15 requests, all 200, warm —
+`/api/ready` 486 ms and every page 113–227 ms. The same script on a suspended compute reads 3.16 s
+for `/api/ready` and up to 2.4 s for the first pages.
 
 ## 6. How to re-run everything
 
@@ -294,7 +303,7 @@ pnpm demo:reset            # restore the demo state the walk consumed
 | What | Where |
 |---|---|
 | Every defect, with symptom, root cause, fix and guarding test | `docs/qa/FIXED-ISSUES.md`, 71 rows |
-| Every decision this run made | `docs/tech/DECISIONS.md`, D-691 to D-734 |
+| Every decision this run made | `docs/tech/DECISIONS.md`, D-691 to D-737 |
 | The launch checklist, row by row | `docs/release/launch-checklist-2026-09-10.md` |
 | The walkthrough, step by step | `docs/release/walkthrough-notes-2026-09-10.md` |
 | The state of each QA section as it was worked | `docs/qa/PROGRESS-QA.md` |
@@ -303,7 +312,7 @@ pnpm demo:reset            # restore the demo state the walk consumed
 | The two persona guides and their 348 screenshots | `docs/guides/` |
 | Break-glass, rollback and the offline fallback | `docs/guides/demo-runbook.md` parts 3 and 4 |
 | The weekly operating cadence | `docs/release/post-launch-runbook.md` |
-| The cross-browser repeats | `cross-browser.yml` run 34515616056 |
-| The release deploy | `production.yml` run 34531253976, `main` at `77cb94b` |
+| The cross-browser repeats | `cross-browser.yml` run 34603187201 |
+| The release deploy | the newest successful `production.yml` run on `main`; `/api/health` reports the sha it put live |
 
 ALL CLEAR

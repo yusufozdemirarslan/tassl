@@ -79,10 +79,54 @@ const IGNORED_CONSOLE_PATTERNS: RegExp[] = [
   /ResizeObserver loop completed with undelivered notifications/,
 ]
 
+/**
+ * The requests a guide makes fail on purpose (D-737). A console line only reports a failed request
+ * on the engines that choose to log one, so "zero console errors" was never the same claim as "zero
+ * failed requests" — this list is what makes the second one checkable. Anything else answering 400
+ * or worse fails the test, which is the point: a screen that renders while the call behind it is
+ * refused looks right and is not.
+ */
+const EXPECTED_FAILED_REQUESTS: { status: number; url: RegExp; why: string }[] = [
+  {
+    status: 503,
+    url: /\/api\/v1\/runs\/[^/?]+\/delegations(\?|$)/,
+    why: 'the assistant outage the instructor arms: Student guide Task 15, demo-path row 12',
+  },
+]
+
+/**
+ * A cancelled request is not a failed one. A navigation that outruns an in-flight poll, and a
+ * prefetch a click cuts short, are both abandoned by the browser by design; each engine names it
+ * differently and none of the names means the server refused anything.
+ */
+const ABORTED_REQUEST = /NS_BINDING_ABORTED|ERR_ABORTED|Load failed|cancelled/i
+
+/**
+ * Records every request the page made that the server refused, or that never arrived. Returns the
+ * list it fills, for the caller to assert empty at the end of the test.
+ */
+export function guardNetwork(target: Page): string[] {
+  const failures: string[] = []
+  target.on('response', (response) => {
+    const status = response.status()
+    if (status < 400) return
+    const url = response.url()
+    if (EXPECTED_FAILED_REQUESTS.some((row) => row.status === status && row.url.test(url))) return
+    failures.push(`${String(status)} ${response.request().method()} ${url}`)
+  })
+  target.on('requestfailed', (request) => {
+    const text = request.failure()?.errorText ?? 'failed'
+    if (ABORTED_REQUEST.test(text)) return
+    failures.push(`${text} ${request.method()} ${request.url()}`)
+  })
+  return failures
+}
+
 export const test = suite.extend<{
   persona: Persona
   shot: Shooter
   consoleGuard: void
+  networkGuard: void
 }>({
   viewport: { width: 1440, height: 900 },
   colorScheme: 'light',
@@ -178,6 +222,15 @@ ${value.stack ?? ''}`
       await provide()
       await Promise.all(pending)
       expect(errors, 'no uncaught page error or console.error during the test').toEqual([])
+    },
+    { auto: true },
+  ],
+
+  networkGuard: [
+    async ({ page }, provide) => {
+      const failures = guardNetwork(page)
+      await provide()
+      expect(failures, 'no refused or undelivered request during the test').toEqual([])
     },
     { auto: true },
   ],

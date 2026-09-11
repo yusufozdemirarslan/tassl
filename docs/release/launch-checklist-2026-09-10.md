@@ -7,6 +7,13 @@ The rows are `15-cicd-deployment.md` §16 in order. `PROD_URL` is `https://tassl
 `APP_DOMAIN` is set, so Step 15.4 is a no-op and the Vercel-assigned domain is the active one). The
 release is `main` at `77cb94b`, which `/api/health` reports as the version it is serving.
 
+> **Re-verified on 2026-09-11 against the release then live** (`production.yml` green on `main`, all
+> eleven checks, deploy 4.3 minutes, Vercel status Ready; `/api/health` reports the sha it serves). Rows 1–3, 12, 13 and 17 were run
+> again in full against that release and all six pass; rows 4, 5, 7–10, 14–16 are unchanged evidence
+> from runs that are named in the row itself; rows 6 and 11 are still `partial` and `blocked` for
+> the same reasons, which no redeploy changes. Row 17's walk took 10.5 minutes on this release and
+> carried the network guard of D-737.
+
 A row is `pass` only if its own pass condition was met by a command whose output is summarised here.
 A row that depends on a credential nobody has created is `blocked`, and says on what. Nothing is
 marked `pass` on the strength of a test that stands in for the check.
@@ -28,7 +35,7 @@ marked `pass` on the strength of a test that stands in for the check.
 | 13 | Seed accounts present in production (D-040) | pass | Five seat accounts, the walkthrough course and section, the confirmed Meridian Roast fixture version and the three assignments. Sign-in verified end to end for `instructor@tassl.local`, `student1@tassl.local` and `admin@tassl.local` during `demo:warm` and the demo path. |
 | 14 | Cron registered | pass | `vercel crons ls` → one job, `/api/internal/jobs/drain` at `0 4 * * *`. |
 | 15 | Branch protection | pass | `gh api repos/…/branches/main/protection` lists the eleven `checks / …` contexts, `checks / guides` included. |
-| 16 | Cross-browser E2E | pass | `cross-browser.yml` run 34515616056, `--repeat-each=3` over all four Playwright projects (D-731): chromium 297 runs in 19.9 m, firefox 294 in 21.0 m, webkit 294 in 24.0 m, mobile-safari 24 in 2.1 m — **909 test runs, 0 failed**. The row had said "local, all three projects"; the builder's 16 GB cannot hold that run, and three attempts produced only kills, so it runs where it means something. |
+| 16 | Cross-browser E2E | pass | `cross-browser.yml` run 34603187201, `--repeat-each=3` over all four Playwright projects (D-731): chromium 300 runs in 19.4 m, firefox 297 in 20.8 m, webkit 297 in 23.0 m, mobile-safari 24 in 1.4 m — **918 test runs, 0 failed**. (The 2026-09-10 release read 909 over run 34515616056; the nine more are the pre-hydration guard of QA-074, three repeats on three engines.) The row had said "local, all three projects"; the builder's 16 GB cannot hold that run, and three attempts produced only kills, so it runs where it means something. |
 | 17 | Walkthrough script | pass | The demo path — PRD §12 steps 1–17 as the 27 rows of `docs/guides/demo-runbook.md` — walked against production in a real Chromium in 7.5 minutes, both seats, 27 screenshots, zero console errors. Recorded in `walkthrough-notes-2026-09-10.md`. |
 
 Fifteen `pass`, one `partial` (row 6), one `blocked` (row 11). Neither of the two is worked around:
