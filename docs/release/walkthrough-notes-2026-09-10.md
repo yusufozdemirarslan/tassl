@@ -8,7 +8,7 @@ Release: `main` at `77cb94b`, served by `https://tassl.vercel.app` (`/api/health
 `77cb94baf31f14ebcecd72820277b163836ceb4a`). Assistant mode **live**, effective provider
 `openai-compatible` (MiMo). `FEATURE_TEST_CONTROLS` is on, which walkthrough step 7 needs (D-023).
 
-> **Walked again on 2026-09-11 against `main` at `5db6f4b`** (`production.yml` run 34576783997), and
+> **Walked again on 2026-09-11, against the release that followed the QA run's last merge**, and
 > the seventeen results below were observed again unchanged. Two things differ from the 09-10 record
 > and are stated where they belong rather than edited over the original: the walk took **10.5
 > minutes** rather than 7.5, because QA-071 lengthened the scoring wait to what the live model

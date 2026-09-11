@@ -3,7 +3,7 @@
 ## 1. Verdict
 
 Tassl is ready for the demo. The production deployment is **https://tassl.vercel.app**, serving
-`main` at **`5db6f4b`** — `/api/health` reports the sha it is running, and `/api/ready` answers 200
+the head of **`main`** — `/api/health` reports the sha it is serving, which is the authority here rather than a number copied into this page, and `/api/ready` answers 200
 with the database, the job schema and the assistant mode it is serving on. The demo seats are
 `instructor@tassl.local` and `student1@tassl.local`, with `student2@tassl.local` carrying the
 pre-built runs, `editor@tassl.local` for authoring and `admin@tassl.local` for the flags screen; the
@@ -165,7 +165,7 @@ These are the constraints the demo runs under. Every number was measured or read
 - Route handlers cap JSON bodies at 1 MiB and answer 413 `PAYLOAD_TOO_LARGE` in the standard envelope, so a hostile body is refused before Vercel's own limit is reached (D-702).
 - Only the assigned domain is open. Preview deployments and the non-domain production URLs sit behind Vercel Authentication (D-101), so a person handed a deployment URL rather than the domain meets a Vercel login page.
 - Eighteen environment variables are set on production. `FEATURE_TEST_CONTROLS`, `LLM_MODEL`, `LLM_TIMEOUT_MS` and `LLM_FALLBACK_PROVIDER` are not among them and run at their schema defaults — `true`, `mimo-v2.5-pro`, 60,000 ms and `none`. There is no Anthropic fallback configured in production; the fallback is the scripted assistant.
-- The repository is public, so GitHub Actions minutes are not metered. The production workflow takes about 50 minutes end to end — run 34576783997 spent 46.3 minutes on the eleven checks and 4.3 minutes on the deploy, the longest single job being `integration` at 19.2 minutes and `guides` at 19.9 — and nothing is merged to `main` once the warm-up has started.
+- The repository is public, so GitHub Actions minutes are not metered. The production workflow takes about 50 minutes end to end — the release of 2026-09-11 spent 46.3 minutes on the eleven checks and 4.3 minutes on the deploy, the longest single jobs being `guides` at 19.9 minutes and `integration` at 19.2 — and nothing is merged to `main` once the warm-up has started.
 
 ### The database
 
@@ -312,6 +312,6 @@ pnpm demo:reset            # restore the demo state the walk consumed
 | Break-glass, rollback and the offline fallback | `docs/guides/demo-runbook.md` parts 3 and 4 |
 | The weekly operating cadence | `docs/release/post-launch-runbook.md` |
 | The cross-browser repeats | `cross-browser.yml` run 34515616056 |
-| The release deploy | `production.yml` run 34576783997, `main` at `5db6f4b` |
+| The release deploy | the newest successful `production.yml` run on `main`; `/api/health` reports the sha it put live |
 
 ALL CLEAR

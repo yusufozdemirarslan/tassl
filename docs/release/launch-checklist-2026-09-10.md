@@ -7,8 +7,8 @@ The rows are `15-cicd-deployment.md` §16 in order. `PROD_URL` is `https://tassl
 `APP_DOMAIN` is set, so Step 15.4 is a no-op and the Vercel-assigned domain is the active one). The
 release is `main` at `77cb94b`, which `/api/health` reports as the version it is serving.
 
-> **Re-verified on 2026-09-11 against `main` at `5db6f4b`** (`production.yml` run 34576783997, all
-> eleven checks green, deploy 4.3 minutes, Vercel status Ready). Rows 1–3, 12, 13 and 17 were run
+> **Re-verified on 2026-09-11 against the release then live** (`production.yml` green on `main`, all
+> eleven checks, deploy 4.3 minutes, Vercel status Ready; `/api/health` reports the sha it serves). Rows 1–3, 12, 13 and 17 were run
 > again in full against that release and all six pass; rows 4, 5, 7–10, 14–16 are unchanged evidence
 > from runs that are named in the row itself; rows 6 and 11 are still `partial` and `blocked` for
 > the same reasons, which no redeploy changes. Row 17's walk took 10.5 minutes on this release and
