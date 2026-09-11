@@ -49,7 +49,6 @@ export const account = pgTable(
   'account',
   {
     id: text('id').primaryKey(),
-    issuer: text('issuer').notNull(),
     accountId: text('account_id').notNull(),
     providerId: text('provider_id').notNull(),
     userId: text('user_id')
@@ -68,7 +67,14 @@ export const account = pgTable(
       .notNull(),
   },
   (table) => [
-    uniqueIndex('account_issuer_accountId_uidx').on(table.issuer, table.accountId),
+    // An account is identified by its provider and that provider's id for it: Better Auth's
+    // `findAccountByKey` and `findAccountOwnerByKey` both read `{ providerId, accountId }`, and
+    // both throw `Multiple accounts match the same account key` if more than one row answers.
+    // This index is that rule (D-735). It replaces one on `(issuer, account_id)`: `issuer` was a
+    // column Better Auth 1.7.0 to 1.7.2 generated and 1.7.3 stopped writing, and because ours was
+    // `not null` the library's own schema check refused every insert into `account` — which is
+    // every sign-up and every OAuth link.
+    uniqueIndex('account_providerId_accountId_uidx').on(table.providerId, table.accountId),
     index('account_userId_idx').on(table.userId),
   ],
 )

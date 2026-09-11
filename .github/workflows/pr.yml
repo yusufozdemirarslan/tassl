@@ -19,10 +19,15 @@ jobs:
       contents: read
       pull-requests: read
 
+  # Not for Dependabot (D-736). GitHub withholds repository secrets from a workflow a
+  # Dependabot pull request triggers, so the Neon branch action gets no `api_key` and the job fails
+  # with `Input required and not supplied: api_key` — every time, on every dependency bump, however
+  # sound the bump is. A job that cannot succeed on an event should not run for it; the eleven
+  # `checks / …` contexts still gate the merge, and a dependency bump needs no preview of its own.
   preview-deploy:
     name: preview-deploy
     needs: checks
-    if: ${{ vars.DEPLOY_ENABLED == 'true' }}
+    if: ${{ vars.DEPLOY_ENABLED == 'true' && github.actor != 'dependabot[bot]' }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
