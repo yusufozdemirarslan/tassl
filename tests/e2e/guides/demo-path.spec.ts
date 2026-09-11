@@ -177,8 +177,17 @@ const GRAPH_TITLES = ['Confidence line', 'Clock timeline', 'Stance matrix', 'Fra
 /** Every save ends in `router.refresh()`, and the recharts graphs arrive in a deferred chunk. */
 const ACTION_TIMEOUT_MS = 20_000
 const GRAPH_TIMEOUT_MS = 20_000
-/** Far past NFR-001's five seconds: a run that misses this is held rather than slow. */
-const SCORING_TIMEOUT_MS = 30_000
+/**
+ * Scoring, on the model this deployment actually runs (QA-071).
+ *
+ * Thirty seconds was sized for the scripted assistant, which `docs/qa/demo-path.md` measures at
+ * under five. Against production on the live model it is the seven scored dimensions' worth of
+ * generation: 22.6 s for the walkthrough run and 33.2 s for the sound one, read off
+ * `scored_at - defense_completed_at`, so the old bound failed a run that had scored three seconds
+ * later. Two minutes is well inside NFR-001's ten for the debrief and still fails fast on a run
+ * that is held rather than slow.
+ */
+const SCORING_TIMEOUT_MS = 120_000
 /** The run band polls every five seconds; a page that moves itself does so inside this. */
 const PAGE_MOVES_TIMEOUT_MS = 60_000
 /** The live model takes 3 to 13 seconds per reply (runbook §facts); the scripted one is instant. */

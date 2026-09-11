@@ -26,6 +26,7 @@ assignment page and the demo can be repeated.
 | Turn window | 12 minutes | `limits.ts` |
 | Auto-lock test run | 2 minutes after the frame is locked | seed `workingClockSeconds: 120` |
 | Scoring on the scripted assistant | under 5 seconds | NFR-001 |
+| Scoring on the live model | 20 to 35 seconds | measured on production 2026-09-11: 22.6 s and 33.2 s |
 
 There is no time travel in a live demo: the advance-clock route exists only under `APP_ENV=test`.
 
