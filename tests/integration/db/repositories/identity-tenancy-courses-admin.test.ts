@@ -254,8 +254,8 @@ describe('identity repository', () => {
       insert into session (id, expires_at, token, created_at, updated_at, user_id)
       values (${crypto.randomUUID()}, now() + interval '1 day', ${`tok-${userId}`}, now(), now(), ${userId})`
     await testSql`
-      insert into account (id, issuer, account_id, provider_id, user_id, created_at, updated_at)
-      values (${crypto.randomUUID()}, 'credential', ${userId}, 'credential', ${userId}, now(), now())`
+      insert into account (id, account_id, provider_id, user_id, created_at, updated_at)
+      values (${crypto.randomUUID()}, ${userId}, 'credential', ${userId}, now(), now())`
     await testSql`
       insert into verification (id, identifier, value, expires_at, created_at, updated_at)
       values (${crypto.randomUUID()}, ${email}, 'code', now() + interval '1 hour', now(), now())`
