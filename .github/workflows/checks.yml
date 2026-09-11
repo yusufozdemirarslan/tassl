@@ -266,7 +266,7 @@ jobs:
       - run: pnpm audit --audit-level=high
       # Free for repositories owned by a personal account (D-039 creates the repo under the
       # builder's account); an organization-owned repository would need GITLEAKS_LICENSE.
-      - uses: gitleaks/gitleaks-action@v2
+      - uses: gitleaks/gitleaks-action@v3
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # D-169: the same gitleaks as the local scan, so the allowlist semantics match.
