@@ -120,6 +120,13 @@
       "when": 1788970847976,
       "tag": "0016_app_settings",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1789091077440,
+      "tag": "0017_wide_blink",
+      "breakpoints": true
     }
   ]
 }
