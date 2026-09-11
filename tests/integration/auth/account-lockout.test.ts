@@ -4,7 +4,7 @@
 // is the other half: failed sign-ins are counted per account, whatever address they come from, and
 // the eleventh attempt inside a minute is refused before the password is checked. Successful
 // sign-ins are never counted, so a seat that many people share is not locked out by its own use.
-import { afterAll, beforeEach, describe, expect, it } from 'vitest'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { testSql, truncateAll } from '@tests/setup/integration'
 import { stopBoss } from '@/server/jobs/boss'
 
@@ -47,14 +47,28 @@ afterAll(async () => {
 
 describe('per-account sign-in lockout', () => {
   it('refuses the eleventh failed attempt in a minute, from any address, and then the right password too', async () => {
+    // The counter is a sliding window over two fixed minutes (`src/server/rate-limit/memory.ts`),
+    // which weights the previous minute by how much of the current one has passed. Eleven attempts
+    // that straddle a minute boundary therefore count as fewer than eleven — the algorithm, not a
+    // defect — and eleven sign-ins, each of which hashes a password, take long enough on a loaded
+    // runner to straddle one: this test failed on `main` with the eleventh answering 401 while
+    // every assertion in it was true of the product (QA-066, and QA-040 one suite along). The clock
+    // is held at one second past a boundary for the whole loop, so the eleventh attempt is the
+    // eleventh. Only `Date` is faked; the database keeps its real timers.
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(Math.floor(Date.now() / 60_000) * 60_000 + 1_000)
     const statuses: number[] = []
-    for (let index = 0; index < 11; index += 1)
-      statuses.push(await attempt('wrong-password-000', index))
-    // Ten wrong passwords are answered as wrong passwords; the eleventh is refused as a lockout.
-    expect(statuses.slice(0, 10).every((status) => status === 401)).toBe(true)
-    expect(statuses[10]).toBe(429)
-    // The lockout holds for the right password as well: that is what makes it a lockout.
-    expect(await attempt(PASSWORD, 50)).toBe(429)
+    try {
+      for (let index = 0; index < 11; index += 1)
+        statuses.push(await attempt('wrong-password-000', index))
+      // Ten wrong passwords are answered as wrong passwords; the eleventh is refused as a lockout.
+      expect(statuses.slice(0, 10).every((status) => status === 401)).toBe(true)
+      expect(statuses[10]).toBe(429)
+      // The lockout holds for the right password as well: that is what makes it a lockout.
+      expect(await attempt(PASSWORD, 50)).toBe(429)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('never counts successful sign-ins, so a shared seat is not locked out by its own use', async () => {

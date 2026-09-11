@@ -4,7 +4,7 @@
 //
 // The export limit is two an hour (08 §2.9). Under APP_ENV=test the limiter is the in-memory one
 // (D-164), so the third download has to be driven through this same process to be refused.
-import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { asUser, testSql, truncateAll } from '@tests/setup/integration'
 
 type Router = typeof import('@/server/modules/identity/router')
@@ -182,6 +182,21 @@ describe('GET /me/assignments and GET /me/runs', () => {
 })
 
 describe('POST /me/export', () => {
+  // Two an hour, counted by the same sliding window as every other bucket, which weights the
+  // previous hour by how much of the current one has passed. These tests share one count across
+  // four `it` blocks, so a run that crosses an hour boundary partway through counts the earlier
+  // downloads as fractions and the third is admitted — the algorithm, not a defect (QA-066). The
+  // clock is held one second past an hour boundary for the whole block, so every download in it
+  // lands in one window. Only `Date` is faked; Postgres stamps its own rows.
+  beforeAll(() => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(Math.floor(Date.now() / 3_600_000) * 3_600_000 + 1_000)
+  })
+
+  afterAll(() => {
+    vi.useRealTimers()
+  })
+
   const exportOnce = async (headers: Headers): Promise<Response> =>
     router.exportMe(
       new Request(`${BASE}/me/export`, mutate(headers, { method: 'POST' })),
