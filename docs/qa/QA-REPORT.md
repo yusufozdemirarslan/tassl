@@ -21,7 +21,7 @@ One row per section of the QA checklist (`docs/prompts/02-qa-and-guides.md` §6)
 | Section | Status | What was tested | Found | Fixed |
 |---|---|---|---|---|
 | C1 Static, build and hygiene | 🟢 | `lint`, `typecheck`, `build`, `audit --prod`, depcheck, `no-console`, cspell, the clean-clone build on Node 24, gitleaks over the full history, the client-bundle secret grep, env parity, `db:drift`, `openapi:check` and the bundle budgets | 0 | 0 |
-| C2 Existing suites and flakiness | 🟢 | every suite, then `--repeat-each=3` over all four Playwright projects on GitHub runners — 909 test runs, 0 failed, and the unit suite read again on a busy machine | 13 | 13 |
+| C2 Existing suites and flakiness | 🟢 | every suite, then `--repeat-each=3` over all four Playwright projects on GitHub runners — 918 test runs, 0 failed, and the unit suite read again on a busy machine | 13 | 13 |
 | C3 Functional coverage vs PRD | 🟢 | the API-coverage gate, and the requirement register's two joins — every id covered exactly once, every test path it names openable — as a test rather than a habit | 6 | 6 |
 | C4 Authentication and authorisation | 🟢 | `tests/integration/authz-matrix.test.ts` over role × route, IDOR and immutability in 17 cases; a classmate meets 404 on every reviewer endpoint; the per-account lockout, what that lockout counts across a window boundary, and what the sign-in form does with what is typed into it | 6 | 6 |
 | C5 LLM layer | 🟢 | seventeen prompt-injection cases in their own vitest project, the assistant-mode chip, and the provider-down pause path | 0 | 0 |
@@ -229,8 +229,9 @@ These are the constraints the demo runs under. Every number was measured or read
 ## 5. Numbers
 
 **Tests.** 2,900 unit tests in 164 files; 1,997 integration tests in 96 files against Postgres; 17
-prompt-injection cases; 909 end-to-end test runs across chromium, firefox, webkit and mobile-safari,
-three repeats each (`cross-browser.yml` run 34515616056), 0 failed; 28 guide tasks and 321 guide
+prompt-injection cases; 918 end-to-end test runs across chromium, firefox, webkit and mobile-safari,
+three repeats each (`cross-browser.yml` run 34603187201 — chromium 300 in 19.4 m, firefox 297 in
+20.8 m, webkit 297 in 23.0 m, mobile-safari 24 in 1.4 m), 0 failed; 28 guide tasks and 321 guide
 steps mirrored one-to-one by their specs, plus the 27 demo-path rows; 32 of 33 AI evals.
 
 **Coverage.** 83.56 % of lines overall. `src/server/**` clears its 80 % threshold; `src/components/**`
@@ -311,7 +312,7 @@ pnpm demo:reset            # restore the demo state the walk consumed
 | The two persona guides and their 348 screenshots | `docs/guides/` |
 | Break-glass, rollback and the offline fallback | `docs/guides/demo-runbook.md` parts 3 and 4 |
 | The weekly operating cadence | `docs/release/post-launch-runbook.md` |
-| The cross-browser repeats | `cross-browser.yml` run 34515616056 |
+| The cross-browser repeats | `cross-browser.yml` run 34603187201 |
 | The release deploy | the newest successful `production.yml` run on `main`; `/api/health` reports the sha it put live |
 
 ALL CLEAR
