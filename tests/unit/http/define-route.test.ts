@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 import { AppError } from '@/lib/errors'
 import { defineRoute, routePattern } from '@/server/http/define-route'
@@ -140,8 +140,19 @@ describe('defineRoute', () => {
       },
       async () => ({}),
     )
+    // The bucket is a sliding window over two fixed minutes (`src/server/rate-limit/memory.ts`),
+    // which weights the previous minute by how much of the current one has passed. Eleven requests
+    // that straddle a minute boundary therefore count as fewer than eleven — the algorithm, not a
+    // defect (QA-066, QA-040). The clock is held one second past a boundary for the loop, so the
+    // eleventh request is the eleventh.
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(Math.floor(Date.now() / 60_000) * 60_000 + 1_000)
     let last: Response | undefined
-    for (let i = 0; i < 11; i++) last = await limited(new Request('http://t/api/v1/l'), noParams)
+    try {
+      for (let i = 0; i < 11; i++) last = await limited(new Request('http://t/api/v1/l'), noParams)
+    } finally {
+      vi.useRealTimers()
+    }
     expect(last?.status).toBe(429)
     expect(Number(last?.headers.get('retry-after'))).toBeGreaterThan(0)
     expect(((await last!.json()) as Envelope).error.code).toBe('RATE_LIMITED')

@@ -5,6 +5,8 @@
   "ignorePaths": ["docs/guides/screenshots/**"],
   "words": [
     "Tassl",
+    "pressable",
+    "subresources",
     "Meridian",
     "Roast",
     "Neon",
