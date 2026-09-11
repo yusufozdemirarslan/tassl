@@ -71,6 +71,36 @@ function settleBeforeNavigating(page: Page): Page {
     }
   }
 
+  /**
+   * The other half of "the page is done becoming itself": React has attached to it (D-738).
+   *
+   * A quiet network is a proxy for that and not the thing itself. The bundle having arrived is not
+   * the same as the buttons doing anything, and on a heavy page — `/dev/components` is the one that
+   * showed it — WebKit can be idle for a moment in the gap. A press in that gap is swallowed by the
+   * document and the assertion after it reads the state that never changed.
+   *
+   * Best effort, and deliberately so: a page React does not own (`about:blank`, a redirect caught
+   * mid-flight) has none of these landmarks and is skipped without waiting, and a page slower than
+   * the navigation budget falls through to the assertions, which say what is wrong far better than
+   * a timeout here would. It can only ever make the lane wait longer for something real.
+   */
+  const hydrated = async (): Promise<void> => {
+    try {
+      const owned = await page.evaluate(() => document.querySelector('main, form') !== null)
+      if (!owned) return
+      await page.waitForFunction(
+        () =>
+          Array.from(document.querySelectorAll('main, form')).some((node) =>
+            Object.keys(node).some((key) => key.startsWith('__react')),
+          ),
+        null,
+        { timeout: navigationBudgetMs() },
+      )
+    } catch {
+      // Not a React page, or slower than the budget: the assertions are the better messenger.
+    }
+  }
+
   /** Firefox's marker for "the load you asked for was cancelled by another one". */
   const wasCancelled = (error: unknown): boolean =>
     error instanceof Error && error.message.includes('NS_BINDING_ABORTED')
@@ -90,11 +120,7 @@ function settleBeforeNavigating(page: Page): Page {
    * walkthrough run: a suspended Neon compute wakes in a couple of seconds and the first page after
    * it has been measured at 2.5, but that is a measurement of one morning and not a bound.
    */
-  const NAVIGATION_MS = /^https?:\/\/(localhost|127\.0\.0\.1)([:/]|$)/.test(
-    process.env.PLAYWRIGHT_BASE_URL ?? 'http://localhost:3000',
-  )
-    ? 15_000
-    : 45_000
+  const NAVIGATION_MS = navigationBudgetMs()
 
   /** One first try and one retry; past that the page is asked what actually happened. */
   const ATTEMPTS = 2
@@ -127,9 +153,11 @@ function settleBeforeNavigating(page: Page): Page {
         const answer = await attempt()
         // And once more on arrival: load fires before React attaches, and a value typed into a field
         // the form does not own yet is a value it never sees — the field looks filled and the submit
-        // carries nothing (D-182 found this in WebKit's password field). A quiet network is the
-        // closest honest signal that the page is done becoming itself.
+        // carries nothing (D-182 found this in WebKit's password field). The quiet network is the
+        // first half of the answer and `hydrated()` is the second: the page has stopped fetching,
+        // and React has taken ownership of what is on screen (D-738).
         await settle()
+        await hydrated()
         return answer
       } catch (error) {
         // A navigation that timed out is not asked for again: the browser is already wherever it
@@ -162,6 +190,19 @@ function settleBeforeNavigating(page: Page): Page {
     navigate(() => goto(url, { timeout: NAVIGATION_MS, ...options }), url)
   page.reload = async (options) => navigate(() => reload({ timeout: NAVIGATION_MS, ...options }))
   return page
+}
+
+/**
+ * How long a page is given to arrive: fifteen seconds locally, three times that against a
+ * deployment where a suspended Neon compute has to wake first. Shared by the navigation wrapper
+ * above and by `waitForHydration`, which waits on the same journey finishing.
+ */
+function navigationBudgetMs(): number {
+  return /^https?:\/\/(localhost|127\.0\.0\.1)([:/]|$)/.test(
+    process.env.PLAYWRIGHT_BASE_URL ?? 'http://localhost:3000',
+  )
+    ? 15_000
+    : 45_000
 }
 
 /** The five walkthrough seat accounts of docs/tech/06-data-model.md §5. */
@@ -198,6 +239,27 @@ export function uniqueEmail(prefix: string): string {
  * (08 §2.6); a refusal is still waited out once rather than failed on, so a spec that signs in
  * many times, or a proxy that collapses the addresses, degrades to slow rather than red.
  */
+/**
+ * Waits until React has attached to the element at `selector` — the moment the server HTML stops
+ * being inert and a press is handled by the app rather than by the browser's default (D-738).
+ *
+ * Playwright's actionability checks cannot see this: an input is visible, enabled and editable
+ * while the client bundle is still downloading, so `fill` and `click` both "succeed" against a page
+ * that is not listening. React records its props on the DOM node it owns, which is the one thing
+ * that is true only after hydration; if React ever stops doing so this times out and says so,
+ * rather than passing quietly.
+ */
+export async function waitForHydration(page: Page, selector: string): Promise<void> {
+  await page.waitForFunction(
+    (target: string) => {
+      const node = document.querySelector(target)
+      return node !== null && Object.keys(node).some((key) => key.startsWith('__react'))
+    },
+    selector,
+    { timeout: navigationBudgetMs() },
+  )
+}
+
 export async function signIn(page: Page, email: string, password: string): Promise<void> {
   for (let attempt = 0; ; attempt++) {
     const response = await page.request.post('/api/auth/sign-in/email', {

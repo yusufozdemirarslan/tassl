@@ -37,6 +37,7 @@ import {
   SEED_PASSWORD,
   WRITE_HEADERS,
   expect,
+  guardNetwork,
   runIdFromUrl,
   test,
 } from './fixtures'
@@ -497,6 +498,7 @@ test('@smoke the demo path, click by click', async ({
   const instructorContext = await browser.newContext(contextOptions)
   const instructor = await instructorContext.newPage()
   const instructorErrors = guardConsole(instructor)
+  const instructorFailures = guardNetwork(instructor)
 
   // Screenshots, one per row, under the demo persona: `task-01-step-NN.png`, the demo path being
   // the runbook's one task. Written by chromium alone, as ./fixtures' `shot` writes, and with the
@@ -1441,6 +1443,10 @@ test('@smoke the demo path, click by click', async ({
   expect(
     instructorErrors,
     'no uncaught page error or console.error on the Instructor profile during the demo',
+  ).toEqual([])
+  expect(
+    instructorFailures,
+    'no refused or undelivered request on the Instructor profile during the demo',
   ).toEqual([])
   // Closed here, on the way out of a passed test, and left to Playwright on a failed one: its
   // artifact recorder traces every context the test opened and expects to stop the trace itself.

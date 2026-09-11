@@ -11,6 +11,7 @@ import { Field, FieldDescription, FieldError, FieldLabel } from '@/components/ui
 import { Input } from '@/components/ui/input'
 import { authClient } from '@/lib/auth-client'
 import { NAME_MAX_LENGTH, emailField, nameField, newPasswordField } from '@/lib/auth/form-fields'
+import { useTypedBeforeHydration } from '@/lib/hooks/use-typed-before-hydration'
 import { t } from '@/lib/i18n/messages/auth'
 import {
   FormAlert,
@@ -49,7 +50,7 @@ export function SignUpForm({ demoMode = false }: { demoMode?: boolean }) {
     formState: { errors, isSubmitting },
   } = useForm<SignUpValues>({
     resolver: zodResolver(signUpSchema),
-    defaultValues: { name: '', email: '', password: '' },
+    defaultValues: useTypedBeforeHydration({ name: '', email: '', password: '' }),
   })
 
   const pending = isSubmitting || leaving

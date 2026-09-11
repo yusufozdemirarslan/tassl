@@ -7,6 +7,13 @@ The rows are `15-cicd-deployment.md` §16 in order. `PROD_URL` is `https://tassl
 `APP_DOMAIN` is set, so Step 15.4 is a no-op and the Vercel-assigned domain is the active one). The
 release is `main` at `77cb94b`, which `/api/health` reports as the version it is serving.
 
+> **Re-verified on 2026-09-11 against `main` at `5db6f4b`** (`production.yml` run 34576783997, all
+> eleven checks green, deploy 4.3 minutes, Vercel status Ready). Rows 1–3, 12, 13 and 17 were run
+> again in full against that release and all six pass; rows 4, 5, 7–10, 14–16 are unchanged evidence
+> from runs that are named in the row itself; rows 6 and 11 are still `partial` and `blocked` for
+> the same reasons, which no redeploy changes. Row 17's walk took 10.5 minutes on this release and
+> carried the network guard of D-737.
+
 A row is `pass` only if its own pass condition was met by a command whose output is summarised here.
 A row that depends on a credential nobody has created is `blocked`, and says on what. Nothing is
 marked `pass` on the strength of a test that stands in for the check.

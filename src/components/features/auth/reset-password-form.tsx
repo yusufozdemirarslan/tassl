@@ -10,6 +10,7 @@ import { Field, FieldDescription, FieldError, FieldLabel } from '@/components/ui
 import { Input } from '@/components/ui/input'
 import { authClient } from '@/lib/auth-client'
 import { newPasswordField } from '@/lib/auth/form-fields'
+import { useTypedBeforeHydration } from '@/lib/hooks/use-typed-before-hydration'
 import { t } from '@/lib/i18n/messages/auth'
 import {
   FormAlert,
@@ -52,7 +53,7 @@ export function ResetPasswordForm({ token }: { token: string }) {
     formState: { errors, isSubmitting },
   } = useForm<ResetPasswordValues>({
     resolver: zodResolver(resetPasswordSchema),
-    defaultValues: { password: '', confirmPassword: '' },
+    defaultValues: useTypedBeforeHydration({ password: '', confirmPassword: '' }),
   })
 
   async function onSubmit(values: ResetPasswordValues) {

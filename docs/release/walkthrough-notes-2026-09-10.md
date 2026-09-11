@@ -8,6 +8,13 @@ Release: `main` at `77cb94b`, served by `https://tassl.vercel.app` (`/api/health
 `77cb94baf31f14ebcecd72820277b163836ceb4a`). Assistant mode **live**, effective provider
 `openai-compatible` (MiMo). `FEATURE_TEST_CONTROLS` is on, which walkthrough step 7 needs (D-023).
 
+> **Walked again on 2026-09-11 against `main` at `5db6f4b`** (`production.yml` run 34576783997), and
+> the seventeen results below were observed again unchanged. Two things differ from the 09-10 record
+> and are stated where they belong rather than edited over the original: the walk took **10.5
+> minutes** rather than 7.5, because QA-071 lengthened the scoring wait to what the live model
+> actually costs; and it ran under the network guard added for QA-072, so "zero console errors"
+> below is now also **zero refused or undelivered requests** on both seats (D-737).
+
 **How it was walked.** In a real Chromium against the production URL, driven by
 `tests/e2e/guides/demo-path.spec.ts` — the same 27 rows as `docs/guides/demo-runbook.md`, which
 `scripts/check-guide-coverage.ts` keeps in step with it. There is no time travel on production: the

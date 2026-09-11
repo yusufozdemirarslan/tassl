@@ -28,6 +28,7 @@ import {
 } from './auth-feedback'
 import { GoogleButton } from './google-button'
 import { useRefresh } from '@/lib/hooks/use-refresh'
+import { useTypedBeforeHydration } from '@/lib/hooks/use-typed-before-hydration'
 
 const signInSchema = object({
   email: emailField,
@@ -54,6 +55,9 @@ export function SignInForm({ next, googleEnabled }: SignInFormProps) {
   // rather than a react-hook-form field whose `watch()` would opt the screen out of memoization.
   const [rememberMe, setRememberMe] = useState(true)
 
+  // Anything typed into the server-rendered form before this component hydrated (D-738).
+  const defaultValues = useTypedBeforeHydration({ email: '', password: '' })
+
   const {
     register,
     handleSubmit,
@@ -61,7 +65,7 @@ export function SignInForm({ next, googleEnabled }: SignInFormProps) {
     formState: { errors, isSubmitting },
   } = useForm<SignInValues>({
     resolver: zodResolver(signInSchema),
-    defaultValues: { email: '', password: '' },
+    defaultValues,
   })
 
   const pending = isSubmitting || leaving
