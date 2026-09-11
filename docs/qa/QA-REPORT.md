@@ -10,7 +10,7 @@ pre-built runs, `editor@tassl.local` for authoring and `admin@tassl.local` for t
 production password is the Vercel variable `SEED_PASSWORD`, held on the builder's machine at
 `~/.config/tassl/seed-password.txt`. The full demo path — PRD §12 steps 1–17, the 27 rows of the
 runbook — was walked against that URL in a real browser in 7.5 minutes with zero console errors, on
-the live model, and the demo state was restored afterwards. Sixty-five defects were found and fixed
+the live model, and the demo state was restored afterwards. Sixty-six defects were found and fixed
 in this run; two rows of the launch checklist are not `pass`, and §2 says which and why rather than
 working around either.
 
@@ -57,7 +57,7 @@ the rules are stated as not created rather than worked around. Launch-checklist 
 
 ## 3. What was fixed
 
-Sixty-five defects were found and fixed. Every one has a row in `docs/qa/FIXED-ISSUES.md` under the
+Sixty-six defects were found and fixed. Every one has a row in `docs/qa/FIXED-ISSUES.md` under the
 number used here, and every one names the test that now guards it.
 
 ### The defects a person would have met
@@ -142,6 +142,7 @@ number used here, and every one names the test that now guards it.
 63. **QA-063 (P1) — a whole feature area with no component test.** The first execution of the coverage gate failed at 61.44 % of lines on `src/components/**` against its 70 %, and the shortfall was not spread thin: every component of `features/admin` stood at 0 %, and so did `invitations`, `legal` and `notifications`, with `features/review` at 21.59 %. The runtime assistant kill switch that C15 built as the demo's safeguard had no unit test; neither had the void dialog, the neutralize dialog, or the trace an instructor reads. These screens are driven by the end-to-end suite, which the coverage instrument cannot see through, so nobody had written the unit tests and nothing had ever said so. Thirteen new files and 297 cases took `features/admin` to 100 % and `features/review` to 93.18 %, and the threshold is met from the unit project alone — met rather than moved (D-732).
 64. **QA-064 (P1) — the load test measured nothing it claimed to.** It reported 91 % `http_req_failed` over ten minutes at sixty users while the deployment answered every one of those requests, reads at a 143 ms 95th percentile and writes at 509 ms, and "load assignment exists" failed 7,423 times out of 7,423 against an assignment `curl` found first in the list. k6 empties the per-virtual-user cookie jar at the end of every iteration, and the script signs in once behind a `signedIn` flag — so each user ran its first iteration with a session and every later one without. The cookies the sign-in sets are now held per user and sent as an explicit `Cookie` header; signing in each iteration is not the alternative, because sixty users at eleven iterations a minute would spend the per-address ceiling D-712 sizes for a class arriving together. The same script then reported 99,580 checks, 100 % passed and 0 % failed (D-734).
 65. **QA-065 (P2) — a measurement of nothing, read as a failure.** The first attempt at the load test read 94 % `http_req_failed`, and the cause was not the product: the pull request was merged while k6 was still running against its own preview, Vercel removed the alias with the branch, and the rest of the run hit an address answering `DEPLOYMENT_NOT_FOUND`. `15-cicd-deployment.md` §16.2 now says the run has to finish before the merge, and says how to recognise the shape — good latency beside total refusals is a target that has gone, not a product that is slow (D-733).
+66. **QA-066 (P2) — the same straddle, one suite along.** The production deploy of the release records failed on `main`: the per-account lockout test read 401 where it expected 429 on the eleventh wrong password, while every assertion in it was true of the product. The counter is a sliding window over two fixed minutes, which weights the previous minute by how much of the current one has passed, so eleven attempts straddling a boundary count as fewer than eleven — and eleven sign-ins, each hashing a password, are slow enough on a loaded runner to straddle one. QA-040 had found this mechanism in the assistant's bucket and the same fix had not been carried here; `tests/integration/auth/account-lockout.test.ts` now holds `Date` at one second past a boundary for the loop.
 
 ## 4. Operating facts
 
@@ -287,7 +288,7 @@ pnpm demo:reset            # restore the demo state the walk consumed
 
 | What | Where |
 |---|---|
-| Every defect, with symptom, root cause, fix and guarding test | `docs/qa/FIXED-ISSUES.md`, 65 rows |
+| Every defect, with symptom, root cause, fix and guarding test | `docs/qa/FIXED-ISSUES.md`, 66 rows |
 | Every decision this run made | `docs/tech/DECISIONS.md`, D-691 to D-734 |
 | The launch checklist, row by row | `docs/release/launch-checklist-2026-09-10.md` |
 | The walkthrough, step by step | `docs/release/walkthrough-notes-2026-09-10.md` |
