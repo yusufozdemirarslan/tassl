@@ -1,6 +1,6 @@
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   AssignmentRunsTable,
   type AssignmentRunRow,
@@ -34,6 +34,17 @@ vi.mock('@/server/modules/courses/actions', () => ({
 }))
 
 vi.mock('sonner', () => ({ toast: { success: toasts.success, error: toasts.error } }))
+
+// The dialog's module is transformed the first time anything imports it. In the browser that cost is
+// a network fetch and is the point of B4; in this file it was paid inside the first test that opens
+// the dialog, within `findByRole`'s one-second wait, and on a loaded machine the transform of the
+// dialog and Base UI's alert dialog alone ran past it (1.6 s): "Unable to find role=alertdialog" on a
+// press that had worked. Transforming it once before the tests leaves every test asserting what it
+// should — the press still performs the table's own dynamic import and still has to open the
+// dialog — without racing the module loader.
+beforeAll(async () => {
+  await import('@/components/features/courses/assignment-run-delete-dialog')
+})
 
 const ROWS: AssignmentRunRow[] = [
   {

@@ -159,7 +159,10 @@ and then `81bdce5`, both verified live. The last three findings came from places
    ```bash
    PLAYWRIGHT_BASE_URL=https://tassl.vercel.app    TEST_DATABASE_URL="$(cat ~/.config/tassl/neon-url.txt)"    SEED_PASSWORD="$(cat ~/.config/tassl/seed-password.txt)"    GUIDE_SCREENSHOT_ROOT=/tmp/prod-shots pnpm test:demo-path
    ```
-   Then `pnpm demo:reset` against production, or the demo seats keep the walk's runs.
+   Then `pnpm demo:reset` against production in the form the header of `scripts/demo-reset.ts`
+   gives — every variable named, including `NEXT_PUBLIC_APP_URL` — or the demo seats keep the
+   walk's runs. A reset with the local app URL dead-letters its notification emails, and the script
+   refuses it (D-744).
 6. `/admin/flags` shows the assistant mode the demo runs with, and the Model usage panel shows the
    calls the walk made — which is how a live reply is evidenced rather than asserted.
 7. `pnpm qa:all` locally. On the builder's 16 GB it is run in stages, one Playwright project per

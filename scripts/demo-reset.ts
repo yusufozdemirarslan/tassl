@@ -2,9 +2,14 @@
 //
 //   pnpm demo:reset                      # the database DATABASE_URL names (local: tassl_test via
 //                                        # .env.test, or tassl via .env)
-//   DATABASE_URL=<owner string> DATABASE_URL_UNPOOLED=<owner string> SEED_PASSWORD=<production
-//   value> APP_ENV=production pnpm demo:reset                     # production, from the operator's
-//                                                                # machine (docs/guides/demo-runbook.md)
+//   APP_ENV=production NEXT_PUBLIC_APP_URL=https://tassl.vercel.app //   DATABASE_URL=<owner string> DATABASE_URL_UNPOOLED=<owner string> //   SEED_PASSWORD=<production value> BETTER_AUTH_SECRET=<production value> //   CRON_SECRET=<production value> pnpm demo:reset            # production, from the operator's
+//                                                              # machine (docs/guides/demo-runbook.md)
+//
+// The production form names every variable on purpose. `dotenv/config` fills in anything left out
+// from the local `.env`, and a local `NEXT_PUBLIC_APP_URL` aimed at production's database writes
+// notification emails that link to this machine, which production's worker dead-letters (D-744) — so
+// `resetTargetProblem` refuses that combination before anything is written, and the configuration
+// refuses a production run without its secrets.
 //   pnpm demo:reset --load-users[=N]     # the same, plus the N (default 60) load-test students
 //                                        # `load-student-NN@tassl.local` and their assignment
 //                                        # "Load test run" (tests/load/core-flow.js); refused on
@@ -35,6 +40,7 @@
 // version's real `turnDelaySeconds` (90 s on the fixture) so the trace carries real timestamps
 // rather than a shifted timeline. Total time: about two and a half minutes.
 import 'dotenv/config'
+import { resetTargetProblem } from './reset-target'
 
 process.env.FEATURE_AI = 'false'
 process.env.LLM_PROVIDER = 'mock'
@@ -107,6 +113,13 @@ function loadUsersRequested(argv: readonly string[]): number {
 }
 
 async function main(): Promise<void> {
+  // Before the configuration loads, so a refused target has written nothing and opened no connection.
+  const problem = resetTargetProblem({
+    databaseUrl: process.env.DATABASE_URL,
+    appUrl: process.env.NEXT_PUBLIC_APP_URL,
+  })
+  if (problem !== null) throw new Error(problem)
+
   const { env } = await import('@/server/config')
   const { client, db } = await import('@/server/db/client')
   const { ensureLoadSeats, runSeed, SEED_USERS } = await import('@/server/db/seed')

@@ -1,6 +1,6 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { CourseForm } from '@/components/features/courses/course-form'
 import {
   DeferredFormFallback,
@@ -38,6 +38,14 @@ vi.mock('@/server/modules/courses/actions', () => ({
 vi.mock('sonner', () => ({ toast: { success: toasts.success, error: toasts.error } }))
 
 const SECTIONS = [{ id: 's1', name: 'Section A', memberCount: 24, assignmentCount: 2 }]
+
+// The confirmation this screen opens is loaded on the press that opens it (B4). Transformed here
+// once, so the first test that presses it is not racing the module loader inside a one-second
+// `findBy` wait; the component still performs its own import on the press.
+beforeAll(async () => {
+  await import('@/components/features/courses/course-form-body')
+  await import('@/components/features/courses/section-form-body')
+})
 
 describe('deferred dialog forms (UI-030, B4)', () => {
   beforeEach(() => {

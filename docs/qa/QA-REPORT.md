@@ -295,14 +295,14 @@ PLAYWRIGHT_BASE_URL=https://tassl.vercel.app \
 TEST_DATABASE_URL="$(cat ~/.config/tassl/neon-url.txt)" \
 SEED_PASSWORD="$(cat ~/.config/tassl/seed-password.txt)" \
 GUIDE_SCREENSHOT_ROOT=/tmp/prod-shots pnpm test:demo-path
-pnpm demo:reset            # restore the demo state the walk consumed
+APP_ENV=production NEXT_PUBLIC_APP_URL=https://tassl.vercel.app \nDATABASE_URL="$(cat ~/.config/tassl/neon-url.txt)" DATABASE_URL_UNPOOLED="$(cat ~/.config/tassl/neon-url.txt)" \nSEED_PASSWORD="$(cat ~/.config/tassl/seed-password.txt)" \nBETTER_AUTH_SECRET="$(cat ~/.config/tassl/better-auth-secret-production.txt)" \nCRON_SECRET="$(cat ~/.config/tassl/cron-secret-production.txt)" \npnpm demo:reset            # restore the demo state the walk consumed (D-744: name every variable)
 ```
 
 ## 7. Appendix — where the evidence is
 
 | What | Where |
 |---|---|
-| Every defect, with symptom, root cause, fix and guarding test | `docs/qa/FIXED-ISSUES.md`, 71 rows |
+| Every defect, with symptom, root cause, fix and guarding test | `docs/qa/FIXED-ISSUES.md`, 76 rows |
 | Every decision this run made | `docs/tech/DECISIONS.md`, D-691 to D-737 |
 | The launch checklist, row by row | `docs/release/launch-checklist-2026-09-10.md` |
 | The walkthrough, step by step | `docs/release/walkthrough-notes-2026-09-10.md` |
