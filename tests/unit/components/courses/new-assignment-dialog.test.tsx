@@ -1,6 +1,6 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   AssignmentsList,
   type AssignmentsListProps,
@@ -70,6 +70,13 @@ function renderList(overrides: Partial<AssignmentsListProps> = {}) {
 }
 
 const trigger = () => screen.getByRole('button', { name: enUS['courses.newAssignment'] })
+
+// The form behind New assignment is loaded on the press that opens the dialog (B4). Transformed here
+// once, so the first test that presses it is not racing the module loader inside a one-second
+// `findBy` wait; the dialog still performs its own import on the press.
+beforeAll(async () => {
+  await import('@/components/features/courses/new-assignment-body')
+})
 
 describe('AssignmentsList → New assignment (UI-030, step 4.4)', () => {
   beforeEach(() => {

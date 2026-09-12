@@ -1,6 +1,6 @@
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { SectionRoster } from '@/components/features/courses/section-roster'
 import { enUS } from '@/lib/i18n/en-US'
 
@@ -83,6 +83,13 @@ function renderRoster(invitations = INVITATIONS) {
 
 const removeButton = (name: string) =>
   screen.getByRole('button', { name: enUS['roster.removeLabel'].replace('{name}', name) })
+
+// The confirmation this screen opens is loaded on the press that opens it (B4). Transformed here
+// once, so the first test that presses it is not racing the module loader inside a one-second
+// `findBy` wait; the component still performs its own import on the press.
+beforeAll(async () => {
+  await import('@/components/features/roster/roster-dialogs')
+})
 
 describe('SectionRoster removal (UI-031, SYS-005)', () => {
   beforeEach(() => {

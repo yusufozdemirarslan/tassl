@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { BriefEditor } from '@/components/features/run/brief-editor'
 import { enUS } from '@/lib/i18n/en-US'
 import type { BriefNamedField, BriefView } from '@/server/modules/runs/schema'
@@ -104,6 +104,13 @@ function renderEditor(draft: BriefView | null = null, canWrite = true) {
   )
   return userEvent.setup()
 }
+
+// The confirmation this screen opens is loaded on the press that opens it (B4). Transformed here
+// once, so the first test that presses it is not racing the module loader inside a one-second
+// `findBy` wait; the component still performs its own import on the press.
+beforeAll(async () => {
+  await import('@/components/features/run/lock-dialog')
+})
 
 describe('BriefEditor (UI-023, FR-100, FR-103)', () => {
   beforeEach(() => {
