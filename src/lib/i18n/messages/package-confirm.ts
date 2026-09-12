@@ -205,7 +205,7 @@ export const packageConfirm = {
   'confirm.type.brief': 'Brief',
   'confirm.type.document': 'Document',
   'confirm.type.stakeholder': 'Stakeholder',
-  'confirm.type.answer_space_position': 'Answer space position',
+  'confirm.type.answer_space_position': 'Answer-space position',
   'confirm.type.named_field': 'Named field',
   'confirm.type.claim': 'Claim',
   'confirm.type.variant_claim_state': 'Variant state',
@@ -401,7 +401,7 @@ export const packageConfirm = {
 
   'confirm.field.caseTitle': 'Case title',
   'confirm.field.publisher': 'Publisher',
-  'confirm.field.licenseTerms': 'Licence terms relied on',
+  'confirm.field.licenseTerms': 'License terms relied on',
   'confirm.field.licensePermitsAdaptation': 'The license permits adaptation',
   'confirm.field.seedText': 'Seed text',
   'confirm.field.reskinLog': 'Re-skin log',
@@ -446,7 +446,7 @@ export const packageConfirm = {
   'confirm.evidence.sound': 'Sound',
   'confirm.evidence.defective': 'Defective',
 
-  'confirm.family.near_neighbor': 'Near neighbour',
+  'confirm.family.near_neighbor': 'Near neighbor',
   'confirm.family.unstated_assumption': 'Unstated assumption',
   'confirm.family.stale_evidence': 'Stale evidence',
   'confirm.family.uncomputed_number': 'Uncomputed number',
