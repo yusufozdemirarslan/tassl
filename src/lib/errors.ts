@@ -188,7 +188,7 @@ export const DEFAULT_MESSAGES: Record<ErrorCode, string> = {
   BRIEF_INVALID: 'The brief is not ready to file.',
   // 07 §7's own sentence for this row. It names no claim: the claim's own words travel in
   // `details.claimText`, which is what the lock dialog puts beside its "Go to claim" control.
-  LOCK_REFUSED_UNSTANCED_CLAIM: 'A claim you relied on has no stance.',
+  LOCK_REFUSED_UNSTANCED_CLAIM: 'A claim you leaned on has no stance.',
   ADDENDUM_EXISTS: 'This run already has its addendum.',
   TURN_NOT_OPEN: 'The Turn is not open on this run.',
   // It names no claim: the claims' ids travel in `details.claimIds`, and the Turn screen already
@@ -203,9 +203,9 @@ export const DEFAULT_MESSAGES: Record<ErrorCode, string> = {
   RUN_PAUSED: 'The run is paused and the clock is stopped. Resume it to carry on.',
   CLAIM_NOT_SURFACED: 'That claim has not come up in this run yet.',
   ACTION_NOT_AVAILABLE: 'That check is not available on this claim.',
-  ESCALATION_LIMIT_REACHED: 'You have used both of the escalations this run offers.',
+  ESCALATION_LIMIT_REACHED: 'You have used both escalations in this run.',
   ESCALATION_STATEMENT_INVALID:
-    'Say in one sentence what you cannot evaluate: at least three words, up to 280 characters.',
+    'Say in one sentence what you cannot settle: at least three words, up to 280 characters.',
   STANCE_INVALID: 'That is not one of the five stances.',
   ASSISTANT_LOCKED: 'The assistant is not available at this point in the run.',
   ASSISTANT_REQUEST_TOO_LONG: 'That request is too long. Shorten it and send it again.',

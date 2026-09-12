@@ -60,3 +60,8 @@ docs/qa/demo-accounts.md
 
 # k6 writes the load-test summary here (15 §16.2); the numbers live in docs/qa/QA-REPORT.md
 tests/load/summary.json
+
+# The screen text and accessible trees scripts/manual-capture*.ts write beside the manual's
+# screenshots (docs/manual). They are the evidence the prose was checked against, not an artifact:
+# scripts/manual-check.ts reads them when they are there and skips that check when they are not.
+.manual-text/

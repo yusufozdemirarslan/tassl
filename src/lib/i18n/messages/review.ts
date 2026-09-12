@@ -335,7 +335,7 @@ export const review = {
     'Tassl reassembled the reply so every claim of the scenario appeared.',
   'review.guardMark.no_commentary':
     'The reply carried the claims and no words of the assistant’s own.',
-  'review.guardMark.probe': 'The Sycophancy Probe fired on this request.',
+  'review.guardMark.probe': 'The Sycophancy probe fired on this request.',
   'review.guardMark.discarded_late':
     'The reply came back after the run had left the state that asked for it, so it was not kept.',
   'review.guardMark.out_of_scenario': 'A reviewer marked this request as outside the scenario.',
@@ -416,7 +416,7 @@ export const review = {
   'review.neutralizeReason.unintendedDefect': 'The claim carried a defect nobody placed',
   'review.neutralizeReason.wrongVerification': 'A check came back with the wrong result',
   'review.neutralizeReason.misbehavingMaterial': 'The material misbehaved',
-  'review.neutralizeReason.adaptation': 'The adaptation did not hold',
+  'review.neutralizeReason.adaptation': 'The re-skin left something from the original case',
   'review.neutralizeReason.recordLost': 'The record of what the student did was lost',
   'review.neutralizeReason.other': 'Something else',
   'review.neutralizeCredit': 'Credit the student’s challenge as correct',
@@ -511,11 +511,11 @@ export const review = {
   'review.queueColumnStudent': 'Student',
   'review.queueColumnAttempt': 'Attempt',
   'review.queueColumnState': 'State',
-  'review.queueColumnDecisions': 'Decisions made',
+  'review.queueColumnDecisions': 'Bands decided',
   'review.queueColumnExport': 'Export',
   'review.queueColumnOpen': 'Replay',
   'review.queueDecisions': '{made} of 7',
-  'review.queueNoExport': 'None',
+  'review.queueNoExport': 'None yet',
   'review.queueExportVersion': 'v{version}',
   'review.queueOpen': 'Open the replay for {student}',
   // The variant is deliberately not a column here, for UI-032's reason: it would put "defective" or

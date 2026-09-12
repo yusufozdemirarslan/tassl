@@ -119,7 +119,7 @@ export const graph = {
   'graph.stanceMatrix.columnImportance': 'Importance',
   'graph.stanceMatrix.columnReadiness': 'Readiness context',
   'graph.stanceMatrix.columnReliedOn': 'Relied on',
-  'graph.stanceMatrix.columnNeutralized': 'Neutralized',
+  'graph.stanceMatrix.columnNeutralized': 'Corrected',
   'graph.stanceMatrix.columnMatch': 'Match',
   'graph.stanceMatrix.notSurfaced': 'Not surfaced',
   'graph.stanceMatrix.noStance': 'No stance',
@@ -140,8 +140,8 @@ export const graph = {
   'graph.stanceMatrix.description':
     '{claims} consequential claims in this run’s variant. {surfaced} were surfaced and {stanced} carried a stance; {matched} matched the stance warranted. False Challenge Rate {fcr} percent: {falseChallenges} sound claims warranting accept or verify were challenged or rejected, over all {denominator} consequential claims. {neutralized}',
   'graph.stanceMatrix.descriptionNeutralized':
-    '{count} claims were neutralized and are excluded from the summary and the rate.',
-  'graph.stanceMatrix.descriptionNoNeutralized': 'No claim was neutralized.',
+    '{count} claims carry a correction and are excluded from the summary and the rate.',
+  'graph.stanceMatrix.descriptionNoNeutralized': 'No claim carries a correction.',
   'graph.stanceMatrix.fcrLabel': 'False Challenge Rate',
   'graph.stanceMatrix.fcrValue': '{percent} percent ({falseChallenges} of {denominator})',
   'graph.stanceMatrix.matchedLabel': 'Stances matching what was warranted',

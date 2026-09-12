@@ -112,7 +112,7 @@ export const packageVersion = {
   'packageVersion.element.counterfactual': 'Counterfactual',
   'packageVersion.element.generalEscalationReply': 'General escalation reply',
   'packageVersion.element.clockAndDifficulty': 'Clock and difficulty',
-  'packageVersion.element.seedReskin': 'Seed and re-skin',
+  'packageVersion.element.seedReskin': 'Seed re-skin log',
 
   'packageVersion.authoringTitle': 'Authoring record',
   'packageVersion.authoringDescription':

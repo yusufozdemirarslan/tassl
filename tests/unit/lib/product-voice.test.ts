@@ -116,7 +116,6 @@ const INVENTORY: readonly Row[] = [
 
   // Notifications name the state that caused them. `run_scored` is a column value (SYS-010).
   { path: 'notifications.emptyBody', word: 'scored', why: 'state_name' },
-  { path: 'notifications.type.generation_failed', word: 'failed', why: 'system_failure' },
   { path: 'notifications.type.run_scored', word: 'scored', why: 'state_name' },
   { path: 'notifications.runScored.title (key)', word: 'Scored', why: 'state_name' },
   { path: 'notifications.runScored.title', word: 'scored', why: 'state_name' },
