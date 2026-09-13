@@ -302,7 +302,7 @@ APP_ENV=production NEXT_PUBLIC_APP_URL=https://tassl.vercel.app \nDATABASE_URL="
 
 | What | Where |
 |---|---|
-| Every defect, with symptom, root cause, fix and guarding test | `docs/qa/FIXED-ISSUES.md`, 76 rows |
+| Every defect, with symptom, root cause, fix and guarding test | `docs/qa/FIXED-ISSUES.md`, 77 rows |
 | Every decision this run made | `docs/tech/DECISIONS.md`, D-691 to D-737 |
 | The launch checklist, row by row | `docs/release/launch-checklist-2026-09-10.md` |
 | The walkthrough, step by step | `docs/release/walkthrough-notes-2026-09-10.md` |

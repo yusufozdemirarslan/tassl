@@ -65,6 +65,21 @@ describe('server config (docs/tech/05-environment-config.md §3)', () => {
     await expect(load()).rejects.toThrow('INVALID_SERVER_ENV')
   })
 
+  it('refuses a cron secret no header can carry (D-746)', async () => {
+    for (const [k, v] of Object.entries(PRODUCTION_VALUES)) vi.stubEnv(k, v)
+    // The shape the generated secrets had on Windows: the value, then the carriage return that
+    // stripping only the line feed left behind. Built from the character code so no editor can
+    // normalise it away.
+    vi.stubEnv('CRON_SECRET', 'a'.repeat(64) + String.fromCharCode(13))
+    await expect(load()).rejects.toThrow('INVALID_SERVER_ENV')
+    expect(console.error).toHaveBeenCalledWith(
+      'Invalid server environment:',
+      expect.stringContaining('CRON_SECRET must be printable ASCII'),
+    )
+    vi.stubEnv('CRON_SECRET', 'has a space in it')
+    await expect(load()).rejects.toThrow('INVALID_SERVER_ENV')
+  })
+
   it('accepts production with real values', async () => {
     for (const [k, v] of Object.entries(PRODUCTION_VALUES)) vi.stubEnv(k, v)
     const m = await load()
