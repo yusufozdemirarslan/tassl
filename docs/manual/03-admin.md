@@ -461,6 +461,8 @@ they already belong to. It is a different question from the platform role beside
 different control: someone with seats in two institutions has two dropdowns, one under each
 institution's name.
 
+![The Users screen with an Institution role dropdown open under Walkthrough University, showing the two options Student and Instructor](screenshots/admin/admin-institution-role-options.png)
+
 1. Find the account, as above.
 2. Open the dropdown under the institution's name in that row's **Institution role** cell. Its
    accessible name is "Institution role for" the account's name "at" the institution's name. It

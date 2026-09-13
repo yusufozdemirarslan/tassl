@@ -436,6 +436,15 @@ async function extrasLane(): Promise<void> {
   } else {
     problems.push('admin: no platform-role combobox on /admin/users')
   }
+  const seatBox = page.getByRole('combobox', { name: /^Institution role for / }).first()
+  if (await seatBox.isVisible().catch(() => false)) {
+    await seatBox.click()
+    await page.waitForTimeout(900)
+    await shot('admin-institution-role-options')
+    await dismissOverlays()
+  } else {
+    problems.push('admin: no institution-role combobox on /admin/users')
+  }
   const search = page
     .getByRole('searchbox')
     .or(page.getByLabel(/Search/))
