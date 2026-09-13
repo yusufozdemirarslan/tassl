@@ -2,7 +2,7 @@
 
 This file is for the person who runs the Tassl installation itself: the account that holds the
 platform role **Platform admin**. After reading it you can find and change anyone's platform role,
-read what this deployment is running with, switch the assistant between the live model and the
+make a member of an institution a **Student** or an **Instructor** there, read what this deployment is running with, switch the assistant between the live model and the
 scripted one, prove that error reporting works, read how much the deployment has spent with a model
 provider, and answer "who changed this, and when" from the audit log. You will also know, precisely,
 the things this role cannot do — because it is deliberately not a master key over anyone's teaching.
@@ -18,7 +18,7 @@ Tassl keeps three kinds of role, and they are independent of each other:
 | Kind of role | What it is | Where it is set |
 |---|---|---|
 | Platform role | A right over Tassl itself. One value per account: **None**, **Scenario editor** or **Platform admin**. | The **Users** screen in the admin area |
-| Institution role | A seat in one institution — student, instructor, teaching assistant, scenario author or program lead. | An invitation sent from an institution's section roster |
+| Institution role | A seat in one institution — student, instructor, teaching assistant, scenario author or program lead. | An invitation sent from an institution's section roster. For someone who already belongs to the institution, **Student** or **Instructor** can also be set on the **Users** screen in the admin area |
 | Section role | A seat on one section of one course — student, instructor or teaching assistant. | That section's roster |
 
 You hold the platform role **Platform admin**. In the seeded installation you hold no institution
@@ -32,6 +32,9 @@ people see the name of their institution.
   account joined.
 - Change any other account's platform role. Doing so signs that person out of every device at once
   and writes a row to the audit log.
+- Make any other account a **Student** or an **Instructor** of an institution it already belongs to.
+  Its seat on every section of that institution changes with it, the person is signed out of every
+  device, and a row is written to the audit log.
 - Read the deployment's flags, and the model provider the run loop would actually call right now.
 - Switch **Assistant mode** between **Live model** and **Scripted assistant**. This is the only
   setting in the whole product that changes at once, without a redeploy.
@@ -51,8 +54,12 @@ people see the name of their institution.
 - Open a scenario package, a package version, or the seed record behind one.
 - Confirm a scenario package version. Holding **any** platform role removes that right: only an
   account whose platform role is **None** may sign for a package.
-- Invite anyone to an institution, or add anyone to a section roster.
-- Change your **own** platform role. Another platform admin has to do it.
+- Invite anyone to an institution, or add anyone to a section roster. The **Users** screen changes
+  the seat of someone who already belongs to an institution; it never gives a seat to someone who
+  has none.
+- Make anyone a teaching assistant, scenario author or program lead. Those seats come from an
+  invitation or a roster.
+- Change your **own** platform role or institution role. Another platform admin has to do it.
 - Change **FEATURE_AI**, **FEATURE_SAMPLE_DATA**, **FEATURE_TEST_CONTROLS** or **DEMO_MODE** from
   this screen or any other. Those four come from the deployment's environment; changing one is a
   deploy.
@@ -201,7 +208,7 @@ Account settings sections (the strip under the settings heading)
 |---|---|---|---|
 | **Home** | Rail item, or the **Tassl** wordmark | `/home` | Your own landing page |
 | **Admin** | Rail item | `/admin/users` | The admin area; the rail item stays highlighted on all three of its screens |
-| **Users** | **Admin**, then the **Users** tab | `/admin/users` | Every account on the platform, and the control that sets a platform role |
+| **Users** | **Admin**, then the **Users** tab | `/admin/users` | Every account on the platform, and the controls that set a platform role and an institution role |
 | **Flags** | **Admin**, then the **Flags** tab | `/admin/flags` | What this deployment is running with, the assistant switch, the error-reporting test and the model spend |
 | **Audit log** | **Admin**, then the **Audit log** tab | `/admin/audit` | One row for each consequential act, on every institution |
 | **Notifications** | The bell in the header | `/notifications` | What Tassl has told you |
@@ -300,7 +307,7 @@ Under the page heading sits a strip of three links, whose accessible name is **A
 
 | Tab | What is on it |
 |---|---|
-| **Users** | Every account on the platform, and the control that sets a platform role |
+| **Users** | Every account on the platform, and the controls that set a platform role and an institution role |
 | **Flags** | What this deployment runs with, the assistant switch, the error-reporting test, the model spend |
 | **Audit log** | One row for each consequential act |
 
@@ -328,11 +335,12 @@ described in [the scenario author manual](04-scenario-author.md) and
 
 **Where to find it.** **Admin** → **Users**.
 
-![The Users screen, with the search box and a table of accounts showing Name, Email, Platform role and Joined](screenshots/admin/admin-users.png)
+![The Users screen, with the search box and a table of accounts showing Name, Email, Platform role, Institution role and Joined](screenshots/admin/admin-users.png)
 
 The heading is **Users** and the line under it states the rule the whole screen turns on: "Every
-account on the platform, newest first. A platform role is a right over Tassl itself, not a seat in
-an institution — those are set on the institution's roster."
+account on the platform, newest first. A platform role is a right over Tassl itself; an institution
+role is the seat a person holds in one institution, and making them a Student or an Instructor there
+is set here too."
 
 #### The table
 
@@ -343,6 +351,7 @@ The caption reads **Accounts, newest first**. Twenty rows at a time, newest acco
 | **Name** | The name on the account. It is the row's heading, and it carries the row's chips. |
 | **Email** | The address the account signs in with, in a monospace face so lookalike characters can be told apart. |
 | **Platform role** | Either a dropdown holding the account's current role, or — on two kinds of row — the role as plain text with a note. |
+| **Institution role** | One entry per institution the account belongs to: the institution's name, and under it a dropdown holding the seat the account holds there. On your own row and on a closed account the seat is plain text. An account that belongs to no institution reads "No institution yet". |
 | **Joined** | When the account was created, as `Sep 11, 2026, 10:23 PM UTC`. Every time in Tassl is UTC. |
 
 Two chips can appear beside a name:
@@ -444,6 +453,46 @@ courses are untouched. A platform role change moves no one in or out of a class.
 **What other roles see change.** Nothing on any course, run or review screen. The only visible
 effect elsewhere is what the person themselves can now reach: the **Admin** rail item appears for a
 new **Platform admin**, and disappears from someone whose role you take away.
+
+#### Changing someone's institution role
+
+The **Institution role** column makes a person a **Student** or an **Instructor** of an institution
+they already belong to. It is a different question from the platform role beside it, and it is a
+different control: someone with seats in two institutions has two dropdowns, one under each
+institution's name.
+
+1. Find the account, as above.
+2. Open the dropdown under the institution's name in that row's **Institution role** cell. Its
+   accessible name is "Institution role for" the account's name "at" the institution's name. It
+   offers two options, **Student** and **Instructor**. If the person holds another seat there — a
+   teaching assistant, a scenario author or a program lead — the dropdown shows that seat, and
+   offers the same two.
+3. Choose the new seat. **Nothing is saved yet.** A dialog opens, titled "Change this institution
+   role?", saying the person "goes from" their current seat "to" the chosen one "at" the
+   institution, "and takes the same seat in every section there. This signs them out of every device
+   straight away, and the change is written to the audit log with your name on it."
+4. Press "Change the role" to make the change, or "Leave it as it is" to abandon it.
+
+**What happens after.** The row updates where it stands, and a message confirms that the person "is
+now" the new seat "at" the institution, "and sees it the next time they sign in."
+
+Four things happen together, or not at all:
+
+| What changes | Detail |
+|---|---|
+| The institution seat | Set to **Student** or **Instructor** in that institution. Other institutions are untouched. |
+| Every section seat they hold in that institution | Set to the same seat. A new Student keeps no instructor or teaching-assistant place on any section there, so they cannot read other students' runs; a new Instructor teaches the sections they were enrolled in. |
+| Every session that account holds | Deleted. They are signed out of every device immediately. |
+| The audit log | One `role.set` row filed under the institution, recording the seat it was, the seat it became, how many section seats changed and how many sessions were ended. |
+
+**What the person on the other end sees.** When they sign in again, their home screen is the new
+seat's. A **Student** sees **Your runs** and the **Runs** rail item. An **Instructor** sees
+**Courses** and **Packages** — and **Review**, when they teach a section — and no **Runs**.
+
+**What it cannot do.** It does not add anyone to an institution: an account with "No institution
+yet" has nothing to change until an invitation from that institution's roster is accepted. It does
+not give a teaching-assistant, scenario-author or program-lead seat. And it gives you no seat of your
+own: you still cannot open the course, the roster or a run.
 
 ---
 
@@ -754,7 +803,7 @@ a row and a change that was rolled back has none.
 
 | **Action** | Written when | What the record carries |
 |---|---|---|
-| `role.set` | A platform role is changed | The role it was, the role it became, and how many sessions were ended |
+| `role.set` | A platform role or an institution role is changed | The role it was, the role it became, and how many sessions were ended; for an institution role, also how many section seats changed, and the row is filed under that institution |
 | `ai_mode.set` | The assistant mode is saved | The mode it was and the mode it became |
 | `band.decide` | A band is confirmed, overridden or set unassessed | The dimension, the decision, the band, whether a note was written, and whether it differed from the draft |
 | `run.void` | A run is voided | The reason, the state the run was in, and whether a replacement was offered |
@@ -1066,6 +1115,9 @@ admin has to do for you — or closing your account.
 | "You cannot change your own platform role: the change would sign you out of the seat that is the only way back. Another admin can do it." | An attempt to change your own role | Deliberate: the change would lock you out of the seat that could undo it | Ask another platform admin |
 | "That account no longer exists." | Setting a role on a closed account, or on one that has been removed since the page was drawn | The account is gone | Reload the list |
 | "That is not a platform role that can be set here." | A role value outside the three | Only **None**, **Scenario editor** and **Platform admin** exist | Choose one of the three offered |
+| "You cannot change your own institution role: the change would sign you out. Another admin can do it." | An attempt to change your own institution role | Deliberate, for the same reason as your platform role | Ask another platform admin |
+| "Only Student or Instructor can be set here." | An institution role other than the two | The admin area hands out **Student** and **Instructor**; the other seats come from an invitation or a roster | Choose one of the two offered |
+| "That account is not a member of that institution. An invitation from the institution’s roster makes them one." | An institution role set for someone who does not belong to that institution — for example, they left it after the page loaded | The **Users** screen changes a seat; it does not create one | Reload the page; if the person should belong, have the institution invite them |
 | "FEATURE_AI is off in this environment, so the assistant is already scripted and this switch cannot change it." | Saving **Assistant mode** while **FEATURE_AI** is **Off** | The environment has already forced the fixture; the switch can only narrow, never widen | Nothing on this screen. Turning the flag on is an environment change and a deploy |
 | "Too many requests. Try again shortly." | Many actions in quick succession | A rate limit — six hundred reads and sixty writes a minute per account | Wait a few seconds and repeat the action |
 | "Something went wrong" — "The problem has been recorded. If it continues, quote the reference below.", with **Reference** and **Try again** | An unexpected failure on the server | A defect | Press **Try again**. If it repeats, quote the reference shown |

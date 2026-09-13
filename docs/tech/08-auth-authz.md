@@ -169,7 +169,7 @@ Instructor or program lead on the roster screen → `organization.inviteMember({
 - Cookie: `httpOnly`, `sameSite=lax`, `secure` outside local/test, path `/`. 30-day expiry, refreshed daily on activity (`updateAge`). Cookie cache 5 minutes reduces DB reads; privilege changes call `auth.api.revokeOtherSessions` and re-issue.
 - Server: `getSession()` in `src/server/auth/session.ts` wraps `auth.api.getSession({ headers: await headers() })` and returns `{ user, session, activeOrganizationId }` or null. Deleted users (`deleted_at` set) are treated as signed out and their sessions revoked by the deletion service.
 - `proxy.ts`: for paths under `(app)` routes, if `getSessionCookie(request)` is absent → redirect to `/sign-in?next=<path>`. This is optimistic only; every page, action, and route re-validates with `getSession()`.
-- Rotation on privilege change: `setPlatformRole` and organization role updates call `auth.api.revokeSessions({ userId })` for the affected user (they sign in again).
+- Rotation on privilege change: `setPlatformRole` and `setInstitutionRole` (the organization role update, D-747) delete every session row of the affected user inside the transaction that changes the seat (D-570), so they sign in again and the new seat is what their next session reads.
 
 ### 2.7 CSRF posture
 
@@ -191,7 +191,7 @@ Instructor or program lead on the roster screen → `organization.inviteMember({
 | Layer | Values | Stored in |
 |---|---|---|
 | Platform | `none`, `tassl_scenario_editor`, `admin` | `user.platform_role` |
-| Organization (institution) | `student`, `instructor`, `teaching_assistant`, `scenario_author`, `program_lead` | `member.role` (Better Auth), one row per user per organization |
+| Organization (institution) | `student`, `instructor`, `teaching_assistant`, `scenario_author`, `program_lead` | `member.role` (Better Auth), one row per user per organization; given by invitation, and changed to `student` or `instructor` by the platform admin on `/admin/users` (D-747) |
 | Section | `student`, `instructor`, `ta` | `section_memberships.role` |
 
 Better Auth access control (`src/server/auth/access-control-shared.ts`):
@@ -254,6 +254,7 @@ Resources and actions. ✓ = allowed; ✓* = allowed with the stated scope; — 
 | Cohort or program reporting | — | — | — | — | ✓ (future-state; no build screen) | — | — |
 | Investigate an individual for a leak | — | — | — | — | — | — | — |
 | Platform roles, user list, flags view, audit log | — | — | — | — | — | — | ✓ |
+| Set a member's institution role to Student or Instructor (with their section seats in that institution) | — | — | — | — | — | — | ✓* another account that already belongs to the institution (D-747) |
 | Create organization | — | — | — | — | — | — | ✓ |
 | Own account settings, export, delete | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 

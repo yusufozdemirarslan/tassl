@@ -1,6 +1,6 @@
 // Service of the `admin` module (docs/tech/10-backend-spec-modules.md §16): the four platform
-// screens of UI-050 — user list, platform roles, flags, audit log — and `audit()`, the helper every
-// module writes its audit row through (SYS-011).
+// screens of UI-050 — user list, platform roles and institution seats (D-747), flags, audit log —
+// and `audit()`, the helper every module writes its audit row through (SYS-011).
 //
 // Every function here opens with `requirePlatformRole(actor, 'admin')`. The layout of `/admin`
 // checks the same thing before it renders anything, but that check is a courtesy (08 §5 "UI"):
@@ -20,23 +20,32 @@ import { budgetLimits, startOfUtcDay, startOfUtcMonth } from '@/server/llm/guard
 import { captureOpsTestEvent } from '@/server/logging/ops-events'
 import {
   deleteSessionsOfUser,
+  findMemberRole,
   findUserById,
   insertAuditLog,
   listAuditLog as listAuditLogRows,
   listInstitutions as listInstitutionRows,
+  listMembershipsOfUsers,
   listUsers as listUserRows,
   readLlmUsage,
+  setMemberRole,
   setPlatformRole as writePlatformRole,
+  setSectionRolesOfUser,
   withTransaction,
   type AuditLog as AuditLogRow,
+  type MembershipRow,
   type UserRow,
 } from './repository'
 import type { AuditAction, AuditLog, AuditLogMetadata, DbOrTx } from './repository'
 import {
+  assignableInstitutionRoleSchema,
+  institutionRoleSchema,
   platformRoleSchema,
   type AdminFlags,
+  type AdminMembership,
   type AdminUser,
   type AdminUserPage,
+  type AssignableInstitutionRole,
   type AuditEntry,
   type AuditEntryPage,
   type InstitutionRef,
@@ -45,6 +54,7 @@ import {
   type PlatformRole,
   type SetAiModeInput,
   type SentryTestResult,
+  type SetInstitutionRoleInput,
   type SetPlatformRoleInput,
 } from './schema'
 
@@ -95,13 +105,30 @@ export async function audit(tx: DbOrTx, input: AuditInput): Promise<AuditLog> {
 // The platform screens (UI-050, 10 §16, 07 §9)
 // ---------------------------------------------------------------------------------------------
 
-/** A `user` row as the users table reads it (07 §9 `AdminUser`). */
-function toAdminUser(row: UserRow): AdminUser {
+/**
+ * A `member` row as the users table reads it. A role value outside the five reads as `student`,
+ * the reading `identity` gives the same row for the rail and the home screen — so the seat the
+ * admin is shown is the seat the person is treated as.
+ */
+function toAdminMembership(row: MembershipRow): AdminMembership {
+  const role = institutionRoleSchema.safeParse(row.role)
+  return {
+    organizationId: row.organizationId,
+    organizationName: row.organizationName,
+    role: role.success ? role.data : 'student',
+  }
+}
+
+/** A `user` row and its `member` rows as the users table reads them (07 §9 `AdminUser`). */
+function toAdminUser(row: UserRow, memberships: readonly MembershipRow[]): AdminUser {
   return {
     id: row.id,
     name: row.name,
     email: row.email,
     platformRole: platformRoleSchema.parse(row.platform_role),
+    memberships: memberships
+      .filter((membership) => membership.userId === row.id)
+      .map(toAdminMembership),
     deletedAt: row.deleted_at ? row.deleted_at.toISOString() : null,
     createdAt: row.createdAt.toISOString(),
   }
@@ -133,7 +160,11 @@ export async function listUsers(
     ...(input.limit === undefined ? {} : { limit: input.limit }),
     ...(input.q === undefined ? {} : { q: input.q }),
   })
-  return { items: page.items.map(toAdminUser), nextCursor: page.nextCursor }
+  const memberships = await listMembershipsOfUsers(page.items.map((row) => row.id))
+  return {
+    items: page.items.map((row) => toAdminUser(row, memberships)),
+    nextCursor: page.nextCursor,
+  }
 }
 
 /** A page of audit rows, newest first, optionally one institution's (10 §16, UI-050). */
@@ -271,7 +302,70 @@ export async function setPlatformRole(
       targetId: input.userId,
       metadata: { from: before.platform_role, to: role, sessionsRevoked: revoked },
     })
-    return toAdminUser(after)
+    return toAdminUser(after, await listMembershipsOfUsers([input.userId], tx))
+  })
+}
+
+/**
+ * Makes another person a Student or an Instructor of one institution they already belong to
+ * (D-747): the institution seat, every section seat they hold in that institution, the revocation
+ * of their sessions, and a `role.set` audit row scoped to the institution — in one transaction.
+ *
+ * **The section seats follow the institution seat.** The home screen and the rail read the
+ * institution seat, but the review queue, a run, a band decision and a course export read the
+ * section seat, so changing one without the other is not a role change. A person made a Student who
+ * kept an `instructor` or `ta` row would still read other students' runs, which a student may never
+ * do (08 §4); a person made an Instructor who kept a `student` row would be offered a run in the
+ * section they now teach. So every section row in that institution takes the chosen seat, and the
+ * row count is audited beside it. Other institutions are not touched.
+ *
+ * **The sessions go** for the reason `setPlatformRole` gives, and 08 §2.6 names organization role
+ * updates beside it: the change takes effect at the person's next sign-in, not at their next click
+ * on a screen drawn from the old seat.
+ *
+ * Refused with `ROLE_INVALID` for a seat other than the two and for the actor's own row (D-571's
+ * reason: the revocation would end the session the change is being made from); with `NOT_FOUND` for
+ * a missing or closed account and for an institution the person does not belong to. The admin area
+ * does not create memberships — an invitation from the institution's roster does (08 §2.5).
+ */
+export async function setInstitutionRole(
+  actor: SessionUser,
+  input: SetInstitutionRoleInput,
+): Promise<AdminUser> {
+  requirePlatformRole(actor, 'admin')
+  const parsed = assignableInstitutionRoleSchema.safeParse(input.role)
+  if (!parsed.success) throw new AppError('ROLE_INVALID', t('admin.institutionRoleInvalid'))
+  if (input.userId === actor.id) {
+    throw new AppError('ROLE_INVALID', t('admin.institutionRoleSelfRefused'))
+  }
+
+  const role: AssignableInstitutionRole = parsed.data
+  return withTransaction(async (tx) => {
+    const person = await findUserById(input.userId, tx)
+    if (!person || person.deleted_at !== null) {
+      throw new AppError('NOT_FOUND', t('admin.userNotFound'))
+    }
+    const before = await findMemberRole(input.organizationId, input.userId, tx)
+    if (before === null) throw new AppError('NOT_FOUND', t('admin.membershipNotFound'))
+
+    await setMemberRole(input.organizationId, input.userId, role, tx)
+    const sectionSeats = await setSectionRolesOfUser(input.organizationId, input.userId, role, tx)
+    const revoked = await deleteSessionsOfUser(input.userId, tx)
+    await audit(tx, {
+      actorId: actor.id,
+      orgId: input.organizationId,
+      action: 'role.set',
+      targetType: 'user',
+      targetId: input.userId,
+      metadata: {
+        scope: 'organization',
+        from: before,
+        to: role,
+        sectionSeats,
+        sessionsRevoked: revoked,
+      },
+    })
+    return toAdminUser(person, await listMembershipsOfUsers([input.userId], tx))
   })
 }
 

@@ -7601,6 +7601,28 @@ paths:
                             - none
                             - tassl_scenario_editor
                             - admin
+                        memberships:
+                          type: array
+                          items:
+                            type: object
+                            properties:
+                              organizationId:
+                                type: string
+                              organizationName:
+                                type: string
+                              role:
+                                type: string
+                                enum:
+                                  - student
+                                  - instructor
+                                  - teaching_assistant
+                                  - scenario_author
+                                  - program_lead
+                            required:
+                              - organizationId
+                              - organizationName
+                              - role
+                            additionalProperties: false
                         deletedAt:
                           anyOf:
                             - type: string
@@ -7616,6 +7638,7 @@ paths:
                         - name
                         - email
                         - platformRole
+                        - memberships
                         - deletedAt
                         - createdAt
                       additionalProperties: false
@@ -7633,6 +7656,108 @@ paths:
           $ref: "#/components/responses/Unauthenticated"
         "403":
           $ref: "#/components/responses/Forbidden"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+  /admin/users/{userId}/institution-role:
+    put:
+      tags:
+        - admin
+      operationId: adminSetInstitutionRole
+      summary: Set an institution role
+      parameters:
+        - in: path
+          name: userId
+          schema:
+            type: string
+            minLength: 1
+          required: true
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                organizationId:
+                  type: string
+                  minLength: 1
+                role:
+                  type: string
+                  enum:
+                    - student
+                    - instructor
+              required:
+                - organizationId
+                - role
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: string
+                  name:
+                    type: string
+                  email:
+                    type: string
+                  platformRole:
+                    type: string
+                    enum:
+                      - none
+                      - tassl_scenario_editor
+                      - admin
+                  memberships:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        organizationId:
+                          type: string
+                        organizationName:
+                          type: string
+                        role:
+                          type: string
+                          enum:
+                            - student
+                            - instructor
+                            - teaching_assistant
+                            - scenario_author
+                            - program_lead
+                      required:
+                        - organizationId
+                        - organizationName
+                        - role
+                      additionalProperties: false
+                  deletedAt:
+                    anyOf:
+                      - type: string
+                        format: date-time
+                        pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z))$
+                      - type: "null"
+                  createdAt:
+                    type: string
+                    format: date-time
+                    pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z))$
+                required:
+                  - id
+                  - name
+                  - email
+                  - platformRole
+                  - memberships
+                  - deletedAt
+                  - createdAt
+                additionalProperties: false
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthenticated"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
         "429":
           $ref: "#/components/responses/RateLimited"
   /admin/users/{userId}/platform-role:
@@ -7683,6 +7808,28 @@ paths:
                       - none
                       - tassl_scenario_editor
                       - admin
+                  memberships:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        organizationId:
+                          type: string
+                        organizationName:
+                          type: string
+                        role:
+                          type: string
+                          enum:
+                            - student
+                            - instructor
+                            - teaching_assistant
+                            - scenario_author
+                            - program_lead
+                      required:
+                        - organizationId
+                        - organizationName
+                        - role
+                      additionalProperties: false
                   deletedAt:
                     anyOf:
                       - type: string
@@ -7698,6 +7845,7 @@ paths:
                   - name
                   - email
                   - platformRole
+                  - memberships
                   - deletedAt
                   - createdAt
                 additionalProperties: false

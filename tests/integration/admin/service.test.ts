@@ -110,6 +110,15 @@ describe('admin service', () => {
           ),
         ).toBe('FORBIDDEN')
         expect(await codeOf(() => admin.setAiMode(actor, { mode: 'mock' }))).toBe('FORBIDDEN')
+        expect(
+          await codeOf(() =>
+            admin.setInstitutionRole(actor, {
+              userId: student.id,
+              organizationId: orgA,
+              role: 'instructor',
+            }),
+          ),
+        ).toBe('FORBIDDEN')
       }
     })
   })
@@ -224,6 +233,190 @@ describe('admin service', () => {
       ).toBe('NOT_FOUND')
       // Nothing was written on the way to the refusal.
       expect(await sessionCount(student.id)).toBe(1)
+    })
+  })
+
+  // D-747. Student and Instructor are institution seats (`member.role`, 08 §3), and the users table
+  // offered only the platform role, so an admin had no way to give either. The seat is set where the
+  // home screen and the rail read it, and the section seats in that institution follow it: a Student
+  // who kept an `instructor` section row would still read other students' runs, which is the one
+  // thing a student may never do (08 §4).
+  describe('setInstitutionRole', () => {
+    let sectionA1: string
+    let sectionA2: string
+    let sectionB: string
+
+    beforeEach(async () => {
+      const courseA = await f.createCourse(orgA, 'admin-course-a', { createdBy: student.id })
+      sectionA1 = (await f.createSection(orgA, courseA.id, 'admin-section-a1')).id
+      sectionA2 = (await f.createSection(orgA, courseA.id, 'admin-section-a2', { name: 'B' })).id
+      const courseB = await f.createCourse(orgB, 'admin-course-b', { createdBy: adminUser.id })
+      sectionB = (await f.createSection(orgB, courseB.id, 'admin-section-b')).id
+
+      // An instructor in A, teaching one section and assisting in another; a student in B.
+      await f.addMember(orgA, student.id, 'instructor')
+      await f.addSectionMember(orgA, sectionA1, student.id, 'instructor')
+      await f.addSectionMember(orgA, sectionA2, student.id, 'ta')
+      await f.addMember(orgB, student.id, 'student')
+      await f.addSectionMember(orgB, sectionB, student.id, 'student')
+    })
+
+    const memberRole = async (orgId: string, userId: string): Promise<string | undefined> => {
+      const rows = await testSql<{ role: string }[]>`
+        select role from member where organization_id = ${orgId} and user_id = ${userId}`
+      return rows[0]?.role
+    }
+
+    const sectionRoles = async (userId: string): Promise<Record<string, string>> => {
+      const rows = await testSql<{ section_id: string; role: string }[]>`
+        select section_id, role::text as role from section_memberships where user_id = ${userId}`
+      return Object.fromEntries(rows.map((row) => [row.section_id, row.role]))
+    }
+
+    it('lists each account’s institutions with the seat it holds in each', async () => {
+      const page = await admin.listUsers(actorOf(adminUser), { q: 'cc-' })
+      expect(page.items).toHaveLength(1)
+      expect(
+        [...(page.items[0]?.memberships ?? [])].sort((a, b) =>
+          a.organizationId.localeCompare(b.organizationId),
+        ),
+      ).toEqual(
+        [
+          { organizationId: orgA, organizationName: 'admin-a University', role: 'instructor' },
+          { organizationId: orgB, organizationName: 'admin-b University', role: 'student' },
+        ].sort((a, b) => a.organizationId.localeCompare(b.organizationId)),
+      )
+
+      // An account with no institution is a row with no seats, not a row the list drops.
+      const none = await admin.listUsers(actorOf(adminUser), { q: 'bb-' })
+      expect(none.items[0]?.memberships).toEqual([])
+    })
+
+    it('makes an instructor a Student: the seat, every section seat there, the sessions, the audit row', async () => {
+      await giveSession(student.id, 'seat-one')
+      await giveSession(editor.id, 'editor-one')
+
+      const saved = await admin.setInstitutionRole(actorOf(adminUser), {
+        userId: student.id,
+        organizationId: orgA,
+        role: 'student',
+      })
+      expect(saved.memberships.find((m) => m.organizationId === orgA)?.role).toBe('student')
+
+      expect(await memberRole(orgA, student.id)).toBe('student')
+      // Both section seats in A are student seats now — the TA row included, because a TA reads
+      // other students' runs too. The institution beside it is untouched.
+      expect(await sectionRoles(student.id)).toEqual({
+        [sectionA1]: 'student',
+        [sectionA2]: 'student',
+        [sectionB]: 'student',
+      })
+      expect(await memberRole(orgB, student.id)).toBe('student')
+
+      // Theirs and only theirs: the change takes effect at their next sign-in.
+      expect(await sessionCount(student.id)).toBe(0)
+      expect(await sessionCount(editor.id)).toBe(1)
+
+      const audit = await testSql<
+        {
+          action: string
+          actor_id: string
+          organization_id: string
+          target_id: string
+          metadata: Record<string, unknown>
+        }[]
+      >`select action, actor_id, organization_id, target_id, metadata from audit_logs`
+      expect(audit).toHaveLength(1)
+      expect(audit[0]).toMatchObject({
+        action: 'role.set',
+        actor_id: adminUser.id,
+        organization_id: orgA,
+        target_id: student.id,
+      })
+      expect(audit[0]?.metadata).toEqual({
+        scope: 'organization',
+        from: 'instructor',
+        to: 'student',
+        sectionSeats: 2,
+        sessionsRevoked: 1,
+      })
+    })
+
+    it('makes a student an Instructor in their sections, and back again leaves them as they were', async () => {
+      await admin.setInstitutionRole(actorOf(adminUser), {
+        userId: student.id,
+        organizationId: orgB,
+        role: 'instructor',
+      })
+      expect(await memberRole(orgB, student.id)).toBe('instructor')
+      expect((await sectionRoles(student.id))[sectionB]).toBe('instructor')
+      // Institution A was not the one named.
+      expect(await memberRole(orgA, student.id)).toBe('instructor')
+      expect((await sectionRoles(student.id))[sectionA2]).toBe('ta')
+
+      await admin.setInstitutionRole(actorOf(adminUser), {
+        userId: student.id,
+        organizationId: orgB,
+        role: 'student',
+      })
+      expect(await memberRole(orgB, student.id)).toBe('student')
+      expect((await sectionRoles(student.id))[sectionB]).toBe('student')
+    })
+
+    it('refuses the actor’s own row, a seat other than Student or Instructor, and an institution the person is not in', async () => {
+      await f.addMember(orgA, adminUser.id, 'program_lead')
+      await giveSession(adminUser.id, 'admin-one')
+      await giveSession(editor.id, 'editor-one')
+
+      expect(
+        await codeOf(() =>
+          admin.setInstitutionRole(actorOf(adminUser), {
+            userId: adminUser.id,
+            organizationId: orgA,
+            role: 'student',
+          }),
+        ),
+      ).toBe('ROLE_INVALID')
+      expect(
+        await codeOf(() =>
+          admin.setInstitutionRole(actorOf(adminUser), {
+            userId: student.id,
+            organizationId: orgA,
+            // The route and the action validate first; this is the service's own guard.
+            role: 'program_lead' as never,
+          }),
+        ),
+      ).toBe('ROLE_INVALID')
+      // The editor holds no seat in A: there is no membership to change, and the admin area does not
+      // create one — an invitation from a section roster does.
+      expect(
+        await codeOf(() =>
+          admin.setInstitutionRole(actorOf(adminUser), {
+            userId: editor.id,
+            organizationId: orgA,
+            role: 'student',
+          }),
+        ),
+      ).toBe('NOT_FOUND')
+
+      await testSql`update "user" set deleted_at = now() where id = ${student.id}`
+      expect(
+        await codeOf(() =>
+          admin.setInstitutionRole(actorOf(adminUser), {
+            userId: student.id,
+            organizationId: orgA,
+            role: 'student',
+          }),
+        ),
+      ).toBe('NOT_FOUND')
+
+      // Nothing was written on the way to any of the four refusals.
+      expect(await memberRole(orgA, adminUser.id)).toBe('program_lead')
+      expect(await memberRole(orgA, student.id)).toBe('instructor')
+      expect((await sectionRoles(student.id))[sectionA1]).toBe('instructor')
+      expect(await sessionCount(adminUser.id)).toBe(1)
+      expect(await sessionCount(editor.id)).toBe(1)
+      expect(await testSql`select 1 from audit_logs`).toHaveLength(0)
     })
   })
 
