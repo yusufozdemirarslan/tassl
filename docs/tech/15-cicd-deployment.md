@@ -825,10 +825,12 @@ gh variable set DEPLOY_ENABLED --body true   # gates the preview-deploy and depl
 ### 11.5 Vercel environment variables (values piped from files, never from `echo` on the command line)
 
 ```bash
-openssl rand -base64 32 | tr -d '\n' > "$S/better-auth-secret-production.txt"
-openssl rand -base64 32 | tr -d '\n' > "$S/better-auth-secret-preview.txt"
-openssl rand -hex 32    | tr -d '\n' > "$S/cron-secret-production.txt"
-openssl rand -hex 32    | tr -d '\n' > "$S/cron-secret-preview.txt"
+# `tr -d '\r\n'`, not `tr -d '\n'`: openssl on Windows ends its output with CR LF, and a CR left in
+# CRON_SECRET makes it a value no Authorization header can carry (D-746).
+openssl rand -base64 32 | tr -d '\r\n' > "$S/better-auth-secret-production.txt"
+openssl rand -base64 32 | tr -d '\r\n' > "$S/better-auth-secret-preview.txt"
+openssl rand -hex 32    | tr -d '\r\n' > "$S/cron-secret-production.txt"
+openssl rand -hex 32    | tr -d '\r\n' > "$S/cron-secret-preview.txt"
 printf 'production' > "$S/app-env-production.txt"; printf 'preview' > "$S/app-env-preview.txt"
 # SEED_PASSWORD (D-040): choose a 12+ character value and store it in the password manager.
 printf '%s' "$SEED_PASSWORD" > "$S/seed-password.txt"

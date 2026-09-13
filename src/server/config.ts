@@ -56,7 +56,19 @@ export const ServerEnvSchema = z
     NEXT_PUBLIC_POSTHOG_HOST: z.string().url().default('https://us.i.posthog.com'),
     NEXT_PUBLIC_SENTRY_DSN: z.string().default(''),
     SENTRY_TRACES_SAMPLE_RATE: z.coerce.number().min(0).max(1).default(1),
-    CRON_SECRET: z.string().min(8).default('local-cron-secret'),
+    // Vercel Cron and the operator drain present this as `Authorization: Bearer <value>`, so it has to
+    // be a value a header can carry. A generated secret that kept a trailing carriage return (Windows
+    // `openssl` ends its output with CR LF, and stripping only the LF leaves the CR) cannot be sent by
+    // any HTTP client: every nightly drain was refused and nobody was told (D-746). Refused here
+    // instead, at build and at boot, where it is loud. `!` to `~` is printable ASCII without space.
+    CRON_SECRET: z
+      .string()
+      .min(8)
+      .regex(/^[!-~]+$/, {
+        message:
+          'CRON_SECRET must be printable ASCII with no whitespace or control characters: it is sent in an Authorization header',
+      })
+      .default('local-cron-secret'),
     JOBS_DRAIN_ON_ENQUEUE: bool.default(true),
     SEED_PASSWORD: z.string().min(12).default('Walkthrough-Pass-2026'),
   })
