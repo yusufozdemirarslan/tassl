@@ -447,6 +447,7 @@ Errors: none beyond global.
 |---|---|
 | `listUsers(actor, { cursor, limit, q? })` | Platform admin; email prefix filter |
 | `setPlatformRole(actor, userId, role)` | Admin; audit `role.set`; revoke the user's sessions |
+| `setInstitutionRole(actor, { userId, organizationId, role })` | Admin; `role` is `student` or `instructor`; the person must already be a member of the institution (NOT_FOUND otherwise — the admin area creates no memberships) and may not be the actor (ROLE_INVALID, D-571); sets `member.role`, gives every `section_memberships` row of theirs in that institution the same seat, revokes their sessions, audits `role.set` with `{ scope: 'organization', from, to, sectionSeats, sessionsRevoked }` — one transaction (D-747) |
 | `listAuditLog(actor, { cursor, limit, orgId? })` | Admin |
 | `getFlags(actor)` | Admin; the three flags, `effectiveLlmProvider()`, and `llmUsage` — calls, tokens and estimated cost for the UTC day and the calendar month against the two ceilings of D-065, counting what the budgets count (no mock rows, D-651). Asynchronous from step 14.5, because it reads `llm_calls` |
 | `audit(tx, { actorId, orgId, action, targetType, targetId, metadata })` | Helper used by every module; includes the request id |

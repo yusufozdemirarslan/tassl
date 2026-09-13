@@ -3,7 +3,8 @@
 // endpoint). `defineAction` runs `requireSession()`, validates with the module's schema, maps
 // errors to the envelope, and never throws to the client.
 //
-// Four actions: the role change, the assistant-mode switch (D-691), and the two "show more" reads.
+// The two role changes (platform, and institution seat — D-747), the assistant-mode switch (D-691),
+// and the two "show more" reads.
 // The first page of each table is rendered on the server; the page after it is fetched by the
 // table itself and appended, the way the notification centre does it (UI-011), so a long log does
 // not turn into a full page render per press. The search box and the institution filter stay on
@@ -15,6 +16,7 @@ import {
   listAuditLogSchema,
   listUsersSchema,
   setAiModeSchema,
+  setInstitutionRoleSchema,
   setPlatformRoleSchema,
   type AdminFlags,
   type AdminUser,
@@ -24,9 +26,17 @@ import {
   type ListUsersInput,
   type SetAiModeInput,
   type SentryTestResult,
+  type SetInstitutionRoleInput,
   type SetPlatformRoleInput,
 } from './schema'
-import { listAuditLog, listUsers, sendSentryTestEvent, setAiMode, setPlatformRole } from './service'
+import {
+  listAuditLog,
+  listUsers,
+  sendSentryTestEvent,
+  setAiMode,
+  setInstitutionRole,
+  setPlatformRole,
+} from './service'
 
 /** Every admin screen shows role state, and the change signs the person out of all three. */
 const ADMIN = ['/admin/users', '/admin/audit']
@@ -35,6 +45,13 @@ export const setPlatformRoleAction = defineAction<SetPlatformRoleInput, AdminUse
   setPlatformRoleSchema,
   async (input, ctx) => ({ data: await setPlatformRole(ctx.actor, input), revalidate: ADMIN }),
   { name: 'admin.setPlatformRole' },
+)
+
+/** Student or Instructor in one institution (D-747); the same screens show it. */
+export const setInstitutionRoleAction = defineAction<SetInstitutionRoleInput, AdminUser>(
+  setInstitutionRoleSchema,
+  async (input, ctx) => ({ data: await setInstitutionRole(ctx.actor, input), revalidate: ADMIN }),
+  { name: 'admin.setInstitutionRole' },
 )
 
 /** The runtime assistant switch (D-691); the flags screen redraws with the mode it now holds. */

@@ -222,6 +222,9 @@ const OPERATION_IDS = [
   // (08 §5 "Cross-tenant"), and the screen's 404 is a courtesy on top of it.
   'adminListUsers',
   'adminSetPlatformRole',
+  // Student or Instructor in an institution (D-747): 08 §4's own row, "Set a person's institution
+  // role to Student or Instructor", which is also "—" in every column but Admin.
+  'adminSetInstitutionRole',
   'adminGetFlags',
   // The runtime assistant switch (D-691): the same eight cells as the four above — a platform
   // setting, and 08 §4 gives platform settings to the admin and to nobody else.
@@ -452,6 +455,13 @@ let notifications: Record<Seat, string>
  */
 let roleTarget: UserRow
 
+/**
+ * The account `adminSetInstitutionRole` is answered about (D-747): a `student` of institution A with
+ * no section row and no session, for the reasons `roleTarget` has its own account. The allowed row
+ * writes `student` — the seat it already holds — so no other row sees a different fact.
+ */
+let seatTarget: UserRow
+
 /** Stand-in `element_id` for a singleton element (`scenarios/schema.ts` `SINGLETON_ELEMENT_ID`). */
 const SINGLETON_ELEMENT_ID = '00000000-0000-0000-0000-000000000000'
 
@@ -639,6 +649,8 @@ describe('authorization matrix (08 §4)', () => {
     // The address `adminSetPlatformRole` names: no institution seat, no session, nothing else here
     // reads it.
     roleTarget = await f.createUser('matrix-role-target')
+    seatTarget = await f.createUser('matrix-seat-target')
+    await f.addMember(orgA, seatTarget.id, 'student')
 
     const runsRepository = await import('@/server/modules/runs/repository')
     const removableBuilt: Partial<Record<Seat, UserRow>> = {}
@@ -926,6 +938,8 @@ describe('authorization matrix (08 §4)', () => {
     const adminUsersRoute = await import('@/app/api/v1/admin/users/route')
     const adminPlatformRoleRoute =
       await import('@/app/api/v1/admin/users/[userId]/platform-role/route')
+    const adminInstitutionRoleRoute =
+      await import('@/app/api/v1/admin/users/[userId]/institution-role/route')
     const adminFlagsRoute = await import('@/app/api/v1/admin/flags/route')
     const adminAiModeRoute = await import('@/app/api/v1/admin/settings/ai-mode/route')
     const adminAuditLogRoute = await import('@/app/api/v1/admin/audit-log/route')
@@ -1827,6 +1841,19 @@ describe('authorization matrix (08 §4)', () => {
             session: await sessionFor(seat),
             params: { userId: roleTarget.id },
             body: { role: 'none' },
+          }),
+      },
+      adminSetInstitutionRole: {
+        route: 'PUT /admin/users/{userId}/institution-role',
+        // `student` is the seat `seatTarget` already holds in institution A, so the allowed row
+        // reaches the endpoint and leaves the fixture as it found it (D-747).
+        run: async (seat) =>
+          call(adminInstitutionRoleRoute.PUT, {
+            method: 'PUT',
+            path: `/admin/users/${seatTarget.id}/institution-role`,
+            session: await sessionFor(seat),
+            params: { userId: seatTarget.id },
+            body: { organizationId: orgA, role: 'student' },
           }),
       },
       adminGetFlags: {

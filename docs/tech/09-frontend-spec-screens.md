@@ -262,8 +262,8 @@ The largest screen; one column under `2xl` and two from it (see `09-frontend-spe
 
 ### UI-050 Admin (`/admin/users`, `/admin/flags`, `/admin/audit`) — SYS-006
 
-- **Data:** `listUsers` (search), `setPlatformRoleAction`, `getFlags`, `listAuditLog`.
-- **Tree:** users table with `RoleSelect` (confirm dialog: "This signs the user out"); flags table (name, value, source "env", effective LLM provider); audit table (time, actor, action, target, org, request id; filter by org).
+- **Data:** `listUsers` (search), `setPlatformRoleAction`, `setInstitutionRoleAction` (D-747), `getFlags`, `listAuditLog`.
+- **Tree:** users table with a platform `RoleSelect` and an **Institution role** column — one select per institution the account belongs to, labelled "Institution role for {name} at {institution}", offering **Student** and **Instructor** (a seat outside the two is shown on the trigger and not offered); "No institution yet" when the account has none; both selects confirm first (dialog: "This signs the user out"); flags table (name, value, source "env", effective LLM provider); audit table (time, actor, action, target, org, request id; filter by org).
 - **States:** empty; saving; search.
 
 ### UI-060 Component gallery (`/dev/components`) — SYS-018

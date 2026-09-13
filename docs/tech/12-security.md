@@ -597,7 +597,7 @@ Table `audit_logs` (06 §3.6): `id`, `organization_id`, `actor_id`, `action`, `t
 
 | `action` | Written by | `target_type` / `target_id` | `metadata` keys (ids and enums only) |
 |---|---|---|---|
-| `role.set` | `identity.setPlatformRole`, organization role updates | `user` / user id | `previous_role`, `new_role`, `scope` (`platform` or `organization`), `organization_id` |
+| `role.set` | `admin.setPlatformRole`, `admin.setInstitutionRole` (D-747) | `user` / user id | `from`, `to`, `sessionsRevoked`; the institution write adds `scope: organization` and `sectionSeats`, and carries the institution as the row's `organization_id` |
 | `band.decide` | `review.decideBand`, `review.confirmRemaining` | `run` / run id | `dimension`, `decision`, `band`, `previous_band`, `has_note` |
 | `run.void` | `runs.voidRun` | `run` / run id | `reason` |
 | `run.reoffer` | `runs.reofferRun` | `run` / new run id | `from_run_id`, `variant_id` |

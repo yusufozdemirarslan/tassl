@@ -210,7 +210,7 @@ Both paths share: request id from proxy → logger child → error envelope; Zod
 | `debrief` | debrief assembly, questions, recorded transition | `getDebrief`, `answerDebrief` |
 | `records` | judgment record snapshot, record export, course exports, sample data | `getRecord`, `exportRecord`, `writeCourseExport`, `getCourseExport`, `sample` |
 | `notifications` | in-app notifications, email copies | `notify`, `listNotifications`, `markRead` |
-| `admin` | user list and roles, flags view, audit log | `listUsers`, `setPlatformRole`, `listAuditLog`, `audit` (write helper) |
+| `admin` | user list and roles, flags view, audit log | `listUsers`, `setPlatformRole`, `setInstitutionRole`, `listAuditLog`, `audit` (write helper) |
 
 Detailed signatures, rules, and error codes: `10-backend-spec-modules.md`.
 
