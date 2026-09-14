@@ -6,7 +6,11 @@
 //     single run — or a single student with a script — from spending the institution's month in an
 //     afternoon.
 //   * **Globally per calendar month**, `LLM_GLOBAL_MONTHLY_TOKEN_BUDGET=20000000`. This is the
-//     invoice.
+//     invoice, counted in tokens.
+//   * **Globally per calendar month in dollars**, `LLM_GLOBAL_MONTHLY_USD_BUDGET=100` (D-749). The
+//     token ceiling was sized for MiMo at $0.61 per million tokens; on Claude Opus 5 the same twenty
+//     million tokens can cost forty times as much, so the invoice gets a ceiling in the unit it is
+//     paid in. It sums `llm_calls.cost_estimate_usd`, which prices each call at its own model's rate.
 //
 // Exceeding either throws `LLM_BUDGET_EXCEEDED` (402), and each feature degrades its own way (§3):
 // the assistant pauses the run with a sentence that says what happened and credits the clock, a band
@@ -41,17 +45,21 @@ import type {
   StructuredRequest,
 } from '@/server/llm/provider'
 
-/** The two sums, in tokens; `userDay` is zero for a call with no user behind it (a job). */
-export type BudgetUsage = { userDay: number; globalMonth: number }
+/**
+ * The sums: tokens, and the month's estimated dollars. `userDay` is zero for a call with no user
+ * behind it (a job); `globalMonthUsd` is absent where a reader does not price calls, and reads as 0.
+ */
+export type BudgetUsage = { userDay: number; globalMonth: number; globalMonthUsd?: number }
 
-export type BudgetLimits = { userDaily: number; globalMonthly: number }
+export type BudgetLimits = { userDaily: number; globalMonthly: number; globalMonthlyUsd?: number }
 
 /** Which ceiling was reached; the detail on the error and the reason on the ops alert. */
-export type BudgetScope = 'user_day' | 'global_month'
+export type BudgetScope = 'user_day' | 'global_month' | 'global_month_usd'
 
 export const budgetLimits = (): BudgetLimits => ({
   userDaily: env.LLM_USER_DAILY_TOKEN_BUDGET,
   globalMonthly: env.LLM_GLOBAL_MONTHLY_TOKEN_BUDGET,
+  globalMonthlyUsd: env.LLM_GLOBAL_MONTHLY_USD_BUDGET,
 })
 
 /** Midnight UTC today. The day is UTC everywhere so that a budget does not move with a timezone. */
@@ -74,6 +82,11 @@ export function startOfUtcMonth(now: Date): Date {
 export function budgetVerdict(usage: BudgetUsage, limits: BudgetLimits): BudgetScope | null {
   if (usage.userDay >= limits.userDaily) return 'user_day'
   if (usage.globalMonth >= limits.globalMonthly) return 'global_month'
+  if (
+    limits.globalMonthlyUsd !== undefined &&
+    (usage.globalMonthUsd ?? 0) >= limits.globalMonthlyUsd
+  )
+    return 'global_month_usd'
   return null
 }
 
@@ -83,6 +96,11 @@ export function budgetExceeded(
   usage: BudgetUsage,
   limits: BudgetLimits,
 ): never {
+  if (scope === 'global_month_usd') {
+    throw new AppError('LLM_BUDGET_EXCEEDED', undefined, {
+      details: { scope, usedUsd: usage.globalMonthUsd ?? 0, limitUsd: limits.globalMonthlyUsd },
+    })
+  }
   throw new AppError('LLM_BUDGET_EXCEEDED', undefined, {
     details: {
       scope,
@@ -96,6 +114,7 @@ export function budgetExceeded(
 export type BudgetReader = (context: LlmCallContext, now: Date) => Promise<BudgetUsage>
 
 const tokens = sql<number>`coalesce(sum(${llmCalls.inputTokens} + ${llmCalls.outputTokens}), 0)::int`
+const dollars = sql<number>`coalesce(sum(${llmCalls.costEstimateUsd}), 0)::float8`
 
 /**
  * The two sums, from `llm_calls`, in two queries against the two indexes 06 §3.6 declares for exactly
@@ -107,7 +126,7 @@ const tokens = sql<number>`coalesce(sum(${llmCalls.inputTokens} + ${llmCalls.out
  */
 export const readBudgetUsage: BudgetReader = async (context, now) => {
   const [monthRow] = await db
-    .select({ tokens })
+    .select({ tokens, dollars })
     .from(llmCalls)
     .where(and(gte(llmCalls.createdAt, startOfUtcMonth(now)), ne(llmCalls.provider, 'mock')))
 
@@ -126,7 +145,7 @@ export const readBudgetUsage: BudgetReader = async (context, now) => {
     userDay = dayRow?.tokens ?? 0
   }
 
-  return { userDay, globalMonth: monthRow?.tokens ?? 0 }
+  return { userDay, globalMonth: monthRow?.tokens ?? 0, globalMonthUsd: monthRow?.dollars ?? 0 }
 }
 
 /**

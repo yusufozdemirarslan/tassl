@@ -1,4 +1,4 @@
-// `gen-reskin-brief-stakeholders@2` — generation step 1 (docs/tech/11-llm-integration.md §2.1;
+// `gen-reskin-brief-stakeholders@3` — generation step 1 (docs/tech/11-llm-integration.md §2.1;
 // AI-001, FR-190, FR-191; PRD §7.2, §7.3, §7.18 (1), (4), (5); D-063).
 //
 // This is the only step that is given the seed case, and it is the step that decides what the
@@ -17,6 +17,12 @@
 //     entries with one of each kind, so the schema wants them here, one pass earlier.
 //   * **The brief is a hard 200 words** (PRD §7.2). Counted the way the author's own editor counts
 //     them, through `wordLimit`, so a brief that passes here is a brief that passes `BRIEF_TOO_LONG`.
+//
+// **Version 3 says what `company` and `market` are** (D-749). Both are names, capped at 200 characters
+// like every name field, and the task never said so. Claude Opus 5 read `market` as a description of
+// the market and wrote past the cap on the short eval case: a repair call every time, and once a
+// repair that failed as well and cost the step a whole pass. The bullet names the two fields and the
+// shape the worked example already has.
 import { z } from 'zod'
 import { wordLimit } from '@/lib/words'
 import { definePrompt } from '@/server/llm/prompts/define-prompt'
@@ -124,6 +130,7 @@ const TASK = `THIS STEP
 Re-skin the case and write the opening of the package: the invented organisation and market, the people, the record of what you changed, the brief, and the stakeholders.
 
 - Rename everything. The organisation, the people, the products and the places are yours to invent, and none of them may be findable. Change the industry only if the case's own decision does not depend on it; keep the shape of the decision.
+- \`company\` and \`market\` are names, not descriptions: a few words each, such as \`Halden Roastworks\` and \`subscription coffee\`, and never more than 200 characters. The brief and the documents are where the market is described.
 - Alter every figure. Draw new numbers that are plausible for the market you invented and that reconcile with each other, and record in the log what you moved them from and to.
 - The brief is at most 200 words, written to the student in the second person. It names the decision they own, the money or the share at stake, the fact that the Evidence Room is dated and attributed, the clock, and that what they commit is what gets funded. It does not summarise the evidence and it does not hint at what the right answer is.
 - The clock the brief names is **twenty-five minutes**. Write that, not a number of your own: the working period is a setting on the package, and a brief promising forty-five minutes to a student who gets twenty-five has lied to them before the run starts.
@@ -135,7 +142,7 @@ export const genReskinBriefStakeholdersPrompt = definePrompt<
   ReskinBriefStakeholdersOutput
 >({
   name: 'gen-reskin-brief-stakeholders',
-  version: 2,
+  version: 3,
   maxOutputTokens: GEN_MAX_OUTPUT_TOKENS,
   timeoutMs: GEN_TIMEOUT_MS,
   purpose:

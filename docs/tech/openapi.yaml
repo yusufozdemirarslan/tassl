@@ -7369,9 +7369,13 @@ paths:
                             type: integer
                             exclusiveMinimum: 0
                             maximum: 9007199254740991
+                          globalMonthlyUsd:
+                            type: number
+                            exclusiveMinimum: 0
                         required:
                           - userDaily
                           - globalMonthly
+                          - globalMonthlyUsd
                         additionalProperties: false
                     required:
                       - today
@@ -7526,9 +7530,13 @@ paths:
                             type: integer
                             exclusiveMinimum: 0
                             maximum: 9007199254740991
+                          globalMonthlyUsd:
+                            type: number
+                            exclusiveMinimum: 0
                         required:
                           - userDaily
                           - globalMonthly
+                          - globalMonthlyUsd
                         additionalProperties: false
                     required:
                       - today

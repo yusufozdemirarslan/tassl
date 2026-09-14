@@ -1,6 +1,7 @@
 // The provider abstraction every LLM-backed feature calls through (docs/tech/11-llm-integration.md
-// §1). Three implementations satisfy it: the deterministic `mock` (default everywhere until Phase
-// 14, D-029/D-063), the `openai-compatible` MiMo adapter, and the `anthropic` fallback.
+// §1). Three implementations satisfy it: the deterministic `mock` (the default wherever `FEATURE_AI`
+// is off, D-029/D-063), the `anthropic` Claude adapter (the production provider, D-749), and the
+// `openai-compatible` MiMo adapter.
 //
 // Nothing above this file knows which one it holds. A service asks the registry for a provider,
 // hands it a `CompleteRequest`, and reads text, a stream, or a validated object back; the
@@ -120,8 +121,12 @@ export const MOCK_MODEL = 'mock-v1'
  */
 export const defaultModelFor = (name: LlmProviderName, env: LlmModelEnv): string => {
   if (name === 'mock') return MOCK_MODEL
-  return name === 'anthropic' ? env.LLM_FALLBACK_MODEL : env.LLM_MODEL
+  // Claude answers with `LLM_MODEL` when it is the configured provider and with the fallback model
+  // when it stands behind another one (D-749).
+  if (name === 'anthropic')
+    return env.LLM_PROVIDER === 'anthropic' ? env.LLM_MODEL : env.LLM_FALLBACK_MODEL
+  return env.LLM_MODEL
 }
 
 /** Structural, so this file stays free of `@/server/config` and can be read from a test. */
-export type LlmModelEnv = { LLM_MODEL: string; LLM_FALLBACK_MODEL: string }
+export type LlmModelEnv = { LLM_PROVIDER: string; LLM_MODEL: string; LLM_FALLBACK_MODEL: string }

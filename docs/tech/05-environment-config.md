@@ -29,20 +29,21 @@
 | `FEATURE_SAMPLE_DATA` | Show illustrative sample data views | `true` | none | no | `src/lib/flags.ts` | — |
 | `FEATURE_TEST_CONTROLS` | Build-phase test controls (forced assistant failure) | `true` | none | no | `src/lib/flags.ts` | — |
 | `DEMO_MODE` | Demo deployment: sign-up needs no email verification (the account is marked verified and signed in at once) and the email transport is `console` whatever `EMAIL_TRANSPORT` says (D-692) | `false` | none | no | `src/server/auth/auth.ts`, `src/server/email/transport.ts`, `src/lib/flags.ts` | `true` in production for the judged demo |
-| `LLM_PROVIDER` | `mock`, `openai-compatible`, `anthropic` | `mock` | none | no | `src/server/llm/registry.ts` | — |
-| `LLM_BASE_URL` | OpenAI-compatible base URL | `https://token-plan-sgp.xiaomimimo.com/v1` | none | no | `src/server/llm/providers/openai-compatible/index.ts` | — |
-| `LLM_MODEL` | Model id | `mimo-v2.5-pro` | none | no | same | — |
-| `LLM_API_KEY` | Provider key (sent as `api-key` and `Authorization: Bearer`) | empty (mock stays active) | R when `LLM_PROVIDER=openai-compatible` | yes | same | https://platform.xiaomimimo.com/#/console/api-keys → Create API Key |
-| `LLM_TIMEOUT_MS` | Per-call timeout | `60000` | none | no | `src/server/llm/provider.ts` | — |
-| `LLM_MAX_OUTPUT_TOKENS` | Cap per call | `4096` | none | no | same | — |
-| `LLM_REASONING` | `off` sends `thinking: {type:'disabled'}`; `on` enables | `off` | none | no | openai-compatible provider | — |
+| `LLM_PROVIDER` | `mock`, `openai-compatible`, `anthropic`. Production runs `anthropic` (D-749); `FEATURE_AI=false` forces `mock` whatever this says | `mock` (schema), `anthropic` (`.env.example`) | R | no | `src/server/llm/registry.ts` | — |
+| `LLM_BASE_URL` | OpenAI-compatible base URL; read only when `LLM_PROVIDER=openai-compatible` | `https://token-plan-sgp.xiaomimimo.com/v1` | none | no | `src/server/llm/providers/openai-compatible/index.ts` | — |
+| `LLM_MODEL` | Model id of the configured provider: `claude-opus-5` for `anthropic` (D-749), `mimo-v2.5-pro` for `openai-compatible` | `claude-opus-5` | R | no | `src/server/llm/providers/anthropic/index.ts`, `src/server/llm/providers/openai-compatible/index.ts` | — |
+| `LLM_API_KEY` | MiMo key (sent as `api-key` and `Authorization: Bearer`) | empty (mock stays active) | R when `LLM_PROVIDER=openai-compatible` | yes | `src/server/llm/providers/openai-compatible/index.ts` | https://platform.xiaomimimo.com/#/console/api-keys → Create API Key |
+| `LLM_TIMEOUT_MS` | Per-call timeout; a prompt may set its own (D-666) | `60000` | none | no | `src/server/llm/provider.ts` | — |
+| `LLM_MAX_OUTPUT_TOKENS` | Output cap per call. On Claude Opus 5 the adapter adds a thinking allowance on top (2,000 tokens at `low` effort, 8,000 at `medium`), because thinking counts against `max_tokens` (D-749) | `4096` | none | no | same | — |
+| `LLM_REASONING` | MiMo only: `off` sends `thinking: {type:'disabled'}`; `on` enables. Claude's thinking is set per prompt family through `effort` | `off` | none | no | openai-compatible provider | — |
 | `LLM_FALLBACK_PROVIDER` | `none` or `anthropic` | `none` | none | no | `src/server/llm/provider.ts` | — |
 | `LLM_FALLBACK_MODEL` | Fallback model id | `claude-sonnet-5` | none | no | same | — |
-| `ANTHROPIC_API_KEY` | Fallback provider key | empty | none | yes | `src/server/llm/providers/anthropic/index.ts` | https://console.anthropic.com/settings/keys |
-| `LLM_INPUT_USD_PER_MTOK` | Cost estimate input | `0.61` | none | no | `src/server/llm/calls.ts` | — |
-| `LLM_OUTPUT_USD_PER_MTOK` | Cost estimate output | `0.61` | none | no | same | — |
+| `ANTHROPIC_API_KEY` | Claude API key: the production provider's (D-749) and the fallback's | empty (mock stays active) | R when `LLM_PROVIDER=anthropic` | yes | `src/server/llm/providers/anthropic/index.ts` | https://platform.claude.com/settings/keys → Create Key. Locally it lives in `.env.local` (gitignored, never `.env.example`); in production `vercel env add ANTHROPIC_API_KEY production` (sensitive) |
+| `LLM_INPUT_USD_PER_MTOK` | Cost estimate input for a model the built-in price table does not name; Claude models are priced by id (`claude-opus-5` $5, D-749) | `0.61` | none | no | `src/server/llm/pricing.ts` | — |
+| `LLM_OUTPUT_USD_PER_MTOK` | Cost estimate output, same rule (`claude-opus-5` $25) | `0.61` | none | no | same | — |
 | `LLM_USER_DAILY_TOKEN_BUDGET` | Hard stop per user per day | `200000` | none | no | `src/server/llm/guardrails/budgets.ts` | — |
 | `LLM_GLOBAL_MONTHLY_TOKEN_BUDGET` | Hard stop global per month | `20000000` | none | no | same | — |
+| `LLM_GLOBAL_MONTHLY_USD_BUDGET` | Hard stop global per month in estimated dollars (sum of `llm_calls.cost_estimate_usd`), the cost cap Claude's prices need (D-749) | `100` | none | no | same | — |
 | `TRIGGER_MATCHING` | `deterministic_first` or `llm_first` | `deterministic_first` | none | no | `src/server/modules/assistant/triggers.ts` | — |
 | `ASSISTANT_NUMERIC_GUARD` | `flag` or `block` | `flag` | none | no | `src/server/llm/guardrails/numeric-guard.ts` | — |
 | `NEXT_PUBLIC_POSTHOG_KEY` | PostHog project API key (public by design); also used server-side | empty (analytics no-op) | none | no | `src/instrumentation-client.ts`, `src/server/analytics/posthog.ts` | PostHog → Project settings → Project API key |
@@ -92,10 +93,13 @@ FEATURE_SAMPLE_DATA=true
 FEATURE_TEST_CONTROLS=true
 DEMO_MODE=false
 
-# ---- LLM (mock by default; FEATURE_AI=false forces mock regardless) ----
-LLM_PROVIDER=mock
+# ---- LLM (FEATURE_AI=false forces the scripted mock regardless of LLM_PROVIDER) ----
+# Production runs Claude Opus 5 (D-749). ANTHROPIC_API_KEY comes from
+# https://platform.claude.com/settings/keys; keep it in .env.local and in Vercel, never here.
+LLM_PROVIDER=anthropic
+LLM_MODEL=claude-opus-5
+# The MiMo adapter (LLM_PROVIDER=openai-compatible) reads these two.
 LLM_BASE_URL=https://token-plan-sgp.xiaomimimo.com/v1
-LLM_MODEL=mimo-v2.5-pro
 LLM_API_KEY=
 LLM_TIMEOUT_MS=60000
 LLM_MAX_OUTPUT_TOKENS=4096
@@ -103,10 +107,12 @@ LLM_REASONING=off
 LLM_FALLBACK_PROVIDER=none
 LLM_FALLBACK_MODEL=claude-sonnet-5
 ANTHROPIC_API_KEY=
+# Prices models the built-in table does not know; Claude models are priced by their own id.
 LLM_INPUT_USD_PER_MTOK=0.61
 LLM_OUTPUT_USD_PER_MTOK=0.61
 LLM_USER_DAILY_TOKEN_BUDGET=200000
 LLM_GLOBAL_MONTHLY_TOKEN_BUDGET=20000000
+LLM_GLOBAL_MONTHLY_USD_BUDGET=100
 TRIGGER_MATCHING=deterministic_first
 ASSISTANT_NUMERIC_GUARD=flag
 
@@ -165,7 +171,7 @@ const ServerEnvSchema = z.object({
   DEMO_MODE: bool.default(false),
   LLM_PROVIDER: z.enum(['mock', 'openai-compatible', 'anthropic']).default('mock'),
   LLM_BASE_URL: z.string().url().default('https://token-plan-sgp.xiaomimimo.com/v1'),
-  LLM_MODEL: z.string().default('mimo-v2.5-pro'),
+  LLM_MODEL: z.string().default('claude-opus-5'),
   LLM_API_KEY: z.string().default(''),
   LLM_TIMEOUT_MS: z.coerce.number().int().positive().default(60000),
   LLM_MAX_OUTPUT_TOKENS: z.coerce.number().int().positive().default(4096),
@@ -177,6 +183,7 @@ const ServerEnvSchema = z.object({
   LLM_OUTPUT_USD_PER_MTOK: z.coerce.number().nonnegative().default(0.61),
   LLM_USER_DAILY_TOKEN_BUDGET: z.coerce.number().int().positive().default(200000),
   LLM_GLOBAL_MONTHLY_TOKEN_BUDGET: z.coerce.number().int().positive().default(20000000),
+  LLM_GLOBAL_MONTHLY_USD_BUDGET: z.coerce.number().positive().default(100),
   TRIGGER_MATCHING: z.enum(['deterministic_first', 'llm_first']).default('deterministic_first'),
   ASSISTANT_NUMERIC_GUARD: z.enum(['flag', 'block']).default('flag'),
   NEXT_PUBLIC_POSTHOG_KEY: z.string().default(''),
@@ -196,6 +203,7 @@ const ServerEnvSchema = z.object({
   }
   if (env.APP_ENV === 'production') {
     if (env.LLM_PROVIDER === 'openai-compatible' && !env.LLM_API_KEY) ctx.addIssue({ code: 'custom', message: 'LLM_API_KEY required for openai-compatible' })
+    if (env.LLM_PROVIDER === 'anthropic' && !env.ANTHROPIC_API_KEY) ctx.addIssue({ code: 'custom', message: 'ANTHROPIC_API_KEY required for anthropic' })
     if (env.EMAIL_TRANSPORT === 'resend' && !env.RESEND_API_KEY) ctx.addIssue({ code: 'custom', message: 'RESEND_API_KEY required for resend transport' })
   }
 })
@@ -253,8 +261,8 @@ export type Flags = { ai: boolean; sampleData: boolean; testControls: boolean }
 
 | Environment | Where | Database | Env source |
 |---|---|---|---|
-| local | developer machine | Docker Compose Postgres 17 | `.env` copied from `.env.example` |
-| test (CI) | GitHub Actions | `postgres:17-alpine` service | workflow `env:` block with the same defaults, `APP_ENV=test` |
+| local | developer machine | Docker Compose Postgres 17 | `.env` copied from `.env.example`; secrets such as `ANTHROPIC_API_KEY` in `.env.local` (gitignored) |
+| test (CI) | GitHub Actions | `postgres:17-alpine` service | workflow `env:` block with the same defaults, `APP_ENV=test`. `.env.test` pins `FEATURE_AI=false` and `LLM_PROVIDER=mock`, so no test lane calls a model; a live run exports `FEATURE_AI=true LLM_PROVIDER=anthropic LLM_MODEL=claude-opus-5` and the key from `.env.local` in its own shell |
 | preview | Vercel preview deployment per PR | Neon branch `preview/pr-<n>` | Vercel project env (preview scope) + per-deployment `--env DATABASE_URL=...` |
 | production | Vercel production | Neon `main` branch | Vercel project env (production scope) |
 

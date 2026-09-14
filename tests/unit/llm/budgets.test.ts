@@ -91,6 +91,16 @@ describe('the verdict', () => {
     expect(budgetVerdict({ userDay: 10, globalMonth: 20_000_000 }, LIMITS)).toBe('global_month')
   })
 
+  it('names the month in dollars when the tokens are fine and the estimated cost is not (D-749)', () => {
+    const limits = { ...LIMITS, globalMonthlyUsd: 100 }
+    expect(
+      budgetVerdict({ userDay: 10, globalMonth: 10, globalMonthUsd: 99.99 }, limits),
+    ).toBeNull()
+    expect(budgetVerdict({ userDay: 10, globalMonth: 10, globalMonthUsd: 100 }, limits)).toBe(
+      'global_month_usd',
+    )
+  })
+
   it('treats an exactly spent budget as spent', () => {
     expect(budgetVerdict({ userDay: LIMITS.userDaily, globalMonth: 0 }, LIMITS)).toBe('user_day')
   })

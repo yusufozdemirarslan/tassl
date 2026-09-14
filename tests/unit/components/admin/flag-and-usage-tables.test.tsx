@@ -19,7 +19,7 @@ import type { AdminFlags, LlmUsage } from '@/server/modules/admin/schema'
 const USAGE: LlmUsage = {
   today: { calls: 1234, tokens: 987654, costUsd: 12.5 },
   month: { calls: 20500, tokens: 250000, costUsd: 1234.56789 },
-  budgets: { userDaily: 40000, globalMonthly: 1000000 },
+  budgets: { userDaily: 40000, globalMonthly: 1000000, globalMonthlyUsd: 100 },
 }
 
 const FLAGS: AdminFlags = {
@@ -207,7 +207,11 @@ describe('LlmUsageTable (UI-050)', () => {
   // one running normally — but the panel is drawn from whatever the route hands it, and an
   // operations screen that prints `NaN%` teaches its reader to distrust the figures beside it.
   it('prints no share at all when the monthly ceiling is zero', () => {
-    render(<LlmUsageTable usage={{ ...USAGE, budgets: { userDaily: 40000, globalMonthly: 0 } }} />)
+    render(
+      <LlmUsageTable
+        usage={{ ...USAGE, budgets: { userDaily: 40000, globalMonthly: 0, globalMonthlyUsd: 100 } }}
+      />,
+    )
 
     expect(
       screen.getByText(

@@ -47,6 +47,7 @@ import { track } from '@/server/analytics/track'
 import { requireAuthorOnPackage } from '@/server/auth/permissions'
 import type { SessionUser } from '@/server/auth/types'
 import { enqueueAfterCommit, pumpQueues } from '@/server/jobs/enqueue'
+import { costEstimateUsd } from '@/server/llm/pricing'
 import { getProvider } from '@/server/llm/registry'
 import { notify } from '@/server/modules/notifications'
 import { listMyInstitutions } from '@/server/modules/tenancy'
@@ -872,6 +873,12 @@ async function recordOutcome(input: RecordOutcomeInput): Promise<GenerationStepO
         promptVersion: String(GENERATION_STEP_DEFINITIONS[step].prompt.version),
         inputTokens: input.usage.inputTokens,
         outputTokens: input.usage.outputTokens,
+        // The same estimate the call's `llm_calls` row carries, priced by the model that answered
+        // (D-749). The column was declared and read by the generation screen but never written, so
+        // every step on a real provider read "Not asked yet" and the run's total "US$0.00, on the
+        // mock provider". A step whose call never answered has no provider and no cost.
+        costEstimateUsd:
+          input.provider === '' ? null : costEstimateUsd(input.usage, input.provider, input.model),
         failedRules: frozen ? [] : input.failedRules,
         // A rule failure is reported by its rules and nothing else, so the generation screen shows
         // the author what the package needs rather than the sentence the runner threw. `error` is

@@ -40,6 +40,10 @@ import { drain, setupAuthoringFixture, type AuthoringFixture } from './fixture'
  * rather than replacing it, so the pipeline still runs against the same answers.
  */
 const calls = vi.hoisted(() => [] as { promptName: string; messages: string }[])
+/** When set, the answer reports this provider and model, as a priced network provider's would. */
+const answeredBy = vi.hoisted(() => ({
+  current: null as null | { provider: string; model: string },
+}))
 
 vi.mock('@/server/llm/registry', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/server/llm/registry')>()
@@ -54,7 +58,8 @@ vi.mock('@/server/llm/registry', async (importOriginal) => {
             promptName: request.promptName,
             messages: request.messages.map((message) => message.content).join('\n'),
           })
-          return provider.structured(request)
+          const result = await provider.structured(request)
+          return answeredBy.current === null ? result : { ...result, ...answeredBy.current }
         },
       }
     },
@@ -71,6 +76,7 @@ let fx: AuthoringFixture
 beforeEach(async () => {
   await truncateAll()
   calls.length = 0
+  answeredBy.current = null
   delete process.env.MOCK_GEN_FAIL_ONCE
   authoring = await import('@/server/modules/authoring')
   scenarios = await import('@/server/modules/scenarios')
@@ -94,6 +100,7 @@ type RunRow = {
   model: string | null
   input_tokens: number | null
   output_tokens: number | null
+  cost_estimate_usd: string | null
   failed_rules: string[]
   error: string | null
 }
@@ -101,7 +108,7 @@ type RunRow = {
 const runRows = async (versionId: string): Promise<RunRow[]> =>
   testSql<RunRow[]>`
     select step, pass_number, status, provider, model, input_tokens, output_tokens,
-           failed_rules, error
+           cost_estimate_usd, failed_rules, error
       from generation_runs where package_version_id = ${versionId}
      order by created_at, id`
 
@@ -144,6 +151,8 @@ describe('startGeneration on the mock provider', () => {
       expect(row.model, row.step).not.toBeNull()
       expect(row.input_tokens ?? 0, row.step).toBeGreaterThan(0)
       expect(row.output_tokens ?? 0, row.step).toBeGreaterThan(0)
+      // Nobody is billed for the mock, and the row says so rather than saying nothing (D-749).
+      expect(row.cost_estimate_usd, row.step).toBe('0.000000')
       expect(row.failed_rules, row.step).toEqual([])
       expect(row.error, row.step).toBeNull()
     }
@@ -166,6 +175,28 @@ describe('startGeneration on the mock provider', () => {
     const notices = await notificationRows(fx.authorId)
     expect(notices.map((row) => row.type)).toEqual(['generation_complete'])
     expect(notices[0]?.payload).toMatchObject({ ok: true, packageVersionId: fx.versionId })
+  })
+
+  it('prices each pass by the model that answered it (D-749)', async () => {
+    // The column was declared and read by the generation screen but never written: on a real
+    // provider every step read "Not asked yet" and the total "US$0.00, on the mock provider".
+    answeredBy.current = { provider: 'anthropic', model: 'claude-opus-5' }
+    expect(await authoring.startGeneration(fx.author, fx.versionId)).toEqual({ started: true })
+    await drain()
+
+    const rows = await runRows(fx.versionId)
+    expect(rows).toHaveLength(7)
+    for (const row of rows) {
+      expect(row.provider, row.step).toBe('anthropic')
+      // $5 per million input tokens and $25 per million output tokens, to six places.
+      const expected =
+        ((row.input_tokens ?? 0) / 1_000_000) * 5 + ((row.output_tokens ?? 0) / 1_000_000) * 25
+      expect(row.cost_estimate_usd, row.step).toBe(expected.toFixed(6))
+      expect(Number(row.cost_estimate_usd), row.step).toBeGreaterThan(0)
+    }
+
+    const status = await authoring.getGenerationStatus(fx.author, fx.versionId)
+    for (const step of status.steps) expect(step.costEstimateUsd ?? 0, step.step).toBeGreaterThan(0)
   })
 
   it('refuses a version with no seed record, and a confirmed one', async () => {

@@ -363,6 +363,7 @@ describe('admin service', () => {
           budgets: {
             userDaily: config.env.LLM_USER_DAILY_TOKEN_BUDGET,
             globalMonthly: config.env.LLM_GLOBAL_MONTHLY_TOKEN_BUDGET,
+            globalMonthlyUsd: config.env.LLM_GLOBAL_MONTHLY_USD_BUDGET,
           },
         },
       })

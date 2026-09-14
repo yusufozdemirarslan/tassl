@@ -143,6 +143,8 @@ export const llmUsageSchema = z.object({
   budgets: z.object({
     userDaily: z.number().int().positive(),
     globalMonthly: z.number().int().positive(),
+    /** `LLM_GLOBAL_MONTHLY_USD_BUDGET`: the month's estimated cost is refused past it (D-749). */
+    globalMonthlyUsd: z.number().positive(),
   }),
 })
 export type LlmUsage = z.infer<typeof llmUsageSchema>

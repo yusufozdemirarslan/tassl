@@ -1,8 +1,8 @@
 # 11 — LLM Integration
 
-**Purpose / Read this when:** you touch anything that calls a model: the provider interface, the MiMo adapter, the mock provider, a prompt, a guardrail, the evals, or the `FEATURE_AI` rollout. The app must be fully usable with `LLM_PROVIDER=mock`; the real provider is the last build phase before release.
+**Purpose / Read this when:** you touch anything that calls a model: the provider interface, the Claude adapter production runs on (D-749), the MiMo adapter, the mock provider, a prompt, a guardrail, the evals, or the `FEATURE_AI` rollout. The app must be fully usable with `LLM_PROVIDER=mock`; the real provider is the last build phase before release.
 
-**Requirements covered:** AI-001 to AI-005, INT-007, INT-008, DATA-049, FR-051, FR-052, FR-056, FR-137, FR-191, FR-197, NFR-012, NFR-016, SYS-025; decisions D-028, D-029, D-030, D-063, D-064, D-065, D-066, D-067, D-068, D-103.
+**Requirements covered:** AI-001 to AI-005, INT-007, INT-008, DATA-049, FR-051, FR-052, FR-056, FR-137, FR-191, FR-197, NFR-012, NFR-016, SYS-025; decisions D-028, D-029, D-030, D-063, D-064, D-065, D-066, D-067, D-068, D-103, D-666, D-691, D-749.
 
 ## 1. Provider abstraction
 
@@ -54,7 +54,7 @@ Three properties of that chain, each of them load-bearing:
 - **`timeout` is not a wrapper file** (D-653). §1.2 attaches it as `AbortSignal.timeout(...)` on the SDK call, because only the code that makes the request can abort it; the ordering property the chain asserts — the retries are above it, so each attempt gets a whole `LLM_TIMEOUT_MS` — holds either way.
 - **One breaker per provider name, for the life of the process** (D-118). The registry holds the map and caches the wrapped chain by name so the two stay in step; `resetProviderRegistry()` exists for tests and nothing in the application calls it.
 
-Switching providers is env only: `LLM_PROVIDER`, `LLM_BASE_URL`, `LLM_MODEL`, `LLM_API_KEY`, `LLM_TIMEOUT_MS`, `LLM_MAX_OUTPUT_TOKENS`, plus `LLM_FALLBACK_PROVIDER`, `LLM_FALLBACK_MODEL`, `ANTHROPIC_API_KEY`, `LLM_REASONING`.
+Switching providers is env only: `LLM_PROVIDER` and `LLM_MODEL` (production: `anthropic` and `claude-opus-5`, D-749), the key of the provider named (`ANTHROPIC_API_KEY` for Claude; `LLM_API_KEY`, `LLM_BASE_URL` and `LLM_REASONING` for MiMo), `LLM_TIMEOUT_MS`, `LLM_MAX_OUTPUT_TOKENS`, plus `LLM_FALLBACK_PROVIDER` and `LLM_FALLBACK_MODEL` behind a non-Claude primary. An `anthropic` primary has no fallback wrapper: the kill switch behind it is the scripted assistant (§6).
 
 ### 1.2 `openai-compatible` (MiMo) adapter
 
@@ -151,9 +151,29 @@ Structured output never depends on native tool calling or schema enforcement. `s
 4. On failure, one repair call: the original messages plus the assistant's raw output and a user message "The JSON failed validation: <Zod issues as text>. Return the corrected JSON object only." Then parse and validate again.
 5. On second failure throws `AppError('LLM_OUTPUT_INVALID')`; the wrapper logs outcome `validation_failed`. Success after repair logs `repaired`.
 
-### 1.3 `anthropic` adapter (fallback)
+### 1.3 `anthropic` adapter (the production provider, D-749)
 
-`src/server/llm/providers/anthropic/index.ts` uses `createAnthropic({ apiKey: env.ANTHROPIC_API_KEY })` from `@ai-sdk/anthropic` and `generateText`/`streamText` with model `env.LLM_FALLBACK_MODEL` (`claude-sonnet-5`, D-103). Same `structuredViaPrompt`. Used only when `LLM_FALLBACK_PROVIDER=anthropic`, `ANTHROPIC_API_KEY` is set, and the primary circuit is open.
+`src/server/llm/providers/anthropic/index.ts` uses `createAnthropic({ apiKey: env.ANTHROPIC_API_KEY })` from `@ai-sdk/anthropic` and `generateText`/`streamText`, with the client built on the first call and the SDK's own retries off (D-652). `createAnthropicProvider(model)` builds two instances that differ only in the model they answer with:
+
+- `anthropicProvider` is the configured provider when `LLM_PROVIDER=anthropic` and answers with `LLM_MODEL` (`claude-opus-5` in production).
+- `anthropicFallbackProvider` sits behind another primary and answers with `LLM_FALLBACK_MODEL` (`claude-sonnet-5`, D-103). It is used only when `LLM_FALLBACK_PROVIDER=anthropic`, `ANTHROPIC_API_KEY` is set, and the primary circuit is open.
+
+Facts verified on 2026-09-13 against `@ai-sdk/anthropic` 4.0.49 and the Claude API:
+
+| Item | Value |
+|---|---|
+| Model id | `claude-opus-5` |
+| Keys | `https://platform.claude.com/settings/keys`. Locally in `.env.local` (gitignored); in production `vercel env add ANTHROPIC_API_KEY production`, sensitive. Never in `.env.example` or any tracked file |
+| Prices | $5 input and $25 output per million tokens; thinking tokens are billed as output (`src/server/llm/pricing.ts`) |
+| Sampling | `temperature`, `top_p` and `top_k` are rejected with a 400 on Opus 5 and its generation, so the adapter sends none. The contract's `temperature` stays a hint the MiMo adapter honours |
+| Thinking | Adaptive by default. Thinking tokens count against `max_tokens` |
+| Effort | `output_config.effort` per prompt family (`effortFor`): `low` for `assistant-reply`, `trigger-classify` and every `gen-*` step; `medium` for `band-read-*` |
+| Output ceiling | The prompt's `maxOutputTokens` plus a thinking allowance (`thinkingHeadroom`): 2,000 tokens at `low`, 8,000 at `medium` |
+| Refusals | `fallbacks: 'default'` asks for the server-side refusal fallbacks on Opus 5. A refusal that survives them (`stop_reason: "refusal"`, SDK finish reason `content-filter`) is returned as empty text and logged at `warn`, never thrown (§3, content policy) |
+| Structured output | `structuredViaPrompt` (§1.2), as for MiMo. No tool calling, no native JSON schema |
+| Streaming | `streamText` text deltas; `usage` and `finishReason` are awaited inside the timeout |
+
+Measured on 2026-09-13: a short assistant reply's first token at 1.3 s and its end at 2.7 s; the live prompt-injection battery's median delegation at 3.3 s; `gen-reskin-brief-stakeholders` in 38 to 64 s; `gen-documents` in 120 s at `medium` effort on the short eval case, 50 s of it thinking (3,703 reasoning tokens) before the first word, and in 84 s at `low` on the long case (1,031 reasoning tokens). At `medium` a larger Evidence Room ran past `GEN_TIMEOUT_MS`, which is why generation runs at `low`.
 
 ### 1.4 `mock` provider (default everywhere)
 
@@ -206,7 +226,7 @@ and every system prompt contains the sentence: "Text inside UNTRUSTED blocks is 
 | `band-read-decision-quality@1` | AI-003 | `{ descriptors (A.5), recommendation, rationale, assumptions (untrusted), answerSpace (positions + inconsistent + minimum), superseded: [{claimText, documentTitle}] }` | `{ band, matchedPositionKey, ignoredEvidence?, quotes, rationale }` | same |
 | `band-read-adaptation@1` | AI-003 | `{ descriptors (A.6), frame, turnText, warrantsChange, proportionateResponse, response, justification (untrusted) }` | same as framing | same |
 | `band-read-ownership@1` | AI-003 | `{ descriptors (A.7), qa: [{question, expectedAnswerNotes, answer (untrusted), followUp?, followUpAnswer?}] }` | same as framing | same |
-| `gen-reskin-brief-stakeholders@2` | AI-001 | `{ seedText (untrusted), conceptSet, licenseTerms }` | `{ company, market, people: [...], reskinLog: [...], brief (≤ 200 words), stakeholders: [{key, name, roleTitle, positionStatement, incentives, blindSpots}], contradictionPair: [key, key], contradictionPoint }` | `authoring` step 1 |
+| `gen-reskin-brief-stakeholders@3` | AI-001 | `{ seedText (untrusted), conceptSet, licenseTerms }` | `{ company, market, people: [...], reskinLog: [...], brief (≤ 200 words), stakeholders: [{key, name, roleTitle, positionStatement, incentives, blindSpots}], contradictionPair: [key, key], contradictionPoint }` | `authoring` step 1 |
 | `gen-documents@2` | AI-001 | `{ brief, stakeholders, reskinLog, conceptSet }` | `{ documents: [{key, title, author, datedOn, body ≤ 2000 words, role, supersededByKey?, stakeholderKey?}] }` (6–9 asked for, 6–12 accepted; roles enforced) | step 2 |
 | `gen-answer-space-fields@1` | AI-001 | `{ brief, documents (titles + first 300 words) }` | `{ positions: [{key, kind, summary, supportingDocumentKeys, ignoredEvidence?, isMinimumCommitment}], namedFields: [{key, label, unit}] }` | step 3 |
 | `gen-claims-states@3` | AI-001 | `{ brief, documents, positions, namedFields, conceptSet, failureFamilies, plantedFamily: 'stale_evidence' }` | `{ claims: [{key, text, sourceKind, sourceDocumentKey?, sourcePassage, importance, consequenceLevel, verificationCost, weaklySourced, volatile, conceptKey, carriedValues, triggerPhrases, triggerDescription, escalatable, escalationReply?, rationale, defective: {failureFamily, verificationPaths, plantedTrue}, sound: {verificationPaths}}] , generalEscalationReply }` (6–9 claims asked for, ≥ 6 accepted; composition rules of FR-193) | step 4 |
@@ -228,10 +248,10 @@ Rubric descriptors are passed in from `src/server/modules/scoring/rubric/v1.ts`,
 | Output validation | Every structured call validates against the prompt's output schema with one repair retry; generation outputs additionally pass `validatePackage` rules; assistant markers `[[claim:<id>]]` must appear exactly once per surfaced claim or the reply is rebuilt as claims first, text after | — |
 | Band rationale | A band read's `rationale` is the one model-written string a student reads (D-396), so it passes the defect-word filter and then `BAND_RATIONALE_TERMS` (`scoring/reads.ts`): the Turn's `warrants change` and `proportionate response`, the bank's `expected answer notes`, and FR-131's totals, ranks, percentiles and peer comparisons - none of which is on the assistant's list, and all three of the first group being 12 §8.1 fields the reads are given. A rationale repeating six consecutive words of any `expectedAnswerNotes` it was shown is dropped whole and the band keeps its categorical sentence | D-426 |
 | Quotes returned by a band read | Kept only when present in a field the read was sent, at least 12 characters and 3 words, and not a fragment its own sentence negates; anchored to the trace event that field was written in. An instruction the student typed into their own frame and the model echoed *is* present and cannot be refused here - the `untrusted()` block holds that case (D-429) | D-404, D-429 |
-| Content policy | A provider refusal or empty output is outcome `error`; the assistant returns the claims with the fixed sentence "The assistant could not add commentary on this request." and the delegation is flagged `no_commentary`; scoring reads mark the dimension `provisional` with basis `categorical_only` | — |
-| Budgets | `budgets.ts` sums `llm_calls` tokens per user per UTC day and globally per calendar month before each call; exceeding throws `LLM_BUDGET_EXCEEDED` (402); assistant → run Paused with the message "The assistant is unavailable: usage limit reached", clock credited; scoring → run held (FR-140); generation → job fails visibly with the reason | `LLM_USER_DAILY_TOKEN_BUDGET=200000`, `LLM_GLOBAL_MONTHLY_TOKEN_BUDGET=20000000` (D-065) |
+| Content policy | A provider refusal or empty output is output with no commentary. Claude declines with `stop_reason: "refusal"` after its server-side fallbacks; the adapter returns empty text and logs the decline at `warn` instead of throwing, because a thrown provider error would pause a student's run on one unusual request (D-749). The assistant returns the claims with the fixed sentence "The assistant could not add commentary on this request." and the delegation is flagged `no_commentary`; a structured call fails validation, and scoring reads mark the dimension `provisional` with basis `categorical_only` | D-749 |
+| Budgets | `budgets.ts` sums `llm_calls` tokens per user per UTC day and globally per calendar month, and the month's `cost_estimate_usd`, before each call; exceeding any of the three throws `LLM_BUDGET_EXCEEDED` (402); assistant → run Paused with the message "The assistant is unavailable: usage limit reached", clock credited; scoring → run held (FR-140); generation → job fails visibly with the reason | `LLM_USER_DAILY_TOKEN_BUDGET=200000`, `LLM_GLOBAL_MONTHLY_TOKEN_BUDGET=20000000` (D-065), `LLM_GLOBAL_MONTHLY_USD_BUDGET=100` (D-749): at Claude Opus 5 prices the token ceiling alone would allow a month of $100 (all input) to $500 (all output) |
 | Rate | 10 LLM-backed calls per minute per user (`rate-limit` key `llm:<userId>`) | D-026 |
-| Timeouts | `LLM_TIMEOUT_MS=60000` per call via `AbortSignal.timeout`; generation steps use 240,000 ms (route `maxDuration` 300) | — |
+| Timeouts | `LLM_TIMEOUT_MS=60000` per call via `AbortSignal.timeout`; generation steps use `GEN_TIMEOUT_MS` 150,000 ms, one attempt inside a job that expires at 280 s (route `maxDuration` 300). On Claude a step runs at `low` effort to stay inside it (§1.3) | D-666, D-749 |
 | Retries | 2 retries on network errors, 429, 5xx, and timeouts with backoff 1 s then 3 s; no retry on 4xx validation or budget errors | — |
 | Circuit breaker | `guardrails/circuit-breaker.ts` (D-118): per provider, in memory per function instance; opens after 5 consecutive failures or ≥ 50 percent failures over the last 60 s with at least 5 calls; stays open 60 s; one half-open probe; while open, calls go to the fallback provider when configured, else fail fast with `LLM_CIRCUIT_OPEN`; every open raises `alertOps('llm_circuit_opened')` | — |
 | Graceful degradation | Assistant: Paused + credit (FR-001) and a retry button; a budget refusal reads "The assistant is unavailable: usage limit reached" rather than the provider sentence, because one will clear by waiting and the other will not (`workspace.assistantBudget`). Band reads: `categorical_only` where the categorical part suffices, else unassessed with reason `read_failed` and the run held. Generation: the step fails, the element stays absent with the reason on the row, the author can retry the step or hand-author the element — and a failure a retry cannot fix (`LLM_BUDGET_EXCEEDED`, `LLM_CIRCUIT_OPEN`) burns no second pass (D-656). "AI features are running in constrained mode" is shown on `/admin/flags` when `flags.ai` is false, and on no student surface: with the flag off the product is whole (D-029), and a banner telling a student their assistant is degraded would be both untrue and the one change `FEATURE_AI=false` may not make (D-655) | D-655, D-656 |
@@ -239,7 +259,7 @@ Rubric descriptors are passed in from `src/server/modules/scoring/rubric/v1.ts`,
 
 ## 4. Observability
 
-Every call writes an `llm_calls` row (`06-data-model.md` §3.6): feature, prompt name and version, provider, model, tokens, latency, cost estimate (`tokens/1e6 × USD per MTok` from env), outcome, and the ids of the user, run, package version, and request. Never the prompt or completion text. A `debug`-level log line carries a sha256 of the rendered prompt for de-duplication in support cases.
+Every call writes an `llm_calls` row (`06-data-model.md` §3.6): feature, prompt name and version, provider, model, tokens, latency, cost estimate (`tokens/1e6 × USD per MTok`: a Claude model's own price from `src/server/llm/pricing.ts`, `claude-opus-5` at $5 in and $25 out; any other model at `LLM_INPUT_USD_PER_MTOK` and `LLM_OUTPUT_USD_PER_MTOK`; a mock row at $0), outcome, and the ids of the user, run, package version, and request. Never the prompt or completion text. A `debug`-level log line carries a sha256 of the rendered prompt for de-duplication in support cases.
 
 PostHog event `llm_call` (`17-analytics-events.md`) mirrors the row minus ids. Sentry: `LLM_PROVIDER_ERROR`, `LLM_OUTPUT_INVALID`, `LLM_CIRCUIT_OPEN`, and `LLM_BUDGET_EXCEEDED` are reported with the feature tag; dashboards and alerts in `13-observability-ops.md` (LLM panel: calls, error rate, p95 latency, cost per day, budget consumption).
 
@@ -253,7 +273,7 @@ Layout: `evals/<feature>/cases/*.json` (golden inputs with expected properties),
 | `evals/authoring` | 4 seed texts (short case, long case, case with a teaching-note-style conclusion, case addressing the model that reads it), each through the seven steps **as `runGenerationStep` runs them**: the step’s own rule subset after each answer, and one more pass with the broken rules restated (D-676) | Output passes `validatePackage`; document roles present; ≥ 6 claims; planted claim has a Source Trace path; at least one sound claim warranted Accept; 6/4/6 items; no item mentions a claim text; re-skin log non-empty |
 | `evals/scoring` | The PRD fixed placements (FR-139): accept-everything defect-free → Calibration Professional; accept-everything two-defect fixture → Novice; both defects escalated → Professional; recommendation outside answer space → Decision Quality Novice; full reversal on marginal Turn → Adaptation Novice; hold with reason vs warranted revision, each with its own reason → equal (D-674); implicit hold where no change warranted → Developing; Defense Missed fixture → Ownership Novice; nothing to catch and nothing caught → Calibration Professional; Marco fixture (8/11) → FCR 0.727 and Calibration Novice, Verification Professional; Nadia run-one fixture → Verification Novice, confidence line rising on unchecked claims | Band equality and graph numbers |
 
-`pnpm evals` runs every suite against `getProvider()`; in CI (`FEATURE_AI=false`) the mock must score 100 percent (D-064); locally with `FEATURE_AI=true` and a key, the threshold is 90 percent and the report lists failing cases. Exit code 1 below threshold.
+`pnpm evals` runs every suite against `getProvider()`; in CI (`FEATURE_AI=false`) the mock must score 100 percent (D-064); locally with `FEATURE_AI=true` and a key, the threshold is 90 percent and the report lists failing cases. Exit code 1 below threshold. Against production's provider: export `ANTHROPIC_API_KEY` from `.env.local` in the shell, then `FEATURE_AI=true LLM_PROVIDER=anthropic LLM_MODEL=claude-opus-5 pnpm evals`; the prompt-injection battery runs the same way through `pnpm test:security`.
 
 ## 6. Rollout
 
@@ -262,4 +282,5 @@ Layout: `evals/<feature>/cases/*.json` (golden inputs with expected properties),
 - `FEATURE_AI=false` in every environment until Phase 14; all earlier phases ship on the mock provider with no key.
 - Phase 14 sets `FEATURE_AI=true`, `LLM_PROVIDER=openai-compatible`, and `LLM_API_KEY` in preview first, runs the evals and the E2E walkthrough on a preview, then in production.
 - Kill switch: `FEATURE_AI=false` + redeploy forces mock everywhere (runbook in `13-observability-ops.md`).
-- Costs: at MiMo list prices used for the estimate, a full walkthrough session (≈ 25 assistant calls, 5 band reads) costs under $0.10; a generation pass ≈ 150k input tokens (seed) plus ≈ 60k output ≈ $0.13.
+- D-749 moves production to Claude: `LLM_PROVIDER=anthropic`, `LLM_MODEL=claude-opus-5` and `ANTHROPIC_API_KEY` in Vercel production. The MiMo adapter stays supported, and both kill-switch layers still end at the scripted assistant.
+- Costs at Claude Opus 5 prices ($5 in, $25 out per million tokens, D-749): an assistant reply is a few thousand input tokens and a few hundred output, about one to three cents; a full walkthrough session (≈ 25 assistant calls, 5 band reads) is about $1; a generation pass is about $1, measured at $0.11 for step 1 and $0.16 for step 2. `LLM_GLOBAL_MONTHLY_USD_BUDGET` refuses every call once the month's estimate reaches it. At the MiMo list prices the estimate used before, the same session cost under $0.10 and a generation pass about $0.13.

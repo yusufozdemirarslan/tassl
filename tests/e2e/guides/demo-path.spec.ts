@@ -191,7 +191,7 @@ const GRAPH_TIMEOUT_MS = 20_000
 const SCORING_TIMEOUT_MS = 120_000
 /** The run band polls every five seconds; a page that moves itself does so inside this. */
 const PAGE_MOVES_TIMEOUT_MS = 60_000
-/** The live model takes 3 to 13 seconds per reply (runbook §facts); the scripted one is instant. */
+/** The live model takes 3 to 7 seconds per reply on Claude Opus 5 (runbook §facts); the scripted one is instant. */
 const REPLY_TIMEOUT_MS = 60_000
 
 // ---------------------------------------------------------------------------------------------

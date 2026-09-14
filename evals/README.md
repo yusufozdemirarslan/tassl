@@ -25,13 +25,18 @@ case is a regression in a prompt, a guardrail or a matcher, never noise. This is
 
 ### Against the real provider
 
+Production runs Claude Opus 5 (D-749), so that is the provider to measure:
+
 ```bash
-FEATURE_AI=true LLM_PROVIDER=openai-compatible pnpm evals
+export ANTHROPIC_API_KEY="$(grep '^ANTHROPIC_API_KEY=' .env.local | cut -d= -f2- | tr -d '\r\n')"
+FEATURE_AI=true LLM_PROVIDER=anthropic LLM_MODEL=claude-opus-5 pnpm evals
 ```
 
-Needs `LLM_API_KEY` in `.env` (MiMo, from <https://platform.xiaomimimo.com/#/console/api-keys>);
-`LLM_BASE_URL` and `LLM_MODEL` already point at MiMo-V2.5-Pro. Nothing else changes: no flag is set
-anywhere but this shell, and the repository's committed default stays `FEATURE_AI=false`.
+The key lives in `.env.local` (gitignored; from <https://platform.claude.com/settings/keys>) and is
+read into this shell only, never echoed and never written to a tracked file. Nothing else changes: no
+flag is set anywhere but this shell, and the repository's committed default stays
+`FEATURE_AI=false`. MiMo is measured the same way with `LLM_PROVIDER=openai-compatible
+LLM_MODEL=mimo-v2.5-pro` and `LLM_API_KEY` from <https://platform.xiaomimimo.com/#/console/api-keys>.
 
 The threshold is **90 percent of cases**. A real model phrases its connective sentences differently
 on every call, and the checks are properties rather than string equality; a tenth of the suite
@@ -41,12 +46,13 @@ Three practical notes.
 
 - **It costs money and time.** A full run is roughly 120 model calls — 16 for `assistant`, 28 for
   `authoring` (seven steps × four cases, plus any repair call), about 70 for `scoring` (five band
-  reads × thirteen cases, plus the second pipeline the hold-equals-revision case runs). Measured on
-  MiMo-V2.5-Pro in step 14.4: about 100 calls and $0.10 for a run whose `authoring` suite failed
-  early, so a whole one lands well under a dollar. **Time is the real cost.** A delegation answers in
-  3 to 13 seconds and a band read in 3 to 13, but the model writes about fifty output tokens a
-  second, so a generation step that writes an Evidence Room takes one to three _minutes_ — `authoring`
-  is nearly all of the wall clock. Expect the better part of an hour.
+  reads × thirteen cases, plus the second pipeline the hold-equals-revision case runs), and a few
+  `trigger-classify` calls. Measured on Claude Opus 5 on 2026-09-14: 126 calls, $5.62 estimated, 33
+  of 33 cases, in about fifty minutes. `authoring` is $3.66 of that and nearly all of the wall clock:
+  a delegation answers in 3 to 6 seconds and a band read in 4 to 10, but a generation step writes at
+  about seventy tokens a second, so `gen-documents` takes about a minute and a half and
+  `gen-claims-states` up to 105 seconds, inside the 150 seconds `GEN_TIMEOUT_MS` allows (D-666,
+  D-749). On MiMo-V2.5-Pro in step 14.4 a run cost about $0.10.
 - **It writes `llm_calls` rows** under `feature = 'eval'`, so eval traffic is never counted as
   student traffic, and it spends the same monthly token budget everything else does (D-065). The
   ground-truth SQL in `docs/tech/13-observability-ops.md` §6.3 is what to read afterwards for what
@@ -58,7 +64,7 @@ Three practical notes.
 ## Reading the report
 
 ```
-tassl evals — provider openai-compatible (FEATURE_AI=true, LLM_PROVIDER=openai-compatible, TRIGGER_MATCHING=deterministic_first)
+tassl evals — provider anthropic (FEATURE_AI=true, LLM_PROVIDER=anthropic, TRIGGER_MATCHING=deterministic_first)
 threshold 90.0% of cases
 
 assistant

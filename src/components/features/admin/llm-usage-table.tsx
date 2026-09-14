@@ -84,6 +84,12 @@ export function LlmUsageTable({ usage }: { usage: LlmUsage }) {
         })}
       </p>
       <p className="text-ink-muted text-body max-w-measure mt-3">
+        {t('admin.flags.usageMonthlyCostBudget', {
+          used: `${usd.format(usage.month.costUsd)}`,
+          budget: `${usd.format(usage.budgets.globalMonthlyUsd)}`,
+        })}
+      </p>
+      <p className="text-ink-muted text-body max-w-measure mt-3">
         {t('admin.flags.usageDailyBudget', {
           budget: integers.format(usage.budgets.userDaily),
         })}

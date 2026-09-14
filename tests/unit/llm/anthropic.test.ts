@@ -104,13 +104,13 @@ describe('structured', () => {
     expect(result.value).toEqual({ matched_claim_ids: ['C3'] })
     expect(result.repaired).toBe(false)
     // §1.2: the schema travels in the system message and Zod decides, on this provider exactly as
-    // on the primary. The sampling temperature does not appear on the wire — the Anthropic SDK drops
-    // `temperature` for a model that does not accept one and says so in a warning — which is the
-    // provider's business and changes nothing about the contract this adapter keeps.
+    // on the primary. No sampling temperature goes on the wire: the Sonnet 5 generation rejects one,
+    // so the adapter does not send it, and it adds a thinking allowance to the output ceiling (D-749).
     expect(JSON.stringify(anthropicCalls[0]?.body.system)).toContain(
       'Respond with a single JSON object',
     )
-    expect(anthropicCalls[0]?.body.max_tokens).toBe(4096)
+    expect(anthropicCalls[0]?.body.temperature).toBeUndefined()
+    expect(anthropicCalls[0]?.body.max_tokens).toBe(6096)
   })
 })
 

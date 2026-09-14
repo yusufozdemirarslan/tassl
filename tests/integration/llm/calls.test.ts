@@ -215,8 +215,8 @@ describe('llm_calls', () => {
       inputTokens: row?.input_tokens ?? 0,
       outputTokens: row?.output_tokens ?? 0,
     }
-    expect(row?.cost_estimate_usd).toBe(costEstimateUsd(usage, 'mock'))
-    expect(Number(costEstimateUsd(usage, 'openai-compatible'))).toBeGreaterThan(0)
+    expect(row?.cost_estimate_usd).toBe(costEstimateUsd(usage, 'mock', 'mock-v1'))
+    expect(Number(costEstimateUsd(usage, 'openai-compatible', 'mimo-v2.5-pro'))).toBeGreaterThan(0)
   })
 
   it('stores no prompt, no completion and no free text (D-066)', async () => {
