@@ -53,18 +53,16 @@ export type MembershipRow = {
   organizationId: string
   name: string
   slug: string
-  role: string
   joinedAt: Date
 }
 
-/** One section the user is enrolled in or teaches, with the course it belongs to. */
+/** One section roster the user is on, with the course it belongs to; no role (D-748). */
 export type SectionMembershipRow = {
   sectionId: string
   sectionName: string
   courseId: string
   courseName: string
   organizationId: string
-  role: string
   joinedAt: Date
 }
 
@@ -122,7 +120,7 @@ export async function softDeleteUser(
 // Memberships, sessions, invitations
 // ---------------------------------------------------------------------------------------------
 
-/** The user's institutions with the role they hold, ordered by institution name. */
+/** The institutions the user has a `member` row in, ordered by institution name. */
 export async function listMembershipsForUser(
   userId: string,
   dbx: DbOrTx = db,
@@ -132,13 +130,38 @@ export async function listMembershipsForUser(
       organizationId: organization.id,
       name: organization.name,
       slug: organization.slug,
-      role: member.role,
       joinedAt: member.createdAt,
     })
     .from(member)
     .innerJoin(organization, eq(organization.id, member.organizationId))
     .where(eq(member.userId, userId))
     .orderBy(asc(organization.name), asc(organization.id))
+}
+
+/**
+ * Every institution on the platform, as the Platform Admin's membership list (D-748): the admin has
+ * full access everywhere, so an institution-scoped screen is reachable without a `member` row.
+ * `joinedAt` is the admin's own `member` row where one exists, else the institution's creation.
+ */
+export async function listAllInstitutionsAsMemberships(
+  userId: string,
+  dbx: DbOrTx = db,
+): Promise<MembershipRow[]> {
+  const rows = await dbx
+    .select({
+      organizationId: organization.id,
+      name: organization.name,
+      slug: organization.slug,
+      memberSince: member.createdAt,
+      createdAt: organization.createdAt,
+    })
+    .from(organization)
+    .leftJoin(member, and(eq(member.organizationId, organization.id), eq(member.userId, userId)))
+    .orderBy(asc(organization.name), asc(organization.id))
+  return rows.map(({ memberSince, createdAt, ...row }) => ({
+    ...row,
+    joinedAt: memberSince ?? createdAt,
+  }))
 }
 
 /**
@@ -158,7 +181,6 @@ export async function listSectionMembershipsForUser(
       courseId: courses.id,
       courseName: courses.name,
       organizationId: sectionMemberships.organizationId,
-      role: sectionMemberships.role,
       joinedAt: sectionMemberships.createdAt,
     })
     .from(sectionMemberships)
@@ -281,6 +303,8 @@ export async function createPlaceholderUser(orgId: string, dbx: DbOrTx = db): Pr
       name: PLACEHOLDER_USER_NAME,
       email: placeholderEmail(org.slug),
       emailVerified: true,
+      // Explicit rather than the column default: the seat holds runs and audit rows, never access.
+      platform_role: 'student',
     })
     .onConflictDoUpdate({ target: user.email, set: { updatedAt: sql`now()` } })
     .returning()

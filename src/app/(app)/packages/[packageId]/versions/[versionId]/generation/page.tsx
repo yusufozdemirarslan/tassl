@@ -25,11 +25,11 @@ import { getViewer } from '../../../../../viewer'
 //
 // **The gate is this page's own, and it is the narrow one.** 07 §6 gives `GET .../generation` to
 // "Auth, Editor" and to nobody else, because the report it carries names the rules a draft breaks —
-// which is to say where its defects are. A seat that may *read* a package version (a teaching
-// assistant, a program lead) is not admitted here, and the page proves that itself rather than
-// trusting the component below it: the status read is made first, and a refusal renders the
-// not-found page. NOT_FOUND for another institution's id and FORBIDDEN for a seat with no author
-// membership mean the same thing to the person who typed the address.
+// which is to say where its defects are. A role that may *read* a package version (an Instructor)
+// is not admitted here, and the page proves that itself rather than trusting the component below
+// it: the status read is made first, and a refusal renders the not-found page. NOT_FOUND for another
+// institution's id and FORBIDDEN for a role that does not author mean the same thing to the person
+// who typed the address.
 //
 // **The rule sentences come from the validator, not from a second table.** `generation_runs`
 // records the rule *codes* a step could not satisfy (DATA-027), and the sentence a code deserves —

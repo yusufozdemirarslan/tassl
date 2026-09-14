@@ -234,7 +234,6 @@ test.describe('every screen adapts from 360 px to 1440 px', () => {
     })
     await addSectionMember(request, section.id, {
       email: seatEmail('instructor'),
-      role: 'instructor',
     })
 
     await signInAs(page, 'student2')
@@ -299,7 +298,8 @@ test.describe('every screen adapts from 360 px to 1440 px', () => {
   test('the confirmation workspace, at 360, 768, 1024 and 1440', async ({ page }) => {
     test.setTimeout(300_000)
 
-    await signInAs(page, 'instructor')
+    // The Scenario Editor imports and publishes packages (D-748).
+    await signInAs(page, 'editor')
     const title = suiteName('Responsive confirm package')
     const orgId = await walkthroughOrgId(page)
     const document = JSON.parse(

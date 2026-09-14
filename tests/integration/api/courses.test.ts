@@ -2,7 +2,8 @@
 // one deny case each, called as a real `Request` through the handler `src/app/api/v1/**/route.ts`
 // exports. The deny cases are the "—" cells of 08-auth-authz.md §4 for these rows, plus the
 // cross-tenant rule of 07 §1: a course, section, assignment or run in another institution answers
-// 404, never 403.
+// 404, never 403. Since D-748 the cells are platform roles: courses and rosters are an
+// Instructor's and the admin's, and a Student reads only the assignments on their roster.
 //
 // The mapping preview and apply rows, `GET /assignments/{id}/runs` and the export rows belong to
 // Phases 11 and 6 and have no handler yet.
@@ -85,18 +86,17 @@ async function seed() {
   const orgA = (await f.createInstitution('api-courses-a')).organization.id
   const orgB = (await f.createInstitution('api-courses-b')).organization.id
 
-  const instructor = await f.createUser('api-courses-instructor')
+  const instructor = await f.createUser('api-courses-instructor', { platformRole: 'instructor' })
   const student = await f.createUser('api-courses-student')
   const student2 = await f.createUser('api-courses-student-2')
-  const lead = await f.createUser('api-courses-lead')
+  const admin = await f.createUser('api-courses-admin', { platformRole: 'admin' })
   const stranger = await f.createUser('api-courses-stranger')
-  const outsider = await f.createUser('api-courses-outsider')
+  const outsider = await f.createUser('api-courses-outsider', { platformRole: 'instructor' })
 
-  await f.addMember(orgA, instructor.id, 'instructor')
-  await f.addMember(orgA, student.id, 'student')
-  await f.addMember(orgA, student2.id, 'student')
-  await f.addMember(orgA, lead.id, 'program_lead')
-  await f.addMember(orgB, outsider.id, 'instructor')
+  await f.addMember(orgA, instructor.id)
+  await f.addMember(orgA, student.id)
+  await f.addMember(orgA, student2.id)
+  await f.addMember(orgB, outsider.id)
 
   const pkg = await f.minimalConfirmedVersion(orgA, 'api-courses-confirmed', {
     createdBy: instructor.id,
@@ -107,8 +107,8 @@ async function seed() {
 
   const course = await f.createCourse(orgA, 'api-courses', { createdBy: instructor.id })
   const section = await f.createSection(orgA, course.id, 'api-courses-a')
-  await f.addSectionMember(orgA, section.id, instructor.id, 'instructor')
-  await f.addSectionMember(orgA, section.id, student.id, 'student')
+  await f.addSectionMember(orgA, section.id, instructor.id)
+  await f.addSectionMember(orgA, section.id, student.id)
 
   const assignment = await f.createAssignment(orgA, section.id, 'api-courses-1', {
     packageVersionId: pkg.version.id,
@@ -140,7 +140,7 @@ async function seed() {
     instructor,
     student,
     student2,
-    lead,
+    admin,
     stranger,
     outsider,
     pkg,
@@ -162,7 +162,7 @@ const sessionFor = (user: UserRow, orgId: string | null): Promise<Headers> =>
 
 const asInstructor = (): Promise<Headers> => sessionFor(fx.instructor, fx.orgA)
 const asStudent = (): Promise<Headers> => sessionFor(fx.student, fx.orgA)
-const asLead = (): Promise<Headers> => sessionFor(fx.lead, fx.orgA)
+const asAdmin = (): Promise<Headers> => sessionFor(fx.admin, null)
 const asOutsider = (): Promise<Headers> => sessionFor(fx.outsider, fx.orgB)
 
 beforeAll(async () => {
@@ -200,6 +200,26 @@ describe('GET /institutions/{orgId}/courses', () => {
     expect(listed.body).toMatchObject({ nextCursor: null })
     const items = listed.body?.items as { id: string; sectionCount: number }[]
     expect(items).toEqual([expect.objectContaining({ id: fx.course.id, sectionCount: 1 })])
+  })
+
+  it('refuses a student of the institution, and lists for the admin, who belongs to none', async () => {
+    const denied = await call(orgCourses.GET, {
+      path: `/institutions/${fx.orgA}/courses`,
+      session: await asStudent(),
+      params: { orgId: fx.orgA },
+    })
+    expect(denied.status).toBe(403)
+    expect(errorCode(denied)).toBe('FORBIDDEN')
+
+    const asPlatformAdmin = await call(orgCourses.GET, {
+      path: `/institutions/${fx.orgA}/courses`,
+      session: await asAdmin(),
+      params: { orgId: fx.orgA },
+    })
+    expect(asPlatformAdmin.status).toBe(200)
+    expect((asPlatformAdmin.body?.items as { id: string }[]).map((row) => row.id)).toEqual([
+      fx.course.id,
+    ])
   })
 
   it('answers 404 for an institution the actor does not belong to', async () => {
@@ -276,10 +296,10 @@ describe('POST /institutions/{orgId}/courses', () => {
 })
 
 describe('GET and PATCH /courses/{courseId}', () => {
-  it('returns the course with its sections and assignments for a section member', async () => {
+  it('returns the course with its sections and assignments for an instructor', async () => {
     const read = await call(courseRoute.GET, {
       path: `/courses/${fx.course.id}`,
-      session: await asStudent(),
+      session: await asInstructor(),
       params: { courseId: fx.course.id },
     })
 
@@ -293,14 +313,16 @@ describe('GET and PATCH /courses/{courseId}', () => {
     )
   })
 
-  it('refuses an institution member who is in none of its sections, and 404s cross-tenant', async () => {
-    const denied = await call(courseRoute.GET, {
-      path: `/courses/${fx.course.id}`,
-      session: await sessionFor(fx.student2, fx.orgA),
-      params: { courseId: fx.course.id },
-    })
-    expect(denied.status).toBe(403)
-    expect(errorCode(denied)).toBe('FORBIDDEN')
+  it('refuses a student, on its roster or not, and 404s cross-tenant', async () => {
+    for (const session of [await asStudent(), await sessionFor(fx.student2, fx.orgA)]) {
+      const denied = await call(courseRoute.GET, {
+        path: `/courses/${fx.course.id}`,
+        session,
+        params: { courseId: fx.course.id },
+      })
+      expect(denied.status).toBe(403)
+      expect(errorCode(denied)).toBe('FORBIDDEN')
+    }
 
     const crossTenant = await call(courseRoute.GET, {
       path: `/courses/${fx.otherCourse.id}`,
@@ -373,6 +395,11 @@ describe('GET and POST /sections/{sectionId}/members', () => {
     expect(roster.status).toBe(200)
     const items = roster.body?.items as { userId: string; role: string }[]
     expect(items.map((row) => row.userId).sort()).toEqual([fx.instructor.id, fx.student.id].sort())
+    // The role on a roster row is the person's platform role (D-748).
+    expect(Object.fromEntries(items.map((row) => [row.userId, row.role]))).toEqual({
+      [fx.instructor.id]: 'instructor',
+      [fx.student.id]: 'student',
+    })
   })
 
   it('refuses a student on the roster and 404s a section in another institution', async () => {
@@ -399,7 +426,7 @@ describe('GET and POST /sections/{sectionId}/members', () => {
       path: `/sections/${fx.section.id}/members`,
       session: await asInstructor(),
       params: { sectionId: fx.section.id },
-      body: { email: fx.student2.email, role: 'student' },
+      body: { email: fx.student2.email },
     })
     expect(added.status).toBe(201)
     expect(added.body).toMatchObject({
@@ -413,7 +440,7 @@ describe('GET and POST /sections/{sectionId}/members', () => {
       path: `/sections/${fx.section.id}/members`,
       session: await asInstructor(),
       params: { sectionId: fx.section.id },
-      body: { email: fx.stranger.email, role: 'student' },
+      body: { email: fx.stranger.email },
     })
     expect(unknown.status).toBe(403)
     expect(errorCode(unknown)).toBe('NOT_SECTION_MEMBER')
@@ -423,7 +450,7 @@ describe('GET and POST /sections/{sectionId}/members', () => {
 describe('DELETE /sections/{sectionId}/members/{userId}', () => {
   it('removes a member with 204 and no body', async () => {
     // student2 has no run, so nothing holds the membership in place (10 §3 `MEMBER_HAS_RUNS`).
-    await f.addSectionMember(fx.orgA, fx.section.id, fx.student2.id, 'student')
+    await f.addSectionMember(fx.orgA, fx.section.id, fx.student2.id)
 
     const removed = await call(memberRoute.DELETE, {
       method: 'DELETE',
@@ -675,11 +702,18 @@ describe('GET /assignments/{assignmentId}/policy-display', () => {
   it('refuses an institution member who is in none of the assignment sections', async () => {
     const denied = await call(policyDisplayRoute.GET, {
       path: `/assignments/${fx.assignment.id}/policy-display`,
-      session: await asLead(),
+      session: await sessionFor(fx.student2, fx.orgA),
       params: { assignmentId: fx.assignment.id },
     })
     expect(denied.status).toBe(403)
     expect(errorCode(denied)).toBe('FORBIDDEN')
+
+    const asPlatformAdmin = await call(policyDisplayRoute.GET, {
+      path: `/assignments/${fx.assignment.id}/policy-display`,
+      session: await asAdmin(),
+      params: { assignmentId: fx.assignment.id },
+    })
+    expect(asPlatformAdmin.status).toBe(200)
   })
 })
 

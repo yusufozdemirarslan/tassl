@@ -10,7 +10,7 @@ import type { RunStateValue } from '@/server/modules/runs/schema'
 
 // UI-009's three role panels: Review, Packages, Courses.
 //
-// **A panel is drawn for the seat that has the data and for nobody else.** The home page reads each
+// **A panel is drawn for the role that has the data and for nobody else.** The home page reads each
 // list behind the same guard the destination uses and passes `null` when the service refuses, and a
 // `null` list renders nothing at all — not an empty panel. An empty panel is a promise about
 // something this person cannot do, and three of them on a student's home page would be a home page
@@ -30,7 +30,7 @@ export type HomeReviewRow = {
   studentName: string
   state: RunStateValue
   decisionsMade: number
-  /** True when nothing could place the run's bands and a faculty seat has to set them (FR-140). */
+  /** True when nothing could place the run's bands and an instructor has to set them (FR-140). */
   needsHand: boolean
 }
 

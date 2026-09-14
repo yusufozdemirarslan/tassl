@@ -16,15 +16,15 @@
 //   2. Only that run goes. The classmate's run on the same assignment, and the student's own run on
 //      the other assignment, are untouched.
 //   3. The refusals still hold, each against a run with children, and each leaving it intact: a run
-//      whose assignment is not a walkthrough is refused whoever asks, the run's own student and the
-//      section's TA are forbidden, and an instructor who does not teach the section is not told the
-//      run exists.
+//      whose assignment is not a walkthrough is refused whoever asks, the run's own student is
+//      forbidden, and a classmate, an Editor on the roster, and an instructor who does not teach the
+//      section are not told the run exists. The Platform Admin may delete it (D-748).
 // @db:truncate
 import { readFileSync } from 'node:fs'
 import { afterAll, beforeEach, describe, expect, it } from 'vitest'
 import { testSql, truncateAll } from '@tests/setup/integration'
 import { isAppError } from '@/lib/errors'
-import type { SessionUser } from '@/server/auth/types'
+import type { PlatformRole, SessionUser } from '@/server/auth/types'
 
 type Courses = typeof import('@/server/modules/courses')
 type Runs = typeof import('@/server/modules/runs')
@@ -45,7 +45,7 @@ const actorFor = (user: UserRow, orgId: string): SessionUser => ({
   name: user.name,
   emailVerified: true,
   activeOrganizationId: orgId,
-  platformRole: 'none',
+  platformRole: user.platform_role as PlatformRole,
 })
 
 const codeOf = async (promise: Promise<unknown>): Promise<string> => {
@@ -81,8 +81,8 @@ const FRAME = {
 type Fixture = Awaited<ReturnType<typeof setup>>
 
 /**
- * One institution: a course whose section holds the instructor, a TA, the student and a classmate,
- * and a second course under a second instructor who teaches none of them. Two assignments on the
+ * One institution: a course whose section holds the instructor, an Editor, the student and a
+ * classmate, and a second course under a second instructor who teaches none of them. Two assignments on the
  * confirmed fixture package — one walkthrough, one not — because the refusal is a property of the
  * assignment, not of the run.
  */
@@ -90,23 +90,28 @@ async function setup() {
   const { organization } = await f.createInstitution('delete-run')
   const orgId = organization.id
 
-  const instructorUser = await f.createUser('delete-run-instructor')
-  const taUser = await f.createUser('delete-run-ta')
+  const instructorUser = await f.createUser('delete-run-instructor', { platformRole: 'instructor' })
+  const editorUser = await f.createUser('delete-run-editor', {
+    platformRole: 'tassl_scenario_editor',
+  })
   const studentUser = await f.createUser('delete-run-student')
   const classmateUser = await f.createUser('delete-run-classmate')
-  const otherInstructorUser = await f.createUser('delete-run-other-instructor')
-  await f.addMember(orgId, instructorUser.id, 'instructor')
-  await f.addMember(orgId, taUser.id, 'teaching_assistant')
-  await f.addMember(orgId, studentUser.id, 'student')
-  await f.addMember(orgId, classmateUser.id, 'student')
-  await f.addMember(orgId, otherInstructorUser.id, 'instructor')
+  const otherInstructorUser = await f.createUser('delete-run-other-instructor', {
+    platformRole: 'instructor',
+  })
+  const adminUser = await f.createUser('delete-run-admin', { platformRole: 'admin' })
+  await f.addMember(orgId, instructorUser.id)
+  await f.addMember(orgId, editorUser.id)
+  await f.addMember(orgId, studentUser.id)
+  await f.addMember(orgId, classmateUser.id)
+  await f.addMember(orgId, otherInstructorUser.id)
 
   const course = await f.createCourse(orgId, 'delete-run-course', { createdBy: instructorUser.id })
   const section = await f.createSection(orgId, course.id, 'delete-run-section')
-  await f.addSectionMember(orgId, section.id, instructorUser.id, 'instructor')
-  await f.addSectionMember(orgId, section.id, taUser.id, 'ta')
-  await f.addSectionMember(orgId, section.id, studentUser.id, 'student')
-  await f.addSectionMember(orgId, section.id, classmateUser.id, 'student')
+  await f.addSectionMember(orgId, section.id, instructorUser.id)
+  await f.addSectionMember(orgId, section.id, editorUser.id)
+  await f.addSectionMember(orgId, section.id, studentUser.id)
+  await f.addSectionMember(orgId, section.id, classmateUser.id)
 
   // A second section under a different instructor: a section they do not teach is a section they
   // are not a member of, which is the shape `requireRunInstructor` answers NOT_FOUND to.
@@ -114,14 +119,16 @@ async function setup() {
     createdBy: otherInstructorUser.id,
   })
   const otherSection = await f.createSection(orgId, otherCourse.id, 'delete-run-other-section')
-  await f.addSectionMember(orgId, otherSection.id, otherInstructorUser.id, 'instructor')
+  await f.addSectionMember(orgId, otherSection.id, otherInstructorUser.id)
 
   const instructor = actorFor(instructorUser, orgId)
-  const imported = await scenarios.importPackage(instructor, orgId, {
+  // Packages are imported and confirmed by a Scenario Editor (D-748).
+  const editor = actorFor(editorUser, orgId)
+  const imported = await scenarios.importPackage(editor, orgId, {
     ...FIXTURE,
     confirmOnImport: true,
   })
-  await scenarios.confirmVersion(instructor, imported.versionId, { teachingNoteChecked: true })
+  await scenarios.confirmVersion(editor, imported.versionId, { teachingNoteChecked: true })
 
   const variants = await testSql<{ id: string; key: string }[]>`
     select id, key from scenario_variants where package_version_id = ${imported.versionId}`
@@ -146,7 +153,8 @@ async function setup() {
     walkthrough,
     graded,
     instructor,
-    ta: actorFor(taUser, orgId),
+    editor,
+    platformAdmin: actorFor(adminUser, orgId),
     student: actorFor(studentUser, orgId),
     classmate: actorFor(classmateUser, orgId),
     otherInstructor: actorFor(otherInstructorUser, orgId),
@@ -258,6 +266,12 @@ describe('deleteWalkthroughRun on a run that has been taken (D-104, D-255)', () 
       expect(counts.run_frames, survivor).toBe(1)
     }
   })
+
+  it('lets the Platform Admin delete it without a roster row', async () => {
+    const runId = await takeRun(fx.student, fx.walkthrough.id)
+    await courses.deleteWalkthroughRun(fx.platformAdmin, runId)
+    expect(await runExists(runId)).toBe(false)
+  })
 })
 
 describe('the refusals, against a run that has children', () => {
@@ -274,12 +288,13 @@ describe('the refusals, against a run that has children', () => {
   it('refuses everyone who is not the section instructor, walkthrough or not', async () => {
     const runId = await takeRun(fx.student, fx.walkthrough.id)
 
-    // In the section but not teaching it: refused, and told so.
+    // The run's own student: refused, and told so.
     expect(await codeOf(courses.deleteWalkthroughRun(fx.student, runId))).toBe('FORBIDDEN')
-    expect(await codeOf(courses.deleteWalkthroughRun(fx.ta, runId))).toBe('FORBIDDEN')
-    // A classmate is a student of the section but not of this run: the run is not theirs to know
-    // about, so the answer is NOT_FOUND rather than a refusal that confirms it exists (D-703).
+    // A classmate, and an Editor on the same roster, are learners of the section but not of this
+    // run: the run is not theirs to know about, so the answer is NOT_FOUND rather than a refusal
+    // that confirms it exists (D-703).
     expect(await codeOf(courses.deleteWalkthroughRun(fx.classmate, runId))).toBe('NOT_FOUND')
+    expect(await codeOf(courses.deleteWalkthroughRun(fx.editor, runId))).toBe('NOT_FOUND')
     // An instructor of another course in the same institution is not a member of this section, so
     // the run is not theirs to know about (08 §5).
     expect(await codeOf(courses.deleteWalkthroughRun(fx.otherInstructor, runId))).toBe('NOT_FOUND')

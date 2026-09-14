@@ -68,7 +68,6 @@ test('an instructor previews a mapping change, applies it, and every confirmed r
   })
   await addSectionMember(request, assignment.section.id, {
     email: seatEmail('instructor'),
-    role: 'instructor',
   })
 
   // -------------------------------------------------------------------------------------------

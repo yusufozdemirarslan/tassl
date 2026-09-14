@@ -7598,31 +7598,10 @@ paths:
                         platformRole:
                           type: string
                           enum:
-                            - none
+                            - student
                             - tassl_scenario_editor
+                            - instructor
                             - admin
-                        memberships:
-                          type: array
-                          items:
-                            type: object
-                            properties:
-                              organizationId:
-                                type: string
-                              organizationName:
-                                type: string
-                              role:
-                                type: string
-                                enum:
-                                  - student
-                                  - instructor
-                                  - teaching_assistant
-                                  - scenario_author
-                                  - program_lead
-                            required:
-                              - organizationId
-                              - organizationName
-                              - role
-                            additionalProperties: false
                         deletedAt:
                           anyOf:
                             - type: string
@@ -7638,7 +7617,6 @@ paths:
                         - name
                         - email
                         - platformRole
-                        - memberships
                         - deletedAt
                         - createdAt
                       additionalProperties: false
@@ -7783,8 +7761,9 @@ paths:
                 role:
                   type: string
                   enum:
-                    - none
+                    - student
                     - tassl_scenario_editor
+                    - instructor
                     - admin
               required:
                 - role
@@ -7805,31 +7784,10 @@ paths:
                   platformRole:
                     type: string
                     enum:
-                      - none
+                      - student
                       - tassl_scenario_editor
+                      - instructor
                       - admin
-                  memberships:
-                    type: array
-                    items:
-                      type: object
-                      properties:
-                        organizationId:
-                          type: string
-                        organizationName:
-                          type: string
-                        role:
-                          type: string
-                          enum:
-                            - student
-                            - instructor
-                            - teaching_assistant
-                            - scenario_author
-                            - program_lead
-                      required:
-                        - organizationId
-                        - organizationName
-                        - role
-                      additionalProperties: false
                   deletedAt:
                     anyOf:
                       - type: string
@@ -7845,7 +7803,6 @@ paths:
                   - name
                   - email
                   - platformRole
-                  - memberships
                   - deletedAt
                   - createdAt
                 additionalProperties: false
@@ -9614,19 +9571,10 @@ paths:
                       type: string
                     slug:
                       type: string
-                    role:
-                      type: string
-                      enum:
-                        - student
-                        - instructor
-                        - teaching_assistant
-                        - scenario_author
-                        - program_lead
                   required:
                     - id
                     - name
                     - slug
-                    - role
                   additionalProperties: false
         "401":
           $ref: "#/components/responses/Unauthenticated"
@@ -10277,17 +10225,8 @@ paths:
                   type: string
                   format: email
                   pattern: ^(?!\.)(?!.*\.\.)([A-Za-z0-9_'+\-\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\-]*\.)+[A-Za-z]{2,}$
-                role:
-                  type: string
-                  enum:
-                    - student
-                    - instructor
-                    - teaching_assistant
-                    - scenario_author
-                    - program_lead
               required:
                 - email
-                - role
       responses:
         "201":
           description: OK
@@ -10304,14 +10243,6 @@ paths:
                     type: string
                     format: email
                     pattern: ^(?!\.)(?!.*\.\.)([A-Za-z0-9_'+\-\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\-]*\.)+[A-Za-z]{2,}$
-                  role:
-                    type: string
-                    enum:
-                      - student
-                      - instructor
-                      - teaching_assistant
-                      - scenario_author
-                      - program_lead
                   status:
                     type: string
                   expiresAt:
@@ -10322,7 +10253,6 @@ paths:
                   - id
                   - organizationId
                   - email
-                  - role
                   - status
                   - expiresAt
                 additionalProperties: false
@@ -10783,18 +10713,9 @@ paths:
                     type: string
                   name:
                     type: string
-                  role:
-                    type: string
-                    enum:
-                      - student
-                      - instructor
-                      - teaching_assistant
-                      - scenario_author
-                      - program_lead
                 required:
                   - organizationId
                   - name
-                  - role
                 additionalProperties: false
         "400":
           $ref: "#/components/responses/BadRequest"
@@ -10841,8 +10762,9 @@ paths:
                   platformRole:
                     type: string
                     enum:
-                      - none
+                      - student
                       - tassl_scenario_editor
+                      - instructor
                       - admin
                   memberships:
                     type: array
@@ -10855,14 +10777,6 @@ paths:
                           type: string
                         slug:
                           type: string
-                        role:
-                          type: string
-                          enum:
-                            - student
-                            - instructor
-                            - teaching_assistant
-                            - scenario_author
-                            - program_lead
                         joinedAt:
                           type: string
                           format: date-time
@@ -10871,7 +10785,6 @@ paths:
                         - organizationId
                         - name
                         - slug
-                        - role
                         - joinedAt
                       additionalProperties: false
                   activeOrganizationId:
@@ -10963,8 +10876,9 @@ paths:
                   platformRole:
                     type: string
                     enum:
-                      - none
+                      - student
                       - tassl_scenario_editor
+                      - instructor
                       - admin
                   memberships:
                     type: array
@@ -10977,14 +10891,6 @@ paths:
                           type: string
                         slug:
                           type: string
-                        role:
-                          type: string
-                          enum:
-                            - student
-                            - instructor
-                            - teaching_assistant
-                            - scenario_author
-                            - program_lead
                         joinedAt:
                           type: string
                           format: date-time
@@ -10993,7 +10899,6 @@ paths:
                         - organizationId
                         - name
                         - slug
-                        - role
                         - joinedAt
                       additionalProperties: false
                   activeOrganizationId:
@@ -11231,8 +11136,9 @@ paths:
                       platformRole:
                         type: string
                         enum:
-                          - none
+                          - student
                           - tassl_scenario_editor
+                          - instructor
                           - admin
                       createdAt:
                         type: string
@@ -11262,14 +11168,6 @@ paths:
                           type: string
                         slug:
                           type: string
-                        role:
-                          type: string
-                          enum:
-                            - student
-                            - instructor
-                            - teaching_assistant
-                            - scenario_author
-                            - program_lead
                         joinedAt:
                           type: string
                           format: date-time
@@ -11278,7 +11176,6 @@ paths:
                         - organizationId
                         - name
                         - slug
-                        - role
                         - joinedAt
                       additionalProperties: false
                   sectionMemberships:
@@ -11300,12 +11197,6 @@ paths:
                           type: string
                         organizationId:
                           type: string
-                        role:
-                          type: string
-                          enum:
-                            - student
-                            - instructor
-                            - ta
                         joinedAt:
                           type: string
                           format: date-time
@@ -11316,7 +11207,6 @@ paths:
                         - courseId
                         - courseName
                         - organizationId
-                        - role
                         - joinedAt
                       additionalProperties: false
                   runs:
@@ -12375,8 +12265,6 @@ paths:
                           - reskinLog
                         additionalProperties: false
                       - type: "null"
-                  restricted:
-                    type: boolean
                   capabilities:
                     type: object
                     properties:
@@ -12416,7 +12304,6 @@ paths:
                   - validation
                   - warnings
                   - seedRecord
-                  - restricted
                   - capabilities
                 additionalProperties: false
         "400":
@@ -13223,8 +13110,6 @@ paths:
                           - reskinLog
                         additionalProperties: false
                       - type: "null"
-                  restricted:
-                    type: boolean
                   capabilities:
                     type: object
                     properties:
@@ -13264,7 +13149,6 @@ paths:
                   - validation
                   - warnings
                   - seedRecord
-                  - restricted
                   - capabilities
                 additionalProperties: false
         "400":
@@ -15341,11 +15225,8 @@ paths:
                       properties:
                         name:
                           type: string
-                        isInstructor:
-                          type: boolean
                       required:
                         - name
-                        - isInstructor
                       additionalProperties: false
                   flags:
                     type: object
@@ -15391,8 +15272,6 @@ paths:
                         type: boolean
                       flagReachesDrafting:
                         type: boolean
-                      isInstructor:
-                        type: boolean
                     required:
                       - canDecide
                       - canVoid
@@ -15401,7 +15280,6 @@ paths:
                       - canBandManually
                       - canFlagDelegation
                       - flagReachesDrafting
-                      - isInstructor
                     additionalProperties: false
                 required:
                   - run
@@ -22319,8 +22197,9 @@ paths:
                           type: string
                           enum:
                             - student
+                            - tassl_scenario_editor
                             - instructor
-                            - ta
+                            - admin
                       required:
                         - userId
                         - name
@@ -22369,15 +22248,8 @@ paths:
                   type: string
                   format: email
                   pattern: ^(?!\.)(?!.*\.\.)([A-Za-z0-9_'+\-\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\-]*\.)+[A-Za-z]{2,}$
-                role:
-                  type: string
-                  enum:
-                    - student
-                    - instructor
-                    - ta
               required:
                 - email
-                - role
       responses:
         "201":
           description: OK
@@ -22398,8 +22270,9 @@ paths:
                     type: string
                     enum:
                       - student
+                      - tassl_scenario_editor
                       - instructor
-                      - ta
+                      - admin
                 required:
                   - userId
                   - name

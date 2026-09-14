@@ -17,7 +17,7 @@
 import { afterAll, beforeEach, describe, expect, it } from 'vitest'
 import { testSql, truncateAll } from '@tests/setup/integration'
 import { isAppError } from '@/lib/errors'
-import type { SessionUser } from '@/server/auth/types'
+import type { PlatformRole, SessionUser } from '@/server/auth/types'
 
 type Runs = typeof import('@/server/modules/runs')
 type Trace = typeof import('@/server/modules/trace')
@@ -34,7 +34,7 @@ const actorFor = (user: UserRow, orgId: string): SessionUser => ({
   name: user.name,
   emailVerified: true,
   activeOrganizationId: orgId,
-  platformRole: 'none',
+  platformRole: user.platform_role as PlatformRole,
 })
 
 /** Six presses of one button: more than the five pooled connections, so the pool is contended too. */

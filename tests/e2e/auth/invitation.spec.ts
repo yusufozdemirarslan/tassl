@@ -31,17 +31,19 @@ test('an instructor invites an address, the wrong account is refused, and the in
 
   const me = await page.request.get('/api/v1/me')
   expect(me.status()).toBe(200)
-  const memberships = (
-    (await me.json()) as { memberships: { organizationId: string; name: string; role: string }[] }
-  ).memberships
+  const body = (await me.json()) as {
+    platformRole: string
+    memberships: { organizationId: string; name: string }[]
+  }
+  const memberships = body.memberships
   const walkthrough = memberships.find((membership) => membership.name === INSTITUTION)
   expect(walkthrough, `instructor memberships: ${JSON.stringify(memberships)}`).toBeDefined()
-  expect(walkthrough?.role).toBe('instructor')
+  expect(body.platformRole).toBe('instructor')
 
   const created = await page.request.post(
     `/api/v1/institutions/${walkthrough?.organizationId}/invitations`,
     {
-      data: { email: invited, role: 'student' },
+      data: { email: invited },
       headers: { 'content-type': 'application/json', 'X-Requested-With': 'tassl' },
     },
   )
@@ -81,8 +83,8 @@ test('an instructor invites an address, the wrong account is refused, and the in
 
     await page.goto(link)
     await expect(page.getByRole('heading', { level: 2, name: `Join ${INSTITUTION}` })).toBeVisible()
-    await expect(page.getByText('Your role')).toBeVisible()
-    await expect(page.getByText('Student', { exact: true })).toBeVisible()
+    // A membership is where a person is, not what they may do (D-748): the invitation names no role.
+    await expect(page.getByText('Your role')).toHaveCount(0)
     await axe(page)
 
     await page.getByRole('button', { name: 'Accept the invitation' }).click()

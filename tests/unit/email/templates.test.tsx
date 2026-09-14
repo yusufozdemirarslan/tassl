@@ -83,27 +83,21 @@ describe('invitation', () => {
     url: `${APP}/invitations/00000000-0000-4000-8000-000000000001`,
     organizationName: 'Northgate Business School',
     inviterName: 'Ada Lovelace',
-    role: 'instructor',
   }
 
-  it('renders the invitation link, the institution, the inviter and the role', async () => {
+  it('renders the invitation link, the institution and the inviter', async () => {
     const { html, text } = await bodies(<Invitation {...props} />)
     expect(html).toContain(`href="${props.url}"`)
     expect(html).toContain(props.organizationName)
     expect(html).toContain(props.inviterName)
-    expect(html).toContain('Your role: instructor')
     expect(text).toContain(props.url)
   })
 
-  it('omits the role line when no role is given', async () => {
-    const withoutRole: InvitationProps = {
-      url: props.url,
-      organizationName: props.organizationName,
-      inviterName: props.inviterName,
-    }
-    const html = await render(<Invitation {...withoutRole} />)
+  // An invitation names a person and no role (D-748): accepting it makes them a member.
+  it('names no role', async () => {
+    const html = await render(<Invitation {...props} />)
     expect(html).not.toContain('Your role')
-    expect(invitationProps.parse(withoutRole)).toEqual(withoutRole)
+    expect(invitationProps.parse(props)).toEqual(props)
   })
 
   it('titles the message with the inviter and the institution', () => {

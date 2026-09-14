@@ -10,13 +10,11 @@ Start with [What Tassl is](00-what-tassl-is.md), whatever your role. Then read y
 
 | If you are … | Read | What it covers |
 |---|---|---|
-| Anyone, first | [What Tassl is](00-what-tassl-is.md) | What the app does, the six kinds of user, the journey from a blank assignment to a number in a gradebook, and what Tassl never does |
-| Teaching a course | [The instructor manual](01-instructor.md) | Courses, sections, rosters, invitations, assignments, the course policy, the points mapping, exports, scenario packages, the review queue, the four graphs, the seven bands, corrections and voiding |
+| Anyone, first | [What Tassl is](00-what-tassl-is.md) | What the app does, the four roles, the journey from a blank assignment to a number in a gradebook, and what Tassl never does |
+| Teaching a course | [The instructor manual](01-instructor.md) | Courses, sections, rosters, invitations, assignments, the course policy, the points mapping, exports, reading scenario packages, the review queue, the four graphs, the seven bands, corrections and voiding |
 | Taking a run | [The learner manual](02-learner.md) | Your runs, the Readiness Check, the scenario and the Evidence Room, your frame, the assistant, claims and stances, checks, escalations, the decision brief, the lock, the Turn, the defense, your debrief and your Judgment Record |
-| Running the platform | [The platform admin manual](03-admin.md) | The admin area, users and platform roles, deployment flags, the assistant mode switch, model usage, the audit log — and what an admin deliberately cannot reach |
-| Writing scenarios | [The scenario author manual](04-scenario-author.md) | The package shelf, building a package from a seed case, generation, the version screen, claims, the confirmation workspace, confirming a version, export and import |
-| Helping to mark | [The teaching assistant manual](05-teaching-assistant.md) | The review queue, reading a replay, the graphs, the trace, and exactly which band decisions a teaching-assistant seat may take |
-| Running a programme | [The program lead manual](06-program-lead.md) | Courses across the programme, read-only sections and assignments, the course policy, the points mapping, exports, and institution membership |
+| Running the platform | [The platform admin manual](03-admin.md) | The admin area, users and the one platform role each account holds, deployment flags, the assistant mode switch, model usage, the audit log, and the full access a Platform Admin has everywhere else |
+| Writing and publishing scenarios | [The scenario editor manual](04-scenario-author.md) | The package shelf, building a package from a seed case, generation, the version screen, claims, the confirmation workspace, confirming (publishing) a version, export and import |
 
 ## Guided practice runs
 
@@ -24,41 +22,31 @@ The manual explains every screen. The guides walk one path through them, step by
 screenshot for every click. Read the manual to understand a screen; follow a guide to rehearse.
 
 - [The student guide](../guides/learner-guide.md) — sixteen tasks, sign-in to a closed run.
-- [The instructor guide](../guides/instructor-guide.md) — twelve tasks, creating a course to
-  exporting results and authoring a package.
+- [The instructor guide](../guides/instructor-guide.md) — eleven tasks, creating a course to
+  exporting results.
 - [The demo runbook](../guides/demo-runbook.md) — the timed path through a live demonstration.
 - [The guides index](../guides/README.md) — who reads what.
 
 ## Demo logins
 
-A seeded installation carries five accounts. They all belong to the institution **Walkthrough
-University**, which holds the course **Marketing Strategy Walkthrough**, its section **A** and the
-scenario package **Meridian Roast (fixture)**.
+A seeded installation carries five accounts, one for each role and a second student. Four of them
+belong to the institution **Walkthrough University**, which holds the course **Marketing Strategy
+Walkthrough**, its section **A** and the scenario package **Meridian Roast (fixture)**; the Platform
+Admin belongs to no institution and needs no membership to reach it.
 
-| Email | Name on screen | What it is for |
-|---|---|---|
-| `instructor@tassl.local` | Instructor Seat | Teaches section A; owns the course; confirms package versions |
-| `student1@tassl.local` | Student One | A student of section A, with no runs taken |
-| `student2@tassl.local` | Student Two | A student of section A, with one finished run and one waiting to be reviewed |
-| `editor@tassl.local` | Scenario Editor | Writes scenario packages; never confirms one |
-| `admin@tassl.local` | Platform Admin | Runs the platform; belongs to no institution |
+| Email | Name on screen | Role | What it is for |
+|---|---|---|---|
+| `instructor@tassl.local` | Instructor Seat | Instructor | Teaches section A; owns the course |
+| `student1@tassl.local` | Student One | Student | A student of section A, with no runs taken |
+| `student2@tassl.local` | Student Two | Student | A student of section A, with one finished run and one waiting to be reviewed |
+| `editor@tassl.local` | Scenario Editor | Scenario Editor | Writes scenario packages and confirmed the seeded one |
+| `admin@tassl.local` | Platform Admin | Platform Admin | Runs the platform, with full access to every institution |
 
 They share one password, set when the installation was seeded. On a local installation it is
 `Walkthrough-Pass-2026`; ask whoever set your installation up for theirs.
 
-Two of the seats this manual documents are not seeded, because in the product they are given to a
-person rather than created ready-made:
-
-- A **Teaching assistant** seat is handed out by an instructor, from a section's roster — see
-  [Sections and the roster](01-instructor.md#sections-and-the-roster). The screenshots in
-  [the teaching assistant manual](05-teaching-assistant.md) were taken on a seat added that way.
-- A **Program lead** seat is written when the institution itself is created, and no screen in the app
-  changes an existing seat afterwards. The screenshots in
-  [the program lead manual](06-program-lead.md) were taken on a seat an administrator had added to
-  the seeded institution.
-
-If you are following this manual on a seeded installation and want either seat to try, ask whoever
-administers your installation to add it.
+Every account holds exactly one of the four roles, and only a Platform Admin changes it, on the
+**Users** screen — see [the platform admin manual](03-admin.md).
 
 ## How to read this manual
 

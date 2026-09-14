@@ -269,7 +269,6 @@ test('walkthrough step 6: delegate, take stances, check a claim, escalate, and r
   })
   await addSectionMember(request, section.id, {
     email: seatEmail('instructor'),
-    role: 'instructor',
   })
 
   await signInAs(page, 'student1')

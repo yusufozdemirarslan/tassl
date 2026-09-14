@@ -31,7 +31,7 @@ export const eventExamples: { [E in EventName]: EventProps<E> } = {
   sign_up_completed: { method: 'password' },
   email_verified: { ms_since_sign_up: 120000 },
   sign_in_succeeded: { method: 'google' },
-  invitation_accepted: { invitation_id: U, role: 'student', ms_since_invited: 3600000 },
+  invitation_accepted: { invitation_id: U, ms_since_invited: 3600000 },
   course_created: {
     course_id: U,
     outside_ai_policy: 'declared',

@@ -6,7 +6,7 @@
 
 ## Goal
 
-`pnpm db:seed` loads the Meridian Roast fixture package (both variants, confirmed) and three assignments; an author can create a package from a seed, edit and confirm every element, freeze the version, and see the package and claim object views.
+`pnpm db:seed` loads the Meridian Roast fixture package (both variants, confirmed) and three assignments; a Scenario Editor can create a package from a seed, edit and confirm every element, freeze the version, and see the package and claim object views.
 
 ## Prerequisites
 
@@ -46,12 +46,12 @@ pnpm lint && pnpm typecheck && pnpm test -- tests/unit/lib/words.test.ts tests/u
 - `src/server/auth/student-view.ts` — create; `STUDENT_FORBIDDEN_KEYS_ALWAYS`, `STUDENT_FORBIDDEN_KEYS_BEFORE_SCORED` (D-117)
 - `src/app/api/v1/institutions/[orgId]/packages/route.ts`, `.../packages/import/route.ts`, `src/app/api/v1/packages/[packageId]/route.ts`, `src/app/api/v1/package-versions/[versionId]/route.ts`, `.../export/route.ts`, `.../claims/[claimId]/route.ts`, `.../elements/[elementType]/[elementId]/route.ts`, `.../elements/[elementType]/[elementId]/decision/route.ts`, `.../confirm/route.ts`, `.../regenerate/route.ts` — create (the `generation` routes arrive in Phase 12)
 **Commands (in order, from repo root):** none.
-**Implementation notes:** `confirmVersion` writes the snapshot and the audit row and refuses on any unconfirmed element, unchecked teaching note, or validation failure. `regenerateVersion` copies every element with new ids into version n+1. `getStudentScenario` returns only brief, documents, and named fields. `getClaimObject` is reviewer and author only. The seed record is omitted for TAs and students.
+**Implementation notes:** `confirmVersion` writes the snapshot and the audit row and refuses on any unconfirmed element, unchecked teaching note, or validation failure. `regenerateVersion` copies every element with new ids into version n+1. `getStudentScenario` returns only brief, documents, and named fields. `getClaimObject` answers package readers (Scenario Editor, Instructor) and the admin only. The seed record is omitted for Instructors and students (D-748).
 **Secrets (if any):** none.
 **Tests to write:**
 - `tests/integration/scenarios/lifecycle.test.ts` — create from seed → elements unconfirmed → decide each → confirm → frozen (edit refused) → regenerate creates version 2 draft with new claim ids.
 - `tests/integration/scenarios/import-export.test.ts` — import the fixture JSON, export, deep-equal on element keys and fields.
-- `tests/integration/api/packages.test.ts` — every endpoint in `07-api-spec.md` §6 except generation; matrix rows (student 403 on claim object view; TA no seed record).
+- `tests/integration/api/packages.test.ts` — every endpoint in `07-api-spec.md` §6 except generation; matrix rows (student 403 on claim object view; Instructor no seed record and 403 on every authoring write).
 - `tests/integration/security/student-view-invariants.test.ts` — create; the package projection for students has none of the forbidden keys (extended in later phases for runs).
 **Verify (all must pass):**
 ```bash
@@ -66,7 +66,7 @@ pnpm lint && pnpm typecheck && pnpm test:integration -- tests/integration/scenar
 **Prerequisites:** Step 5.2 complete
 **Files to create / modify:**
 - `src/server/db/fixtures/meridian-roast.package.json` — create; brief (≤ 200 words), 9 documents (roles: one superseded positioning deck superseded by the retention memo, one interpretation-as-fact founder note, one accurate-and-irrelevant supplier contract, six supporting), 3 stakeholders with a contradiction pair, answer space (two defensible positions: hold spend in the value tier; shift a bounded share to premium; one evidence-inconsistent: move 60 percent on the 11-month payback; the minimum commitment), named fields (`budget_share_to_premium` percent, `premium_payback_months` months), 8 claims with per-variant states (planted `C3` "Premium payback is 11 months" stale-evidence with a Source Trace path to the deck dated 2025-02-10 in the defective variant and sound in the sound variant; a weakly sourced sound claim whose trace changes a stance; an escalatable claim about survey error with an authored reply; two low-stakes sound claims warranted Accept; one load-bearing sound claim warranted Verify; a claim with a Replication Check path "cohort comparison"; a Sycophancy Probe on "the value tier is saturated"), Turn (stakeholder message: premium pilot month-three retention is 61 percent not 78; delay 90 s; warrants `revise`; disrupted assumption keys), question bank (per claim provenance and verification; three assumption questions; confidence; frame vs response; one counterfactual on `premium_payback_months` with a 20 percent worse churn; six defaults), three-sentence counterfactual, 16 readiness items (6/4/6), working clock 1500 s, difficulty estimate, general escalation reply, seed record for the fixture (case title "Meridian Roast (fixture)", publisher "Tassl", license terms "internal fixture", re-skin log with three entries)
-- `src/server/db/seed.ts` — modify; items 4–5 of `06-data-model.md` §5 (import with `confirmOnImport: true` by `instructor@tassl.local`; three assignments)
+- `src/server/db/seed.ts` — modify; items 4–5 of `06-data-model.md` §5 (import with `confirmOnImport: true` by `editor@tassl.local`, the Scenario Editor, D-748; three assignments)
 - `tests/e2e/global-setup.ts` — modify; rely on the seed (remove the factory package)
 **Commands (in order, from repo root):**
 ```bash
@@ -96,7 +96,7 @@ pnpm test -- tests/unit/scenarios/fixture.test.ts && pnpm test:integration -- te
 **Secrets (if any):** none.
 **Tests to write:**
 - `tests/unit/components/packages/seed-form.test.tsx` — license checkbox required; concept set ≥ 4.
-- `tests/e2e/author/packages.spec.ts` — instructor creates a package from a seed (no generation), imports the fixture JSON as a second package, opens the version view and a claim object view.
+- `tests/e2e/author/packages.spec.ts` — the Scenario Editor creates a package from a seed (no generation), imports the fixture JSON as a second package, opens the version view and a claim object view.
 - `tests/e2e/a11y/author.spec.ts` — axe on the three routes.
 **Verify (all must pass):**
 ```bash

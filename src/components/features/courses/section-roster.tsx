@@ -2,31 +2,17 @@
 
 import { useState, useTransition } from 'react'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Controller, useForm } from 'react-hook-form'
-import { literal, object, type output } from 'zod/mini'
+import { useForm } from 'react-hook-form'
+import { object, type output } from 'zod/mini'
 import { HourglassIcon, Loader2Icon, MailPlusIcon, SendIcon } from 'lucide-react'
 import { toast } from 'sonner'
 import { FormAlert, SubmitButton } from '@/components/features/account/form-feedback'
-import {
-  INVITATION_ROLES,
-  ORGANIZATION_ROLE_LABELS,
-  SECTION_ROLES,
-  SECTION_ROLE_ITEMS,
-  SECTION_ROLE_LABELS,
-  type InviteRoleValue,
-} from '@/components/features/roster/roster-roles'
+import { PLATFORM_ROLE_LABELS } from '@/components/features/admin/platform-roles'
 import { EmptyState } from '@/components/layout/empty-state'
 import { Panel } from '@/components/layout/panel'
 import { Button } from '@/components/ui/button'
 import { Field, FieldError, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 import {
   Table,
   TableBody,
@@ -43,7 +29,7 @@ import { roster } from '@/lib/i18n/messages/roster'
 import { ui } from '@/lib/i18n/messages/ui'
 import { scopedT } from '@/lib/i18n/scoped'
 import { addSectionMemberAction, removeSectionMemberAction } from '@/server/modules/courses/actions'
-import type { SectionMember, SectionRoleValue } from '@/server/modules/courses/schema'
+import type { SectionMember } from '@/server/modules/courses/schema'
 import type { InvitationView } from '@/server/modules/tenancy/schema'
 import { useRefresh } from '@/lib/hooks/use-refresh'
 
@@ -65,6 +51,10 @@ import { useRefresh } from '@/lib/hooks/use-refresh'
 // The bound on the address is `emailField` (src/lib/auth/form-fields), the same shape the public
 // forms use: a client component never imports the module's schema, which would drag the full Zod
 // runtime into the browser (D-186). The rule that decides anything still runs in the action.
+//
+// Neither form asks for a role (D-748). A roster row and an invitation carry none: what a person is
+// on the section — enrolled, or teaching it — is the one platform role on their account, and the
+// members table prints that role rather than a choice this screen could make.
 
 // The roster's own vocabulary, plus the one shared line a deferred overlay shows when its chunk
 // does not arrive (ui.actionLoadFailed).
@@ -89,10 +79,7 @@ const EXPIRED = 'expired'
  */
 const ROW_ACTION_HIT_AREA = 'relative after:absolute after:inset-x-0 after:-inset-y-1'
 
-const addMemberSchema = object({
-  email: emailField,
-  role: literal(SECTION_ROLES, { error: t('roster.addRole') }),
-})
+const addMemberSchema = object({ email: emailField })
 
 type AddMemberValues = output<typeof addMemberSchema>
 
@@ -195,7 +182,7 @@ export function SectionRoster({
                   <TableRow key={member.userId}>
                     <TableCell className="text-ink">{member.name}</TableCell>
                     <TableCell className="text-ink-muted">{member.email}</TableCell>
-                    <TableCell>{SECTION_ROLE_LABELS[member.role]}</TableCell>
+                    <TableCell>{PLATFORM_ROLE_LABELS[member.role]}</TableCell>
                     <TableCell className="text-right">
                       <div className="flex flex-col items-end gap-2">
                         <Button
@@ -265,7 +252,6 @@ export function SectionRoster({
             <TableHeader>
               <TableRow>
                 <TableHead scope="col">{t('roster.columnEmail')}</TableHead>
-                <TableHead scope="col">{t('roster.columnRole')}</TableHead>
                 <TableHead scope="col">{t('roster.columnStatus')}</TableHead>
                 <TableHead scope="col">{t('roster.invitationsExpires')}</TableHead>
               </TableRow>
@@ -276,7 +262,6 @@ export function SectionRoster({
                 return (
                   <TableRow key={invitation.id}>
                     <TableCell className="text-ink">{invitation.email}</TableCell>
-                    <TableCell>{ORGANIZATION_ROLE_LABELS[invitation.role]}</TableCell>
                     <TableCell className="text-ink">
                       {/* Semantic color is the icon; the text beside it stays ink and says the
                           state in words (DESIGN.md: the Amber-Is-Not-Text rule). */}
@@ -323,7 +308,7 @@ export function SectionRoster({
 /**
  * The add form and the invitation that grows out of its one interesting refusal. `notMember` holds
  * the address the service did not recognise, so the invitation is offered for exactly that address
- * and that seat rather than for whatever the fields hold by the time the button is pressed.
+ * rather than for whatever the field holds by the time the button is pressed.
  *
  * The invitation itself is a form in a dialog, not a press: `./roster-dialogs` arrives with the
  * press that asks for it and sends nothing until Send.
@@ -341,24 +326,18 @@ function AddMemberPanel({
 }) {
   const refresh = useRefresh()
   const [formError, setFormError] = useState<string | null>(null)
-  const [notMember, setNotMember] = useState<{
-    email: string
-    /** What the add form asked for, so the form comes back to it once the invitation is away. */
-    sectionRole: SectionRoleValue
-    role: InviteRoleValue
-  } | null>(null)
+  const [notMember, setNotMember] = useState<string | null>(null)
   const [inviteOpen, setInviteOpen] = useState(false)
   const InviteMemberDialog = dialogs.loaded?.InviteMemberDialog
 
   const {
-    control,
     register,
     handleSubmit,
     reset,
     formState: { errors, isSubmitting },
   } = useForm<AddMemberValues>({
     resolver: zodResolver(addMemberSchema),
-    defaultValues: { email: '', role: 'student' },
+    defaultValues: { email: '' },
   })
 
   async function onSubmit(values: AddMemberValues): Promise<void> {
@@ -368,17 +347,11 @@ function AddMemberPanel({
     if (!result.ok) {
       setFormError(result.error.message)
       // The address belongs to nobody in the institution yet: the way forward is an invitation.
-      if (result.error.code === 'NOT_SECTION_MEMBER') {
-        setNotMember({
-          email: values.email,
-          sectionRole: values.role,
-          role: INVITATION_ROLES[values.role],
-        })
-      }
+      if (result.error.code === 'NOT_SECTION_MEMBER') setNotMember(values.email)
       return
     }
     toast.success(t('roster.added', { email: result.data.email }))
-    reset({ email: '', role: values.role })
+    reset({ email: '' })
     refresh()
   }
 
@@ -402,35 +375,6 @@ function AddMemberPanel({
               {...register('email')}
             />
             <FieldError id="roster-add-email-error">{errors.email?.message}</FieldError>
-          </Field>
-
-          <Field>
-            <FieldLabel htmlFor="roster-add-role">{t('roster.addRole')}</FieldLabel>
-            <Controller
-              control={control}
-              name="role"
-              render={({ field }) => (
-                <Select
-                  items={SECTION_ROLE_ITEMS}
-                  value={field.value}
-                  onValueChange={(value: SectionRoleValue | null) => {
-                    // Base UI can report an empty selection; the roster always holds a role.
-                    if (value !== null) field.onChange(value)
-                  }}
-                >
-                  <SelectTrigger id="roster-add-role" className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {SECTION_ROLE_ITEMS.map((item) => (
-                      <SelectItem key={item.value} value={item.value}>
-                        {item.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
-            />
           </Field>
 
           <FormAlert
@@ -462,15 +406,13 @@ function AddMemberPanel({
       {InviteMemberDialog && inviteOpen && notMember !== null && (
         <InviteMemberDialog
           orgId={organizationId}
-          email={notMember.email}
-          role={notMember.role}
+          email={notMember}
           open
           onOpenChange={setInviteOpen}
           onInvited={(invitation) => {
             onInvited(invitation)
-            // The refusal that offered the invitation has been answered; the form starts again on
-            // the seat it was asking for.
-            reset({ email: '', role: notMember.sectionRole })
+            // The refusal that offered the invitation has been answered; the form starts again.
+            reset({ email: '' })
             setNotMember(null)
             setFormError(null)
           }}

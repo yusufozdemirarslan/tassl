@@ -21,7 +21,7 @@ export const user = pgTable('user', {
     .defaultNow()
     .$onUpdate(() => /* @__PURE__ */ new Date())
     .notNull(),
-  platform_role: text('platform_role').default('none').notNull(),
+  platform_role: text('platform_role').default('student').notNull(),
   deleted_at: timestamp('deleted_at'),
 })
 

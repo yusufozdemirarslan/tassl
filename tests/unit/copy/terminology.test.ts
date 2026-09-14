@@ -27,9 +27,6 @@ describe('terminology across the package and review screens', () => {
   it('names the thing being authored "scenario package" where prose used "scenario" alone', () => {
     expect(packageNew['packageNew.description']).toMatch(/^A scenario package is built/)
     expect(packageVersion['packageVersion.claimsDescription']).toMatch(/in this scenario package,/)
-    expect(packageVersion['packageVersion.restrictedBody']).toMatch(
-      /author and teach the scenario package\.$/,
-    )
     expect(review['review.voidReofferHint']).toMatch(/variant of this scenario package/)
     // The shelf's own sentences already used the glossary term; they must keep it.
     expect(packages['packages.description']).toMatch(/scenario packages/)

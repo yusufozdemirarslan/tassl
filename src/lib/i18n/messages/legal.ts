@@ -20,7 +20,7 @@ export const legal = {
     'The two lists below are generated from this installation’s own configuration rather than from a template. A service that is switched off here is not named here.',
   'legal.contactHeading': 'Who to write to',
   'legal.contactBody':
-    'Write to {email}. Your institution holds the course record this product produces, so anything about a run, a band or a course goes to your instructor or program lead first.',
+    'Write to {email}. Your institution holds the course record this product produces, so anything about a run, a band or a course goes to your instructor first.',
 
   /**
    * FR-006, and the one place in the whole catalogue the word is allowed to appear twice: the
@@ -62,10 +62,10 @@ export const legal = {
     'The account identifier and the tokens Google returns, so the button knows it is you next time.',
   'legal.privacy.collected.googleSource': 'Google, when you choose that way in.',
 
-  'legal.privacy.collected.seats': 'Your seats',
+  'legal.privacy.collected.seats': 'Your role and memberships',
   'legal.privacy.collected.seatsDetail':
-    'Which institution you belong to and in what role, and which courses and sections you are on.',
-  'legal.privacy.collected.seatsSource': 'Your instructor or program lead.',
+    'The one role your account holds, which institutions you belong to, and which courses and sections you are on.',
+  'legal.privacy.collected.seatsSource': 'Your instructor, or a Platform Admin.',
 
   'legal.privacy.collected.run': 'Your run',
   'legal.privacy.collected.runDetail':
@@ -170,7 +170,7 @@ export const legal = {
 
   'legal.privacy.retention.heading': 'How long Tassl keeps it',
   'legal.privacy.retention.business':
-    'Your account, your seats, your runs and their records stay for as long as the institution keeps the course record. Tassl does not delete them on a timer.',
+    'Your account, your memberships, your runs and their records stay for as long as the institution keeps the course record. Tassl does not delete them on a timer.',
   'legal.privacy.retention.sessions':
     'A session lasts 30 days unless you end it sooner; the address and browser string stored with it go when it does.',
   'legal.privacy.retention.limits':

@@ -134,7 +134,6 @@ test('walkthrough step 7: an armed assistant failure pauses the run, and Resume 
   })
   await addSectionMember(request, section.id, {
     email: seatEmail('instructor'),
-    role: 'instructor',
   })
 
   await signInAs(page, 'student2')

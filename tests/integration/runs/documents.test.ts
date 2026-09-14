@@ -25,7 +25,7 @@ import { readFileSync } from 'node:fs'
 import { afterAll, beforeEach, describe, expect, it } from 'vitest'
 import { asUser, testSql, truncateAll } from '@tests/setup/integration'
 import { isAppError } from '@/lib/errors'
-import type { SessionUser } from '@/server/auth/types'
+import type { PlatformRole, SessionUser } from '@/server/auth/types'
 
 type Runs = typeof import('@/server/modules/runs')
 type RunsService = typeof import('@/server/modules/runs/service')
@@ -55,7 +55,7 @@ const actorFor = (user: UserRow, orgId: string): SessionUser => ({
   name: user.name,
   emailVerified: true,
   activeOrganizationId: orgId,
-  platformRole: 'none',
+  platformRole: user.platform_role as PlatformRole,
 })
 
 const codeOf = async (promise: Promise<unknown>): Promise<string> => {
@@ -100,25 +100,29 @@ async function setup() {
   const { organization } = await f.createInstitution('room')
   const orgId = organization.id
 
-  const instructorUser = await f.createUser('room-instructor')
+  const instructorUser = await f.createUser('room-instructor', { platformRole: 'instructor' })
   const studentUser = await f.createUser('room-student')
   const classmateUser = await f.createUser('room-classmate')
-  await f.addMember(orgId, instructorUser.id, 'instructor')
-  await f.addMember(orgId, studentUser.id, 'student')
-  await f.addMember(orgId, classmateUser.id, 'student')
+  await f.addMember(orgId, instructorUser.id)
+  await f.addMember(orgId, studentUser.id)
+  await f.addMember(orgId, classmateUser.id)
 
   const course = await f.createCourse(orgId, 'room-course', { createdBy: instructorUser.id })
   const section = await f.createSection(orgId, course.id, 'room-section')
-  await f.addSectionMember(orgId, section.id, instructorUser.id, 'instructor')
-  await f.addSectionMember(orgId, section.id, studentUser.id, 'student')
-  await f.addSectionMember(orgId, section.id, classmateUser.id, 'student')
+  await f.addSectionMember(orgId, section.id, instructorUser.id)
+  await f.addSectionMember(orgId, section.id, studentUser.id)
+  await f.addSectionMember(orgId, section.id, classmateUser.id)
 
   const instructor = actorFor(instructorUser, orgId)
-  const imported = await scenarios.importPackage(instructor, orgId, {
+  // A Scenario Editor publishes the package, because an Instructor may not (D-748).
+  const editorUser = await f.createUser('room-editor', { platformRole: 'tassl_scenario_editor' })
+  await f.addMember(orgId, editorUser.id)
+  const editor = actorFor(editorUser, orgId)
+  const imported = await scenarios.importPackage(editor, orgId, {
     ...(FIXTURE as unknown as Record<string, unknown>),
     confirmOnImport: true,
   })
-  await scenarios.confirmVersion(instructor, imported.versionId, { teachingNoteChecked: true })
+  await scenarios.confirmVersion(editor, imported.versionId, { teachingNoteChecked: true })
 
   const variants = await testSql<{ id: string; key: string }[]>`
     select id, key from scenario_variants where package_version_id = ${imported.versionId}`

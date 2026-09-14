@@ -110,7 +110,7 @@ async function importFixture(page: Page, title: string): Promise<ImportedPackage
 
 const NEW_TITLE = 'Quarterly acquisition cohort table (rechecked)'
 
-test('an instructor confirms every element of a package and freezes the version', async ({
+test('a scenario editor confirms every element of a package and freezes the version', async ({
   page,
 }) => {
   // Ninety-three decisions, each one a server action that revalidates the page it was made on.
@@ -133,7 +133,7 @@ test('an instructor confirms every element of a package and freezes the version'
     JSON.parse(readFileSync(FIXTURE_PATH, 'utf8')) as PackageExportDocument,
   )
 
-  await signInAs(page, 'instructor')
+  await signInAs(page, 'editor')
   const { packageId, versionId } = await importFixture(page, title)
   const versionPath = `/packages/${packageId}/versions/${versionId}`
 

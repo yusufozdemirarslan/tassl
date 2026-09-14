@@ -18,7 +18,7 @@ import * as schema from '@/server/db/schema'
 import { sendEmail } from '@/server/email/send'
 import { getRateLimiter } from '@/server/rate-limit/index'
 import { RATE_LIMITS } from '@/server/rate-limit/limits'
-import { ac, roles } from './access-control-shared'
+import { MEMBERSHIP_ROLE, ac, roles } from './access-control-shared'
 
 /** `auth:signin-fail:<email>` for a sign-in body, or null when the body carries no address. */
 function failedSignInKey(body: unknown): string | null {
@@ -64,7 +64,7 @@ export function authOptionsFor(env: AuthEnv) {
       additionalFields: {
         platformRole: {
           type: 'string',
-          defaultValue: 'none',
+          defaultValue: 'student',
           input: false,
           fieldName: 'platform_role',
         },
@@ -186,9 +186,10 @@ export function authOptionsFor(env: AuthEnv) {
         roles,
         // Seven days rather than Better Auth's 48 hours (08 §2.5).
         invitationExpiresIn: 60 * 60 * 24 * 7,
-        // 08 §3 does not use the built-in owner/admin roles for people: the account an admin names
-        // when creating an institution is its program lead.
-        creatorRole: 'program_lead',
+        // A member row carries the plugin's one membership role and nothing else (D-748): the
+        // institution's creator is a member like everyone else, and what they may do is their
+        // platform role.
+        creatorRole: MEMBERSHIP_ROLE,
         allowUserToCreateOrganization: async (user) =>
           (user as { platformRole?: string }).platformRole === 'admin',
         sendInvitationEmail: async ({ id, email, organization: org, inviter }) =>

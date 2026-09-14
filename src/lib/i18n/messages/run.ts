@@ -18,7 +18,7 @@ export const run = {
   // reviewer's sentence: the claim set of a confirmed package is theirs to read, so the refusal can
   // say plainly that the id names nothing here.
   'run.claimNotFound': 'That claim is not part of this run’s scenario.',
-  'run.notSectionStudent': 'Only a student on this assignment’s section can start a run.',
+  'run.notSectionStudent': 'Only a learner on this section’s roster can start this run.',
   'run.notOpenYet': 'This assignment has not opened yet.',
 
   // The Readiness Check (FR-010 to FR-018). None of these sentences says anything about whether an

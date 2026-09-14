@@ -8,7 +8,7 @@
 //   POST /runs/{runId}/defense/complete                          finish and queue scoring (D-046)
 //
 // All three are the student's own run and nobody else's (08 §4: "✓* own run" for the student, "—"
-// for every other seat, the instructor and the TA included). What only the wire can show is asserted
+// for every other seat, the instructor included). What only the wire can show is asserted
 // here rather than in the service suite: the status codes, and the envelope a refusal carries —
 // `details.state` on `DEFENSE_NOT_OPEN` so a stale screen can follow `links.next`, and
 // `details.unanswered` on `DEFENSE_INCOMPLETE` so UI-026's confirm dialog can name a number.
@@ -76,11 +76,11 @@ const errorOf = (called: Called) =>
     details?: unknown
   }
 
-const sessionFor = (who: 'student' | 'instructor' | 'ta' | 'classmate'): Promise<Headers> =>
+const sessionFor = (who: 'student' | 'instructor' | 'admin' | 'classmate'): Promise<Headers> =>
   asUser(fx[who].id, { activeOrganizationId: fx.orgId })
 
 /** The three seats 08 §4 refuses this run's own endpoints to. */
-const DENIED = ['instructor', 'ta', 'classmate'] as const
+const DENIED = ['instructor', 'classmate'] as const
 
 const BRIEF = {
   recommendation: 'Hold the acquisition spend in the value tier for this quarter.',
@@ -330,7 +330,7 @@ describe('POST /runs/{runId}/defense/questions/{runQuestionId}/answer', () => {
 })
 
 describe('POST /runs/{runId}/defense/complete', () => {
-  const complete = async (runId: string, seat: 'student' | 'instructor' | 'ta' | 'classmate') =>
+  const complete = async (runId: string, seat: 'student' | 'instructor' | 'admin' | 'classmate') =>
     call(completeRoute.POST, {
       method: 'POST',
       path: `/runs/${runId}/defense/complete`,

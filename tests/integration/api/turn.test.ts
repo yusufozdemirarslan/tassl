@@ -7,7 +7,7 @@
 //   POST /runs/{runId}/turn/response   hold, revise, or reverse (FR-112)
 //
 // Both are the student's own run and nobody else's (08 §4: "✓* own run" for the student, "—" for
-// every other seat, the instructor and the TA included). What only the wire can show is asserted
+// every other seat, the instructor included). What only the wire can show is asserted
 // here rather than in the service suite: the status codes, and the envelope a refusal carries —
 // `details.state` on `TURN_NOT_OPEN`, so a stale screen can follow `links.next`, and
 // `details.claimIds` on `TURN_CLAIMS_UNSTANCED`, so UI-025 can mark the cards still waiting.
@@ -71,11 +71,11 @@ const errorOf = (called: Called) =>
     details?: unknown
   }
 
-const sessionFor = (who: 'student' | 'instructor' | 'ta' | 'classmate'): Promise<Headers> =>
+const sessionFor = (who: 'student' | 'instructor' | 'admin' | 'classmate'): Promise<Headers> =>
   asUser(fx[who].id, { activeOrganizationId: fx.orgId })
 
 /** The three seats 08 §4 refuses this run's own endpoints to. */
-const DENIED = ['instructor', 'ta', 'classmate'] as const
+const DENIED = ['instructor', 'classmate'] as const
 
 const BRIEF = {
   recommendation: 'Hold the acquisition spend in the value tier for this quarter.',

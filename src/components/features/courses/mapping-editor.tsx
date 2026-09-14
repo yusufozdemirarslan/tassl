@@ -108,7 +108,7 @@ export type MappingEditorProps = {
   courseId: string
   /** The course's current mapping; the same four keys the service reads and writes. */
   mapping: Mapping
-  /** True for a reader who may see the course but not change it (a program lead, a student). */
+  /** True for a reader who may see the course but not change it (an instructor who does not teach it). */
   readOnly?: boolean
 }
 

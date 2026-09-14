@@ -103,7 +103,6 @@ test('walkthrough step 17a: a dimension recorded unassessed leaves the division 
   })
   await addSectionMember(request, assignment.section.id, {
     email: seatEmail('instructor'),
-    role: 'instructor',
   })
 
   await signInAs(page, UNASSESSED_SEAT)
@@ -404,7 +403,6 @@ test('walkthrough step 17b: every run screen reads as a document, is reached by 
   })
   await addSectionMember(request, assignment.section.id, {
     email: seatEmail('instructor'),
-    role: 'instructor',
   })
 
   await signInAs(page, KEYBOARD_SEAT)

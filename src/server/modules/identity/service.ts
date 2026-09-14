@@ -8,6 +8,7 @@
 import { AppError } from '@/lib/errors'
 import { t } from '@/lib/i18n/t'
 import { auth } from '@/server/auth/auth'
+import { AUTHORING_ROLES, LEARNER_ROLES, TEACHING_ROLES } from '@/server/auth/permissions'
 import type { SessionUser } from '@/server/auth/types'
 import { env } from '@/server/config'
 import { getLogger } from '@/server/http/request-context'
@@ -33,6 +34,7 @@ import {
   deleteUser,
   findPlaceholderUser,
   findUserById,
+  listAllInstitutionsAsMemberships,
   listAuditEntriesForActor,
   listDeletedBefore,
   listMembershipsForUser,
@@ -49,16 +51,12 @@ import {
 } from './repository'
 import { PURGE_AFTER_DAYS, purgeCutoff } from './retention'
 import {
-  organizationRoleSchema,
   platformRoleSchema,
-  sectionRoleSchema,
   type Capabilities,
   type MeView,
   type Membership,
-  type OrganizationRole,
   type PageQuery,
   type PlatformRole,
-  type SectionRole,
   type StudentAssignment,
   type UpdateProfileInput,
   type UserExport,
@@ -88,24 +86,13 @@ const iso = (value: Date): string => value.toISOString()
 const isoOrNull = (value: Date | null): string | null => (value ? value.toISOString() : null)
 
 /**
- * Better Auth's built-in `owner`, `admin`, and `member` organization roles are not used for people
- * (08 §3), so a `member` row that carries one is shown as the least-privileged seat rather than
- * dropped: the person still sees the institution, and no capability is granted by a role we do not
- * recognize.
+ * A stored value outside the four roles (the column's check constraint refuses one, D-748) reads as
+ * the least-privileged role rather than failing the screen, so no capability is granted by a role
+ * this build does not recognize.
  */
-function toOrganizationRole(role: string): OrganizationRole {
-  const parsed = organizationRoleSchema.safeParse(role)
-  return parsed.success ? parsed.data : 'student'
-}
-
-function toSectionRole(role: string): SectionRole {
-  const parsed = sectionRoleSchema.safeParse(role)
-  return parsed.success ? parsed.data : 'student'
-}
-
 function toPlatformRole(role: string): PlatformRole {
   const parsed = platformRoleSchema.safeParse(role)
-  return parsed.success ? parsed.data : 'none'
+  return parsed.success ? parsed.data : 'student'
 }
 
 function toMembership(row: MembershipRow): Membership {
@@ -113,21 +100,34 @@ function toMembership(row: MembershipRow): Membership {
     organizationId: row.organizationId,
     name: row.name,
     slug: row.slug,
-    role: toOrganizationRole(row.role),
     joinedAt: iso(row.joinedAt),
   }
 }
 
-/** Which panels the shell renders (08 §5 "UI"); the service check is what actually enforces them. */
-function capabilitiesFor(platformRole: PlatformRole, memberships: Membership[]): Capabilities {
-  const roles = new Set(memberships.map((m) => m.role))
+/**
+ * Which panels the shell renders (08 §5 "UI"), from the platform role alone (D-748); the service
+ * check is what actually enforces them. The admin holds every capability.
+ */
+function capabilitiesFor(platformRole: PlatformRole): Capabilities {
+  const holds = (roles: readonly PlatformRole[]): boolean =>
+    platformRole === 'admin' || roles.includes(platformRole)
   return {
-    canTakeRuns: roles.has('student'),
-    canReviewRuns: roles.has('instructor') || roles.has('teaching_assistant'),
-    canAuthorPackages: roles.has('instructor') || roles.has('scenario_author'),
-    canManageInstitution: roles.has('program_lead') || platformRole === 'admin',
+    canTakeRuns: holds(LEARNER_ROLES),
+    canReviewRuns: holds(TEACHING_ROLES),
+    canAuthorPackages: holds(AUTHORING_ROLES),
+    canManageInstitution: platformRole === 'admin',
     canCreateInstitution: platformRole === 'admin',
   }
+}
+
+/**
+ * The institutions the shell offers: the person's own `member` rows, or — for the Platform Admin,
+ * who has full access everywhere — every institution (D-748).
+ */
+async function listShellMemberships(row: User): Promise<MembershipRow[]> {
+  return toPlatformRole(row.platform_role) === 'admin'
+    ? listAllInstitutionsAsMemberships(row.id)
+    : listMembershipsForUser(row.id)
 }
 
 function toMeView(row: User, actor: SessionUser, membershipRows: MembershipRow[]): MeView {
@@ -143,7 +143,7 @@ function toMeView(row: User, actor: SessionUser, membershipRows: MembershipRow[]
     platformRole,
     memberships,
     activeOrganizationId: actor.activeOrganizationId,
-    capabilities: capabilitiesFor(platformRole, memberships),
+    capabilities: capabilitiesFor(platformRole),
   }
 }
 
@@ -162,8 +162,7 @@ function resolveTenant(actor: SessionUser, memberships: MembershipRow[]): string
 
 export async function getCurrentUser(actor: SessionUser): Promise<MeView> {
   const row = await requireActiveUser(actor)
-  const memberships = await listMembershipsForUser(actor.id)
-  return toMeView(row, actor, memberships)
+  return toMeView(row, actor, await listShellMemberships(row))
 }
 
 /**
@@ -189,8 +188,7 @@ export async function updateProfile(
 ): Promise<MeView> {
   await requireActiveUser(actor)
   const row = await withTransaction((tx) => updateProfileRow(actor.id, { name: input.name }, tx))
-  const memberships = await listMembershipsForUser(actor.id)
-  return toMeView(row, actor, memberships)
+  return toMeView(row, actor, await listShellMemberships(row))
 }
 
 // Two downloads an hour per account (08 §2.9). The bucket is `auth`, but its window is an hour
@@ -264,7 +262,6 @@ export async function exportUserData(actor: SessionUser): Promise<UserExport> {
       courseId: s.courseId,
       courseName: s.courseName,
       organizationId: s.organizationId,
-      role: toSectionRole(s.role),
       joinedAt: iso(s.joinedAt),
     })),
     // Record-form run exports arrive with the record module (Phase 10, FR-192).

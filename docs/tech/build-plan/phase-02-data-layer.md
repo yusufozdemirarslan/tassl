@@ -34,7 +34,7 @@ pnpm db:migrate
 **Implementation notes:** `advanced.database.generateId` returns `crypto.randomUUID()` (D-099). `user.additionalFields` adds `platform_role` and `deleted_at`. Do not edit the generated file by hand; regenerate after config changes. The migration produced by `drizzle-kit generate` is reviewed and committed as `drizzle/0000_auth.sql`.
 **Secrets (if any):** `BETTER_AUTH_SECRET` — local default from `.env.example`.
 **Tests to write:**
-- `tests/integration/db/auth-schema.test.ts` — the eight tables exist; `user.platform_role` defaults to `none`.
+- `tests/integration/db/auth-schema.test.ts` — the eight tables exist; `user.platform_role` defaults to `student` (D-748).
 **Verify (all must pass):**
 ```bash
 pnpm typecheck && pnpm test:integration -- tests/integration/db/auth-schema.test.ts && docker compose exec -T postgres psql -U tassl -d tassl -c '\dt' | grep -cE 'user|session|organization|member|invitation' | grep -qE '^[5-9]'
@@ -48,7 +48,7 @@ pnpm typecheck && pnpm test:integration -- tests/integration/db/auth-schema.test
 **Prerequisites:** Step 2.1 complete
 **Files to create / modify:**
 - `src/server/db/schema/tenancy.ts`, `src/server/db/schema/courses.ts` — create; every column, constraint, enum, and index from `06-data-model.md` §3.1–3.2
-- `src/server/db/schema/enums.ts` — create; all Postgres enums (`plan_tier`, `agreement_purpose`, `outside_ai_policy`, `section_role`, `run_type`, and the scenario, run, scoring, and platform enums used later, declared once)
+- `src/server/db/schema/enums.ts` — create; all Postgres enums (`plan_tier`, `agreement_purpose`, `outside_ai_policy`, `run_type`, and the scenario, run, scoring, and platform enums used later, declared once)
 - `drizzle/0002_extensions_and_triggers.sql` — created by `drizzle-kit generate --custom` (registered in the journal), then filled by hand (`06-data-model.md` §4): `set_updated_at()` trigger function attached to every table with an `updated_at` column via a `DO $$ ... $$` loop; `assignments_variant_matches_version()` trigger on `assignments`
 **Commands (in order, from repo root):**
 ```bash
@@ -232,7 +232,7 @@ pnpm db:seed
 **Implementation notes:** Second run must change nothing (upsert by email, slug, and natural keys). Seat accounts per D-040; roles per `08-auth-authz.md` §3.
 **Secrets (if any):** `SEED_PASSWORD` — local default `Walkthrough-Pass-2026`.
 **Tests to write:**
-- `tests/integration/db/seed.test.ts` — running the seed twice yields the same row counts; `instructor@tassl.local` is a section instructor; `editor@tassl.local` has platform role `tassl_scenario_editor`.
+- `tests/integration/db/seed.test.ts` — running the seed twice yields the same row counts; `instructor@tassl.local` has platform role `instructor` and is on the section roster; `editor@tassl.local` has platform role `tassl_scenario_editor`; the admin belongs to no institution (D-748).
 **Verify (all must pass):**
 ```bash
 pnpm test:integration -- tests/integration/db/seed.test.ts && docker compose exec -T postgres psql -U tassl -d tassl -tA -c "select count(*) from \"user\" where email like '%@tassl.local'" | grep -qx 5

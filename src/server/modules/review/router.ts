@@ -98,11 +98,10 @@ export const listSectionRunsForReviewRoute = defineRoute(
  * A `read` bucket, and it does write one thing — `flags.replay_first_opened_at` on the first open
  * (D-120). That is a record of the fact that somebody looked, not a change to the run.
  *
- * **A student is refused here outright.** `requireRunReviewer` answers NOT_FOUND for a run outside
- * the actor's sections and the service turns a section member with the wrong role into the same
- * answer, so a classmate learns nothing; the run's *own* student is a section member holding
- * `student` and is refused with FORBIDDEN. Either way none of what this bundle carries — warranted
- * stances, evidence status, failure families, the probe, the expected-answer notes — reaches them.
+ * **A student is refused here outright.** `requireRunReviewer` answers NOT_FOUND to anyone who does
+ * not review the run's section, so a classmate learns nothing, and FORBIDDEN to the run's *own*
+ * student. Either way none of what this bundle carries — warranted stances, evidence status, failure
+ * families, the probe, the expected-answer notes — reaches them.
  */
 export const getReplayRoute = defineRoute(
   {

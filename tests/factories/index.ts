@@ -21,22 +21,22 @@ import { createUser } from './user'
  *  section A, a minimal package version, and the walkthrough assignment on the defective variant. */
 export async function buildWalkthroughFixture() {
   const { organization } = await createInstitution('walkthrough')
-  const instructor = await createUser('instructor')
+  const instructor = await createUser('instructor', { platformRole: 'instructor' })
   const student1 = await createUser('student-1')
   const student2 = await createUser('student-2')
   const editor = await createUser('editor', { platformRole: 'tassl_scenario_editor' })
-  await addMember(organization.id, instructor.id, 'instructor')
-  await addMember(organization.id, student1.id, 'student')
-  await addMember(organization.id, student2.id, 'student')
-  await addMember(organization.id, editor.id, 'scenario_author')
+  await addMember(organization.id, instructor.id)
+  await addMember(organization.id, student1.id)
+  await addMember(organization.id, student2.id)
+  await addMember(organization.id, editor.id)
 
   const course = await createCourse(organization.id, 'marketing-strategy', {
     createdBy: instructor.id,
   })
   const section = await createSection(organization.id, course.id, 'marketing-strategy-a')
-  await addSectionMember(organization.id, section.id, instructor.id, 'instructor')
-  await addSectionMember(organization.id, section.id, student1.id, 'student')
-  await addSectionMember(organization.id, section.id, student2.id, 'student')
+  await addSectionMember(organization.id, section.id, instructor.id)
+  await addSectionMember(organization.id, section.id, student1.id)
+  await addSectionMember(organization.id, section.id, student2.id)
 
   const pkg = await createPackageVersion(organization.id, 'meridian-roast', {
     createdBy: instructor.id,

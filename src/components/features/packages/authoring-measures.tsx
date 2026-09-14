@@ -3,7 +3,7 @@ import type { AuthoringMeasures as AuthoringMeasuresView } from '@/server/module
 
 // UI-044 → `AuthoringMeasures` (FR-198): the five numbers the service reads off the seed record and
 // the element decisions. They are the institution's own accounting of what building a scenario
-// costs — which is why a program lead sees this panel and nothing else on the screen (08 §4).
+// costs (08 §4).
 //
 // Every figure says what it measures underneath it, and a measure with nothing behind it yet says
 // so in words rather than showing a dash or a zero. Which measures those are is decided by the

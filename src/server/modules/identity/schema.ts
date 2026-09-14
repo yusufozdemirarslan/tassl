@@ -11,17 +11,13 @@ import { z } from 'zod'
 // Vocabularies (08-auth-authz.md §3, 06-data-model.md §3.4)
 // ---------------------------------------------------------------------------------------------
 
-export const platformRoleSchema = z.enum(['none', 'tassl_scenario_editor', 'admin'])
-
-export const organizationRoleSchema = z.enum([
+/** `user.platform_role`: the one role an account holds (08 §3, D-748). */
+export const platformRoleSchema = z.enum([
   'student',
+  'tassl_scenario_editor',
   'instructor',
-  'teaching_assistant',
-  'scenario_author',
-  'program_lead',
+  'admin',
 ])
-
-export const sectionRoleSchema = z.enum(['student', 'instructor', 'ta'])
 
 export const runStateSchema = z.enum([
   'assigned',
@@ -67,13 +63,12 @@ export const membershipSchema = z.object({
   organizationId: z.string(),
   name: z.string(),
   slug: z.string(),
-  role: organizationRoleSchema,
   joinedAt: z.iso.datetime(),
 })
 
 /**
- * What the signed-in person may reach, derived from the roles they hold (08 §5 "UI"). Hidden
- * controls are a courtesy; the service check is the enforcement.
+ * What the signed-in person may reach, derived from their platform role (08 §5 "UI", D-748).
+ * Hidden controls are a courtesy; the service check is the enforcement.
  */
 export const capabilitiesSchema = z.object({
   canTakeRuns: z.boolean(),
@@ -185,7 +180,6 @@ export const exportSectionMembershipSchema = z.object({
   courseId: z.uuid(),
   courseName: z.string(),
   organizationId: z.string(),
-  role: sectionRoleSchema,
   joinedAt: z.iso.datetime(),
 })
 
@@ -224,8 +218,6 @@ export const userExportSchema = z.object({
 // ---------------------------------------------------------------------------------------------
 
 export type PlatformRole = z.infer<typeof platformRoleSchema>
-export type OrganizationRole = z.infer<typeof organizationRoleSchema>
-export type SectionRole = z.infer<typeof sectionRoleSchema>
 export type Membership = z.infer<typeof membershipSchema>
 export type Capabilities = z.infer<typeof capabilitiesSchema>
 export type MeView = z.infer<typeof meViewSchema>

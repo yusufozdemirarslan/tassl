@@ -1,9 +1,9 @@
 // The world every authoring suite runs in: one institution, one author, one package created from a
 // licensed seed case, and a drain that runs the `generate_package_step` queue to a standstill.
 //
-// The seat is an `instructor` carrying no platform role, which is 08 §4's "Create package from
-// seed; run generation" *and* the confirming authority (PRD §8) — the pipeline and the confirmation
-// workspace are the same person's work, and the measures suite needs both.
+// The seat is a Scenario Editor, who holds 08 §4's "Create package from seed; run generation" *and*
+// the confirmation (D-748) — the pipeline and the confirmation workspace are the same person's work,
+// and the measures suite needs both.
 import { asUser } from '@tests/setup/integration'
 import type { SessionUser } from '@/server/auth/types'
 import { drainQueues } from '@/server/jobs/drain'
@@ -47,15 +47,17 @@ const actorFor = (
   name: user.name,
   emailVerified: true,
   activeOrganizationId: orgId,
-  platformRole: 'none',
+  platformRole: 'tassl_scenario_editor',
 })
 
 /** An institution, an author, and version 1 of a package built from `SEED`. Generation not started. */
 export async function setupAuthoringFixture(label: string): Promise<AuthoringFixture> {
   const scenarios = await import('@/server/modules/scenarios')
   const { organization } = await f.createInstitution(`authoring-${label}`)
-  const author = await f.createUser(`authoring-author-${label}`)
-  await f.addMember(organization.id, author.id, 'instructor')
+  const author = await f.createUser(`authoring-author-${label}`, {
+    platformRole: 'tassl_scenario_editor',
+  })
+  await f.addMember(organization.id, author.id)
 
   const actor = actorFor(author, organization.id)
   const created = await scenarios.createPackageFromSeed(actor, organization.id, {

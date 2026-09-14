@@ -24,17 +24,13 @@ type UserRow = Awaited<ReturnType<Factories['createUser']>>
 let scenarios: Scenarios
 let f: Factories
 
-const actorFor = (
-  user: UserRow,
-  orgId: string,
-  platformRole: SessionUser['platformRole'] = 'none',
-): SessionUser => ({
+const actorFor = (user: UserRow, orgId: string): SessionUser => ({
   id: user.id,
   email: user.email,
   name: user.name,
   emailVerified: true,
   activeOrganizationId: orgId,
-  platformRole,
+  platformRole: user.platform_role as SessionUser['platformRole'],
 })
 
 // ---------------------------------------------------------------------------------------------
@@ -564,18 +560,21 @@ function elementKeys(pkg: PackageExport): Record<string, string[]> {
 
 async function setup() {
   const orgId = (await f.createInstitution('import-export')).organization.id
-  const instructor = await f.createUser('import-export-instructor')
-  await f.addMember(orgId, instructor.id, 'instructor')
-  // A reviewer of the same institution: admitted to the package (08 §4) and never to the licensed
-  // case behind it (FR-028), which is what the seed-record rows below are about.
-  const ta = await f.createUser('import-export-ta')
-  await f.addMember(orgId, ta.id, 'teaching_assistant')
+  // The author is a Scenario Editor, who imports, signs and publishes (D-748).
+  const editor = await f.createUser('import-export-editor', {
+    platformRole: 'tassl_scenario_editor',
+  })
+  await f.addMember(orgId, editor.id)
+  // An Instructor of the same institution: admitted to the package (08 §4) and never to the
+  // licensed case behind it (FR-028), which is what the seed-record rows below are about.
+  const instructor = await f.createUser('import-export-instructor', { platformRole: 'instructor' })
+  await f.addMember(orgId, instructor.id)
   return {
     orgId,
+    editor,
     instructor,
-    ta,
-    author: actorFor(instructor, orgId),
-    reviewer: actorFor(ta, orgId),
+    author: actorFor(editor, orgId),
+    reviewer: actorFor(instructor, orgId),
   }
 }
 
@@ -659,8 +658,10 @@ describe('importPackage then exportPackage', () => {
     const once = await scenarios.exportPackage(fx.author, first.versionId)
 
     const otherOrgId = (await f.createInstitution('import-export-two')).organization.id
-    const author = await f.createUser('import-export-author')
-    await f.addMember(otherOrgId, author.id, 'scenario_author')
+    const author = await f.createUser('import-export-author', {
+      platformRole: 'tassl_scenario_editor',
+    })
+    await f.addMember(otherOrgId, author.id)
     const second = await scenarios.importPackage(actorFor(author, otherOrgId), otherOrgId, once)
     const twice = await scenarios.exportPackage(actorFor(author, otherOrgId), second.versionId)
 
@@ -673,14 +674,14 @@ describe('importPackage then exportPackage', () => {
 // ---------------------------------------------------------------------------------------------
 // The seed record does not travel to a reviewer (FR-028, 08 §4)
 //
-// `exportPackage` admits a TA — they may read the package their section runs — and the seed record
+// `exportPackage` admits an Instructor — they read the package they assign — and the seed record
 // is the one thing inside the document they may not read: it is the licensed case the package was
 // re-skinned from. The export has two paths to the document and both have to withhold it, which is
 // what these two tests separate: a draft is rebuilt from its rows, and a confirmed version answers
 // from the snapshot frozen with it, where the record is already sitting in the stored JSON.
 // ---------------------------------------------------------------------------------------------
 
-describe('exportPackage withholds the seed record from a teaching assistant', () => {
+describe('exportPackage withholds the seed record from an Instructor', () => {
   it('on the row-built path of a draft, while the author takes the whole record', async () => {
     const sent = document()
     const imported = await scenarios.importPackage(fx.author, fx.orgId, sent)
@@ -739,7 +740,7 @@ describe('importPackage with confirmOnImport', () => {
       expect(row).toMatchObject({
         decision: 'confirmed',
         revision: 1,
-        decidedBy: fx.instructor.id,
+        decidedBy: fx.editor.id,
         note: '',
       })
     }
@@ -780,45 +781,27 @@ describe('importPackage with confirmOnImport', () => {
   })
 
   /**
-   * 08 §4 and PRD §8: a platform editor reaches an institution's packages through a
-   * `scenario_author` membership, and that membership is enough to import. It is not enough to sign
-   * for the package: `confirmOnImport` files a confirmation for every element in the actor's name,
-   * which is the act `decideElement` and `confirmVersion` already reserve for the institution's own
-   * authority. Without the check one request signs for all seventy-nine and skips the review FR-192
-   * exists to require.
+   * 08 §4 (D-748): importing is the author's act, with or without `confirmOnImport`, which files a
+   * confirmation for every element in the actor's name. An Instructor reads the shelf and imports
+   * nothing; the Scenario Editor signs for the whole document in one request.
    */
-  it('refuses the flag to a platform editor, who may still import, and admits the instructor', async () => {
-    const editorUser = await f.createUser('import-export-editor', {
-      platformRole: 'tassl_scenario_editor',
-    })
-    await f.addMember(fx.orgId, editorUser.id, 'scenario_author')
-    const editor = actorFor(editorUser, fx.orgId, 'tassl_scenario_editor')
+  it('refuses the import to an Instructor, flag or not, and admits the Scenario Editor', async () => {
+    for (const confirmOnImport of [false, true]) {
+      const refused = await refusal(
+        scenarios.importPackage(fx.reviewer, fx.orgId, {
+          ...documentKeyed('meridian-roast-instructor'),
+          confirmOnImport,
+        }),
+      )
+      expect(refused.code).toBe('FORBIDDEN')
+    }
 
-    // The editor's membership admits the import itself (08 §5).
-    const plain = await scenarios.importPackage(
-      editor,
-      fx.orgId,
-      documentKeyed('meridian-roast-editor'),
-    )
-    expect(plain.validation).toEqual({ ok: true, failures: [] })
-    const before = await scenarios.listPackages(fx.author, fx.orgId)
-    expect(before.items.map((row) => row.familyKey)).toEqual(['meridian-roast-editor'])
+    // The refusal wrote nothing: the shelf is empty, and the family key is still free.
+    const after = await scenarios.listPackages(fx.reviewer, fx.orgId)
+    expect(after.items).toEqual([])
 
-    const refused = await refusal(
-      scenarios.importPackage(editor, fx.orgId, {
-        ...documentKeyed('meridian-roast-signed'),
-        confirmOnImport: true,
-      }),
-    )
-    expect(refused.code).toBe('FORBIDDEN')
-
-    // The refusal wrote nothing: the shelf is what it was, and the family key is still free.
-    const after = await scenarios.listPackages(fx.author, fx.orgId)
-    expect(after.items.map((row) => row.familyKey)).toEqual(['meridian-roast-editor'])
-
-    // The institution's own instructor signs for the same document, one confirmed row per element.
     const signed = await scenarios.importPackage(fx.author, fx.orgId, {
-      ...documentKeyed('meridian-roast-signed'),
+      ...documentKeyed('meridian-roast-instructor'),
       confirmOnImport: true,
     })
     const view = await scenarios.getPackageVersion(fx.author, signed.versionId)
@@ -827,7 +810,7 @@ describe('importPackage with confirmOnImport', () => {
       new Set(['confirmed']),
     )
     expect(new Set(view.confirmationRecord.map((row) => row.decidedBy))).toEqual(
-      new Set([fx.instructor.id]),
+      new Set([fx.editor.id]),
     )
   })
 

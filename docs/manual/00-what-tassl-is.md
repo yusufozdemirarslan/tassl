@@ -1,6 +1,6 @@
 # What Tassl is
 
-Read this first, whatever your role. It explains what the app does, who the six kinds of user are,
+Read this first, whatever your role. It explains what the app does, who the four kinds of user are,
 how one decision travels from a blank assignment to a number in your own gradebook, and the promises
 Tassl makes about what it will never do. Every other file in this manual assumes you have read this
 one.
@@ -27,7 +27,7 @@ Here is the whole of it, in order:
    **Escalate**. They can also spend clock time on a check — **Source Trace**, **Replication Check**
    or **Decomposition Check** — or **Escalate** the claim to a colleague.
 5. They write **Your decision brief**: a recommendation, the reasoning, three assumptions, what would
-   change their mind, a confidence, and **The figures you are betting on** — the scenario author's own
+   change their mind, a confidence, and **The figures you are betting on** — the scenario's own
    named numbers. Then **Lock the decision**. Filing is irreversible. Tassl refuses to file it if the
    student leaned on a claim they never took a position on, and names the claim.
 6. A short wait later **The Turn** arrives: a message from the world that undercuts part of what they
@@ -72,86 +72,77 @@ rather than counting it as zero.
 | Who | What they are here for |
 |---|---|
 | Students | To take a Decision Run, and afterwards to read their **Run Debrief** and their **Judgment Record**. |
+| Scenario Editors | To build a scenario package from a licensed seed case, read every element of it, and confirm the version that assignments will run on. They can also take runs, like any student. |
 | Instructors | To set up courses, sections, rosters and assignments; to read each run back and decide its seven bands; and to carry the result into their own gradebook. |
-| Teaching assistants | To help clear the review queue by deciding bands on runs in the sections they hold a seat on. |
-| Scenario authors | To build a scenario package from a licensed seed case, read every element of it, and confirm the version that assignments will run on. |
-| Program leads | To read across every course in the institution, and to hold the institution's own settings and data agreements. |
-| Platform admins | To run Tassl itself: platform roles, deployment flags, the assistant switch and the audit log. |
+| Platform Admins | To run Tassl itself: every account's role, deployment flags, the assistant switch and the audit log, with full access to everything else. |
 
 ## The roles, and how they fit together
 
-A person can hold three separate things at once: a seat in an institution, a row on a section roster,
-and a platform role. They are independent, and each one opens different doors.
+Every account holds exactly one role. A Platform Admin sets it on the **Users** screen, and a new
+account starts as a **Student**. Nothing else in the app grants a role: belonging to an institution
+says *where* a person works, and a row on a section roster says *which* section they are on, but
+neither says what they may do there.
 
-| Role | Where it comes from | What it can reach | Covered in |
-|---|---|---|---|
-| **Student** | An institution seat, plus a **Student** row on a section roster | **Home** and **Runs**, and every screen of their own run — nothing else | [the learner manual](02-learner.md) |
-| **Instructor** | An institution seat, plus an **Instructor** row on the sections they teach | **Home**, **Courses**, **Review**, **Packages**, and every run in their own sections | [the instructor manual](01-instructor.md) |
-| **Teaching assistant** | An institution seat, plus a **Teaching assistant** row on a section roster | **Home** and **Review**, and the replay of runs in those sections | [the teaching assistant manual](05-teaching-assistant.md) |
-| **Scenario author** | An institution seat | **Home** and **Packages** | [the scenario author manual](04-scenario-author.md) |
-| **Program lead** | An institution seat, written when the institution itself is created | **Home** and **Courses**, read-only, across every course in the institution | [the program lead manual](06-program-lead.md) |
-| **Platform admin** | A platform setting on the account, not a seat in any institution | **Admin** only: users, flags and the audit log | [the platform admin manual](03-admin.md) |
-| **Scenario editor** | A platform setting on the account | Nothing on its own; it reaches package screens only through a **Scenario author** seat, and it can never confirm a package version | [the scenario author manual](04-scenario-author.md) |
+| Role | What it can reach | Covered in |
+|---|---|---|
+| **Student** | **Home** and **Runs**, and every screen of their own runs — nothing else | [the learner manual](02-learner.md) |
+| **Scenario Editor** | Everything a Student can reach, plus **Packages**: building, editing and confirming the scenario packages of their institution | [the scenario editor manual](04-scenario-author.md) |
+| **Instructor** | **Home**, **Courses**, **Review** and **Packages** (to read), and every run in the courses they created or teach | [the instructor manual](01-instructor.md) |
+| **Platform Admin** | Every screen, including **Admin**, in every institution, without belonging to any | [the platform admin manual](03-admin.md) |
 
-**Student.** A student needs a row on a section's roster before a run can start; the institution seat
-alone is not enough. They see the assignments of every section they are on, and their own runs on
-them. They can never see another student's run in any form — it answers **Not found**, exactly as a
-run that does not exist would.
+**Student.** A student needs a row on a section's roster before a run can start; belonging to the
+institution alone is not enough. They see the assignments of every section they are on, and their own
+runs on them. They can never see another student's run in any form — it answers **Not found**,
+exactly as a run that does not exist would.
 
-**Instructor.** The instructor is the only role that can build the teaching structure: courses,
-sections, rosters, assignments, the outside-AI policy, the run weight and the band-to-points mapping.
-They are also the only role that can void a run, enter a correction, arm the test outage, or change a
-band once a run is **Confirmed**. An instructor is not automatically a student: to take a run
-themselves they would need a **Student** row of their own on a section.
+**Scenario Editor.** A Scenario Editor has a Student's access — put on a roster, they take that
+section's runs exactly as a student does — and, on top of it, the package shelf. They create a package
+from a seed case, run the seven generation steps, edit and reject the elements the model drafted, and
+confirm the version that freezes its text. They never reach a course, a roster, another learner's run
+or the review queue.
 
-**Teaching assistant.** A teaching assistant reads and decides. They can confirm a draft band,
-override it with a note, or set a dimension **Unassessed** — but not on a dimension the instructor
-has already decided, and not at all once the run is **Confirmed**. They cannot create anything, add
-anyone, or void a run.
+**Instructor.** The instructor builds the teaching structure: courses, sections, rosters, invitations,
+assignments, the outside-AI policy, the run weight and the band-to-points mapping. On the courses they
+created or teach, they read every run back, decide its bands, void it, enter a correction or arm the
+test outage. They read scenario packages — to choose a confirmed version for an assignment and to read
+it back beside a run — but they do not build, edit or confirm one. An instructor does not take runs.
 
-**Scenario author.** A scenario author never touches a course or a run. They create a package from a
-seed case, run the seven generation steps, edit and reject the elements the model drafted, and
-confirm the version that freezes its text. One rule shapes this seat: an account that carries any
-platform role cannot confirm — Tassl staff can never sign a package off for a faculty member.
-
-**Program lead.** A program lead reads. They see every course in the institution and every assignment
-page, and they can invite people to the institution, but they cannot create a course, add anyone to a
-roster, or open a run. On a package version they see only how it was built, under a panel headed
-**Measures only** — never the brief, the claims or the answer key.
-
-**Platform admin.** A platform admin operates Tassl, not a classroom. With no seat in an institution
-they see no course, no package and no run at all. They can change other people's platform roles, flip
-the assistant between **Live model** and **Scripted assistant**, and read the audit log. They cannot
-change their own platform role.
+**Platform Admin.** A Platform Admin operates Tassl and has full access: every institution, course,
+roster, assignment, package and run, without being a member of any of them. They alone set other
+people's roles, the institution's settings and its data agreements; they flip the assistant between
+**Live model** and **Scripted assistant**, and read the audit log. They cannot change their own role.
 
 ## The journey, end to end
 
 This is the whole chronology. Each step names the role who acts, and what changes on everybody else's
 screen.
 
-**1. An institution exists.** A platform admin creates it and names one person as its **Program
-lead**; that person must already have a Tassl account. There is no screen for this in the build, so in
-practice the institution is already there when you arrive. *What changes:* the named program lead
-becomes a member, and the institution's name appears in the header of everyone who belongs to it. In
-this manual the institution is **Walkthrough University**.
+**1. An institution exists.** A Platform Admin creates it and names one person as its first member;
+that person must already have a Tassl account. There is no screen for this in the build, so in
+practice the institution is already there when you arrive. *What changes:* the named person becomes a
+member, and the institution's name appears in the header of everyone who belongs to it. In this manual
+the institution is **Walkthrough University**.
 
-**2. People get accounts and seats.** Anyone can create an account at **Create your Tassl account**;
-an account with no seat lands on **Home** reading **Waiting for an invitation**. An instructor or a
-program lead presses **Invite to institution** on a section roster, and the invitee opens the
-link and presses **Accept the invitation**. *What changes:* the inviter's **Invitations** panel gains
-a **Pending** row, then the invitee can be put on a roster.
+**2. People get accounts and memberships.** Anyone can create an account at **Create your Tassl
+account**, and it starts as a **Student**; an account that belongs to no institution lands on
+**Home** reading **Waiting for an invitation**. An instructor presses **Invite to institution** on a
+section roster, and the invitee opens the link and presses **Accept the invitation**. An invitation
+carries no role — whatever the person may do comes from their own role, which a Platform Admin sets.
+*What changes:* the inviter's **Invitations** panel gains a **Pending** row, then the invitee can be
+put on a roster.
 
-**3. A scenario package is authored.** A scenario author (or an instructor) opens
+**3. A scenario package is authored.** A Scenario Editor opens
 **Packages** → **New package from a seed case**, pastes the licensed case text, and runs
 **Generate version 1**. The pipeline writes the elements in seven steps — **Re-skin, brief and
 stakeholders**, **Evidence Room documents**, **Answer space and named fields**, **Claims and their
 variant states**, **The Turn and the probe**, **Question bank and counterfactual**, **Readiness Check
 items**. *What changes:* nothing is usable yet; the version sits on the shelf as a draft.
 
-**4. The package version is confirmed and frozen.** The same author reads every element and presses
-**Confirm**, **Reject** or **Rewrite** on each, ticks **Teaching note checked against the answer space
-and claims**, and presses **Confirm version**. *What changes:* every instructor in the institution
-gets the notification **A scenario package is ready to assign**, and the version becomes selectable on
+**4. The package version is confirmed and frozen.** The same Scenario Editor reads every element and
+presses **Confirm**, **Reject** or **Rewrite** on each, ticks **Teaching note checked against the
+answer space and claims**, and presses **Confirm version**. *What changes:* every instructor and every
+other Scenario Editor in the institution gets the notification **A scenario package is ready to
+assign**, and the version becomes selectable on
 **New assignment**. The version's text can never change again; a change means a new version. In this
 manual the package is **Meridian Roast (fixture)**, at version 1.
 
@@ -160,10 +151,11 @@ manual the package is **Meridian Roast (fixture)**, at version 1.
 there is no section and no assignment. Here the course is **Marketing Strategy Walkthrough**.
 
 **6. The instructor adds a section and its roster.** **Sections** → **New section**, then **Roster** →
-**Add member** with an email address and a role of **Student**, **Instructor** or **Teaching
-assistant**. *What changes:* an added **Student** can now start that section's assignments. An added
-**Instructor** or **Teaching assistant** can now open the replays of that section's runs; without a
-row, a replay answers **Not found**. Here the section is named A.
+**Add member** with an email address. The roster row carries no role of its own; the **Role** column
+shows the role the person's account already holds. *What changes:* an added **Student** or **Scenario
+Editor** can now start that section's assignments. An added **Instructor** now teaches the course too,
+and can open the replays of its runs; an instructor who neither created the course nor sits on one of
+its rosters gets **Not found**. Here the section is named A.
 
 **7. The instructor sets the policy, the weight and the mapping.** On the course's **Policy** view
 they choose **Open**, **Declared** or **In-Environment Only**, set the **Default run weight**, and
@@ -227,7 +219,7 @@ number or reason earns one **Follow-up**. **Finish the defense** closes it.
 **18. The run is scored.** Tassl plots the four graphs and drafts a band on each of the seven
 dimensions. The student waits on **Run status**, which updates itself. *What changes:* the student is
 notified **Your run has been scored**; every reviewer of the section is notified **A run is ready to
-review**; and the run appears in the instructor's and the teaching assistant's **Review** queue. The
+review**; and the run appears in the instructor's **Review** queue. The
 student's debrief opens with every band chipped **Draft** and the points labeled **Provisional
 points, draft**.
 
@@ -235,8 +227,7 @@ points, draft**.
 replay and work through **Overview**, **Bands**, **Trace**, **Package** and **Actions**. On each
 dimension they press **Confirm the draft: {band}**, **Record {band} instead**, or **Record this
 dimension as Unassessed**, optionally leaving a **Note for the student (optional)**.
-**Confirm the remaining drafts** finishes the undecided ones in one step. A teaching assistant can do
-the same on any dimension the instructor has not already decided. *What changes:* the moment the
+**Confirm the remaining drafts** finishes the undecided ones in one step. *What changes:* the moment the
 seventh decision lands, the run becomes **Confirmed**, the first course export version is written,
 the run leaves the review queue, and the student is notified **Your bands are confirmed**.
 
@@ -258,7 +249,7 @@ as a file. *What changes:* the run's state chip reads **Recorded** on the instru
 version, which carries the seven bands, the course's mapping, the run's weight and the points. They
 type the result into their institution's own gradebook. Tassl holds no grade.
 
-Three things can still happen afterwards, and all three are the instructor's to do: enter a
+Three things can still happen afterwards, and all three belong to the instructors of the course: enter a
 **Correction** when Tassl got a claim wrong (which can raise a band and never lowers one), **Void this
 run** when it cannot be scored at all, or delete a run outright — but only on a **Walkthrough**
 assignment, because a run that counts is voided instead, which keeps the record.
@@ -340,7 +331,7 @@ text leaves Tassl in that mode.
 
 Every role starts in the same place. **Sign in to Tassl** asks for **Email address** and **Password**,
 keeps **Keep me signed in** ticked, and offers **Forgot your password?** and **Create an account**
-below. What you see after you sign in is decided by the seats and the roster rows you hold, and
+below. What you see after you sign in is decided by your one role and the roster rows you hold, and
 nothing else. The signed-out screens are explained field by field in
 [the learner manual](02-learner.md).
 
@@ -352,15 +343,13 @@ Then go to the file for your role. Each one is complete on its own and assumes o
 |---|---|
 | Instructor | [the instructor manual](01-instructor.md) |
 | Student | [the learner manual](02-learner.md) |
-| Teaching assistant | [the teaching assistant manual](05-teaching-assistant.md) |
-| Scenario author or scenario editor | [the scenario author manual](04-scenario-author.md) |
-| Program lead | [the program lead manual](06-program-lead.md) |
-| Platform admin | [the platform admin manual](03-admin.md) |
+| Scenario Editor | [the scenario editor manual](04-scenario-author.md), and [the learner manual](02-learner.md) for taking a run |
+| Platform Admin | [the platform admin manual](03-admin.md) |
 
 For a guided practice run with the demo accounts, follow the step-by-step walkthroughs instead:
 
 - [the student guide](../guides/learner-guide.md) — sixteen tasks, from signing in to closing a run.
-- [the instructor guide](../guides/instructor-guide.md) — twelve tasks, from creating a course to
+- [the instructor guide](../guides/instructor-guide.md) — eleven tasks, from creating a course to
   exporting results.
 - [the demo runbook](../guides/demo-runbook.md) — the timed path through a live demonstration.
 - [the guides index](../guides/README.md) — who reads what, and the demo accounts.

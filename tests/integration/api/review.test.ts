@@ -15,9 +15,10 @@
 //   GET  /assignments/{assignmentId}/exports                   the history (UI-035)
 //   GET  /runs/{runId}/record                                  the student's own record (FR-170)
 //
-// **The matrix is the point of this file.** 08 §4 gives the replay to an instructor and a TA of the
-// run's section and to nobody else; void and neutralize to the instructor alone; the course exports
-// to both reviewers and to no student; and the Judgment Record to the run's own student. The replay
+// **The matrix is the point of this file.** 08 §4 gives the replay to an Instructor who reviews the
+// run's section and to the Platform Admin, and to nobody else; void and neutralize to the same seat
+// (D-748); the course exports to reviewers and to no student; and the Judgment Record to the run's own
+// student. The replay
 // carries warranted stances, evidence status, failure families, the probe and the expected-answer
 // notes, so "a student is refused outright" is not a nicety — it is the invariant, and it is checked
 // against the real bundle rather than against an empty one.
@@ -93,8 +94,9 @@ const errorOf = (called: Called) =>
     details?: unknown
   }
 
-const sessionFor = (who: 'student' | 'instructor' | 'ta' | 'classmate'): Promise<Headers> =>
-  asUser(fx[who].id, { activeOrganizationId: fx.orgId })
+const sessionFor = (
+  who: 'student' | 'instructor' | 'admin' | 'editor' | 'classmate',
+): Promise<Headers> => asUser(fx[who].id, { activeOrganizationId: fx.orgId })
 
 beforeEach(async () => {
   await truncateAll()
@@ -167,8 +169,9 @@ describe('GET /review/runs/{runId}', () => {
       canDecide: true,
       canVoid: true,
       canNeutralize: true,
-      isInstructor: true,
     })
+    // One reviewing seat (D-748): nothing on the wire says which kind of reviewer is asking.
+    expect(bundle.capabilities).not.toHaveProperty('isInstructor')
 
     // D-120: the first open is stamped once, and reopening does not restamp it.
     const flags = bundle.flags as { replay_first_opened_at?: string }
@@ -204,8 +207,8 @@ describe('GET /review/runs/{runId}', () => {
   it('refuses the run’s own student, a classmate, and a signed-out caller', async () => {
     const runId = await scoredRun(fx)
 
-    // The owner holds a `student` membership on the section, so the reviewer guard reaches them and
-    // refuses the role: FORBIDDEN. They read their run through the debrief and the record.
+    // The owner is the run's own learner, whom the reviewer guard refuses with FORBIDDEN. They read
+    // their run through the debrief and the record.
     const owner = await call(routes.replay, {
       path: `/review/runs/${runId}`,
       session: await sessionFor('student'),
@@ -229,21 +232,23 @@ describe('GET /review/runs/{runId}', () => {
     expect(anonymous.status).toBe(401)
   })
 
-  it('answers a TA with the bundle and the capabilities of their seat (08 §4)', async () => {
+  it('answers the admin with the instructor’s capabilities, and refuses a Scenario Editor (D-748)', async () => {
     const runId = await scoredRun(fx)
-    const called = await call(routes.replay, {
-      path: `/review/runs/${runId}`,
-      session: await sessionFor('ta'),
-      params: { runId },
-    })
-    expect(called.status).toBe(200)
-    expect((called.body as { capabilities: Record<string, boolean> }).capabilities).toMatchObject({
-      canDecide: true,
-      canVoid: false,
-      canNeutralize: false,
-      canForceFailure: false,
-      isInstructor: false,
-    })
+    const replayAs = async (seat: 'instructor' | 'admin' | 'editor') =>
+      call(routes.replay, {
+        path: `/review/runs/${runId}`,
+        session: await sessionFor(seat),
+        params: { runId },
+      })
+    const instructor = await replayAs('instructor')
+    const admin = await replayAs('admin')
+    expect(admin.status).toBe(200)
+    expect((admin.body as { capabilities: unknown }).capabilities).toEqual(
+      (instructor.body as { capabilities: unknown }).capabilities,
+    )
+
+    // An editor reads packages, not learner results: the run is not theirs to know about.
+    expect((await replayAs('editor')).status).toBe(404)
   })
 })
 
@@ -288,18 +293,18 @@ describe('the faculty mutations', () => {
     expect((called.body as { error: { requestId?: string } }).error.requestId).toBeTruthy()
   })
 
-  it('gives void and neutralize to the instructor and refuses the TA (08 §4)', async () => {
+  it('gives void and neutralize to every reviewer and refuses the run’s student (08 §4, D-748)', async () => {
     const runId = await scoredRun(fx)
     const claimId = fx.claimId(claimByKey('C3').key)
 
-    const taNeutralize = await call(routes.neutralize, {
+    const studentNeutralize = await call(routes.neutralize, {
       method: 'POST',
       path: `/review/runs/${runId}/claims/${claimId}/neutralize`,
-      session: await sessionFor('ta'),
+      session: await sessionFor('student'),
       params: { runId, claimId },
       body: { reason: 'unintended_defect', creditChallenge: false, note: '' },
     })
-    expect(taNeutralize.status).toBe(403)
+    expect(studentNeutralize.status).toBe(403)
 
     const neutralized = await call(routes.neutralize, {
       method: 'POST',
@@ -317,14 +322,23 @@ describe('the faculty mutations', () => {
       (neutralized.body as { recompute: { dimensions: string[] } }).recompute.dimensions,
     ).toEqual(['verification', 'calibration'])
 
-    const taVoid = await call(routes.void, {
+    const classmateVoid = await call(routes.void, {
       method: 'POST',
       path: `/review/runs/${runId}/void`,
-      session: await sessionFor('ta'),
+      session: await sessionFor('classmate'),
       params: { runId },
       body: { reason: 'other', reoffer: false },
     })
-    expect(taVoid.status).toBe(403)
+    expect(classmateVoid.status).toBe(404)
+
+    const adminVoid = await call(routes.void, {
+      method: 'POST',
+      path: `/review/runs/${runId}/void`,
+      session: await sessionFor('admin'),
+      params: { runId },
+      body: { reason: 'other', reoffer: false },
+    })
+    expect(adminVoid.status).toBe(200)
   })
 
   it('voids and re-offers through the wire', async () => {
@@ -377,11 +391,32 @@ describe('the queue and the section list', () => {
     expect(Array.isArray(body.illustrative)).toBe(true)
   })
 
-  it('answers a section’s runs to its reviewers and refuses a student', async () => {
+  it('covers every section for the admin, is empty for an Instructor who reviews nothing, and refuses the rest (D-748)', async () => {
+    const runId = await scoredRun(fx)
+    const queueAs = async (session: Headers) =>
+      call(routes.queue, { path: '/review/queue', session })
+
+    const admin = await queueAs(await sessionFor('admin'))
+    expect(admin.status).toBe(200)
+    expect((admin.body as { runs: { id: string }[] }).runs.map((row) => row.id)).toContain(runId)
+
+    const f = await import('@tests/factories')
+    const idle = await f.createUser('api-review-idle-instructor', { platformRole: 'instructor' })
+    await f.addMember(fx.orgId, idle.id)
+    const empty = await queueAs(await asUser(idle.id, { activeOrganizationId: fx.orgId }))
+    expect(empty.status).toBe(200)
+    expect((empty.body as { runs: unknown[] }).runs).toEqual([])
+
+    for (const seat of ['student', 'editor'] as const) {
+      expect((await queueAs(await sessionFor(seat))).status).toBe(403)
+    }
+  })
+
+  it('answers a section’s runs to its reviewers and refuses a student and an editor', async () => {
     const runId = await scoredRun(fx)
     const called = await call(routes.sectionRuns, {
       path: `/review/sections/${fx.assignment.sectionId}/runs`,
-      session: await sessionFor('ta'),
+      session: await sessionFor('admin'),
       params: { sectionId: fx.assignment.sectionId },
     })
     expect(called.status).toBe(200)
@@ -390,12 +425,23 @@ describe('the queue and the section list', () => {
     expect(row).toMatchObject({ decisionsMade: 0 })
     expect(['defective', 'sound']).toContain(row?.variantKey)
 
-    const student = await call(routes.sectionRuns, {
-      path: `/review/sections/${fx.assignment.sectionId}/runs`,
-      session: await sessionFor('student'),
-      params: { sectionId: fx.assignment.sectionId },
+    for (const seat of ['student', 'editor'] as const) {
+      const refused = await call(routes.sectionRuns, {
+        path: `/review/sections/${fx.assignment.sectionId}/runs`,
+        session: await sessionFor(seat),
+        params: { sectionId: fx.assignment.sectionId },
+      })
+      expect(refused.status).toBe(403)
+    }
+
+    // A section id that names nothing answers NOT_FOUND, like one in another institution.
+    const unknownSectionId = crypto.randomUUID()
+    const unknown = await call(routes.sectionRuns, {
+      path: `/review/sections/${unknownSectionId}/runs`,
+      session: await sessionFor('instructor'),
+      params: { sectionId: unknownSectionId },
     })
-    expect(student.status).toBe(403)
+    expect(unknown.status).toBe(404)
   })
 })
 
@@ -415,7 +461,7 @@ describe('the course exports', () => {
 
     const listed = await call(routes.runExports, {
       path: `/runs/${runId}/exports`,
-      session: await sessionFor('ta'),
+      session: await sessionFor('admin'),
       params: { runId },
     })
     expect(listed.status).toBe(200)
@@ -549,7 +595,7 @@ describe('GET /runs/{runId}/record', () => {
       session: await sessionFor('instructor'),
       params: { runId },
     })
-    for (const seat of ['instructor', 'ta', 'classmate'] as const) {
+    for (const seat of ['instructor', 'editor', 'classmate'] as const) {
       const refused = await call(routes.record, {
         path: `/runs/${runId}/record`,
         session: await sessionFor(seat),

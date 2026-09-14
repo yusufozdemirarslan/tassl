@@ -13,7 +13,7 @@ export const settings = {
   'settings.profileSave': 'Save changes',
   'settings.profileSaved': 'Your name is saved.',
   'settings.emailFixed':
-    'Your institution knows you by this address, so it is not editable here. Ask your program lead if it needs to change.',
+    'Your institution knows you by this address, so it is not editable here. Ask your instructor if it needs to change.',
   'settings.security.passwordTitle': 'Password',
   'settings.security.passwordDescription':
     'Choosing a new password signs out every other device straight away.',

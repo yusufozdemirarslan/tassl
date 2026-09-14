@@ -1,7 +1,8 @@
 // Step 3.5 — every endpoint of docs/tech/07-api-spec.md §4 with one allow and one deny case,
 // called as a real `Request` through the handler each `src/app/api/v1/**/route.ts` exports. The
 // deny cases are the "—" cells of 08-auth-authz.md §4 for these rows, plus the cross-tenant rule of
-// 07 §1: an institution or an agreement in another tenant answers 404, never 403.
+// 07 §1: an institution or an agreement in another tenant answers 404, never 403. Since D-748 the
+// cells are platform roles: invitations are an Instructor's, settings and agreements the admin's.
 //
 // `asUser()` supplies the session cookie; non-GET requests carry `X-Requested-With: tassl`, the
 // CSRF header `defineRoute` requires of cookie-authenticated mutations (08 §2.7).
@@ -46,7 +47,6 @@ let f: Factories
 
 let orgA: string
 let orgB: string
-let lead: UserRow
 let instructor: UserRow
 let student: UserRow
 let admin: UserRow
@@ -112,8 +112,7 @@ describe('tenancy endpoints (07 §4)', () => {
     orgA = (await f.createInstitution('api-tenancy')).organization.id
     orgB = (await f.createInstitution('api-other')).organization.id
 
-    lead = await f.createUser('api-lead')
-    instructor = await f.createUser('api-instructor')
+    instructor = await f.createUser('api-instructor', { platformRole: 'instructor' })
     student = await f.createUser('api-student')
     admin = await f.createUser('api-admin', { platformRole: 'admin' })
     editor = await f.createUser('api-editor', { platformRole: 'tassl_scenario_editor' })
@@ -121,10 +120,9 @@ describe('tenancy endpoints (07 §4)', () => {
     outsider = await f.createUser('api-outsider')
     newLead = await f.createUser('api-new-lead')
 
-    await f.addMember(orgA, lead.id, 'program_lead')
-    await f.addMember(orgA, instructor.id, 'instructor')
-    await f.addMember(orgA, student.id, 'student')
-    await f.addMember(orgA, editor.id, 'scenario_author')
+    await f.addMember(orgA, instructor.id)
+    await f.addMember(orgA, student.id)
+    await f.addMember(orgA, editor.id)
   })
 
   afterAll(async () => {
@@ -135,7 +133,7 @@ describe('tenancy endpoints (07 §4)', () => {
     asUser(user.id, { activeOrganizationId: orgId ?? null })
 
   describe('POST /institutions', () => {
-    it('creates the institution, its settings, and the program lead member for an admin', async () => {
+    it('creates the institution, its settings, and its first member for an admin', async () => {
       const created = await call(institutions.POST, {
         method: 'POST',
         path: '/institutions',
@@ -149,7 +147,7 @@ describe('tenancy endpoints (07 §4)', () => {
       const orgId = created.body.id as string
       const members = await testSql<{ role: string }[]>`
         select role from member where organization_id = ${orgId} and user_id = ${newLead.id}`
-      expect(members).toEqual([{ role: 'program_lead' }])
+      expect(members).toEqual([{ role: 'member' }])
       expect(await repo.findSettings(orgId)).not.toBeNull()
     })
 
@@ -170,14 +168,27 @@ describe('tenancy endpoints (07 §4)', () => {
   })
 
   describe('GET /institutions', () => {
-    it('lists the institutions the actor belongs to, with the role held', async () => {
+    it('lists the institutions the actor belongs to, with no role on them', async () => {
       const listed = await call(institutions.GET, {
         path: '/institutions',
         session: await sessionFor(instructor, orgA),
       })
 
       expect(listed.status).toBe(200)
-      expect(listed.body).toEqual([expect.objectContaining({ id: orgA, role: 'instructor' })])
+      expect(listed.body).toEqual([
+        { id: orgA, name: 'api-tenancy University', slug: 'api-tenancy' },
+      ])
+    })
+
+    it('lists every institution for the admin, who belongs to none (D-748)', async () => {
+      const listed = await call(institutions.GET, {
+        path: '/institutions',
+        session: await sessionFor(admin),
+      })
+
+      expect(listed.status).toBe(200)
+      const ids = (listed.body as unknown as { id: string }[]).map((row) => row.id)
+      expect(ids).toEqual(expect.arrayContaining([orgA, orgB]))
     })
 
     it('refuses a request with no session', async () => {
@@ -216,11 +227,11 @@ describe('tenancy endpoints (07 §4)', () => {
   })
 
   describe('PATCH /institutions/{orgId}/settings', () => {
-    it('lets the program lead set the plan and the default mapping', async () => {
+    it('lets the admin set the plan and the default mapping without a member row', async () => {
       const updated = await call(settings.PATCH, {
         method: 'PATCH',
         path: `/institutions/${orgA}/settings`,
-        session: await sessionFor(lead, orgA),
+        session: await sessionFor(admin),
         params: { orgId: orgA },
         body: {
           plan: 'course_license',
@@ -251,7 +262,7 @@ describe('tenancy endpoints (07 §4)', () => {
       const invalid = await call(settings.PATCH, {
         method: 'PATCH',
         path: `/institutions/${orgA}/settings`,
-        session: await sessionFor(lead, orgA),
+        session: await sessionFor(admin),
         params: { orgId: orgA },
         body: { defaultMapping: { novice: 0, developing: 2, proficient: 3, professional: 4 } },
       })
@@ -267,28 +278,27 @@ describe('tenancy endpoints (07 §4)', () => {
         path: `/institutions/${orgA}/invitations`,
         session: await sessionFor(instructor, orgA),
         params: { orgId: orgA },
-        body: { email: invitee.email, role: 'student' },
+        body: { email: invitee.email },
       })
 
       expect(created.status).toBe(201)
-      expect(created.body).toMatchObject({
-        email: invitee.email,
-        role: 'student',
-        status: 'pending',
-      })
+      expect(created.body).toMatchObject({ email: invitee.email, status: 'pending' })
+      expect(created.body).not.toHaveProperty('role')
     })
 
-    it('refuses a student', async () => {
-      const denied = await call(invitations.POST, {
-        method: 'POST',
-        path: `/institutions/${orgA}/invitations`,
-        session: await sessionFor(student, orgA),
-        params: { orgId: orgA },
-        body: { email: outsider.email, role: 'student' },
-      })
+    it('refuses a student and a scenario editor', async () => {
+      for (const seat of [student, editor]) {
+        const denied = await call(invitations.POST, {
+          method: 'POST',
+          path: `/institutions/${orgA}/invitations`,
+          session: await sessionFor(seat, orgA),
+          params: { orgId: orgA },
+          body: { email: outsider.email },
+        })
 
-      expect(denied.status).toBe(403)
-      expect(errorCode(denied)).toBe('FORBIDDEN')
+        expect(denied.status).toBe(403)
+        expect(errorCode(denied)).toBe('FORBIDDEN')
+      }
     })
   })
 
@@ -320,20 +330,16 @@ describe('tenancy endpoints (07 §4)', () => {
       })
 
       expect(accepted.status).toBe(200)
-      expect(accepted.body).toEqual({
-        organizationId: orgA,
-        name: 'api-tenancy University',
-        role: 'student',
-      })
+      expect(accepted.body).toEqual({ organizationId: orgA, name: 'api-tenancy University' })
     })
   })
 
   describe('GET and POST /institutions/{orgId}/agreements', () => {
-    it('lets the program lead write an agreement and read it back', async () => {
+    it('lets the admin write an agreement and read it back', async () => {
       const created = await call(agreements.POST, {
         method: 'POST',
         path: `/institutions/${orgA}/agreements`,
-        session: await sessionFor(lead, orgA),
+        session: await sessionFor(admin),
         params: { orgId: orgA },
         body: AGREEMENT,
       })
@@ -347,19 +353,19 @@ describe('tenancy endpoints (07 §4)', () => {
 
       const listed = await call(agreements.GET, {
         path: `/institutions/${orgA}/agreements`,
-        session: await sessionFor(lead, orgA),
+        session: await sessionFor(admin),
         params: { orgId: orgA },
       })
       expect(listed.status).toBe(200)
       expect(listed.body).toHaveLength(1)
 
-      // FR-234: the platform editor reads the rows of an institution they are a member of.
+      // D-748: an agreement grants a Scenario Editor nothing, the reading of it included.
       const asEditor = await call(agreements.GET, {
         path: `/institutions/${orgA}/agreements`,
         session: await sessionFor(editor, orgA),
         params: { orgId: orgA },
       })
-      expect(asEditor.status).toBe(200)
+      expect(asEditor.status).toBe(403)
 
       // The audit row is written in the same transaction as the agreement (08 §5).
       const audits = await testSql<{ action: string }[]>`
@@ -379,7 +385,7 @@ describe('tenancy endpoints (07 §4)', () => {
       const invalid = await call(agreements.POST, {
         method: 'POST',
         path: `/institutions/${orgA}/agreements`,
-        session: await sessionFor(lead, orgA),
+        session: await sessionFor(admin),
         params: { orgId: orgA },
         body: { ...AGREEMENT, purposes: [] },
       })
@@ -396,7 +402,7 @@ describe('tenancy endpoints (07 §4)', () => {
       const ended = await call(agreement.PATCH, {
         method: 'PATCH',
         path: `/agreements/${target.id}`,
-        session: await sessionFor(lead, orgA),
+        session: await sessionFor(admin, orgA),
         params: { agreementId: target.id },
         body: { endsAt: '2026-12-31T00:00:00.000Z' },
       })
@@ -422,7 +428,7 @@ describe('tenancy endpoints (07 §4)', () => {
       const denied = await call(agreement.PATCH, {
         method: 'PATCH',
         path: `/agreements/${elsewhere!.id}`,
-        session: await sessionFor(lead, orgA),
+        session: await sessionFor(admin, orgA),
         params: { agreementId: elsewhere!.id },
         body: { retentionDays: 30 },
       })

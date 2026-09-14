@@ -80,12 +80,11 @@ async function seed() {
     where id = ${w.pkg.version.id}`
 
   const outsiderOrg = (await f.createInstitution('api-runs-b')).organization.id
-  const outsider = await f.createUser('api-runs-outsider')
-  await f.addMember(outsiderOrg, outsider.id, 'instructor')
+  const outsider = await f.createUser('api-runs-outsider', { platformRole: 'instructor' })
+  await f.addMember(outsiderOrg, outsider.id)
 
-  const ta = await f.createUser('api-runs-ta')
-  await f.addMember(orgId, ta.id, 'teaching_assistant')
-  await f.addSectionMember(orgId, w.section.id, ta.id, 'ta')
+  // The Platform Admin holds no membership and is admitted everywhere (D-748).
+  const admin = await f.createUser('api-runs-admin', { platformRole: 'admin' })
 
   const session = (user: UserRow, org = orgId): Promise<Headers> =>
     asUser(user.id, { activeOrganizationId: org })
@@ -96,7 +95,7 @@ async function seed() {
     student: await session(w.student1),
     student2: await session(w.student2),
     instructor: await session(w.instructor),
-    ta: await session(ta),
+    admin: await session(admin),
     outsider: await session(outsider, outsiderOrg),
   }
 }
@@ -158,10 +157,15 @@ describe('POST /assignments/{assignmentId}/runs', () => {
     expect(errorCode(again)).toBe('RUN_ACTIVE_EXISTS')
   })
 
-  it('refuses the instructor, the TA and another institution', async () => {
+  it('refuses an Instructor on the roster and another institution', async () => {
     expect((await start(fx.instructor)).status).toBe(403)
-    expect((await start(fx.ta)).status).toBe(403)
     expect((await start(fx.outsider)).status).toBe(404)
+    expect(await runRows()).toHaveLength(0)
+  })
+
+  it('answers 201 to the Platform Admin, who needs no roster seat (D-748)', async () => {
+    expect((await start(fx.admin)).status).toBe(201)
+    expect(await runRows()).toHaveLength(1)
   })
 
   // 07 §1: "`Idempotency-Key` header accepted on the routes marked *idempotent*; a repeat within
@@ -249,9 +253,9 @@ describe('GET /assignments/{assignmentId}/runs', () => {
       params: { assignmentId: fx.assignmentId },
     })
 
-  it('gives the section instructor and the TA every run with its student', async () => {
+  it('gives the section instructor and the Platform Admin every run with its student', async () => {
     const started = (await start(fx.student)).body as { id: string }
-    for (const reviewer of [fx.instructor, fx.ta]) {
+    for (const reviewer of [fx.instructor, fx.admin]) {
       const called = await list(reviewer)
       expect(called.status).toBe(200)
       const items = (called.body as { items: Record<string, unknown>[] }).items
@@ -335,7 +339,7 @@ describe('GET /runs/{runId}', () => {
   it('answers a reviewer and refuses a classmate, another institution, and a bad id', async () => {
     const started = (await start(fx.student)).body as { id: string }
     expect((await get(fx.instructor, started.id)).status).toBe(200)
-    expect((await get(fx.ta, started.id)).status).toBe(200)
+    expect((await get(fx.admin, started.id)).status).toBe(200)
     expect((await get(fx.student2, started.id)).status).toBe(404)
     expect((await get(fx.outsider, started.id)).status).toBe(404)
     expect((await get(fx.student, '00000000-0000-4000-8000-000000000000')).status).toBe(404)
@@ -370,12 +374,13 @@ describe('POST /runs/{runId}/policy-ack', () => {
     expect(errorCode(again)).toBe('ILLEGAL_TRANSITION')
   })
 
-  it('refuses everyone but the owner, reviewers included', async () => {
+  it('refuses everyone but the owner and the Platform Admin, reviewers included', async () => {
     const started = (await start(fx.student)).body as { id: string }
     expect((await ack(fx.instructor, started.id)).status).toBe(404)
-    expect((await ack(fx.ta, started.id)).status).toBe(404)
     expect((await ack(fx.student2, started.id)).status).toBe(404)
     expect((await ack(fx.outsider, started.id)).status).toBe(404)
+    // Every in-run act admits the admin (D-748).
+    expect((await ack(fx.admin, started.id)).status).toBe(200)
   })
 })
 

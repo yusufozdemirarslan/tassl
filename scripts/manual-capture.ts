@@ -10,7 +10,7 @@
  *   <MANUAL_TEXT_DIR>/<role>/<name>.txt        — the page's visible text and its accessible tree,
  *                                                so the manual is written from what is on screen
  *
- * Lanes: public instructor instructor-extra admin editor learner ta lead
+ * Lanes: public instructor instructor-extra admin editor learner extras admin-flags
  */
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
@@ -220,9 +220,8 @@ async function instructorLane(): Promise<void> {
     return hrefMatching(/\/sections\/[0-9a-f-]+\/roster$/)
   })()
   if (roster !== null) {
-    await visit('roster', roster)
-    await open(/Invite/, 'roster-invite-dialog')
-    await dismissOverlays()
+    await page.goto(`${BASE}${roster}`, { waitUntil: 'domcontentloaded' })
+    await page.waitForTimeout(1200)
     await open(/^Remove /, 'roster-remove-dialog')
     await dismissOverlays()
   }
@@ -235,9 +234,6 @@ async function instructorLane(): Promise<void> {
   await visit('packages', '/packages')
   await visit('package-version', SEEDED.packageVersion)
   await visit('package-claim', `${SEEDED.packageVersion}?claim=C3#claims`)
-  await visit('package-confirm', `${SEEDED.packageVersion}/confirm`)
-  await visit('package-generation', `${SEEDED.packageVersion}/generation`)
-  await visit('packages-new', '/packages/new')
 }
 
 /** The replay actions that change a run, captured on the seat that already has a scored run. */
@@ -299,10 +295,6 @@ async function adminLane(): Promise<void> {
   await dismissOverlays()
   await visit('admin-flags', '/admin/flags')
   await visit('admin-audit', '/admin/audit')
-  await visit('forbidden-courses', '/courses')
-  await visit('forbidden-review', '/review')
-  await visit('forbidden-packages', '/packages')
-  await visit('forbidden-runs', '/runs')
 }
 
 async function editorLane(): Promise<void> {
@@ -315,7 +307,6 @@ async function editorLane(): Promise<void> {
   await visit('package-claim', `${SEEDED.packageVersion}?claim=C3#claims`)
   await visit('package-confirm', `${SEEDED.packageVersion}/confirm`)
   await visit('package-generation', `${SEEDED.packageVersion}/generation`)
-  await visit('forbidden-courses', '/courses')
   await visit('forbidden-review', '/review')
   await visit('forbidden-admin', '/admin/users')
   await visit('forbidden-runs', '/runs')
@@ -326,48 +317,9 @@ async function learnerLane(): Promise<void> {
   await shellFor('learner')
   setRole('learner')
   await visit('runs-list', '/runs')
-  await visit('forbidden-courses', '/courses')
   await visit('forbidden-review', '/review')
   await visit('forbidden-packages', '/packages')
   await visit('forbidden-admin', '/admin/users')
-}
-
-async function taLane(): Promise<void> {
-  await signIn('ta')
-  await shellFor('teaching-assistant')
-  setRole('teaching-assistant')
-  await visit('review-queue', '/review')
-  const replay = await hrefMatching(/^\/review\/runs\/[0-9a-f-]+$/)
-  if (replay !== null) {
-    await visit('replay-overview', `${replay}?tab=overview`)
-    await visit('replay-bands', `${replay}?tab=bands`)
-    await visit('replay-trace', `${replay}?tab=trace`)
-    await visit('replay-package', `${replay}?tab=package`)
-    await visit('replay-actions', `${replay}?tab=actions`)
-  } else {
-    problems.push('ta: no replay link in the review queue')
-  }
-  await visit('forbidden-courses', '/courses')
-  await visit('forbidden-packages', '/packages')
-  await visit('forbidden-admin', '/admin/users')
-  await visit('forbidden-runs', '/runs')
-}
-
-async function leadLane(): Promise<void> {
-  await signIn('lead')
-  await shellFor('program-lead')
-  setRole('program-lead')
-  await visit('courses', '/courses')
-  await visit('course-sections', `${SEEDED.course}?tab=sections`)
-  await visit('course-assignments', `${SEEDED.course}?tab=assignments`)
-  await visit('course-policy', `${SEEDED.course}?tab=policy`)
-  await visit('course-mapping', `${SEEDED.course}?tab=mapping`)
-  await visit('assignment', SEEDED.walkthroughAssignment)
-  await visit('assignment-exports', `${SEEDED.walkthroughAssignment}/exports`)
-  await visit('forbidden-review', '/review')
-  await visit('forbidden-packages', '/packages')
-  await visit('forbidden-admin', '/admin/users')
-  await visit('forbidden-runs', '/runs')
 }
 
 /** The Flags screen in full, and the assistant-mode switch as it looks when FEATURE_AI is on. */
@@ -395,32 +347,6 @@ async function adminFlagsLane(): Promise<void> {
 
 /** The states that only appear after an interaction, one seat at a time. */
 async function extrasLane(): Promise<void> {
-  await signIn('instructor')
-  setRole('instructor')
-  await page.goto(`${BASE}${SEEDED.course}?tab=sections`, { waitUntil: 'domcontentloaded' })
-  await page.waitForTimeout(900)
-  const roster = await hrefMatching(/\/sections\/[0-9a-f-]+\/roster$/)
-  if (roster !== null) {
-    await page.goto(`${BASE}${roster}`, { waitUntil: 'domcontentloaded' })
-    await page.waitForTimeout(1000)
-    const addPanel = page.getByRole('region', { name: 'Add member' })
-    await addPanel.getByLabel('Email address').fill('new.teaching.assistant@example.edu')
-    await page.waitForTimeout(400)
-    await shot('roster-add-member-filled', addPanel)
-    await addPanel.getByRole('button', { name: 'Add to section' }).click()
-    await page.waitForTimeout(2500)
-    await shot('roster-invite-dialog')
-    await dismissOverlays()
-  }
-  // The scenario-package form, with its seed fields in view.
-  await visit('packages-new-form', '/packages/new')
-  const create = page.getByRole('button', { name: /^(Create|Build|Generate)/ }).first()
-  if (await create.isVisible().catch(() => false)) {
-    await create.click()
-    await page.waitForTimeout(1800)
-    await shot('packages-new-validation')
-  }
-
   await signOutIfSignedIn()
   await signIn('admin')
   setRole('admin')
@@ -435,15 +361,6 @@ async function extrasLane(): Promise<void> {
     await dismissOverlays()
   } else {
     problems.push('admin: no platform-role combobox on /admin/users')
-  }
-  const seatBox = page.getByRole('combobox', { name: /^Institution role for / }).first()
-  if (await seatBox.isVisible().catch(() => false)) {
-    await seatBox.click()
-    await page.waitForTimeout(900)
-    await shot('admin-institution-role-options')
-    await dismissOverlays()
-  } else {
-    problems.push('admin: no institution-role combobox on /admin/users')
   }
   const search = page
     .getByRole('searchbox')
@@ -492,8 +409,6 @@ async function main(): Promise<void> {
     admin: adminLane,
     editor: editorLane,
     learner: learnerLane,
-    ta: taLane,
-    lead: leadLane,
     extras: extrasLane,
     'admin-flags': adminFlagsLane,
   }

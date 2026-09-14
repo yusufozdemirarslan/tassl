@@ -226,6 +226,10 @@ describe('the export header', () => {
       'element_id',
       'element_type',
     ])
+    // The confirmer's platform role, read from their account (D-748): the fixture's Scenario Editor.
+    expect(new Set(confirmations.map((entry) => entry.decided_by_role))).toEqual(
+      new Set(['tassl_scenario_editor']),
+    )
 
     const readiness = header(document).readiness as Json[]
     const [result] = await testSql<{ concepts: { concept_key: string; status: string }[] }[]>`
@@ -673,12 +677,12 @@ describe('the record export', () => {
     ).toEqual([])
   })
 
-  it('is served to an instructor and a TA of the section, and to no other student', async () => {
+  it('is served to an instructor of the section and the Platform Admin, and to no other student', async () => {
     const runId = await runThroughDefense()
     await markConfirmed(runId)
 
     expect(header(await records.exportRecord(fx.instructor, runId)).run_id).toBe(runId)
-    expect(header(await records.exportRecord(fx.ta, runId)).run_id).toBe(runId)
+    expect(header(await records.exportRecord(fx.admin, runId)).run_id).toBe(runId)
     // A classmate is told nothing, not even that the run exists (08 §4).
     expect(await codeOf(records.exportRecord(fx.classmate, runId))).toBe('NOT_FOUND')
   })
@@ -712,9 +716,9 @@ describe('the assignment’s export history', () => {
   // one click up admitted the course's own instructor, so a course creator holding no row in the
   // section saw the "Course exports" link and got a 404 behind it. The two now ask one predicate,
   // and this test is that arrangement: the same seat, with the section row taken away.
-  it('draws the replay link for a reviewer who does hold a row in the section (D-517)', async () => {
+  it('draws the replay link for a reviewer on the roster, and for the Platform Admin (D-517, D-748)', async () => {
     const courses = await import('@/server/modules/courses')
-    for (const actor of [fx.instructor, fx.ta]) {
+    for (const actor of [fx.instructor, fx.admin]) {
       const assignment = await courses.getAssignment(actor, fx.assignment.id)
       expect(assignment.canViewExports).toBe(true)
       expect(assignment.canOpenRuns).toBe(true)
@@ -743,18 +747,19 @@ describe('the assignment’s export history', () => {
     expect(assignment.canViewExports).toBe(true)
     expect((await courses.listAssignmentRuns(fx.instructor, fx.assignment.id)).items).toEqual([])
 
-    // D-517: and the *replay* link that history draws per row is a different bit, because it is a
-    // different guard. `requireRunReviewer` is untouched by D-483 and is still a section row alone,
-    // so this seat — which may read the whole export history — may not open a run from it, and the
-    // screen has to say so rather than draw a hundred links that all answer 404. That was D-483's
-    // own defect, one level over.
-    expect(assignment.canOpenRuns).toBe(false)
+    // D-517, as D-748 reads it: the *replay* link that history draws per row is the same bit now,
+    // because `requireRunReviewer` asks `canReviewSection` — and the Instructor who created the
+    // course reviews its sections whether or not they hold a roster row. So the link is drawn, and
+    // the run behind it opens.
+    expect(assignment.canOpenRuns).toBe(true)
 
     // Every row of that history carries a download, and 08 §4 puts the two acts on one row: the
     // same seat reaches `getCourseExport`. This run has filed nothing, so the honest answer is
     // `EXPORT_NOT_FOUND` — which is the point, because the guard's own refusal is `NOT_FOUND` and
     // the two are told apart by their codes.
     const runId = await runInWorking(fx)
+    const runs = await import('@/server/modules/runs')
+    await expect(runs.getRun(fx.instructor, runId)).resolves.toMatchObject({ id: runId })
     expect(await codeOf(records.getCourseExport(fx.instructor, runId, 'latest'))).toBe(
       'EXPORT_NOT_FOUND',
     )

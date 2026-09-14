@@ -38,12 +38,18 @@ async function createOrganization(): Promise<{ orgId: string; slug: string }> {
   return { orgId, slug }
 }
 
-async function createUser(name = 'Seat One'): Promise<string> {
+async function createUser(name = 'Seat One', platformRole = 'student'): Promise<string> {
   const userId = crypto.randomUUID()
   await testSql`
-    insert into "user" (id, name, email, email_verified, created_at, updated_at)
-    values (${userId}, ${name}, ${`${userId}@example.test`}, true, now(), now())`
+    insert into "user" (id, name, email, email_verified, platform_role, created_at, updated_at)
+    values (${userId}, ${name}, ${`${userId}@example.test`}, true, ${platformRole}, now(), now())`
   return userId
+}
+
+async function addMember(orgId: string, userId: string): Promise<void> {
+  await testSql`
+    insert into member (id, organization_id, user_id, role, created_at)
+    values (${crypto.randomUUID()}, ${orgId}, ${userId}, 'member', now())`
 }
 
 type Tenant = { orgId: string; slug: string; userId: string }
@@ -152,7 +158,7 @@ describe('identity repository', () => {
     const userId = await createUser()
     const found = await identity.findUserById(userId)
     expect(found?.id).toBe(userId)
-    expect(found?.platform_role).toBe('none')
+    expect(found?.platform_role).toBe('student')
     expect(await identity.findUserById(crypto.randomUUID())).toBeNull()
   })
 
@@ -163,6 +169,7 @@ describe('identity repository', () => {
     const created = await identity.createPlaceholderUser(orgId)
     expect(created.email).toBe(`deleted-user@${slug}.tassl.local`)
     expect(created.name).toBe(identity.PLACEHOLDER_USER_NAME)
+    expect(created.platform_role).toBe('student')
 
     const again = await identity.createPlaceholderUser(orgId)
     expect(again.id).toBe(created.id)
@@ -178,6 +185,21 @@ describe('identity repository', () => {
     await expect(identity.createPlaceholderUser(crypto.randomUUID())).rejects.toMatchObject({
       code: 'NOT_FOUND',
     })
+  })
+
+  it('lists own institutions, and every institution for the admin reading (D-748)', async () => {
+    const userId = await createUser()
+    const a = await createOrganization()
+    const b = await createOrganization()
+    await addMember(a.orgId, userId)
+
+    const own = await identity.listMembershipsForUser(userId)
+    expect(own.map((row) => row.organizationId)).toEqual([a.orgId])
+    expect(own[0]).not.toHaveProperty('role')
+
+    const all = await identity.listAllInstitutionsAsMemberships(userId)
+    expect(all.map((row) => row.organizationId).sort()).toEqual([a.orgId, b.orgId].sort())
+    for (const row of all) expect(row.joinedAt).toBeInstanceOf(Date)
   })
 
   it('lists users soft-deleted before the cut-off only', async () => {
@@ -276,6 +298,86 @@ describe('identity repository', () => {
 })
 
 describe('tenancy repository', () => {
+  it('lists every organization, memberships, and members by platform role (D-748)', async () => {
+    const a = await createOrganization()
+    const b = await createOrganization()
+    const instructor = await createUser('Instructor', 'instructor')
+    const editor = await createUser('Editor', 'tassl_scenario_editor')
+    const student = await createUser('Student')
+    const elsewhere = await createUser('Elsewhere', 'instructor')
+    for (const userId of [instructor, editor, student]) await addMember(a.orgId, userId)
+    await addMember(b.orgId, elsewhere)
+
+    expect((await tenancy.listOrganizations()).map((o) => o.id).sort()).toEqual(
+      [a.orgId, b.orgId].sort(),
+    )
+    expect((await tenancy.listMembershipsByUser(student)).map((o) => o.id)).toEqual([a.orgId])
+    expect(await tenancy.hasMember(a.orgId, student)).toBe(true)
+    expect(await tenancy.hasMember(b.orgId, student)).toBe(false)
+    expect(await tenancy.hasMemberWithEmail(a.orgId, `${student.toUpperCase()}@EXAMPLE.TEST`)).toBe(
+      true,
+    )
+
+    const fanOut = await tenancy.listMemberIdsWithPlatformRoles(a.orgId, [
+      'instructor',
+      'tassl_scenario_editor',
+    ])
+    expect(fanOut.sort()).toEqual([instructor, editor].sort())
+    expect(await tenancy.listMemberIdsWithPlatformRoles(a.orgId, [])).toEqual([])
+  })
+
+  it('writes, finds, and extends an invitation within the tenant', async () => {
+    const { orgId } = await createOrganization()
+    const other = await createOrganization()
+    const inviter = await createUser('Admin', 'admin')
+    const expiresAt = new Date(Date.now() + 7 * DAY_MS)
+
+    const row = await tenancy.insertInvitation(orgId, {
+      email: 'Invitee@Example.test',
+      role: 'member',
+      inviterId: inviter,
+      expiresAt,
+    })
+    expect(row).toMatchObject({ email: 'invitee@example.test', status: 'pending' })
+    expect((await tenancy.findPendingInvitation(orgId, 'INVITEE@example.test'))?.id).toBe(row.id)
+    expect(await tenancy.findPendingInvitation(other.orgId, 'invitee@example.test')).toBeNull()
+
+    const later = new Date(Date.now() + 8 * DAY_MS)
+    expect(await tenancy.extendInvitation(other.orgId, row.id, later)).toBeNull()
+    expect((await tenancy.extendInvitation(orgId, row.id, later))?.expiresAt.getTime()).toBe(
+      later.getTime(),
+    )
+
+    await testSql`update invitation set expires_at = now() - interval '1 day' where id = ${row.id}`
+    expect(await tenancy.findPendingInvitation(orgId, 'invitee@example.test')).toBeNull()
+
+    // The table admits no role but the plugin's membership role.
+    await expect(
+      tenancy.insertInvitation(orgId, {
+        email: 'other@example.test',
+        role: 'instructor',
+        inviterId: inviter,
+        expiresAt,
+      }),
+    ).rejects.toThrow()
+  })
+
+  it('points only the named session of its owner at an institution', async () => {
+    const { orgId } = await createOrganization()
+    const owner = await createUser('Owner', 'admin')
+    const stranger = await createUser('Stranger')
+    const sessionId = crypto.randomUUID()
+    await testSql`
+      insert into session (id, expires_at, token, created_at, updated_at, user_id)
+      values (${sessionId}, now() + interval '1 day', ${`tok-${sessionId}`}, now(), now(), ${owner})`
+
+    expect(await tenancy.setSessionActiveOrganization(sessionId, stranger, orgId)).toBeNull()
+    expect(await tenancy.setSessionActiveOrganization(sessionId, owner, orgId)).toBe(sessionId)
+    const [row] = await testSql<{ active_organization_id: string | null }[]>`
+      select active_organization_id from session where id = ${sessionId}`
+    expect(row?.active_organization_id).toBe(orgId)
+  })
+
   it('upserts institution settings and reads them back per tenant', async () => {
     const { orgId } = await createOrganization()
     const created = await tenancy.upsertSettings(orgId, {})
@@ -438,9 +540,9 @@ describe('courses repository', () => {
     const membership = await courses.upsertSectionMembership(tenant.orgId, {
       sectionId: section.id,
       userId: student,
-      role: 'student',
     })
-    expect(membership).toMatchObject({ sectionId: section.id, userId: student, role: 'student' })
+    expect(membership).toMatchObject({ sectionId: section.id, userId: student })
+    expect(membership).not.toHaveProperty('role')
     expect((await courses.listCoursesForStudent(tenant.orgId, student)).map((c) => c.id)).toEqual([
       course.id,
     ])
@@ -510,25 +612,28 @@ describe('courses repository', () => {
     const { section } = await createCourseChain(tenant)
     const student = await createUser('Student')
 
-    await courses.upsertSectionMembership(tenant.orgId, {
+    const first = await courses.upsertSectionMembership(tenant.orgId, {
       sectionId: section.id,
       userId: student,
-      role: 'student',
     })
-    const promoted = await courses.upsertSectionMembership(tenant.orgId, {
+    // A second add is the same roster row, not a second one (the row carries no role, D-748).
+    const again = await courses.upsertSectionMembership(tenant.orgId, {
       sectionId: section.id,
       userId: student,
-      role: 'ta',
     })
-    expect(promoted?.role).toBe('ta')
+    expect(again?.id).toBe(first?.id)
 
     const roster = await courses.listSectionMembers(tenant.orgId, section.id)
     expect(roster).toHaveLength(1)
     expect(roster[0]).toMatchObject({
-      membership: { userId: student, role: 'ta' },
+      membership: { userId: student },
       user: { id: student, name: 'Student', email: `${student}@example.test` },
     })
     expect(await courses.listSectionMembers(other.orgId, section.id)).toEqual([])
+
+    // The roster page shows the person's platform role beside them.
+    const page = await courses.pageSectionMembers(tenant.orgId, section.id)
+    expect(page.items.map((row) => row.role)).toEqual(['student'])
 
     expect(await courses.deleteSectionMembership(other.orgId, section.id, student)).toBeNull()
     const removed = await courses.deleteSectionMembership(tenant.orgId, section.id, student)
@@ -626,7 +731,6 @@ describe('courses repository', () => {
     await courses.upsertSectionMembership(tenant.orgId, {
       sectionId: section.id,
       userId: student,
-      role: 'student',
     })
     await createRun(tenant.orgId, assignment.id, student, pkg, { state: 'voided' })
     const latest = await createRun(tenant.orgId, assignment.id, student, pkg, { attemptNo: 2 })
@@ -639,7 +743,7 @@ describe('courses repository', () => {
     expect(withRun).toMatchObject({
       section: { id: section.id },
       course: { id: course.id },
-      membership: { userId: student, role: 'student' },
+      membership: { userId: student },
       latestRun: { id: latest, attemptNo: 2 },
     })
     expect(rows.find((r) => r.assignment.id === second.id)?.latestRun).toBeNull()
@@ -716,6 +820,7 @@ describe('admin repository', () => {
     const updated = await admin.setPlatformRole(userId, 'tassl_scenario_editor')
     expect(updated?.platform_role).toBe('tassl_scenario_editor')
     expect((await identity.findUserById(userId))?.platform_role).toBe('tassl_scenario_editor')
+    expect((await admin.setPlatformRole(userId, 'instructor'))?.platform_role).toBe('instructor')
     expect(await admin.setPlatformRole(crypto.randomUUID(), 'admin')).toBeNull()
   })
 })

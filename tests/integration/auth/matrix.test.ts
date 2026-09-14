@@ -13,19 +13,20 @@
 //
 //   operationId  the `openapi.operationId` of the route (src/server/modules/<name>/router.ts),
 //                which must also be a key of OPERATIONS below.
-//   role         one of the eight seats of the fixture, spelled exactly as SEATS:
-//                student, instructor, ta, author, program_lead, editor, admin, outsider.
-//                The first six belong to institution A; `admin` is the platform admin and holds no
-//                institution seat; `outsider` is the program lead of institution B and is how every
-//                cross-tenant "—" is proven.
+//   role         one of the five seats of the fixture, spelled exactly as SEATS:
+//                student, editor, instructor, admin, outsider. The four roles of 08 §3 (D-748) —
+//                Student, Scenario Editor, Instructor, Platform Admin — each hold a seat; the
+//                first three belong to institution A, `admin` belongs to no institution (full
+//                access needs none), and `outsider` is an Instructor of institution B, which is how
+//                every cross-tenant "—" is proven.
 //   expected     'allow'  the endpoint must not answer 401, 403 or 404;
 //                'deny'   the endpoint must answer one of those three (which one is recorded in
 //                         the summary below the run, so a change of shape stays visible; the
 //                         403-versus-404 rule of 08 §4 "Cross-tenant" is asserted code by code in
 //                         tests/integration/api/tenancy.test.ts).
 //
-// Every registered operation carries a row for all eight seats — the completeness test enforces it,
-// so a new endpoint cannot be added to OPERATIONS without deciding all eight cells, and a row for
+// Every registered operation carries a row for all five seats — the completeness test enforces it,
+// so a new endpoint cannot be added to OPERATIONS without deciding all five cells, and a row for
 // an unregistered operationId fails rather than being skipped.
 //
 // ---------------------------------------------------------------------------------------------
@@ -40,7 +41,7 @@ import { existsSync, readFileSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { asUser, testSql, truncateAll } from '@tests/setup/integration'
-import type { OrganizationRole } from '@/server/auth/access-control-shared'
+import type { PlatformRole } from '@/server/auth/types'
 import matrixTable from './matrix.json'
 
 type Outbox = Array<{ to: string; template: string; props: Record<string, string> }>
@@ -59,16 +60,7 @@ vi.mock('@/server/email/send', () => ({
 // The table
 // ---------------------------------------------------------------------------------------------
 
-const SEATS = [
-  'student',
-  'instructor',
-  'ta',
-  'author',
-  'program_lead',
-  'editor',
-  'admin',
-  'outsider',
-] as const
+const SEATS = ['student', 'editor', 'instructor', 'admin', 'outsider'] as const
 
 type Seat = (typeof SEATS)[number]
 type Expected = 'allow' | 'deny'
@@ -163,9 +155,9 @@ const OPERATION_IDS = [
   'confirmPackageVersion',
   'regeneratePackageVersion',
   // Step 12.2 (07 §6): the generation pipeline. 08 §4's row "Create package from seed; run
-  // generation" decides all three — an instructor or a `scenario_author` of the institution, and
-  // the platform editor only through their `scenario_author` membership, which is the seat the
-  // `editor` fixture holds. The status read is the same row rather than the package view's,
+  // generation" decides all three — the Scenario Editor of the institution and the admin, and not
+  // the Instructor, who reads packages and does not author them (D-748). The status read is the same
+  // row rather than the package view's,
   // because it reports which rules the draft still breaks, which is where the defects are.
   //
   // The two version-scoped rows are answered against a version with no seed record, so an allowed
@@ -175,10 +167,10 @@ const OPERATION_IDS = [
   'startGeneration',
   'getGenerationStatus',
   'regenerateElement',
-  // Step 11.1 (07 §8): the faculty seat. 08 §4 gives the replay and the band decisions to an
-  // instructor and a TA of the run's section; void, re-offer and neutralize to the instructor
-  // alone; the export history to both reviewers and to no student; and the Judgment Record to the
-  // run's own student and nobody else. Every row below is answered by its guard before the run's
+  // Step 11.1 (07 §8): the faculty seat. 08 §4 gives the replay, the band decisions, void, re-offer
+  // and neutralize to the Instructor who runs the run's course and to the admin; the export history
+  // to the same reviewers and to no learner; and the Judgment Record to the run's own learner and
+  // the admin. Every row below is answered by its guard before the run's
   // state is read, so no row here depends on another — except `voidRun`, which really does void a
   // run and so is given one of its own per seat.
   //
@@ -211,26 +203,21 @@ const OPERATION_IDS = [
   'changeMapping',
   // Step 13.5 (07 §9): the four platform screens of UI-050. 08 §4 decides all four on one row —
   // "Platform roles, user list, flags view, audit log", which is "—" in every column but Admin — so
-  // the eight cells of each are the same eight: the platform admin, and nobody else.
+  // the five cells of each are the same five: the platform admin, and nobody else.
   //
-  // The `editor` seat is the one worth naming. A platform `tassl_scenario_editor` is the only other
-  // seat with a *platform* role at all, and 08 §4 gives it packages and nothing here;
-  // `requirePlatformRole(actor, 'admin')` admits `admin` alone (08 §5), so the editor is refused
-  // like every institution seat, with the same 403. And the student is refused by that same guard —
+  // `requirePlatformRole(actor, 'admin')` admits `admin` alone (08 §5), so the Scenario Editor and
+  // the Instructor are refused like the Student, with the same 403. And the student is refused by that same guard —
   // 08 §4's "—" — rather than by the not-found the `/admin` layout draws for them: the API says
   // FORBIDDEN because the endpoint is not a tenant-scoped resource whose existence could leak
   // (08 §5 "Cross-tenant"), and the screen's 404 is a courtesy on top of it.
   'adminListUsers',
   'adminSetPlatformRole',
-  // Student or Instructor in an institution (D-747): 08 §4's own row, "Set a person's institution
-  // role to Student or Instructor", which is also "—" in every column but Admin.
-  'adminSetInstitutionRole',
   'adminGetFlags',
-  // The runtime assistant switch (D-691): the same eight cells as the four above — a platform
+  // The runtime assistant switch (D-691): the same five cells as the four above — a platform
   // setting, and 08 §4 gives platform settings to the admin and to nobody else.
   'adminSetAiMode',
   'adminListAuditLog',
-  // The Sentry test event (D-708): a platform operation, so the same eight cells as the rows above.
+  // The Sentry test event (D-708): a platform operation, so the same five cells as the rows above.
   'adminSentryTest',
   // The run's own lifecycle (Phases 6 to 9). These predate this registry and sat in
   // `NOT_IN_THE_MATRIX` as named debt until the Phase-15 audit gave them cells. Every one is
@@ -287,7 +274,7 @@ const OPERATION_IDS = [
 //
 // The twenty-one it named at D-520 — nineteen lifecycle and notification rows that predated this
 // registry, and the two second-id rows — all have cells now (the Phase-15 authorization audit), so
-// the map is empty and the test below pins it there: a new endpoint gets eight cells, and a line
+// the map is empty and the test below pins it there: a new endpoint gets five cells, and a line
 // here is no longer a way to ship one without them.
 const NOT_IN_THE_MATRIX: Readonly<Record<string, string>> = {}
 
@@ -320,36 +307,29 @@ function registeredOperationIds(): string[] {
 }
 
 // ---------------------------------------------------------------------------------------------
-// The fixture: two institutions, eight seats
+// The fixture: two institutions, five seats
 // ---------------------------------------------------------------------------------------------
 
 type SeatSpec = {
-  platformRole: 'none' | 'tassl_scenario_editor' | 'admin'
-  /** The institution the seat belongs to and the role held there; null = no institution seat. */
-  membership: { institution: 'A' | 'B'; role: OrganizationRole } | null
+  platformRole: PlatformRole
+  /** The institution the seat belongs to; null = none (the Platform Admin needs none). */
+  institution: 'A' | 'B' | null
 }
 
 /**
- * The seats of 08 §3. Two of them carry the weight of the cross-tenant and platform rules:
+ * The four roles of 08 §3 (D-748), one seat each, and a fifth for the tenancy rule:
  *
- *   - `editor` is a platform `tassl_scenario_editor` who also holds a `scenario_author` membership
- *     in institution A, which is the only shape 08 §4 admits an editor in ("✓* any org where the
- *     editor has a `scenario_author` membership");
- *   - `outsider` is the *program lead* of institution B, so every cross-tenant denial is proven
- *     against the highest institution role there is rather than against a bare account.
+ *   - `editor` is a Scenario Editor of institution A who is also on the section roster, so every row
+ *     that gives a Scenario Editor "a Student's access" is proven against a seat that has it;
+ *   - `outsider` is an *Instructor* of institution B, so every cross-tenant denial is proven against
+ *     the role with the most institution-scoped reach rather than against a bare account.
  */
 const SEAT_SPECS: Record<Seat, SeatSpec> = {
-  student: { platformRole: 'none', membership: { institution: 'A', role: 'student' } },
-  instructor: { platformRole: 'none', membership: { institution: 'A', role: 'instructor' } },
-  ta: { platformRole: 'none', membership: { institution: 'A', role: 'teaching_assistant' } },
-  author: { platformRole: 'none', membership: { institution: 'A', role: 'scenario_author' } },
-  program_lead: { platformRole: 'none', membership: { institution: 'A', role: 'program_lead' } },
-  editor: {
-    platformRole: 'tassl_scenario_editor',
-    membership: { institution: 'A', role: 'scenario_author' },
-  },
-  admin: { platformRole: 'admin', membership: null },
-  outsider: { platformRole: 'none', membership: { institution: 'B', role: 'program_lead' } },
+  student: { platformRole: 'student', institution: 'A' },
+  editor: { platformRole: 'tassl_scenario_editor', institution: 'A' },
+  instructor: { platformRole: 'instructor', institution: 'A' },
+  admin: { platformRole: 'admin', institution: null },
+  outsider: { platformRole: 'instructor', institution: 'B' },
 }
 
 type Factories = typeof import('@tests/factories')
@@ -377,7 +357,8 @@ let orgInvites: string
 let seats: Record<Seat, UserRow>
 /** One throwaway account per seat, seeded identically, for the destructive `deleteMe` rows. */
 let deletable: Record<Seat, UserRow>
-let programLead: UserRow
+/** The account every `createInstitution` row names as the new institution's first member. */
+let firstMember: UserRow
 let agreementId: string
 let invitations: Record<Seat, string>
 let operations: Record<string, Operation>
@@ -455,13 +436,6 @@ let notifications: Record<Seat, string>
  */
 let roleTarget: UserRow
 
-/**
- * The account `adminSetInstitutionRole` is answered about (D-747): a `student` of institution A with
- * no section row and no session, for the reasons `roleTarget` has its own account. The allowed row
- * writes `student` — the seat it already holds — so no other row sees a different fact.
- */
-let seatTarget: UserRow
-
 /** Stand-in `element_id` for a singleton element (`scenarios/schema.ts` `SINGLETON_ELEMENT_ID`). */
 const SINGLETON_ELEMENT_ID = '00000000-0000-0000-0000-000000000000'
 
@@ -491,7 +465,7 @@ const seedBody = (seat: Seat) => ({
   },
 })
 
-/** Seat labels reach slugs and emails; `program_lead` has to lose its underscore to pass z.email(). */
+/** Seat labels reach slugs and emails; an underscore would not pass z.email(). */
 const slugOf = (seat: Seat): string => seat.replace(/_/g, '-')
 
 const AGREEMENT = {
@@ -510,8 +484,7 @@ const AGREEMENT = {
  * institution could only ever answer 404. It buys the admin nothing else — they hold no `member`
  * row, which is what every other admin denial below rests on.
  */
-const activeOrgOf = (seat: Seat): string =>
-  SEAT_SPECS[seat].membership?.institution === 'B' ? orgB : orgA
+const activeOrgOf = (seat: Seat): string => (SEAT_SPECS[seat].institution === 'B' ? orgB : orgA)
 
 const sessionFor = (seat: Seat): Promise<Headers> =>
   asUser(seats[seat].id, { activeOrganizationId: activeOrgOf(seat) })
@@ -552,10 +525,7 @@ async function call(
 async function seatUser(seat: Seat, label: string): Promise<UserRow> {
   const spec = SEAT_SPECS[seat]
   const user = await f.createUser(label, { platformRole: spec.platformRole })
-  if (spec.membership) {
-    const orgId = spec.membership.institution === 'A' ? orgA : orgB
-    await f.addMember(orgId, user.id, spec.membership.role)
-  }
+  if (spec.institution) await f.addMember(spec.institution === 'A' ? orgA : orgB, user.id)
   return user
 }
 
@@ -565,7 +535,7 @@ async function pendingInvitation(email: string, inviterId: string): Promise<stri
   const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
   await testSql`
     insert into invitation (id, organization_id, email, role, status, expires_at, created_at, inviter_id)
-    values (${id}, ${orgInvites}, ${email}, 'student', 'pending', ${expiresAt}, now(), ${inviterId})`
+    values (${id}, ${orgInvites}, ${email}, 'member', 'pending', ${expiresAt}, now(), ${inviterId})`
   return id
 }
 
@@ -590,13 +560,13 @@ describe('authorization matrix (08 §4)', () => {
     seats = built as Record<Seat, UserRow>
     deletable = builtDeletable as Record<Seat, UserRow>
 
-    // The program lead every `createInstitution` row names; the institution is only created by the
+    // The first member every `createInstitution` row names; the institution is only created by the
     // one row 08 §4 allows, so the others cannot collide with it.
-    programLead = await f.createUser('matrix-new-lead')
+    firstMember = await f.createUser('matrix-new-lead')
 
     const invited: Partial<Record<Seat, string>> = {}
     for (const seat of SEATS) {
-      invited[seat] = await pendingInvitation(seats[seat].email, programLead.id)
+      invited[seat] = await pendingInvitation(seats[seat].email, firstMember.id)
     }
     invitations = invited as Record<Seat, string>
 
@@ -613,7 +583,7 @@ describe('authorization matrix (08 §4)', () => {
     agreementId = row!.id
 
     const pkg = await f.minimalConfirmedVersion(orgA, 'matrix-package', {
-      createdBy: seats.instructor.id,
+      createdBy: seats.editor.id,
     })
     packageVersionId = pkg.version.id
     soundVariantId = pkg.sound.id
@@ -623,9 +593,10 @@ describe('authorization matrix (08 §4)', () => {
     course = courseRow.id
     const sectionRow = await f.createSection(orgA, courseRow.id, 'matrix-a')
     section = sectionRow.id
-    await f.addSectionMember(orgA, section, seats.instructor.id, 'instructor')
-    await f.addSectionMember(orgA, section, seats.student.id, 'student')
-    await f.addSectionMember(orgA, section, seats.ta.id, 'ta')
+    // The roster: the Instructor who teaches it, and the two seats that take runs on it.
+    await f.addSectionMember(orgA, section, seats.instructor.id)
+    await f.addSectionMember(orgA, section, seats.student.id)
+    await f.addSectionMember(orgA, section, seats.editor.id)
 
     assignment = (
       await f.createAssignment(orgA, section, 'matrix-assignment', {
@@ -644,28 +615,26 @@ describe('authorization matrix (08 §4)', () => {
 
     // The address `addSectionMember` names: a member of institution A who is not yet in the section.
     addable = await f.createUser('matrix-addable')
-    await f.addMember(orgA, addable.id, 'student')
+    await f.addMember(orgA, addable.id)
 
-    // The address `adminSetPlatformRole` names: no institution seat, no session, nothing else here
+    // The address `adminSetPlatformRole` names: no institution, no session, nothing else here
     // reads it.
     roleTarget = await f.createUser('matrix-role-target')
-    seatTarget = await f.createUser('matrix-seat-target')
-    await f.addMember(orgA, seatTarget.id, 'student')
 
     const runsRepository = await import('@/server/modules/runs/repository')
     const removableBuilt: Partial<Record<Seat, UserRow>> = {}
     const runsBuilt: Partial<Record<Seat, string>> = {}
     for (const seat of SEATS) {
       const person = await f.createUser(`matrix-removable-${slugOf(seat)}`)
-      await f.addMember(orgA, person.id, 'student')
-      await f.addSectionMember(orgA, section, person.id, 'student')
+      await f.addMember(orgA, person.id)
+      await f.addSectionMember(orgA, section, person.id)
       removableBuilt[seat] = person
 
       // The run each `deleteWalkthroughRun` row targets belongs to its own student, so no row is a
       // `MEMBER_HAS_RUNS` refusal of the row above it.
       const runner = await f.createUser(`matrix-runner-${slugOf(seat)}`)
-      await f.addMember(orgA, runner.id, 'student')
-      await f.addSectionMember(orgA, section, runner.id, 'student')
+      await f.addMember(orgA, runner.id)
+      await f.addSectionMember(orgA, section, runner.id)
       runsBuilt[seat] = (
         await runsRepository.insertRun(orgA, {
           assignmentId: walkthroughAssignment,
@@ -703,8 +672,8 @@ describe('authorization matrix (08 §4)', () => {
     const voidableBuilt: Partial<Record<Seat, string>> = {}
     for (const seat of SEATS) {
       const runner = await f.createUser(`matrix-voidable-${slugOf(seat)}`)
-      await f.addMember(orgA, runner.id, 'student')
-      await f.addSectionMember(orgA, section, runner.id, 'student')
+      await f.addMember(orgA, runner.id)
+      await f.addSectionMember(orgA, section, runner.id)
       voidableBuilt[seat] = (
         await runsRepository.insertRun(orgA, {
           assignmentId: walkthroughAssignment,
@@ -721,7 +690,7 @@ describe('authorization matrix (08 §4)', () => {
 
     const scenariosRepository = await import('@/server/modules/scenarios/repository')
     const authored = await f.createPackageVersion(orgA, 'matrix-authored', {
-      createdBy: seats.instructor.id,
+      createdBy: seats.editor.id,
     })
     authoredPackageId = authored.pkg.id
     authoredVersionId = authored.version.id
@@ -759,7 +728,7 @@ describe('authorization matrix (08 §4)', () => {
     // element write once `confirmed_at` is set — and confirmed because `createAssignment` requires
     // it.
     const lifecycle = await f.createPackageVersion(orgA, 'matrix-lifecycle', {
-      createdBy: seats.instructor.id,
+      createdBy: seats.editor.id,
     })
     lifecycleDocumentId = (
       await scenariosRepository.upsertElement(orgA, lifecycle.version.id, 'document', {
@@ -778,7 +747,7 @@ describe('authorization matrix (08 §4)', () => {
     await scenariosRepository.updateVersionStatus(orgA, lifecycle.version.id, {
       status: 'confirmed',
       confirmedAt: f.FROZEN_TIME,
-      confirmedBy: seats.instructor.id,
+      confirmedBy: seats.editor.id,
       teachingNoteChecked: true,
     })
     const lifecycleAssignment = (
@@ -815,8 +784,8 @@ describe('authorization matrix (08 §4)', () => {
     // the way a band confirmation files one (`records.writeCourseExport`), so what the allowed seats
     // are handed is a document `CourseTraceExportSchema` accepts rather than a stand-in.
     const reviewedRunner = await f.createUser('matrix-reviewed-runner')
-    await f.addMember(orgA, reviewedRunner.id, 'student')
-    await f.addSectionMember(orgA, section, reviewedRunner.id, 'student')
+    await f.addMember(orgA, reviewedRunner.id)
+    await f.addSectionMember(orgA, section, reviewedRunner.id)
     reviewedRun = (
       await runsRepository.insertRun(orgA, {
         assignmentId: walkthroughAssignment,
@@ -938,8 +907,6 @@ describe('authorization matrix (08 §4)', () => {
     const adminUsersRoute = await import('@/app/api/v1/admin/users/route')
     const adminPlatformRoleRoute =
       await import('@/app/api/v1/admin/users/[userId]/platform-role/route')
-    const adminInstitutionRoleRoute =
-      await import('@/app/api/v1/admin/users/[userId]/institution-role/route')
     const adminFlagsRoute = await import('@/app/api/v1/admin/flags/route')
     const adminAiModeRoute = await import('@/app/api/v1/admin/settings/ai-mode/route')
     const adminAuditLogRoute = await import('@/app/api/v1/admin/audit-log/route')
@@ -988,7 +955,7 @@ describe('authorization matrix (08 §4)', () => {
             body: {
               name: `Matrix ${seat} University`,
               slug: `matrix-new-${slugOf(seat)}`,
-              programLeadEmail: programLead.email,
+              programLeadEmail: firstMember.email,
             },
           }),
       },
@@ -1020,7 +987,7 @@ describe('authorization matrix (08 §4)', () => {
             path: `/institutions/${orgA}/invitations`,
             session: await sessionFor(seat),
             params: { orgId: orgA },
-            body: { email: `matrix-invited-by-${slugOf(seat)}@tassl.local`, role: 'student' },
+            body: { email: `matrix-invited-by-${slugOf(seat)}@tassl.local` },
           }),
       },
       acceptInvitation: {
@@ -1081,7 +1048,7 @@ describe('authorization matrix (08 §4)', () => {
       deleteMe: {
         route: 'DELETE /me',
         // The one destructive row: it runs against the seat's throwaway twin (same platform role,
-        // same institution membership), so the eight seats survive to answer the other rows.
+        // same institution membership), so the five seats survive to answer the other rows.
         run: async (seat) =>
           call(me.DELETE, {
             method: 'DELETE',
@@ -1175,7 +1142,7 @@ describe('authorization matrix (08 §4)', () => {
             path: `/sections/${section}/members`,
             session: await sessionFor(seat),
             params: { sectionId: section },
-            body: { email: addable.email, role: 'student' },
+            body: { email: addable.email },
           }),
       },
       removeSectionMember: {
@@ -1292,7 +1259,7 @@ describe('authorization matrix (08 §4)', () => {
       },
       listDelegations: {
         route: 'GET /runs/{runId}/delegations',
-        // Stu, Rev (07 §7): the run's own student and the instructor and TA of its section.
+        // Stu, Rev (07 §7): the run's own learner, the Instructor of its course, and the admin.
         run: async (seat) =>
           call(delegationsRoute.GET, {
             path: `/runs/${ownRun}/delegations`,
@@ -1626,9 +1593,9 @@ describe('authorization matrix (08 §4)', () => {
       },
       getReviewQueue: {
         route: 'GET /review/queue',
-        // No id at all: the queue is whatever sections this actor reviews, and an actor who reviews
-        // none is refused rather than handed an empty one — the rows are about reading other
-        // people's runs (D-096).
+        // No id at all: the queue is the runs of the courses this actor runs. A Student or Scenario
+        // Editor is refused; an Instructor of any institution has a queue — the outsider's is its own
+        // and holds nothing of institution A (D-096, D-748).
         run: async (seat) =>
           call(reviewQueueRoute.GET, { path: '/review/queue', session: await sessionFor(seat) }),
       },
@@ -1700,8 +1667,8 @@ describe('authorization matrix (08 §4)', () => {
       },
       neutralizeClaim: {
         route: 'POST /review/runs/{runId}/claims/{claimId}/neutralize',
-        // 08 §4: "Void, re-offer, neutralize (from replay)" is the instructor's row and the TA's is
-        // "—". The claim id names nothing, and it does not have to: the run's state is asked for
+        // 08 §4: "Void, re-offer, neutralize (from replay)" is the Instructor's row. The claim id names
+        // nothing, and it does not have to: the run's state is asked for
         // first, so the instructor meets `RUN_NOT_SCORED` (409) rather than a missing claim.
         run: async (seat) =>
           call(neutralizeRoute.POST, {
@@ -1832,7 +1799,7 @@ describe('authorization matrix (08 §4)', () => {
       },
       adminSetPlatformRole: {
         route: 'PUT /admin/users/{userId}/platform-role',
-        // `none` is the role `roleTarget` already holds: the allowed seat proves it reached the
+        // `student` is the role `roleTarget` already holds: the allowed seat proves it reached the
         // endpoint, and the row leaves the fixture exactly as it found it.
         run: async (seat) =>
           call(adminPlatformRoleRoute.PUT, {
@@ -1840,20 +1807,7 @@ describe('authorization matrix (08 §4)', () => {
             path: `/admin/users/${roleTarget.id}/platform-role`,
             session: await sessionFor(seat),
             params: { userId: roleTarget.id },
-            body: { role: 'none' },
-          }),
-      },
-      adminSetInstitutionRole: {
-        route: 'PUT /admin/users/{userId}/institution-role',
-        // `student` is the seat `seatTarget` already holds in institution A, so the allowed row
-        // reaches the endpoint and leaves the fixture as it found it (D-747).
-        run: async (seat) =>
-          call(adminInstitutionRoleRoute.PUT, {
-            method: 'PUT',
-            path: `/admin/users/${seatTarget.id}/institution-role`,
-            session: await sessionFor(seat),
-            params: { userId: seatTarget.id },
-            body: { organizationId: orgA, role: 'student' },
+            body: { role: 'student' },
           }),
       },
       adminGetFlags: {
@@ -2182,7 +2136,7 @@ describe('authorization matrix (08 §4)', () => {
       expect(malformed, 'role must be one of SEATS and expected one of allow | deny').toEqual([])
     })
 
-    it('decides all eight seats for every operation, exactly once each', () => {
+    it('decides all five seats for every operation, exactly once each', () => {
       const missing: string[] = []
       const duplicated: string[] = []
       for (const operationId of OPERATION_IDS) {
@@ -2225,7 +2179,7 @@ describe('authorization matrix (08 §4)', () => {
       // The gap was debt, not a design; it has been paid and it may not reopen.
       expect(
         Object.keys(NOT_IN_THE_MATRIX),
-        'every registered operation carries eight cells; nothing is excused',
+        'every registered operation carries five cells; nothing is excused',
       ).toEqual([])
     })
   })

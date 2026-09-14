@@ -59,7 +59,10 @@ export function assignmentNotFound(): never {
   throw new AppError('NOT_FOUND', t('run.assignmentNotFound'))
 }
 
-/** Someone who can see the assignment but does not take it: an instructor, a TA (08 §4). */
+/**
+ * Someone who can see the assignment but does not take it: an Instructor, or a person off the roster
+ * (08 §4, D-748).
+ */
 export function notSectionStudent(): never {
   throw new AppError('FORBIDDEN', t('run.notSectionStudent'))
 }

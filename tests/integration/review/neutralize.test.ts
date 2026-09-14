@@ -216,15 +216,26 @@ describe('neutralizeClaim on a scored run', () => {
     ).rejects.toMatchObject({ code: 'NOT_FOUND' })
   })
 
-  it('refuses a TA: void, re-offer and neutralize are the instructor’s (08 §4)', async () => {
+  it('refuses the run’s own student with FORBIDDEN and a classmate with NOT_FOUND (08 §4)', async () => {
     const runId = await scoredRun(fx)
-    await expect(
-      review.neutralizeClaim(fx.ta, runId, fx.claimId(claimByKey('C3').key), {
-        reason: 'other',
-        creditChallenge: false,
-        note: NOTE,
-      }),
-    ).rejects.toMatchObject({ code: 'FORBIDDEN' })
+    const input = { reason: 'other' as const, creditChallenge: false, note: NOTE }
+    const claimId = fx.claimId(claimByKey('C3').key)
+    await expect(review.neutralizeClaim(fx.student, runId, claimId, input)).rejects.toMatchObject({
+      code: 'FORBIDDEN',
+    })
+    await expect(review.neutralizeClaim(fx.classmate, runId, claimId, input)).rejects.toMatchObject(
+      { code: 'NOT_FOUND' },
+    )
+  })
+
+  it('lets the admin neutralize: every reviewer may correct Tassl’s error (D-748)', async () => {
+    const runId = await scoredRun(fx)
+    const result = await review.neutralizeClaim(fx.admin, runId, fx.claimId(claimByKey('C3').key), {
+      reason: 'other',
+      creditChallenge: false,
+      note: NOTE,
+    })
+    expect(result.run.id).toBe(runId)
   })
 
   it('writes no export on a run that was never confirmed', async () => {

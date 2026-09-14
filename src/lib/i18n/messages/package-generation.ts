@@ -96,7 +96,7 @@ export const packageGeneration = {
   'generation.startedToast': 'Generation started.',
   'generation.readOnlyTitle': 'This version is not yours to generate',
   'generation.readOnlyBody':
-    'Only an instructor or a scenario author of this institution runs generation on a package. You can read this version and its record.',
+    'Only a Scenario Editor of this institution runs generation on a package. You can read this version and its record.',
 
   // ---------------------------------------------------------------------------------------
   // The package rules, once the seven steps are through

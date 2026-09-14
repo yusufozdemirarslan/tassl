@@ -6,8 +6,7 @@ export const home = {
   'home.description': 'What needs your attention, and what is coming up.',
   'home.runsTitle': 'Your runs',
   'home.emptyTitle': 'Nothing to do yet',
-  'home.emptyBody':
-    'When a course assigns you a run, or a run is waiting for your review, it appears here.',
+  'home.emptyBody': 'When a course assigns you a run, it appears here with what to do next.',
   'home.noMembershipsTitle': 'Waiting for an invitation',
   'home.noMemberships':
     'An institution adds you by an invitation email; once you accept it, your courses and runs appear here.',
@@ -15,7 +14,7 @@ export const home = {
   // ---------------------------------------------------------------------------------------------
   // The three role panels (UI-009)
   //
-  // Each lands with the data it reports and is drawn only for a seat that has the data: a panel
+  // Each lands with the data it reports and is drawn only for a role that has the data: a panel
   // whose read the service refuses is not rendered at all, rather than rendered empty. An empty
   // panel is a promise about a thing this person cannot do.
   // ---------------------------------------------------------------------------------------------

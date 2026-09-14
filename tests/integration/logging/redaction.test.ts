@@ -65,7 +65,7 @@ beforeAll(async () => {
 
   const org = (await f.createInstitution('redaction')).organization.id
   user = await f.createUser('redaction-student')
-  await f.addMember(org, user.id, 'student')
+  await f.addMember(org, user.id)
   headers = await asUser(user.id, { activeOrganizationId: org })
 
   const logger = rootLogger as unknown as Record<symbol, unknown>

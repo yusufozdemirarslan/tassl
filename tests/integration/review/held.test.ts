@@ -152,10 +152,20 @@ describe('bandHeldRunManually', () => {
     ).rejects.toMatchObject({ code: 'RUN_NOT_SCORABLE' })
   })
 
-  it('lets a TA band a held run: 08 §4 gives the manual path to both reviewers', async () => {
+  it('lets the admin band a held run: every reviewer holds the manual path (D-748)', async () => {
     const runId = await heldRun(fx)
-    const run = await review.bandHeldRunManually(fx.ta, runId, { bands: { ...PLACEMENTS } })
+    const run = await review.bandHeldRunManually(fx.admin, runId, { bands: { ...PLACEMENTS } })
     expect(run.state).toBe('confirmed')
-    expect((await bandRows(runId))[0]?.decided_by).toBe(fx.ta.id)
+    expect((await bandRows(runId))[0]?.decided_by).toBe(fx.admin.id)
+  })
+
+  it('refuses the run’s own student, and a Scenario Editor who reviews nothing', async () => {
+    const runId = await heldRun(fx)
+    await expect(
+      review.bandHeldRunManually(fx.student, runId, { bands: { ...PLACEMENTS } }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' })
+    await expect(
+      review.bandHeldRunManually(fx.editor, runId, { bands: { ...PLACEMENTS } }),
+    ).rejects.toMatchObject({ code: 'NOT_FOUND' })
   })
 })

@@ -15,8 +15,8 @@ import { getViewer } from '../../../../../viewer'
 export const metadata: Metadata = { title: t('roster.title') }
 
 // UI-031 (SYS-005). The roster is what a run's reviewer scope is read from, so the service already
-// limits it to the course's instructor and the institution's program lead; a viewer outside that
-// set gets NOT_FOUND or FORBIDDEN here and lands on the in-shell not-found page rather than on the
+// limits it to the course's instructor and the Platform Admin (D-748); a viewer outside that set
+// gets NOT_FOUND or FORBIDDEN here and lands on the in-shell not-found page rather than on the
 // error boundary (08 §4: a resource you may not see does not exist).
 //
 // The whole roster is read here rather than paged in the screen: `listSectionMembers` is a cursor
@@ -56,10 +56,9 @@ async function readRoster(
 }
 
 /**
- * UI-031's invitations list. Everyone who may read this roster may also invite, with one exception:
- * a teaching assistant who instructs the section without holding the institution's instructor seat
- * (08 §4) reads the roster and not the institution's invitations. That refusal empties the panel
- * rather than taking the whole screen away — the roster is what they came for and they may see it.
+ * UI-031's invitations list. Everyone who may read this roster may also invite (D-748); a refusal
+ * still empties the panel rather than taking the whole screen away, because the roster is what the
+ * reader came for and they may see it.
  */
 async function readInvitations(actor: SessionUser, orgId: string): Promise<InvitationView[]> {
   try {

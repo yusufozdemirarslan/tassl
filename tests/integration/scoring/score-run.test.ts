@@ -166,6 +166,19 @@ async function scorableRun(
   return runId
 }
 
+/**
+ * A second Instructor on the section roster, beside the fixture's (who created the course and is on
+ * the roster too). A section notice goes to its Instructors and never to the Student classmate on
+ * the same roster (D-748).
+ */
+async function coInstructor(): Promise<string> {
+  const f = await import('@tests/factories')
+  const user = await f.createUser(`${fx.orgId}-co-instructor`, { platformRole: 'instructor' })
+  await f.addMember(fx.orgId, user.id)
+  await f.addSectionMember(fx.orgId, fx.assignment.sectionId, user.id)
+  return user.id
+}
+
 // ---------------------------------------------------------------------------------------------
 // Reading the record back
 // ---------------------------------------------------------------------------------------------
@@ -345,6 +358,7 @@ describe('scoreRun on a finished defense', () => {
 
   it('writes one draft_band event per dimension and notifies the student and the section', async () => {
     const runId = await scorableRun()
+    const second = await coInstructor()
     await scoring.scoreRun(runId)
 
     const events = await draftBandEvents(runId)
@@ -365,7 +379,7 @@ describe('scoreRun on a finished defense', () => {
 
     expect(student).toHaveLength(1)
     expect(student[0]).toMatchObject({ type: 'run_scored', link: `/runs/${runId}` })
-    expect(reviewers.map((row) => row.user_id).sort()).toEqual([fx.instructor.id, fx.ta.id].sort())
+    expect(reviewers.map((row) => row.user_id).sort()).toEqual([fx.instructor.id, second].sort())
     for (const row of reviewers) {
       expect(row).toMatchObject({ type: 'run_scored', link: `/review/runs/${runId}` })
     }
@@ -549,7 +563,8 @@ describe('scoring the same run twice', () => {
     expect(results.filter((result) => result.outcome === 'scored')).toHaveLength(1)
     expect(await bandRows(runId)).toHaveLength(7)
     expect(await eventCount(runId, 'draft_band')).toBe(7)
-    expect(await notificationRows(runId)).toHaveLength(3)
+    // One notice for the student and one for the section's instructor, once each.
+    expect(await notificationRows(runId)).toHaveLength(2)
   })
 })
 
@@ -560,6 +575,7 @@ describe('scoring the same run twice', () => {
 describe('when the band reads do not come back', () => {
   it('holds the run, writes no band, and tells the section’s instructors', async () => {
     const runId = await scorableRun()
+    const coReviewer = await coInstructor()
     process.env.MOCK_FAIL_READS = 'true'
 
     const result = await scoring.scoreRun(runId)
@@ -578,7 +594,7 @@ describe('when the band reads do not come back', () => {
 
     const notifications = await notificationRows(runId)
     expect(notifications.map((row) => row.user_id).sort()).toEqual(
-      [fx.instructor.id, fx.ta.id].sort(),
+      [fx.instructor.id, coReviewer].sort(),
     )
     for (const row of notifications) {
       expect(row).toMatchObject({ type: 'run_held', link: `/review/runs/${runId}` })
@@ -604,12 +620,13 @@ describe('when the band reads do not come back', () => {
   // idempotency guard — "the second job finds the run already moved" — does not apply here.
   it('holds once however many jobs arrive, sequentially', async () => {
     const runId = await scorableRun()
+    await coInstructor()
     process.env.MOCK_FAIL_READS = 'true'
 
     const first = await scoring.scoreRun(runId)
     expect(first.outcome).toBe('held')
     const before = await notificationRows(runId)
-    expect(before).toHaveLength(2) // one instructor, one TA
+    expect(before).toHaveLength(2) // two instructors on the roster
 
     const second = await scoring.scoreRun(runId)
     expect(second.outcome).toBe('already_held')
@@ -627,6 +644,7 @@ describe('when the band reads do not come back', () => {
 
   it('holds once however many jobs arrive, concurrently', async () => {
     const runId = await scorableRun()
+    const coReviewer = await coInstructor()
     process.env.MOCK_FAIL_READS = 'true'
 
     const results = await Promise.all([scoring.scoreRun(runId), scoring.scoreRun(runId)])
@@ -638,7 +656,7 @@ describe('when the band reads do not come back', () => {
     const notifications = await notificationRows(runId)
     expect(notifications).toHaveLength(2)
     expect(notifications.map((row) => row.user_id).sort()).toEqual(
-      [fx.instructor.id, fx.ta.id].sort(),
+      [fx.instructor.id, coReviewer].sort(),
     )
   })
 })
@@ -821,10 +839,12 @@ describe('the student’s view of a scored run', () => {
     expect(view.uncalibrated).toBe(true)
     expect(view.scoringStatus).toBe('done')
     expect(view.pointsDraft).not.toBeNull()
+    // The admin reviews every section (D-748).
+    expect((await scoring.getScore(fx.admin, runId)).bands).toHaveLength(7)
 
-    await expect(scoring.getScore(fx.classmate, runId)).rejects.toMatchObject({
-      code: 'NOT_FOUND',
-    })
+    for (const actor of [fx.classmate, fx.student]) {
+      await expect(scoring.getScore(actor, runId)).rejects.toMatchObject({ code: 'NOT_FOUND' })
+    }
   })
 
   it('refuses getScore on a run the pipeline has not written a score for', async () => {

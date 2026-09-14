@@ -3,6 +3,18 @@
 // service that touches a run, package, course, or agreement calls the matching helper as its first
 // statement, so a missed check in a handler cannot widen access.
 //
+// One role per account (D-748). `user.platform_role` is Student, Scenario Editor, Instructor or
+// Platform Admin, and it is the only thing a guard asks about the person. The two memberships are
+// facts about *where*, not *what*: a `member` row says which institution a person belongs to — the
+// tenant every read is scoped to — and a `section_memberships` row says which section roster they
+// are on, which for a Student is an enrolment and for an Instructor is a section they teach.
+//
+//   Student          — takes the runs assigned on the sections they are enrolled in; reads their own
+//   Scenario Editor  — a Student's access, plus authoring and publishing scenario packages
+//   Instructor       — courses, sections, rosters, invitations, assignments, and review of learner
+//                      results on the courses they run; reads packages to assign them
+//   Platform Admin   — full access: every guard below admits the admin, in every institution
+//
 // Shape rules, applied without exception:
 //   - the actor comes first, so a helper can never be called without one;
 //   - a helper throws `AppError('FORBIDDEN')` (or `'UNAUTHENTICATED'`) and otherwise returns the
@@ -11,26 +23,22 @@
 //     probed for existence (08 §4 "Cross-tenant").
 import { AppError, isAppError } from '@/lib/errors'
 import {
-  findActiveAgreement,
   findCourse,
-  findOrganizationRole,
   findPackage,
   findRunContext,
   findSection,
   findSectionMembership,
-  teachesCourse,
+  isMember,
+  onCourseRoster,
+  organizationExists,
 } from '@/server/auth/queries'
 import type { PlatformRole, SessionUser } from '@/server/auth/types'
-import type { OrganizationRole } from '@/server/auth/access-control-shared'
 
 export { getSession, requireSession } from '@/server/auth/session'
 export type { PlatformRole, SessionUser } from '@/server/auth/types'
 
-/** `section_memberships.role` (08 §3). */
-export type SectionRole = 'student' | 'instructor' | 'ta'
-
-/** What `requireSectionRole` proved: the role held and the organization the section belongs to. */
-export type SectionScope = { sectionId: string; role: SectionRole; organizationId: string }
+/** What `requireSectionSeat` proved: the section, its organization, and the actor's role. */
+export type SectionScope = { sectionId: string; role: PlatformRole; organizationId: string }
 
 /** What the run guards proved. */
 export type RunScope = {
@@ -42,10 +50,17 @@ export type RunScope = {
   courseId: string
 }
 
-const REVIEWER_ROLES: readonly SectionRole[] = ['instructor', 'ta']
+/** The roles that take runs: a Student, and a Scenario Editor, who has a Student's access. */
+export const LEARNER_ROLES: readonly PlatformRole[] = ['student', 'tassl_scenario_editor']
 
-/** Organization roles that may author a package (08 §4 "Create package from seed"). */
-const PACKAGE_AUTHOR_ROLES: readonly OrganizationRole[] = ['instructor', 'scenario_author']
+/** The role that runs courses and reviews learner results. */
+export const TEACHING_ROLES: readonly PlatformRole[] = ['instructor']
+
+/** The role that authors and publishes scenario packages. */
+export const AUTHORING_ROLES: readonly PlatformRole[] = ['tassl_scenario_editor']
+
+/** The roles that read a package: its authors, and the instructors who assign it. */
+export const PACKAGE_READER_ROLES: readonly PlatformRole[] = ['tassl_scenario_editor', 'instructor']
 
 // Function declarations, not arrows: TypeScript only narrows after a `never`-returning call when the
 // callee is a function declaration (or an explicitly annotated const) — the narrowing is what lets
@@ -58,31 +73,50 @@ function notFound(): never {
   throw new AppError('NOT_FOUND')
 }
 
+/** The Platform Admin, whom every guard admits (D-748). */
+export function isPlatformAdmin(actor: SessionUser): boolean {
+  return actor.platformRole === 'admin'
+}
+
+/** True when the actor's role is one of `roles`, or the actor is the Platform Admin. */
+export function hasRole(actor: SessionUser, roles: readonly PlatformRole[]): boolean {
+  return isPlatformAdmin(actor) || roles.includes(actor.platformRole)
+}
+
 // ---------------------------------------------------------------------------------------------
 // Platform and organization
 // ---------------------------------------------------------------------------------------------
 
-/** `user.platform_role === role`; `admin` satisfies every platform-role check (08 §5). */
+/** `user.platform_role` is `role`; the admin satisfies every platform-role check (08 §5). */
 export function requirePlatformRole(actor: SessionUser, role: PlatformRole): PlatformRole {
-  if (actor.platformRole === 'admin') return actor.platformRole
-  if (actor.platformRole !== role) forbidden()
+  if (!hasRole(actor, [role])) forbidden()
+  return actor.platformRole
+}
+
+/** The actor's role is one of `roles` (or they are the admin); FORBIDDEN otherwise. */
+export function requireAnyRole(actor: SessionUser, roles: readonly PlatformRole[]): PlatformRole {
+  if (!hasRole(actor, roles)) forbidden()
   return actor.platformRole
 }
 
 /**
- * A `member` row in the organization, with a role in `roles` when given (08 §5). The platform
- * `admin` role is deliberately not a bypass: 08 §4 gives the admin platform operations, not the
- * institution's own course and run operations.
+ * The actor belongs to the organization — a `member` row — and, when `roles` is given, holds one of
+ * them (08 §5). The admin belongs everywhere: an organization that exists is enough, and one that
+ * does not is NOT_FOUND. A person outside the organization is FORBIDDEN here; the callers that must
+ * not confirm an id's existence turn that into NOT_FOUND themselves.
  */
 export async function requireMembership(
   actor: SessionUser,
   orgId: string,
-  roles?: readonly OrganizationRole[],
-): Promise<OrganizationRole> {
-  const role = await findOrganizationRole(actor.id, orgId)
-  if (role === null) forbidden()
-  if (roles && !roles.includes(role as OrganizationRole)) forbidden()
-  return role as OrganizationRole
+  roles?: readonly PlatformRole[],
+): Promise<PlatformRole> {
+  if (isPlatformAdmin(actor)) {
+    if (!(await organizationExists(orgId))) notFound()
+    return actor.platformRole
+  }
+  if (!(await isMember(actor.id, orgId))) forbidden()
+  if (roles && !roles.includes(actor.platformRole)) forbidden()
+  return actor.platformRole
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -90,45 +124,42 @@ export async function requireMembership(
 // ---------------------------------------------------------------------------------------------
 
 /**
- * A `section_memberships` row on a live section with a role in `roles` (08 §5). The organization is
+ * The actor is on the roster of a live section and holds one of `roles` (08 §5). The organization is
  * read from the section itself, so the scope handed back is the section's tenant, never the actor's
- * active organization.
+ * active organization. The admin needs no roster row.
  */
-export async function requireSectionRole(
+export async function requireSectionSeat(
   actor: SessionUser,
   sectionId: string,
-  roles: readonly SectionRole[],
+  roles: readonly PlatformRole[],
 ): Promise<SectionScope> {
+  if (isPlatformAdmin(actor)) {
+    const section = await findSection(sectionId)
+    if (!section) notFound()
+    return { sectionId, role: actor.platformRole, organizationId: section.organizationId }
+  }
   const membership = await findSectionMembership(actor.id, sectionId)
   if (!membership) {
     // A section in an institution the actor does not belong to, or no section at all, answers
     // NOT_FOUND (08 §5 "Cross-tenant"): a section id must not be confirmable from another tenant.
-    // A member of the institution with no seat on the section is FORBIDDEN (D-710).
+    // A member of the institution who is not on the roster is FORBIDDEN (D-710).
     const section = await findSection(sectionId)
     if (!section) notFound()
-    if (!(await findOrganizationRole(actor.id, section.organizationId))) notFound()
+    if (!(await isMember(actor.id, section.organizationId))) notFound()
     forbidden()
   }
-  const role = membership.role as SectionRole
-  if (!roles.includes(role)) forbidden()
-  return { sectionId, role, organizationId: membership.organizationId }
+  if (!roles.includes(actor.platformRole)) forbidden()
+  return { sectionId, role: actor.platformRole, organizationId: membership.organizationId }
 }
 
 /**
- * The course's creator, or an `instructor` in one of its sections (08 §5). A course the actor's
- * organization does not contain answers NOT_FOUND rather than FORBIDDEN.
+ * The instructor of a course: an Instructor who created it or is on the roster of one of its
+ * sections (08 §5). A course the actor's organization does not contain answers NOT_FOUND rather than
+ * FORBIDDEN; the admin runs every course.
  *
- * **Creating a course is not a permission that outlives the seat that had it** (D-516). The
- * creator branch used to ask only whether an organization membership *existed*, not what it was —
- * so a course's creator who was later demoted to `student` or `teaching_assistant` still held every
- * operation this guard admits: the mapping, the assignments, the runs, and now the export history
- * and the replay link on it. `courses.created_by` is a record of who made the row, not a grant. The
- * grant is 08 §3's `instructor` organization role, which is the only one the access-control
- * statement gives `course: update` to.
- *
- * The second branch is untouched and needs no role check of its own: a live `instructor` row on a
- * section of this course *is* the grant 08 §4 names, and it is the one a demoted creator who still
- * teaches a section keeps.
+ * **Creating a course is not a permission that outlives the role that had it** (D-516, D-748).
+ * `courses.created_by` is a record of who made the row, not a grant: a creator whose role an admin
+ * later changes to Student no longer runs the course, because the role is asked first.
  */
 export async function requireCourseInstructor(
   actor: SessionUser,
@@ -136,26 +167,20 @@ export async function requireCourseInstructor(
 ): Promise<{ courseId: string; organizationId: string }> {
   const course = await findCourse(courseId)
   if (!course) notFound()
-  const orgRole = await findOrganizationRole(actor.id, course.organizationId)
-  if (orgRole === null) notFound()
-  const isInstructor =
-    (course.createdBy === actor.id && orgRole === 'instructor') ||
-    (await teachesCourse(actor.id, courseId))
-  if (!isInstructor) forbidden()
+  if (isPlatformAdmin(actor)) return { courseId, organizationId: course.organizationId }
+  if (!(await isMember(actor.id, course.organizationId))) notFound()
+  if (actor.platformRole !== 'instructor') forbidden()
+  const runsIt = course.createdBy === actor.id || (await onCourseRoster(actor.id, courseId))
+  if (!runsIt) forbidden()
   return { courseId, organizationId: course.organizationId }
 }
 
 /**
- * A reviewer of a section: an `instructor` or `ta` row on it, **or** the instructor of its course
- * (08 §4 "Reviewer", read with D-062 and §5's `requireCourseInstructor`).
+ * A reviewer of a section: an Instructor on its roster, **or** the instructor of its course (08 §4
+ * "Reviewer", read with D-062 and §5's `requireCourseInstructor`), or the admin.
  *
- * The second half is not a widening. 08 §5 already reads "the section's instructor" as "the course's
- * creator, or an instructor in one of its sections" — that is what `requireCourseInstructor` is, and
- * `courses.requireSectionInstructor` uses it for exactly the reason D-062 gives: between creating a
- * section and putting anyone in it, the course's creator is the only instructor who exists. A guard
- * that asked only for the section row refused an instructor the runs and the exports on their own
- * course's assignment, which is why this is one predicate rather than two that agree by hand
- * (D-483).
+ * The second half is not a widening: between creating a section and putting anyone on it, the
+ * course's creator is the only instructor who exists (D-483).
  *
  * Returns a boolean rather than throwing, because both callers need it twice over: once to gate the
  * read and once to decide whether a screen offers the link that leads to it.
@@ -165,8 +190,9 @@ export async function canReviewSection(
   courseId: string,
   sectionId: string,
 ): Promise<boolean> {
-  const membership = await findSectionMembership(actor.id, sectionId)
-  if (membership && REVIEWER_ROLES.includes(membership.role as SectionRole)) return true
+  if (isPlatformAdmin(actor)) return true
+  if (actor.platformRole !== 'instructor') return false
+  if (await findSectionMembership(actor.id, sectionId)) return true
   try {
     await requireCourseInstructor(actor, courseId)
     return true
@@ -188,10 +214,6 @@ export async function requireSectionReviewer(
 
 // ---------------------------------------------------------------------------------------------
 // Runs
-//
-// The run row and its section exist from Phase 2, so ownership and reviewer role are enforced here
-// already. Phase 6 (the runs module) adds the remaining half of 08 §5 — "and run state allows the
-// action" — as a state argument on these helpers; until a run exists every call answers NOT_FOUND.
 // ---------------------------------------------------------------------------------------------
 
 async function requireRun(runId: string): Promise<RunScope> {
@@ -200,115 +222,84 @@ async function requireRun(runId: string): Promise<RunScope> {
   return run
 }
 
-/** `runs.student_id === actor.id`. Another student's run is NOT_FOUND, not FORBIDDEN (08 §4). */
+/**
+ * `runs.student_id === actor.id`, or the admin. Another person's run is NOT_FOUND, not FORBIDDEN
+ * (08 §4).
+ */
 export async function requireRunOwner(actor: SessionUser, runId: string): Promise<RunScope> {
   const run = await requireRun(runId)
+  if (isPlatformAdmin(actor)) return run
   if (run.studentId !== actor.id) notFound()
   return run
 }
 
-/** Section role `instructor` or `ta` on the run's section (08 §5). */
+/**
+ * A reviewer of the run's section (`canReviewSection`), or the admin (08 §5).
+ *
+ * Refusals keep their meaning: the run's own learner is FORBIDDEN — they know the run exists, and
+ * the answer says whose screen this is — and everyone else who is not a reviewer of it, a classmate
+ * or an instructor of another course alike, is NOT_FOUND, so a run id cannot be probed.
+ */
 export async function requireRunReviewer(actor: SessionUser, runId: string): Promise<RunScope> {
   const run = await requireRun(runId)
-  const membership = await findSectionMembership(actor.id, run.sectionId)
-  if (!membership) notFound()
-  // A classmate holds a section row and no read of anybody else's run (08 §4): NOT_FOUND, the
-  // same answer a stranger gets, so a run id cannot be probed for existence from the next seat.
-  // The run's own student is FORBIDDEN: they know the run exists, and the answer says whose
-  // screen this is.
-  if (membership.role === 'student') {
-    if (run.studentId === actor.id) forbidden()
-    notFound()
-  }
-  if (!REVIEWER_ROLES.includes(membership.role as SectionRole)) forbidden()
-  return run
+  if (await canReviewSection(actor, run.courseId, run.sectionId)) return run
+  if (run.studentId === actor.id) forbidden()
+  notFound()
 }
 
-/**
- * The reader of a filed **course export** (08 §4, D-483).
- *
- * 08 §4 puts "Download a filed course export" and "list an assignment's export history" on one row,
- * so they take one predicate: `canReviewSection`, which is `requireRunReviewer`'s section row *or*
- * the instructor of the course above it. Without this the export history a course's own instructor
- * can now open would list rows whose every download answered 404 — the defect D-483 fixes, one level
- * down. It stays separate from `requireRunReviewer`, which guards the replay, the debrief and the
- * record-form file: those are one student's run, and a section row is the whole of their gate.
- *
- * The two refusals keep `requireRunReviewer`'s meaning. A seat with no section row and no course
- * gets NOT_FOUND, so a run id cannot be probed for existence; a seat that can see the section but
- * holds the wrong role there gets FORBIDDEN.
- */
+/** The reader of a filed **course export** (08 §4, D-483): the same predicate as the reviewer. */
 export async function requireCourseExportReader(
   actor: SessionUser,
   runId: string,
 ): Promise<RunScope> {
-  const run = await requireRun(runId)
-  if (await canReviewSection(actor, run.courseId, run.sectionId)) return run
-  const membership = await findSectionMembership(actor.id, run.sectionId)
-  if (membership && (membership.role !== 'student' || run.studentId === actor.id)) forbidden()
-  notFound()
+  return requireRunReviewer(actor, runId)
 }
 
-/** Section role `instructor` on the run's section (08 §5); a TA is FORBIDDEN, not NOT_FOUND. */
+/**
+ * The instructor acts on a run — void, re-offer, neutralize (08 §5). With one Instructor role there
+ * is no reviewer who may read a run and not act on it, so this is the reviewer's predicate.
+ */
 export async function requireRunInstructor(actor: SessionUser, runId: string): Promise<RunScope> {
-  const run = await requireRun(runId)
-  const membership = await findSectionMembership(actor.id, run.sectionId)
-  if (!membership) notFound()
-  if (membership.role === 'student') {
-    if (run.studentId === actor.id) forbidden()
-    notFound()
-  }
-  if (membership.role !== 'instructor') forbidden()
-  return run
+  return requireRunReviewer(actor, runId)
 }
 
 // ---------------------------------------------------------------------------------------------
 // Packages
 // ---------------------------------------------------------------------------------------------
 
+async function requirePackageRole(
+  actor: SessionUser,
+  packageId: string,
+  roles: readonly PlatformRole[],
+): Promise<{ packageId: string; organizationId: string; role: PlatformRole }> {
+  const pkg = await findPackage(packageId)
+  if (!pkg) notFound()
+  if (isPlatformAdmin(actor)) {
+    return { packageId, organizationId: pkg.organizationId, role: actor.platformRole }
+  }
+  if (!(await isMember(actor.id, pkg.organizationId))) notFound()
+  if (!roles.includes(actor.platformRole)) forbidden()
+  return { packageId, organizationId: pkg.organizationId, role: actor.platformRole }
+}
+
 /**
- * Organization membership `instructor` or `scenario_author` in the package's organization — which
- * is also the platform editor's route in, since 08 §4 admits an editor only in an organization
- * where they hold a `scenario_author` membership. Phase 5 (the authoring module) adds the
- * confirmation rules that sit on top of this check.
+ * A Scenario Editor of the package's institution, or the admin: create, edit, generate, confirm
+ * (publish), retire (08 §4, D-748).
  */
 export async function requireAuthorOnPackage(
   actor: SessionUser,
   packageId: string,
-): Promise<{ packageId: string; organizationId: string; role: OrganizationRole }> {
-  const pkg = await findPackage(packageId)
-  if (!pkg) notFound()
-  const role = await findOrganizationRole(actor.id, pkg.organizationId)
-  if (role === null) notFound()
-  if (!PACKAGE_AUTHOR_ROLES.includes(role as OrganizationRole)) forbidden()
-  return { packageId, organizationId: pkg.organizationId, role: role as OrganizationRole }
+): Promise<{ packageId: string; organizationId: string; role: PlatformRole }> {
+  return requirePackageRole(actor, packageId, AUTHORING_ROLES)
 }
-
-// ---------------------------------------------------------------------------------------------
-// Identified records (D-055)
-// ---------------------------------------------------------------------------------------------
 
 /**
- * D-055 / FR-234: a platform `tassl_scenario_editor` may read identified institution records only
- * under an active `data_agreements` row that names their platform role and at least one purpose.
- * Returns a boolean rather than throwing: callers use it both to gate a read and to shape a
- * capabilities object for the UI.
+ * A reader of the package: its institution's Scenario Editors, and its Instructors, who choose a
+ * confirmed version for an assignment and read it back in review (08 §4, D-748).
  */
-export async function canReadIdentifiedRecords(
+export async function requirePackageReader(
   actor: SessionUser,
-  orgId: string,
-): Promise<boolean> {
-  if (actor.platformRole !== 'tassl_scenario_editor') return false
-  const agreement = await findActiveAgreement(orgId)
-  if (!agreement) return false
-  if (!agreement.permittedPlatformRoles.includes(actor.platformRole)) return false
-  return agreement.purposes.length > 0
-}
-
-/** The throwing form of `canReadIdentifiedRecords`, for services that gate a read on it. */
-export async function requireIdentifiedRecordsAccess(
-  actor: SessionUser,
-  orgId: string,
-): Promise<void> {
-  if (!(await canReadIdentifiedRecords(actor, orgId))) forbidden()
+  packageId: string,
+): Promise<{ packageId: string; organizationId: string; role: PlatformRole }> {
+  return requirePackageRole(actor, packageId, PACKAGE_READER_ROLES)
 }

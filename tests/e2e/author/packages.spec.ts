@@ -105,7 +105,7 @@ function variantBlock(scope: Locator, variantKey: 'defective' | 'sound'): Locato
   return scope.locator(`[data-variant="${variantKey}"]`)
 }
 
-test('an instructor starts a package from a seed case, imports one whole, and reads a claim back', async ({
+test('a scenario editor starts a package from a seed case, imports one whole, and reads a claim back', async ({
   page,
 }) => {
   const seedTitle = suiteName('Package')
@@ -113,7 +113,7 @@ test('an instructor starts a package from a seed case, imports one whole, and re
   const importedTitle = suiteName('Imported package')
   const importedFamilyKey = familyKeyOf(importedTitle)
 
-  await signInAs(page, 'instructor')
+  await signInAs(page, 'editor')
 
   // ------------------------------------------------------------------------------------------
   // UI-040: the shelf, with the package the seed put on it

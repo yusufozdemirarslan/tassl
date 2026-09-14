@@ -26,7 +26,6 @@ export const email = {
   'email.invitation.heading': 'You are invited to {organizationName}',
   'email.invitation.body':
     '{inviterName} invited you to join {organizationName} on Tassl. Accept the invitation with this email address; it expires in seven days.',
-  'email.invitation.role': 'Your role: {role}',
   'email.invitation.cta': 'Accept the invitation',
   'email.notification.subject': '{title} · Tassl',
   'email.notification.preview': 'An update from Tassl: {title}',

@@ -480,7 +480,9 @@ export async function listRunClaims(actor: SessionUser, runId: string): Promise<
 // that must hold before the next one is allowed to matter:
 //
 //   1. `requireRunOwner` — 08 §4 gives a student every in-run capability on their own run and none
-//      on anyone else's, and a foreign run answers NOT_FOUND so an id cannot be probed.
+//      on anyone else's, and a foreign run answers NOT_FOUND so an id cannot be probed. The
+//      Platform Admin passes it too (D-748), which is why each analytics event names the run's
+//      student rather than the actor.
 //   2. `lockRunForMutation` — the row lock, with the run's timers already materialized, so a run
 //      whose clock ran out while the student was typing meets its own auto-lock rather than this.
 //   3. The state gate — `working` or `turn_open`, and nowhere else (10 §8).
@@ -635,7 +637,7 @@ export async function setStance(
         is_change: recorded.previousStance !== null && recorded.previousStance !== parsed.data,
         ms_since_surfaced: Math.max(0, recorded.at.getTime() - recorded.surfacedAt.getTime()),
       },
-      { userId: actor.id, organizationId: tenantId },
+      { userId: scope.studentId, organizationId: tenantId },
     )
   }
 
@@ -752,7 +754,7 @@ export async function runAction(
         clock_cost_ms: done.action.clockCostMs,
         clock_remaining_ms: done.remainingMs,
       },
-      { userId: actor.id, organizationId: tenantId },
+      { userId: scope.studentId, organizationId: tenantId },
     )
   }
 
@@ -909,7 +911,7 @@ export async function escalate(
         counts_against_limit: done.escalation.countsAgainstLimit,
         clock_cost_ms: done.escalation.clockCostMs,
       },
-      { userId: actor.id, organizationId: tenantId },
+      { userId: scope.studentId, organizationId: tenantId },
     )
   }
 

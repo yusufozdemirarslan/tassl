@@ -297,7 +297,7 @@ describe('role × route (08 §2.6, §4: proxy.ts and the (app) layouts)', () => 
     ).resolves.toBeTruthy()
   })
 
-  it('/runs/[runId] renders for the owner and a section reviewer, and is not found for everyone else', async () => {
+  it('/runs/[runId] renders for the owner, the course instructor and the platform admin, and is not found for everyone else', async () => {
     const page = (who: Headers) =>
       render(
         () => RunLayout({ children: null, params: Promise.resolve({ runId: runB }) }),
@@ -306,11 +306,11 @@ describe('role × route (08 §2.6, §4: proxy.ts and the (app) layouts)', () => 
       )
     await expect(page(await session(fx.classmate.id, fx.orgId))).resolves.toBeTruthy()
     await expect(page(await session(fx.instructor.id, fx.orgId))).resolves.toBeTruthy()
-    await expect(page(await session(fx.ta.id, fx.orgId))).resolves.toBeTruthy()
-    // The classmate of the run's owner, the instructor of another institution, the platform admin.
+    // The Platform Admin has full access (D-748).
+    await expect(page(await session(admin.id, fx.orgId))).resolves.toBeTruthy()
+    // The classmate of the run's owner, and the instructor of another institution.
     await expect(page(await session(fx.studentUser.id, fx.orgId))).rejects.toThrow('NEXT_NOT_FOUND')
     await expect(page(await session(fy.instructor.id, fy.orgId))).rejects.toThrow('NEXT_NOT_FOUND')
-    await expect(page(await session(admin.id, fx.orgId))).rejects.toThrow('NEXT_NOT_FOUND')
     await expect(page(ANONYMOUS)).rejects.toThrow(
       `NEXT_REDIRECT /sign-in?next=${encodeURIComponent(`/runs/${runB}`)}`,
     )
@@ -814,7 +814,8 @@ describe('immutability after the lock (08 §4, 10 §9, FR-102, FR-115, D-085)', 
   })
 
   it('refuses every element write on a confirmed package version with VERSION_FROZEN, and the rows stand', async () => {
-    const instructor = await session(fx.instructor.id, fx.orgId)
+    // The Scenario Editor, who may write a draft (D-748): the refusal is the frozen version, not the role.
+    const editor = await session(fx.editor.id, fx.orgId)
     const documentId = fx.documentId('D5')
     const before = {
       version: await rowsOf('scenario_package_versions', 'id', fx.versionId),
@@ -826,7 +827,7 @@ describe('immutability after the lock (08 §4, 10 §9, FR-102, FR-115, D-085)', 
     const brief = await call(routes.element, {
       method: 'PATCH',
       path: `/package-versions/${fx.versionId}/elements/brief/${SINGLETON_ELEMENT_ID}`,
-      session: instructor,
+      session: editor,
       params: { versionId: fx.versionId, elementType: 'brief', elementId: SINGLETON_ELEMENT_ID },
       body: { brief: 'A brief rewritten after confirmation.' },
     })
@@ -835,7 +836,7 @@ describe('immutability after the lock (08 §4, 10 §9, FR-102, FR-115, D-085)', 
     const document = await call(routes.element, {
       method: 'PATCH',
       path: `/package-versions/${fx.versionId}/elements/document/${documentId}`,
-      session: instructor,
+      session: editor,
       params: { versionId: fx.versionId, elementType: 'document', elementId: documentId },
       body: { title: 'A document retitled after confirmation' },
     })

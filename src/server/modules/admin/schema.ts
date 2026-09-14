@@ -10,26 +10,17 @@
 // in a JSON body, so it is already the shape the client reads.
 import { z } from 'zod'
 
-/** `user.platform_role` (06 §3.1, D-007). */
-export const platformRoleSchema = z.enum(['none', 'tassl_scenario_editor', 'admin'])
-export type PlatformRole = z.infer<typeof platformRoleSchema>
-
-/** `member.role`: the seat a person holds in one institution (08 §3). */
-export const institutionRoleSchema = z.enum([
-  'student',
-  'instructor',
-  'teaching_assistant',
-  'scenario_author',
-  'program_lead',
-])
-export type InstitutionRole = z.infer<typeof institutionRoleSchema>
-
 /**
- * The institution seats the users table hands out (D-747): Student and Instructor. The other three
- * are shown as they stand and are given where they always were — an invitation, or the roster.
+ * `user.platform_role` (06 §3.1, D-748): the one role an account holds — Student, Scenario Editor,
+ * Instructor, or Platform Admin — and the only role the users table sets.
  */
-export const assignableInstitutionRoleSchema = z.enum(['student', 'instructor'])
-export type AssignableInstitutionRole = z.infer<typeof assignableInstitutionRoleSchema>
+export const platformRoleSchema = z.enum([
+  'student',
+  'tassl_scenario_editor',
+  'instructor',
+  'admin',
+])
+export type PlatformRole = z.infer<typeof platformRoleSchema>
 
 /** Cursor pagination (10 §11, D-020); unknown query parameters are rejected. */
 export const pageQuerySchema = z.strictObject({
@@ -68,38 +59,15 @@ export const setPlatformRoleSchema = adminUserIdSchema.extend({ role: platformRo
 export type SetPlatformRoleInput = z.infer<typeof setPlatformRoleSchema>
 
 /**
- * The body of `PUT /admin/users/{userId}/institution-role` (D-747): which institution, and which of
- * the two seats. `ROLE_INVALID` is what any other seat answers.
- */
-export const setInstitutionRoleBodySchema = z.object({
-  organizationId: z.string().min(1),
-  role: assignableInstitutionRoleSchema,
-})
-
-/** What the Server Action takes: the path parameter and the body as one object. */
-export const setInstitutionRoleSchema = adminUserIdSchema.extend(setInstitutionRoleBodySchema.shape)
-export type SetInstitutionRoleInput = z.infer<typeof setInstitutionRoleSchema>
-
-/** One institution an account belongs to, and the seat it holds there (D-747). */
-export const adminMembershipSchema = z.object({
-  organizationId: z.string(),
-  organizationName: z.string(),
-  role: institutionRoleSchema,
-})
-export type AdminMembership = z.infer<typeof adminMembershipSchema>
-
-/**
  * One row of the users table (07 §9 `AdminUser`). `deletedAt` is carried because a soft-deleted
  * account is still a row an admin can see and must be able to tell apart (08 §2.9); it is never a
- * seat anyone can be given, and the table says so. `memberships` is every institution the account
- * belongs to, by name, so the table can draw one institution-role control per seat (D-747).
+ * seat anyone can be given, and the table says so.
  */
 export const adminUserSchema = z.object({
   id: z.string(),
   name: z.string(),
   email: z.string(),
   platformRole: platformRoleSchema,
-  memberships: z.array(adminMembershipSchema),
   deletedAt: z.iso.datetime().nullable(),
   createdAt: z.iso.datetime(),
 })

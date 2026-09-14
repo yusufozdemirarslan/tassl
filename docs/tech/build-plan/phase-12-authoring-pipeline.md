@@ -55,7 +55,7 @@ pnpm lint && pnpm typecheck && pnpm test -- tests/unit/authoring tests/unit/llm/
 - `tests/integration/authoring/pipeline.test.ts` — start → seven steps succeed on mock → validation ok → `generation_complete` notification; `generation_runs` rows with tokens and pass numbers; a step forced to fail validation once (test env `MOCK_GEN_FAIL_ONCE=documents`) re-runs with `pass_number 2` and the failed rule in the prompt input; twice → `failed` and `generation_failed`.
 - `tests/integration/authoring/regenerate.test.ts` — regenerating documents replaces the set and resets their confirmations; confirmed elements are untouched.
 - `tests/integration/authoring/measures.test.ts` — edit rate, rejected share, passes, review time, seed-to-confirmed.
-- `tests/integration/api/authoring.test.ts` — endpoints and matrix rows (editor may start generation only with an author membership).
+- `tests/integration/api/authoring.test.ts` — endpoints and matrix rows (a Scenario Editor of the institution and the Platform Admin start generation; an Instructor or Student is refused, D-748).
 **Verify (all must pass):**
 ```bash
 pnpm lint && pnpm typecheck && pnpm test:integration -- tests/integration/authoring tests/integration/api/authoring.test.ts tests/integration/auth/matrix.test.ts && pnpm openapi:generate && pnpm openapi:check

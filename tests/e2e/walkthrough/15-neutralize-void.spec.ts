@@ -77,7 +77,6 @@ test('walkthrough step 15a: neutralizing the planted claim on a recorded run rec
   })
   await addSectionMember(request, assignment.section.id, {
     email: seatEmail('instructor'),
-    role: 'instructor',
   })
 
   // -------------------------------------------------------------------------------------------
@@ -190,7 +189,6 @@ test('walkthrough step 15b: voiding the run that ran out of clock leaves no part
   })
   await addSectionMember(request, assignment.section.id, {
     email: seatEmail('instructor'),
-    role: 'instructor',
   })
 
   // -------------------------------------------------------------------------------------------

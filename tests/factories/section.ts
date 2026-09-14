@@ -20,13 +20,13 @@ export async function createSection(
   })
 }
 
+/** Puts the user on the section roster; the row carries no role (D-748). */
 export async function addSectionMember(
   organizationId: string,
   sectionId: string,
   userId: string,
-  role: SectionMembership['role'],
 ): Promise<SectionMembership> {
-  const row = await upsertSectionMembership(organizationId, { sectionId, userId, role })
+  const row = await upsertSectionMembership(organizationId, { sectionId, userId })
   if (!row) throw new Error(`section ${sectionId} is not in organization ${organizationId}`)
   return row
 }

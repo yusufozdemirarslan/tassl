@@ -10,7 +10,7 @@
 import { afterAll, beforeEach, describe, expect, it } from 'vitest'
 import { testSql, truncateAll } from '@tests/setup/integration'
 import { isAppError } from '@/lib/errors'
-import type { SessionUser } from '@/server/auth/types'
+import type { PlatformRole, SessionUser } from '@/server/auth/types'
 
 type Runs = typeof import('@/server/modules/runs')
 type RunsRepo = typeof import('@/server/modules/runs/repository')
@@ -31,7 +31,7 @@ const actorFor = (user: UserRow, orgId: string): SessionUser => ({
   name: user.name,
   emailVerified: true,
   activeOrganizationId: orgId,
-  platformRole: 'none',
+  platformRole: user.platform_role as PlatformRole,
 })
 
 type Fixture = Awaited<ReturnType<typeof setup>>
@@ -39,7 +39,8 @@ type Fixture = Awaited<ReturnType<typeof setup>>
 /**
  * The walkthrough shape: one institution, a course with a section holding an instructor and two
  * students, a confirmed package version, and the assignment on its defective variant. A second
- * institution supplies the outsider every cross-tenant refusal is proven against.
+ * institution supplies the outsider every cross-tenant refusal is proven against; the Platform
+ * Admin belongs to neither and is admitted everywhere (D-748).
  */
 async function setup() {
   const w = await f.buildWalkthroughFixture()
@@ -51,12 +52,17 @@ async function setup() {
     where id = ${w.pkg.version.id}`
 
   const outsiderOrg = (await f.createInstitution('runs-start-b')).organization.id
-  const outsider = await f.createUser('runs-start-outsider')
-  await f.addMember(outsiderOrg, outsider.id, 'instructor')
+  const outsider = await f.createUser('runs-start-outsider', { platformRole: 'instructor' })
+  await f.addMember(outsiderOrg, outsider.id)
 
   // A student of the institution who is not on the section.
   const bystander = await f.createUser('runs-start-bystander')
-  await f.addMember(orgId, bystander.id, 'student')
+  await f.addMember(orgId, bystander.id)
+
+  // A Scenario Editor on the roster, who takes runs as a Student does (D-748).
+  await f.addSectionMember(orgId, w.section.id, w.editor.id)
+
+  const admin = await f.createUser('runs-start-admin', { platformRole: 'admin' })
 
   return {
     orgId,
@@ -70,6 +76,8 @@ async function setup() {
     instructor: actorFor(w.instructor, orgId),
     bystander: actorFor(bystander, orgId),
     outsider: actorFor(outsider, outsiderOrg),
+    editor: actorFor(w.editor, orgId),
+    admin: actorFor(admin, orgId),
   }
 }
 
@@ -164,9 +172,25 @@ describe('startRun (FR-231, 10 §6)', () => {
     expect(await codeOf(runs.startRun(fx.bystander, fx.assignment.id))).toBe('FORBIDDEN')
   })
 
-  it('refuses the section instructor with FORBIDDEN, not NOT_FOUND', async () => {
+  it('refuses an Instructor on the section roster with FORBIDDEN, not NOT_FOUND (D-748)', async () => {
     // They can read the assignment; they simply do not take it (08 §4 "Start a run": a dash).
     expect(await codeOf(runs.startRun(fx.instructor, fx.assignment.id))).toBe('FORBIDDEN')
+    expect(await testSql`select id from runs`).toHaveLength(0)
+  })
+
+  it('lets a Scenario Editor on the roster take the run as a Student does (D-748)', async () => {
+    const run = await runs.startRun(fx.editor, fx.assignment.id)
+    expect(run).toMatchObject({ state: 'assigned', attemptNo: 1 })
+    const row = await runsRepo.findRunWithLabels(fx.orgId, run.id)
+    expect(row?.run.studentId).toBe(fx.editor.id)
+  })
+
+  it('lets the Platform Admin start a run with no membership and no roster seat (D-748)', async () => {
+    const run = await runs.startRun(fx.admin, fx.assignment.id)
+    expect(run).toMatchObject({ state: 'assigned', attemptNo: 1 })
+    const row = await runsRepo.findRunWithLabels(fx.orgId, run.id)
+    // The admin is the learner of a run they started themselves.
+    expect(row?.run.studentId).toBe(fx.admin.id)
   })
 
   it('answers NOT_FOUND to another institution', async () => {
@@ -270,6 +294,18 @@ describe('acknowledgePolicy (FR-201, 10 §6)', () => {
     expect(await codeOf(runs.acknowledgePolicy(fx.outsider, started.id))).toBe('NOT_FOUND')
     expect(await trace.listEvents(fx.student, started.id)).toEqual([])
   })
+
+  it('admits the Platform Admin, and the trace names the admin as the actor (D-748)', async () => {
+    const started = await runs.startRun(fx.student, fx.assignment.id)
+    const acknowledged = await runs.acknowledgePolicy(fx.admin, started.id)
+    expect(acknowledged.state).toBe('readiness')
+
+    const events = await trace.listEvents(fx.admin, started.id)
+    expect(events.map((event) => event.actorId)).toEqual([fx.admin.id, fx.admin.id])
+    // The run is still the student's.
+    const row = await runsRepo.findRunWithLabels(fx.orgId, started.id)
+    expect(row?.run.studentId).toBe(fx.student.id)
+  })
 })
 
 describe('getRun, getRunStatus and listMyRuns (07 §7, §3)', () => {
@@ -278,6 +314,7 @@ describe('getRun, getRunStatus and listMyRuns (07 §7, §3)', () => {
 
     await expect(runs.getRun(fx.student, started.id)).resolves.toMatchObject({ id: started.id })
     await expect(runs.getRun(fx.instructor, started.id)).resolves.toMatchObject({ id: started.id })
+    await expect(runs.getRun(fx.admin, started.id)).resolves.toMatchObject({ id: started.id })
     expect(await codeOf(runs.getRun(fx.student2, started.id))).toBe('NOT_FOUND')
     expect(await codeOf(runs.getRun(fx.outsider, started.id))).toBe('NOT_FOUND')
     expect(await codeOf(runs.getRun(fx.bystander, started.id))).toBe('NOT_FOUND')

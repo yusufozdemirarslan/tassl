@@ -12,13 +12,15 @@ else uses it, see [what Tassl is](00-what-tassl-is.md).
 
 ## 1. Who you are in Tassl
 
-You hold two seats. In your institution you are a **Student**. In the section of the course you are
-enrolled on, you are a **Student** as well. Those two rows are what let you start a run. Nothing
-else you hold changes what you see.
+Your account holds one role, **Student**, which is what every new account starts as. Your
+institution's membership says where you study, and a row on a section roster says which section you
+are in; together with your role, that row is what lets you start a run there. If your account is a
+**Scenario Editor** instead, everything in this manual applies to you too — that role is a Student's
+access with package authoring on top.
 
 **You can:**
 
-- See **Home** and **Runs**, and the assignments of every section you have a student row in.
+- See **Home** and **Runs**, and the assignments of every section whose roster you are on.
 - Start one run per assignment, and continue it from wherever you left it.
 - Use everything inside your own run: the Readiness Check, the Evidence Room, the frame, the AI
   assistant, stances, checks, escalations, the Delegation Log, the outside-tool declaration, the
@@ -38,17 +40,17 @@ else you hold changes what you see.
 - See the Readiness Check answer key, the defense question bank, the notes written for a question,
   or the licensed case the scenario was adapted from.
 - Decide a band, void a run, or change anything an instructor decided.
-- Start a run on a section you are not on. Tassl answers "Only a student on this assignment’s
-  section can start a run."
+- Start a run on a section you are not on. Tassl answers "Only a learner on this section’s roster
+  can start this run."
 
-You sit beside three other kinds of seat. Your instructor sets the course up, reads your run back
-afterwards and confirms each of the seven bands ([the instructor manual](01-instructor.md)); a
-teaching assistant can read your run and decide bands your instructor has not
-([the teaching assistant manual](05-teaching-assistant.md)); a scenario author writes the case you
-take but never sees your run ([the scenario author manual](04-scenario-author.md)). None of them can
-write inside your run while it is live, and none of them can edit anything you locked.
+Every account holds one of four roles, and you sit beside the other three. Your instructor sets the
+course up, reads your run back afterwards and confirms each of the seven bands
+([the instructor manual](01-instructor.md)); a Scenario Editor writes and confirms the case you take
+but never sees your run ([the scenario editor manual](04-scenario-author.md)); a Platform Admin runs
+Tassl itself. None of them can write inside your run while it is live, and none of them can edit
+anything you locked.
 
-**Opening a page your seat does not carry.** There is no "access denied" screen in Tassl. Four
+**Opening a page your role does not carry.** There is no "access denied" screen in Tassl. Three
 things can happen instead, and it is worth knowing which is which.
 
 Typing the address of the admin area gives you the in-app **Not found** page: "There is nothing at
@@ -57,25 +59,17 @@ the rail stay where they are.
 
 ![The admin address shown to a student as the in-app Not found page, with the Home and Runs rail still visible](screenshots/learner/forbidden-admin.png)
 
-The review area behaves the same way — **Not found**, because the review queue belongs to people who
-read other people's runs.
+The review area and the courses address behave the same way — **Not found**, because the review
+queue and the course screens belong to the people who teach. Everything you actually need from a
+course — the policy, the weight, the band mapping — is shown to you inside the run itself.
 
 ![The review address shown to a student as the in-app Not found page](screenshots/learner/forbidden-review.png)
 
-The packages area says so in words instead. The heading is **Packages are not open to your seat**
-and the sentence beneath reads: "Only an instructor or a scenario author reads and writes packages
-in Walkthrough University. If you should be one, an administrator of the institution can change your
-seat."
+The packages area says so in words instead. The heading is **Packages are not open to your role**
+and the sentence beneath reads: "Scenario Editors and Instructors read packages in Walkthrough
+University. If you should be one of them, a Platform Admin can change your role."
 
-![The Packages screen telling a student that packages are not open to their seat](screenshots/learner/forbidden-packages.png)
-
-The courses address does open, and shows a read-only list under the caption "Courses in this
-institution". Its columns are **Course**, **Term**, **Sections** and **Assignments**, and it holds
-only the courses you have a section row in. There is no **Courses** item in your rail and nothing on
-the page you can change. Everything you actually need from a course — the policy, the weight, the
-band mapping — is shown to you inside the run itself.
-
-![The Courses list as a student sees it, read-only, with one course row](screenshots/learner/forbidden-courses.png)
+![The Packages screen telling a student that packages are not open to their role](screenshots/learner/forbidden-packages.png)
 
 ---
 
@@ -114,8 +108,8 @@ the address you wanted after you sign in. Nothing on the screen says where you w
 
 ![The sign-in screen reached by opening a signed-in address while signed out](screenshots/shared/signed-out-redirect.png)
 
-That redirect is also what an address your seat cannot reach looks like when nobody is signed in —
-you are asked to sign in first, and the seat is checked afterwards.
+That redirect is also what an address your role cannot reach looks like when nobody is signed in —
+you are asked to sign in first, and the role is checked afterwards.
 
 ![The sign-in screen reached by opening the admin address with no session](screenshots/shared/forbidden-admin-as-anonymous.png)
 
@@ -140,13 +134,14 @@ the "confirm your email address" screen and told nothing. That is deliberate.
 
 This is the usual way a student arrives. The invitation email carries a link; opening it gives you a
 page headed **Join {institution}** — "{institution} invited you to Tassl. Accept and your courses,
-assignments, and runs there appear on your home page." It shows **Your role**, which is the seat the
-person who invited you chose, and one button, **Accept the invitation**. Pressing it answers "You are
-now a member of {institution}." and your assignments appear on **Home**.
+assignments, and runs there appear on your home page." — and one button, **Accept the invitation**.
+Pressing it answers "You are now a member of {institution}." Once your instructor puts you on a
+section roster, your assignments appear on **Home**.
 
 An invitation lasts seven days and works once. The refusals it can give are in
-[section 9](#accepting-an-invitation). Nothing on this page is editable: the seat is the inviter's
-choice, and an administrator of the institution is the person who changes one.
+[section 9](#accepting-an-invitation). An invitation carries no role: it makes you a member of the
+institution, and your account's role — **Student**, unless a Platform Admin has set another — stays
+what it was.
 
 ### Confirming your address, and the two kinds of link
 
@@ -176,7 +171,7 @@ instead, with **Ask for a new link**.
 
 **Privacy** ("What Tassl stores about you, why it stores it, how long it keeps it, and what you can
 do about it") lists, in a table, everything the product holds: your account, your signed-in devices,
-your seats, your run, what the run produced, your notifications, model-call records, rate-limit
+your role and memberships, your run, what the run produced, your notifications, model-call records, rate-limit
 counters and audit rows. It states plainly that "Tassl records no audio and no video, takes no
 screenshots, and measures no typing."
 
@@ -199,7 +194,7 @@ address. It may have moved, or the link may be wrong." — with **Go home**.
 Signing in lands you on **Home**, described as "What needs your attention, and what is coming up."
 Above the heading sits the name of your institution.
 
-The page carries one region for your seat: **Your runs**. Inside it is the first five rows of the
+The page carries one region for your role: **Your runs**. Inside it is the first five rows of the
 same table the **Runs** screen shows, with the caption "Your assignments and the runs you have taken
 on them" and the columns **Assignment**, **Attempt**, **State** and **Next**. If you have more than
 five, an **All runs** button appears beside the heading and takes you to **Runs**.
@@ -210,7 +205,7 @@ Two empty states can stand in its place:
 
 | What you see | When |
 |---|---|
-| **Nothing to do yet** — "When a course assigns you a run, or a run is waiting for your review, it appears here." | You belong to an institution but nothing has been assigned yet |
+| **Nothing to do yet** — "When a course assigns you a run, it appears here with what to do next." | You belong to an institution but nothing has been assigned yet |
 | **Waiting for an invitation** — "An institution adds you by an invitation email; once you accept it, your courses and runs appear here." | Your account belongs to no institution yet |
 
 The same screen works on a phone. The rail, the header and the table all stay; the table scrolls
@@ -1687,7 +1682,7 @@ and your data."
 | Control | What it does |
 |---|---|
 | **Your name** | Editable. Empty gives "Enter your name."; over 120 characters gives "Use 120 characters or fewer." |
-| **Email address** | Shown, and disabled. The note reads: "Your institution knows you by this address, so it is not editable here. Ask your program lead if it needs to change." |
+| **Email address** | Shown, and disabled. The note reads: "Your institution knows you by this address, so it is not editable here. Ask your instructor if it needs to change." |
 | **Save changes** | Saves the name. The toast reads "Your name is saved." |
 
 There is no way to change your email address anywhere in Tassl.
@@ -1873,7 +1868,7 @@ An institution adds you by an invitation email. The link can refuse in four ways
 | **The Readiness Check is not open on this run.** | Opening the check | It has not been reached, or it has closed | You land on the reading the check produced |
 | **This run has not filed a decision yet.** | Opening the **Decision locked** screen early | Nothing is filed | Continue the run |
 | **The Turn is not open on this run.** | Opening the Turn early or late | The window is not running | The run sends you where it now is |
-| **Not found** — "There is nothing at this address. It may have moved, or the link may be wrong." | Any address your seat cannot reach | The page belongs to another seat | **Go home** |
+| **Not found** — "There is nothing at this address. It may have moved, or the link may be wrong." | Any address your role cannot reach | The page belongs to another role | **Go home** |
 
 ### The Readiness Check
 
@@ -2110,6 +2105,9 @@ taking a different one.
 
 **Revise** — The second answer to the Turn: the decision holds in direction, and something inside it
 changes.
+
+**Role** — The one role your account holds. Yours is **Student**; the others are **Scenario
+Editor**, **Instructor** and **Platform Admin**, and only a Platform Admin changes it.
 
 **Run** — Your single attempt at one assignment, kept as a resumable record of everything you did.
 

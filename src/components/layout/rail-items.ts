@@ -1,41 +1,38 @@
 import type { RailItem } from '@/components/layout/rail'
 import { t } from '@/lib/i18n/t'
-import type { OrganizationRole, PlatformRole } from '@/server/modules/identity/schema'
+import type { PlatformRole } from '@/server/modules/identity/schema'
 
 // Which primary-navigation items a person may see (UI-008). Hiding an item is a courtesy: every
-// route behind it re-checks the same roles server-side (08 §5), so this decides what is offered,
+// route behind it re-checks the same role server-side (08 §5), so this decides what is offered,
 // never what is allowed.
 
 export type RailKey = 'home' | 'runs' | 'courses' | 'review' | 'packages' | 'admin'
 
 export type RailAudience = {
-  /** The organization roles the person holds, across every institution they belong to. */
-  roles: readonly OrganizationRole[]
+  /** The one role the account holds (D-748); memberships say where, never what. */
   platformRole: PlatformRole
 }
 
 /**
- * The full UI-008 rule, including the destinations later phases add. Home is unconditional, so a
+ * The full UI-008 rule, derived from the platform role alone (D-748). Home is unconditional, so a
  * person with no membership still has one place to stand (the zero-membership state of UI-009).
+ *
+ *   Student          — Home, Runs
+ *   Scenario Editor  — Home, Runs, Packages (a Student's access, plus authoring)
+ *   Instructor       — Home, Courses, Review, Packages (read, to assign and review)
+ *   Platform Admin   — every destination
  */
-export function permittedRailKeys({ roles, platformRole }: RailAudience): RailKey[] {
-  const has = (role: OrganizationRole): boolean => roles.includes(role)
+export function permittedRailKeys({ platformRole }: RailAudience): RailKey[] {
+  const admin = platformRole === 'admin'
   const keys: RailKey[] = ['home']
-  // Runs: the institution seat today; Phase 4 narrows it to a section membership as student, which
-  // is the roster row UI-008 names and no table holds yet.
-  if (has('student')) keys.push('runs')
-  if (has('instructor') || has('program_lead')) keys.push('courses')
-  if (has('instructor') || has('teaching_assistant')) keys.push('review')
-  // Packages: an instructor authors and confirms them exactly as a scenario author does — 08 §4
-  // gives both the author column, `requireAuthorOnPackage` admits both, and the seeded instructor
-  // is the authority who confirmed the fixture. Offering the destination only to the dedicated
-  // seat hid the shelf from the person who owns it.
-  // A platform editor is not admitted by the platform role alone: 08 §4 gives them the author
-  // column "in any org where the editor has a scenario_author membership", and `listPackages`
-  // refuses anyone without that seat. Offering a destination the service turns away is worse than
-  // not offering it, so the membership decides here too.
-  if (has('instructor') || has('scenario_author')) keys.push('packages')
-  if (platformRole === 'admin') keys.push('admin')
+  if (admin || platformRole === 'student' || platformRole === 'tassl_scenario_editor') {
+    keys.push('runs')
+  }
+  if (admin || platformRole === 'instructor') keys.push('courses', 'review')
+  if (admin || platformRole === 'tassl_scenario_editor' || platformRole === 'instructor') {
+    keys.push('packages')
+  }
+  if (admin) keys.push('admin')
   return keys
 }
 

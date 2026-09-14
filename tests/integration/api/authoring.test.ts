@@ -7,10 +7,10 @@
 //                                                                              regenerateElement
 //
 // Each gets its happy path, the error envelope of every code 07 §6 names for it, and the cells of
-// 08-auth-authz.md §4 "Create package from seed; run generation" — including the one this step
-// calls out by name: **a platform editor may start generation only through a `scenario_author`
-// membership of the institution** (08 §5). The same seat is tried twice, once without the
-// membership and once with it, so the row is proven by the difference rather than by a comment.
+// 08-auth-authz.md §4 "Create package from seed; run generation" (D-748): **a Scenario Editor runs
+// generation in the institutions they belong to**, and the Platform Admin runs it anywhere. The
+// editor seat is tried twice, once without the membership and once with it, so the row is proven by
+// the difference rather than by a comment; an Instructor reads packages and is refused here.
 //
 // Most seat rows are answered against a version with no seed record. That is deliberate: an allowed
 // seat meets `SEED_MISSING` (409) — an allow, since 08 §4 is proven by refusal and 409 is not one —
@@ -46,8 +46,7 @@ const SEATS = [
   'author',
   'instructor',
   'student',
-  'ta',
-  'program_lead',
+  'admin',
   'editor_without_membership',
   'editor_with_membership',
   'outsider',
@@ -130,10 +129,16 @@ beforeAll(async () => {
 
   const seats: Record<Seat, { userId: string; org: string }> = {
     author: { userId: fx.authorId, org: fx.orgId },
-    instructor: { userId: (await f.createUser('authoring-api-instructor')).id, org: fx.orgId },
+    instructor: {
+      userId: (await f.createUser('authoring-api-instructor', { platformRole: 'instructor' })).id,
+      org: fx.orgId,
+    },
     student: { userId: (await f.createUser('authoring-api-student')).id, org: fx.orgId },
-    ta: { userId: (await f.createUser('authoring-api-ta')).id, org: fx.orgId },
-    program_lead: { userId: (await f.createUser('authoring-api-lead')).id, org: fx.orgId },
+    // The Platform Admin holds no membership at all and is admitted everywhere (D-748).
+    admin: {
+      userId: (await f.createUser('authoring-api-admin', { platformRole: 'admin' })).id,
+      org: fx.orgId,
+    },
     editor_without_membership: {
       userId: (
         await f.createUser('authoring-api-editor-out', { platformRole: 'tassl_scenario_editor' })
@@ -147,17 +152,17 @@ beforeAll(async () => {
       org: fx.orgId,
     },
     outsider: {
-      userId: (await f.createUser('authoring-api-outsider')).id,
+      userId: (
+        await f.createUser('authoring-api-outsider', { platformRole: 'tassl_scenario_editor' })
+      ).id,
       org: other.organization.id,
     },
   }
-  await f.addMember(fx.orgId, seats.instructor.userId, 'instructor')
-  await f.addMember(fx.orgId, seats.student.userId, 'student')
-  await f.addMember(fx.orgId, seats.ta.userId, 'teaching_assistant')
-  await f.addMember(fx.orgId, seats.program_lead.userId, 'program_lead')
+  await f.addMember(fx.orgId, seats.instructor.userId)
+  await f.addMember(fx.orgId, seats.student.userId)
   // The whole of 08 §5's editor rule: the platform role alone is not a seat in an institution.
-  await f.addMember(fx.orgId, seats.editor_with_membership.userId, 'scenario_author')
-  await f.addMember(other.organization.id, seats.outsider.userId, 'program_lead')
+  await f.addMember(fx.orgId, seats.editor_with_membership.userId)
+  await f.addMember(other.organization.id, seats.outsider.userId)
 
   const built: Partial<Record<Seat, Headers>> = {}
   for (const seat of SEATS) {
@@ -198,11 +203,10 @@ afterAll(async () => {
 describe('who may run generation', () => {
   it.each([
     ['author', 409, 'SEED_MISSING'],
-    ['instructor', 409, 'SEED_MISSING'],
     ['editor_with_membership', 409, 'SEED_MISSING'],
+    ['admin', 409, 'SEED_MISSING'],
+    ['instructor', 403, 'FORBIDDEN'],
     ['student', 403, 'FORBIDDEN'],
-    ['ta', 403, 'FORBIDDEN'],
-    ['program_lead', 403, 'FORBIDDEN'],
     ['editor_without_membership', 404, 'NOT_FOUND'],
     ['outsider', 404, 'NOT_FOUND'],
   ] as const)('POST /generation as %s answers %i', async (seat, status, code) => {
@@ -213,11 +217,10 @@ describe('who may run generation', () => {
 
   it.each([
     ['author', 200],
-    ['instructor', 200],
     ['editor_with_membership', 200],
+    ['admin', 200],
+    ['instructor', 403],
     ['student', 403],
-    ['ta', 403],
-    ['program_lead', 403],
     ['editor_without_membership', 404],
     ['outsider', 404],
   ] as const)('GET /generation as %s answers %i', async (seat, status) => {
@@ -226,11 +229,10 @@ describe('who may run generation', () => {
 
   it.each([
     ['author', 202],
-    ['instructor', 202],
     ['editor_with_membership', 202],
+    ['admin', 202],
+    ['instructor', 403],
     ['student', 403],
-    ['ta', 403],
-    ['program_lead', 403],
     ['editor_without_membership', 404],
     ['outsider', 404],
   ] as const)(

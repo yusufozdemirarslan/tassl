@@ -72,7 +72,7 @@ test('an author generates a package from a seed case, regenerates one element, a
   const title = suiteName('Generated package')
   const familyKey = familyKeyOf(title)
 
-  await signInAs(page, 'instructor')
+  await signInAs(page, 'editor')
 
   // ------------------------------------------------------------------------------------------
   // UI-041: "Create and generate"

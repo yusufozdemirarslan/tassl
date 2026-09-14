@@ -81,7 +81,7 @@ describe('listDelegations', () => {
     expect(again[0]?.claims[0]?.stance).toBe('verify')
   })
 
-  it('is readable by a reviewer of the section, and carries their flags only for them', async () => {
+  it('is readable by a reviewer of the section and the Platform Admin, with flags only for them (D-748)', async () => {
     const runId = await runInWorking(fx)
     const delegationId = await ask(runId, 'What is the premium payback?')
 
@@ -89,7 +89,8 @@ describe('listDelegations', () => {
     expect(keysOf(owner).has('flags')).toBe(false)
     expect(keysOf(owner).has('unverifiedNumbers')).toBe(false)
 
-    for (const reviewer of [fx.instructor, fx.ta]) {
+    // The admin reads as a reviewer, never as the owner — though `requireRunOwner` admits them.
+    for (const reviewer of [fx.instructor, fx.admin]) {
       const seen = await assistant.listDelegations(reviewer, runId)
       expect(seen).toHaveLength(1)
       expect(seen[0]?.flags).toEqual([])
@@ -98,7 +99,9 @@ describe('listDelegations', () => {
 
     // FR-055: the reviewer's flag is theirs, and the student's view never grows it.
     await assistant.flagDelegation(fx.instructor, runId, delegationId, 'out_of_scenario')
-    expect((await assistant.listDelegations(fx.ta, runId))[0]?.flags).toEqual(['out_of_scenario'])
+    expect((await assistant.listDelegations(fx.admin, runId))[0]?.flags).toEqual([
+      'out_of_scenario',
+    ])
     expect(keysOf(await assistant.listDelegations(fx.student, runId)).has('flags')).toBe(false)
   })
 

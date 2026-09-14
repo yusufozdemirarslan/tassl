@@ -430,8 +430,8 @@ describe('who and when', () => {
     )
   })
 
-  it('refuses everyone but the run’s own student', async () => {
-    for (const seat of [fx.classmate, fx.instructor, fx.ta] as const) {
+  it('refuses everyone but the run’s own student (and the Platform Admin, D-748)', async () => {
+    for (const seat of [fx.classmate, fx.instructor] as const) {
       expect(
         await codeOf(reliance.escalate(seat, runId, fx.claimId('C7'), { statement: STATEMENT })),
       ).toBe('NOT_FOUND')

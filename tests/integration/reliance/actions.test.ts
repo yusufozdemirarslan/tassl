@@ -283,13 +283,17 @@ describe('who and when', () => {
     expect((await runRow(runId)).charged_ms).toBe(0)
   })
 
-  it('refuses everyone but the run’s own student', async () => {
+  it('refuses everyone but the run’s own student and the Platform Admin (D-748)', async () => {
     await openDocument(fx, runId, 'D5')
-    for (const seat of [fx.classmate, fx.instructor, fx.ta] as const) {
+    for (const seat of [fx.classmate, fx.instructor] as const) {
       expect(await codeOf(reliance.runAction(seat, runId, fx.claimId('C1'), 'source_trace'))).toBe(
         'NOT_FOUND',
       )
     }
+    // The admin acts inside the run; the action is still recorded on the student's run.
+    await expect(
+      reliance.runAction(fx.admin, runId, fx.claimId('C1'), 'source_trace'),
+    ).resolves.toMatchObject({ type: 'source_trace' })
   })
 })
 

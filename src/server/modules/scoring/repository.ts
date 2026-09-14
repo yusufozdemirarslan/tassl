@@ -2,7 +2,7 @@
 // per-dimension bands and the score row (DATA-041, DATA-042), both children scoped through the
 // runId the service resolved, plus the run row's `scoring_status`, which is tenant-scoped and so
 // takes tenantId first (D-006). `updated_at` is maintained by the set_updated_at() trigger.
-import { and, asc, eq, getTableColumns, inArray, sql } from 'drizzle-orm'
+import { and, asc, eq, getTableColumns, sql } from 'drizzle-orm'
 import type { PgColumn } from 'drizzle-orm/pg-core'
 import { AppError } from '@/lib/errors'
 import { db } from '@/server/db/client'
@@ -30,6 +30,7 @@ import {
   scenarioVariants,
   sectionMemberships,
   sections,
+  user,
   variantClaimStates,
 } from '@/server/db/schema'
 import type { DbOrTx } from '@/server/db/tx'
@@ -254,23 +255,40 @@ export async function findRunForScoring(
   return row ?? null
 }
 
-/** The instructors and TAs of a section: who a `run_scored` or `run_held` notice goes to (SYS-010). */
+/**
+ * The reviewers of a section: who a `run_scored` or `run_held` notice goes to (SYS-010). The
+ * Instructors on its roster, and the course's creator while their role is Instructor (D-748) — the
+ * same list `review.listSectionReviewerIds` answers.
+ */
 export async function listSectionReviewerIds(
   tenantId: string,
   sectionId: string,
   dbx: DbOrTx = db,
 ): Promise<string[]> {
-  const rows = await dbx
+  const roster = await dbx
     .select({ userId: sectionMemberships.userId })
     .from(sectionMemberships)
+    .innerJoin(user, eq(user.id, sectionMemberships.userId))
     .where(
       and(
         eq(sectionMemberships.organizationId, tenantId),
         eq(sectionMemberships.sectionId, sectionId),
-        inArray(sectionMemberships.role, ['instructor', 'ta']),
+        eq(user.platform_role, 'instructor'),
       ),
     )
-  return [...new Set(rows.map((row) => row.userId))]
+  const creators = await dbx
+    .select({ userId: courses.createdBy })
+    .from(sections)
+    .innerJoin(courses, eq(courses.id, sections.courseId))
+    .innerJoin(user, eq(user.id, courses.createdBy))
+    .where(
+      and(
+        eq(sections.organizationId, tenantId),
+        eq(sections.id, sectionId),
+        eq(user.platform_role, 'instructor'),
+      ),
+    )
+  return [...new Set([...roster, ...creators].map((row) => row.userId))]
 }
 
 export type ScoringClaimRow = {

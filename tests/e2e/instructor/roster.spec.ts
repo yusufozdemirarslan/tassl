@@ -42,15 +42,15 @@ test('an instructor adds a seat to a section, removes it, adds it again, and inv
   const memberRow = page.getByRole('row').filter({ hasText: SEAT_EMAIL })
   const addedToast = page.getByText(`${SEAT_EMAIL} is now in this section.`)
 
-  // Added by address: the role the form offers by default is the one most of a roster holds.
-  await expect(page.locator('#roster-add-role')).toContainText('Student')
+  // Added by address alone: a roster row carries no role, and the Role column reads back the
+  // person's own role (D-748).
   await email.fill(SEAT_EMAIL)
   await add.click()
   await expect(addedToast).toBeVisible()
   await expect(memberRow).toBeVisible()
   await expect(memberRow.getByRole('cell').nth(0)).toHaveText(SEAT_NAME)
   await expect(memberRow.getByRole('cell').nth(2)).toHaveText('Student')
-  // The address is emptied for the next person; the role stays where the instructor left it.
+  // The address is emptied for the next person.
   await expect(email).toHaveValue('')
 
   // Removed: the person has no runs in the section, so nothing refuses it (MEMBER_HAS_RUNS).
@@ -118,11 +118,10 @@ test('an instructor adds a seat to a section, removes it, adds it again, and inv
     .getByRole('row')
     .filter({ hasText: invited })
   await expect(inviteRow).toBeVisible()
-  await expect(inviteRow.getByRole('cell').nth(1)).toHaveText('Student')
-  // Address, seat, standing, expiry: an invitation that has not been accepted and has not run out
+  // Address, standing, expiry: an invitation that has not been accepted and has not run out
   // is pending, and the row says which of the two it is rather than leaving the date to be read.
-  await expect(inviteRow.getByRole('cell').nth(2)).toContainText('Pending')
-  const expiry = inviteRow.getByRole('cell').nth(3).locator('time')
+  await expect(inviteRow.getByRole('cell').nth(1)).toContainText('Pending')
+  const expiry = inviteRow.getByRole('cell').nth(2).locator('time')
   await expect(expiry).toContainText('UTC')
   const expiresAt = Date.parse((await expiry.getAttribute('datetime')) ?? '')
   const days = (expiresAt - Date.now()) / 86_400_000

@@ -1,12 +1,12 @@
 // Step 13.5 — the `admin` service against Postgres (docs/tech/10-backend-spec-modules.md §16;
-// SYS-006, UI-050, D-016, D-007).
+// SYS-006, UI-050, D-016, D-007, D-748).
 //
 // Four claims, and three of them need a database to mean anything:
 //
 //   * **Every function refuses anybody who is not a platform admin.** The screens hide themselves
 //     from a student and the layout answers 404, but neither is the fence: the fence is
 //     `requirePlatformRole(actor, 'admin')` as the first statement of each function, and the only
-//     way to prove it is to call each one as a student and as a scenario editor.
+//     way to prove it is to call each one as a student, a scenario editor and an instructor.
 //   * **A role change writes three things or none.** The role, the revocation of that person's
 //     sessions, and the `role.set` audit row commit together (08 §5): a session that outlives a
 //     demotion carries the old seat until it expires, and a revocation nobody can trace is worse
@@ -32,6 +32,7 @@ let tx: Tx
 let adminUser: UserRow
 let student: UserRow
 let editor: UserRow
+let instructor: UserRow
 let orgA: string
 let orgB: string
 
@@ -87,6 +88,10 @@ describe('admin service', () => {
       email: 'bb-editor@tassl.local',
     })
     student = await f.createUser('plain-student', { email: 'cc-student@tassl.local' })
+    instructor = await f.createUser('plain-instructor', {
+      platformRole: 'instructor',
+      email: 'dd-instructor@tassl.local',
+    })
 
     orgA = (await f.createInstitution('admin-a')).organization.id
     orgB = (await f.createInstitution('admin-b')).organization.id
@@ -97,8 +102,8 @@ describe('admin service', () => {
   })
 
   describe('every function is platform-admin only', () => {
-    it('refuses a student and a scenario editor on all four', async () => {
-      for (const seat of [student, editor]) {
+    it('refuses a student, a scenario editor and an instructor on every one', async () => {
+      for (const seat of [student, editor, instructor]) {
         const actor = actorOf(seat)
         expect(await codeOf(() => admin.listUsers(actor))).toBe('FORBIDDEN')
         expect(await codeOf(() => admin.listAuditLog(actor))).toBe('FORBIDDEN')
@@ -110,15 +115,6 @@ describe('admin service', () => {
           ),
         ).toBe('FORBIDDEN')
         expect(await codeOf(() => admin.setAiMode(actor, { mode: 'mock' }))).toBe('FORBIDDEN')
-        expect(
-          await codeOf(() =>
-            admin.setInstitutionRole(actor, {
-              userId: student.id,
-              organizationId: orgA,
-              role: 'instructor',
-            }),
-          ),
-        ).toBe('FORBIDDEN')
       }
     })
   })
@@ -130,6 +126,7 @@ describe('admin service', () => {
         'aa-admin@tassl.local',
         'bb-editor@tassl.local',
         'cc-student@tassl.local',
+        'dd-instructor@tassl.local',
       ])
 
       const filtered = await admin.listUsers(actorOf(adminUser), { q: 'bb-' })
@@ -149,9 +146,9 @@ describe('admin service', () => {
         limit: 2,
         cursor: first.nextCursor!,
       })
-      expect(second.items).toHaveLength(1)
+      expect(second.items).toHaveLength(2)
       const seen = [...first.items, ...second.items].map((row) => row.id)
-      expect(new Set(seen).size).toBe(3)
+      expect(new Set(seen).size).toBe(4)
     })
   })
 
@@ -183,7 +180,7 @@ describe('admin service', () => {
       expect(audit[0]?.actor_id).toBe(adminUser.id)
       expect(audit[0]?.target_id).toBe(student.id)
       expect(audit[0]?.metadata).toMatchObject({
-        from: 'none',
+        from: 'student',
         to: 'tassl_scenario_editor',
         sessionsRevoked: 2,
       })
@@ -193,7 +190,7 @@ describe('admin service', () => {
       await giveSession(adminUser.id, 'admin-one')
       expect(
         await codeOf(() =>
-          admin.setPlatformRole(actorOf(adminUser), { userId: adminUser.id, role: 'none' }),
+          admin.setPlatformRole(actorOf(adminUser), { userId: adminUser.id, role: 'student' }),
         ),
       ).toBe('ROLE_INVALID')
 
@@ -205,7 +202,7 @@ describe('admin service', () => {
       expect(audit).toHaveLength(0)
     })
 
-    it('refuses a value outside the three roles', async () => {
+    it('refuses a value outside the four roles', async () => {
       expect(
         await codeOf(() =>
           admin.setPlatformRole(actorOf(adminUser), {
@@ -236,187 +233,58 @@ describe('admin service', () => {
     })
   })
 
-  // D-747. Student and Instructor are institution seats (`member.role`, 08 §3), and the users table
-  // offered only the platform role, so an admin had no way to give either. The seat is set where the
-  // home screen and the rail read it, and the section seats in that institution follow it: a Student
-  // who kept an `instructor` section row would still read other students' runs, which is the one
-  // thing a student may never do (08 §4).
-  describe('setInstitutionRole', () => {
-    let sectionA1: string
-    let sectionA2: string
-    let sectionB: string
+  // D-748. One role per account: the four values are the whole vocabulary the users table sets, and
+  // there is no institution or section role left beside it for a change to leave behind.
+  describe('setPlatformRole across the four roles', () => {
+    it('accepts each of the four and reads it back on the users table', async () => {
+      const roles: PlatformRole[] = ['instructor', 'tassl_scenario_editor', 'admin', 'student']
+      let from = 'student'
+      for (const role of roles) {
+        await giveSession(student.id, `seat-${role}`)
+        const saved = await admin.setPlatformRole(actorOf(adminUser), { userId: student.id, role })
+        expect(saved.platformRole).toBe(role)
+        expect(await sessionCount(student.id)).toBe(0)
 
-    beforeEach(async () => {
-      const courseA = await f.createCourse(orgA, 'admin-course-a', { createdBy: student.id })
-      sectionA1 = (await f.createSection(orgA, courseA.id, 'admin-section-a1')).id
-      sectionA2 = (await f.createSection(orgA, courseA.id, 'admin-section-a2', { name: 'B' })).id
-      const courseB = await f.createCourse(orgB, 'admin-course-b', { createdBy: adminUser.id })
-      sectionB = (await f.createSection(orgB, courseB.id, 'admin-section-b')).id
+        const page = await admin.listUsers(actorOf(adminUser), { q: 'cc-' })
+        expect(page.items[0]?.platformRole).toBe(role)
 
-      // An instructor in A, teaching one section and assisting in another; a student in B.
-      await f.addMember(orgA, student.id, 'instructor')
-      await f.addSectionMember(orgA, sectionA1, student.id, 'instructor')
-      await f.addSectionMember(orgA, sectionA2, student.id, 'ta')
-      await f.addMember(orgB, student.id, 'student')
-      await f.addSectionMember(orgB, sectionB, student.id, 'student')
+        const [audit] = await testSql<{ metadata: Record<string, unknown> }[]>`
+          select metadata from audit_logs order by created_at desc, id desc limit 1`
+        expect(audit?.metadata).toMatchObject({ from, to: role, sessionsRevoked: 1 })
+        from = role
+      }
+      expect(await testSql`select 1 from audit_logs where action = 'role.set'`).toHaveLength(4)
     })
 
-    const memberRole = async (orgId: string, userId: string): Promise<string | undefined> => {
-      const rows = await testSql<{ role: string }[]>`
-        select role from member where organization_id = ${orgId} and user_id = ${userId}`
-      return rows[0]?.role
-    }
-
-    const sectionRoles = async (userId: string): Promise<Record<string, string>> => {
-      const rows = await testSql<{ section_id: string; role: string }[]>`
-        select section_id, role::text as role from section_memberships where user_id = ${userId}`
-      return Object.fromEntries(rows.map((row) => [row.section_id, row.role]))
-    }
-
-    it('lists each account’s institutions with the seat it holds in each', async () => {
-      const page = await admin.listUsers(actorOf(adminUser), { q: 'cc-' })
-      expect(page.items).toHaveLength(1)
-      expect(
-        [...(page.items[0]?.memberships ?? [])].sort((a, b) =>
-          a.organizationId.localeCompare(b.organizationId),
-        ),
-      ).toEqual(
-        [
-          { organizationId: orgA, organizationName: 'admin-a University', role: 'instructor' },
-          { organizationId: orgB, organizationName: 'admin-b University', role: 'student' },
-        ].sort((a, b) => a.organizationId.localeCompare(b.organizationId)),
-      )
-
-      // An account with no institution is a row with no seats, not a row the list drops.
-      const none = await admin.listUsers(actorOf(adminUser), { q: 'bb-' })
-      expect(none.items[0]?.memberships).toEqual([])
-    })
-
-    it('makes an instructor a Student: the seat, every section seat there, the sessions, the audit row', async () => {
-      await giveSession(student.id, 'seat-one')
-      await giveSession(editor.id, 'editor-one')
-
-      const saved = await admin.setInstitutionRole(actorOf(adminUser), {
-        userId: student.id,
-        organizationId: orgA,
-        role: 'student',
-      })
-      expect(saved.memberships.find((m) => m.organizationId === orgA)?.role).toBe('student')
-
-      expect(await memberRole(orgA, student.id)).toBe('student')
-      // Both section seats in A are student seats now — the TA row included, because a TA reads
-      // other students' runs too. The institution beside it is untouched.
-      expect(await sectionRoles(student.id)).toEqual({
-        [sectionA1]: 'student',
-        [sectionA2]: 'student',
-        [sectionB]: 'student',
-      })
-      expect(await memberRole(orgB, student.id)).toBe('student')
-
-      // Theirs and only theirs: the change takes effect at their next sign-in.
-      expect(await sessionCount(student.id)).toBe(0)
-      expect(await sessionCount(editor.id)).toBe(1)
-
-      const audit = await testSql<
-        {
-          action: string
-          actor_id: string
-          organization_id: string
-          target_id: string
-          metadata: Record<string, unknown>
-        }[]
-      >`select action, actor_id, organization_id, target_id, metadata from audit_logs`
-      expect(audit).toHaveLength(1)
-      expect(audit[0]).toMatchObject({
-        action: 'role.set',
-        actor_id: adminUser.id,
-        organization_id: orgA,
-        target_id: student.id,
-      })
-      expect(audit[0]?.metadata).toEqual({
-        scope: 'organization',
-        from: 'instructor',
-        to: 'student',
-        sectionSeats: 2,
-        sessionsRevoked: 1,
-      })
-    })
-
-    it('makes a student an Instructor in their sections, and back again leaves them as they were', async () => {
-      await admin.setInstitutionRole(actorOf(adminUser), {
-        userId: student.id,
-        organizationId: orgB,
-        role: 'instructor',
-      })
-      expect(await memberRole(orgB, student.id)).toBe('instructor')
-      expect((await sectionRoles(student.id))[sectionB]).toBe('instructor')
-      // Institution A was not the one named.
-      expect(await memberRole(orgA, student.id)).toBe('instructor')
-      expect((await sectionRoles(student.id))[sectionA2]).toBe('ta')
-
-      await admin.setInstitutionRole(actorOf(adminUser), {
-        userId: student.id,
-        organizationId: orgB,
-        role: 'student',
-      })
-      expect(await memberRole(orgB, student.id)).toBe('student')
-      expect((await sectionRoles(student.id))[sectionB]).toBe('student')
-    })
-
-    it('refuses the actor’s own row, a seat other than Student or Instructor, and an institution the person is not in', async () => {
-      await f.addMember(orgA, adminUser.id, 'program_lead')
-      await giveSession(adminUser.id, 'admin-one')
-      await giveSession(editor.id, 'editor-one')
-
+    it('refuses the retired value none, and writes nothing', async () => {
+      await giveSession(student.id, 'seat-none')
       expect(
         await codeOf(() =>
-          admin.setInstitutionRole(actorOf(adminUser), {
-            userId: adminUser.id,
-            organizationId: orgA,
-            role: 'student',
-          }),
-        ),
-      ).toBe('ROLE_INVALID')
-      expect(
-        await codeOf(() =>
-          admin.setInstitutionRole(actorOf(adminUser), {
+          admin.setPlatformRole(actorOf(adminUser), {
             userId: student.id,
-            organizationId: orgA,
             // The route and the action validate first; this is the service's own guard.
-            role: 'program_lead' as never,
+            role: 'none' as never,
           }),
         ),
       ).toBe('ROLE_INVALID')
-      // The editor holds no seat in A: there is no membership to change, and the admin area does not
-      // create one — an invitation from a section roster does.
-      expect(
-        await codeOf(() =>
-          admin.setInstitutionRole(actorOf(adminUser), {
-            userId: editor.id,
-            organizationId: orgA,
-            role: 'student',
-          }),
-        ),
-      ).toBe('NOT_FOUND')
-
-      await testSql`update "user" set deleted_at = now() where id = ${student.id}`
-      expect(
-        await codeOf(() =>
-          admin.setInstitutionRole(actorOf(adminUser), {
-            userId: student.id,
-            organizationId: orgA,
-            role: 'student',
-          }),
-        ),
-      ).toBe('NOT_FOUND')
-
-      // Nothing was written on the way to any of the four refusals.
-      expect(await memberRole(orgA, adminUser.id)).toBe('program_lead')
-      expect(await memberRole(orgA, student.id)).toBe('instructor')
-      expect((await sectionRoles(student.id))[sectionA1]).toBe('instructor')
-      expect(await sessionCount(adminUser.id)).toBe(1)
-      expect(await sessionCount(editor.id)).toBe(1)
+      const rows = await testSql<{ platform_role: string }[]>`
+        select platform_role from "user" where id = ${student.id}`
+      expect(rows[0]?.platform_role).toBe('student')
+      expect(await sessionCount(student.id)).toBe(1)
       expect(await testSql`select 1 from audit_logs`).toHaveLength(0)
+    })
+
+    it('shows no institution memberships on a users-table row', async () => {
+      await f.addMember(orgA, student.id)
+      const page = await admin.listUsers(actorOf(adminUser), { q: 'cc-' })
+      expect(page.items[0]).toEqual({
+        id: student.id,
+        name: student.name,
+        email: 'cc-student@tassl.local',
+        platformRole: 'student',
+        deletedAt: null,
+        createdAt: expect.any(String) as unknown as string,
+      })
     })
   })
 

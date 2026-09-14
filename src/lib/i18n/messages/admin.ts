@@ -13,7 +13,7 @@ export const admin = {
   // Users (UI-050)
   'admin.users.title': 'Users',
   'admin.users.description':
-    'Every account on the platform, newest first. A platform role is a right over Tassl itself; an institution role is the seat a person holds in one institution, and making them a Student or an Instructor there is set here too.',
+    'Every account on the platform, newest first. Each account holds one platform role: Platform Admin, Scenario Editor, Instructor or Student. The role decides what that person can reach in every institution they belong to.',
   'admin.users.searchLabel': 'Search by email address',
   'admin.users.searchPlaceholder': 'Start of an email address',
   'admin.users.searchSubmit': 'Search',
@@ -43,16 +43,6 @@ export const admin = {
   'admin.users.confirmSubmit': 'Change the role',
   'admin.users.confirmCancel': 'Leave it as it is',
   'admin.users.roleSaved': '{name} is now {role} on the platform, and is signed out everywhere.',
-
-  // Institution roles on the same table (D-747)
-  'admin.users.columnInstitutionRole': 'Institution role',
-  'admin.users.institutionRoleLabel': 'Institution role for {name} at {institution}',
-  'admin.users.institutionNone': 'No institution yet',
-  'admin.users.institutionConfirmTitle': 'Change this institution role?',
-  'admin.users.institutionConfirmBody':
-    '{name} goes from {from} to {role} at {institution}, and takes the same seat in every section there. This signs them out of every device straight away, and the change is written to the audit log with your name on it.',
-  'admin.users.institutionRoleSaved':
-    '{name} is now {role} at {institution}, and sees it the next time they sign in.',
 
   // Flags (UI-050)
   'admin.flags.title': 'Flags',
@@ -172,13 +162,8 @@ export const admin = {
 
   // Service refusals
   'admin.roleSelfRefused':
-    'You cannot change your own platform role: the change would sign you out of the seat that is the only way back. Another admin can do it.',
+    'You cannot change your own platform role: the change would sign you out of the role that is the only way back. Another admin can do it.',
   'admin.userNotFound': 'That account no longer exists.',
-  'admin.institutionRoleInvalid': 'Only Student or Instructor can be set here.',
-  'admin.institutionRoleSelfRefused':
-    'You cannot change your own institution role: the change would sign you out. Another admin can do it.',
-  'admin.membershipNotFound':
-    'That account is not a member of that institution. An invitation from the institution’s roster makes them one.',
 } as const
 
 /** `t` over this namespace alone; the key is still the full dotted key. */

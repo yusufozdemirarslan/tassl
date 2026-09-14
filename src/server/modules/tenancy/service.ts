@@ -1,112 +1,92 @@
 // Service of the `tenancy` module (docs/tech/10-backend-spec-modules.md §2; 07-api-spec.md §4;
 // 08-auth-authz.md §4). Institutions, memberships, invitations, institution settings, and data
-// agreements (D-006, D-055, FR-234, SYS-005).
+// agreements (D-006, D-055, SYS-005).
 //
-// Three rules shape every function here:
+// Four rules shape every function here:
 //
 //   1. The actor comes first and its permission helper is the first statement (08 §5). Where the
 //      resource is addressed by an id that names its tenant (an organization id, an agreement id),
 //      the id is resolved first — that lookup is what tells the guard which tenant to check.
 //   2. An institution the actor cannot see answers NOT_FOUND, never FORBIDDEN, so an id cannot be
 //      probed for existence (07 §1 "Tenancy", 08 §4 "Cross-tenant"). FORBIDDEN is reserved for a
-//      member who holds the wrong role — they already know the institution exists.
-//   3. Organizations, members, and invitations are Better Auth's tables. Every write to them goes
-//      through `auth.api.*` behind `callAuth`, which is also where the invitation email is sent
-//      (the organization plugin's `sendInvitationEmail`, configured in src/server/auth/auth.ts) —
-//      so `inviteMember` must not send a second copy.
+//      member whose platform role does not allow the act — they already know the institution exists.
+//   3. A membership is membership (D-748): nothing here reads or writes an institution role. Who may
+//      invite is an Instructor of the institution; settings and agreements are the Platform Admin's,
+//      who acts in every institution without a `member` row.
+//   4. Organizations, members, and invitations are Better Auth's tables. Writes go through
+//      `auth.api.*` behind `callAuth`, which is also where the invitation email is sent (the
+//      organization plugin's `sendInvitationEmail`, src/server/auth/auth.ts) — so the plugin path of
+//      `inviteMember` sends no second copy. The two exceptions are the admin acting without a
+//      `member` row, which the plugin refuses by construction: their invitation row and their active
+//      institution are written through the repository, and the same email is sent here.
 import { AppError, isAppError } from '@/lib/errors'
 import { t } from '@/lib/i18n/t'
 import { track } from '@/server/analytics/track'
-import type { OrganizationRole } from '@/server/auth/access-control-shared'
+import { MEMBERSHIP_ROLE } from '@/server/auth/access-control-shared'
 import { auth } from '@/server/auth/auth'
 import {
-  canReadIdentifiedRecords as canReadIdentifiedRecordsGuard,
+  hasRole,
+  isPlatformAdmin,
   requireMembership as requireMembershipGuard,
   requirePlatformRole,
+  TEACHING_ROLES,
 } from '@/server/auth/permissions'
-import type { SessionUser } from '@/server/auth/types'
+import type { PlatformRole, SessionUser } from '@/server/auth/types'
+import { env } from '@/server/config'
+import { sendEmail } from '@/server/email/send'
 import { audit } from '@/server/modules/admin'
 import { callAuth } from './errors'
 import * as repo from './repository'
-import {
-  OrganizationRoleSchema,
-  type CreateInstitutionInput,
-  type DataAgreementInput,
-  type DataAgreementView,
-  type Institution,
-  type InstitutionView,
-  type InvitationDetail,
-  type InvitationView,
-  type Mapping,
-  type Membership,
-  type MyInstitution,
-  type OrganizationRoleValue,
-  type UpdateDataAgreementInput,
-  type UpdateInstitutionSettingsInput,
+import type {
+  CreateInstitutionInput,
+  DataAgreementInput,
+  DataAgreementView,
+  Institution,
+  InstitutionView,
+  InvitationDetail,
+  InvitationView,
+  InviteMemberInput,
+  Mapping,
+  Membership,
+  MyInstitution,
+  UpdateDataAgreementInput,
+  UpdateInstitutionSettingsInput,
 } from './schema'
-
-/** Organization roles that may invite (08 §4 "Manage section roster; invite members"). */
-const INVITE_ROLES: readonly OrganizationRole[] = ['instructor', 'program_lead']
-
-/** Organization roles that may change institution settings and data agreements (07 §4). */
-const INSTITUTION_ADMIN_ROLES: readonly OrganizationRole[] = ['program_lead']
 
 // ---------------------------------------------------------------------------------------------
 // Guards
 // ---------------------------------------------------------------------------------------------
 
-/** Membership in the institution, with a non-member answered NOT_FOUND rather than FORBIDDEN. */
+/**
+ * Membership in the institution — the admin belongs everywhere — with a non-member answered
+ * NOT_FOUND rather than FORBIDDEN (rule 2). When `roles` is given, a member whose platform role is
+ * not one of them is FORBIDDEN; the admin always passes.
+ */
 async function requireVisibleMembership(
   actor: SessionUser,
   orgId: string,
-): Promise<OrganizationRole> {
+  roles?: readonly PlatformRole[],
+): Promise<PlatformRole> {
   try {
-    return await requireMembershipGuard(actor, orgId)
+    await requireMembershipGuard(actor, orgId)
   } catch (error) {
     if (isAppError(error) && error.code === 'FORBIDDEN') throw new AppError('NOT_FOUND')
     throw error
   }
+  if (roles && !hasRole(actor, roles)) throw new AppError('FORBIDDEN')
+  return actor.platformRole
 }
 
-/** The institution row, or NOT_FOUND. Used where the platform admin acts without a membership. */
+/** Settings and data agreements: the Platform Admin only (D-748); members are refused, others 404. */
+async function requireInstitutionAdmin(actor: SessionUser, orgId: string): Promise<void> {
+  await requireVisibleMembership(actor, orgId, [])
+}
+
+/** The institution row, or NOT_FOUND. */
 async function requireOrganization(orgId: string): Promise<repo.OrganizationRow> {
   const org = await repo.findOrganization(orgId)
   if (!org) throw new AppError('NOT_FOUND')
   return org
-}
-
-/**
- * One of `roles` in the institution — or the platform admin, where 08 §4 gives the admin the
- * operation (institution settings and data agreements; never invitations, which are the
- * institution's own).
- */
-async function requireOrgRole(
-  actor: SessionUser,
-  orgId: string,
-  roles: readonly OrganizationRole[],
-  options: { platformAdmin?: boolean } = {},
-): Promise<void> {
-  if (options.platformAdmin === true && actor.platformRole === 'admin') {
-    await requireOrganization(orgId)
-    return
-  }
-  const role = await requireVisibleMembership(actor, orgId)
-  if (!roles.includes(role)) throw new AppError('FORBIDDEN')
-}
-
-/**
- * Reading agreements: the program lead, the platform admin, and a platform editor for the
- * institutions they hold a membership in ("own org rows", 08 §4, FR-234).
- */
-async function requireAgreementReader(actor: SessionUser, orgId: string): Promise<void> {
-  if (actor.platformRole === 'admin') {
-    await requireOrganization(orgId)
-    return
-  }
-  const role = await requireVisibleMembership(actor, orgId)
-  if (role === 'program_lead') return
-  if (actor.platformRole === 'tassl_scenario_editor') return
-  throw new AppError('FORBIDDEN')
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -175,53 +155,56 @@ const toAgreement = (row: repo.DataAgreement): DataAgreementView => ({
 // ---------------------------------------------------------------------------------------------
 
 /**
- * The institutions the actor belongs to, with the role held in each (10 §2). No permission helper:
- * the actor is the scope, and the query is keyed by their own id.
+ * The institutions the actor belongs to (10 §2); for the Platform Admin, who has full access in
+ * every one, all of them (D-748). No permission helper: the actor is the scope.
  */
 export async function listMyInstitutions(actor: SessionUser): Promise<MyInstitution[]> {
-  const rows = await repo.listMembershipsByUser(actor.id)
-  return rows.map((row) => ({
-    id: row.id,
-    name: row.name,
-    slug: row.slug,
-    role: row.role as OrganizationRoleValue,
-  }))
+  const rows = isPlatformAdmin(actor)
+    ? await repo.listOrganizations()
+    : await repo.listMembershipsByUser(actor.id)
+  return rows.map(toInstitution)
 }
 
-/** Points the session's `active_organization_id` at an institution the actor belongs to (10 §2). */
+/**
+ * Points the session's `active_organization_id` at an institution the actor belongs to (10 §2).
+ * The plugin refuses anyone without a `member` row, so the admin acting without one has the session
+ * row written through the repository instead (rule 4); every session read skips the cookie cache,
+ * so the next request sees it.
+ */
 export async function setActiveInstitution(
   actor: SessionUser,
   orgId: string,
   headers: Headers,
 ): Promise<MyInstitution> {
-  const role = await requireVisibleMembership(actor, orgId)
-  await callAuth(() => auth.api.setActiveOrganization({ body: { organizationId: orgId }, headers }))
+  await requireVisibleMembership(actor, orgId)
   const org = await requireOrganization(orgId)
-  return { ...toInstitution(org), role: role as OrganizationRoleValue }
+  if (isPlatformAdmin(actor) && !(await repo.hasMember(orgId, actor.id))) {
+    const current = await callAuth(() =>
+      auth.api.getSession({ headers, query: { disableCookieCache: true } }),
+    )
+    if (!current) throw new AppError('UNAUTHENTICATED')
+    await repo.setSessionActiveOrganization(current.session.id, actor.id, orgId)
+  } else {
+    await callAuth(() =>
+      auth.api.setActiveOrganization({ body: { organizationId: orgId }, headers }),
+    )
+  }
+  return toInstitution(org)
 }
 
 /** The tenancy module's name for the membership guard (08 §5); the check itself lives there. */
 export async function requireMembership(
   actor: SessionUser,
   orgId: string,
-  roles?: readonly OrganizationRole[],
-): Promise<OrganizationRole> {
+  roles?: readonly PlatformRole[],
+): Promise<PlatformRole> {
   return requireMembershipGuard(actor, orgId, roles)
 }
 
-/** D-055 / FR-234; the check itself lives in src/server/auth/permissions.ts. */
-export async function canReadIdentifiedRecords(
-  actor: SessionUser,
-  orgId: string,
-): Promise<boolean> {
-  return canReadIdentifiedRecordsGuard(actor, orgId)
-}
-
 /**
- * Creates an institution (admin only, 08 §4). Better Auth creates the organization and stamps its
- * creator as a member; 08 §3 does not use the built-in `owner` role for people, so the creator is
- * the program lead and their role is set to `program_lead` in the same transaction as the settings
- * row. The program lead must already have an account — an institution with no one to lead it is
+ * Creates an institution (admin only, 08 §4). Better Auth creates the organization and stamps the
+ * named account as its first member, with the plugin's one membership role (D-748); the settings
+ * row is written beside it. That account must already exist — an institution with nobody in it is
  * not a state this build has a screen for.
  */
 export async function createInstitution(
@@ -230,28 +213,25 @@ export async function createInstitution(
 ): Promise<Institution> {
   requirePlatformRole(actor, 'admin')
 
-  const programLeadId = await repo.findUserIdByEmail(input.programLeadEmail)
-  if (!programLeadId) {
+  const firstMemberId = await repo.findUserIdByEmail(input.programLeadEmail)
+  if (!firstMemberId) {
     throw new AppError(
       'NOT_FOUND',
       t('tenancy.programLeadNotFound', { email: input.programLeadEmail }),
     )
   }
 
-  // No `headers`: this is a server-side creation on behalf of the program lead, so Better Auth
+  // No `headers`: this is a server-side creation on behalf of the named account, so Better Auth
   // takes the `userId` path and the admin's own session is left untouched (no active organization
-  // switch, no membership in an institution they do not belong to).
+  // switch, no membership row the admin does not need).
   const organization = await callAuth(() =>
     auth.api.createOrganization({
-      body: { name: input.name, slug: input.slug, userId: programLeadId },
+      body: { name: input.name, slug: input.slug, userId: firstMemberId },
     }),
   )
   if (!organization) throw new AppError('CONFLICT', t('tenancy.slugTaken'))
 
-  await repo.withTransaction(async (tx) => {
-    await repo.updateMemberRole(organization.id, programLeadId, 'program_lead', tx)
-    await repo.upsertSettings(organization.id, {}, tx)
-  })
+  await repo.upsertSettings(organization.id, {})
 
   return { id: organization.id, name: organization.name, slug: organization.slug }
 }
@@ -260,25 +240,42 @@ export async function createInstitution(
 // Invitations (SYS-005)
 // ---------------------------------------------------------------------------------------------
 
+/** Invitations live seven days (08 §2.5, `invitationExpiresIn` in auth.ts). */
+const INVITATION_TTL_MS = 7 * 24 * 60 * 60 * 1000
+
 /**
- * Invites one email to the institution. The organization plugin writes the `invitation` row, sets
- * the seven-day expiry (08 §2.5), and sends the invitation email through `sendEmail`; this
- * function adds the permission check and the audit row and sends nothing itself.
+ * Invites one email to the institution: an Instructor of it, or the Platform Admin (D-748). The
+ * invitation makes the person a member and names no role — what they may do is the platform role on
+ * their account.
+ *
+ * Through the plugin, which writes the `invitation` row, sets the seven-day expiry (08 §2.5), and
+ * sends the email; this function adds the check and the audit row. The admin without a `member` row
+ * cannot pass the plugin's inviter check, so for them the same row is written here — a pending
+ * invitation to the address has its expiry renewed, as the plugin's `resend` does — and the same
+ * `invitation` email is sent.
  */
 export async function inviteMember(
   actor: SessionUser,
   orgId: string,
-  input: { email: string; role: OrganizationRoleValue },
+  input: InviteMemberInput,
   headers: Headers,
 ): Promise<InvitationView> {
-  await requireOrgRole(actor, orgId, INVITE_ROLES)
+  await requireVisibleMembership(actor, orgId, TEACHING_ROLES)
 
-  const invitation = await callAuth(() =>
-    auth.api.createInvitation({
-      body: { email: input.email, role: input.role, organizationId: orgId, resend: true },
-      headers,
-    }),
-  )
+  const invitation =
+    isPlatformAdmin(actor) && !(await repo.hasMember(orgId, actor.id))
+      ? await inviteAsPlatformAdmin(actor, orgId, input.email)
+      : await callAuth(() =>
+          auth.api.createInvitation({
+            body: {
+              email: input.email,
+              role: MEMBERSHIP_ROLE,
+              organizationId: orgId,
+              resend: true,
+            },
+            headers,
+          }),
+        )
 
   await repo.withTransaction((tx) =>
     audit(tx, {
@@ -288,7 +285,6 @@ export async function inviteMember(
       targetType: 'invitation',
       targetId: invitation.id,
       // The invited address is on the row itself; audit metadata carries no email (10 §3 redaction).
-      metadata: { role: input.role },
     }),
   )
 
@@ -296,14 +292,45 @@ export async function inviteMember(
     id: invitation.id,
     organizationId: orgId,
     email: invitation.email,
-    role: input.role,
     status: invitation.status,
     expiresAt: iso(invitation.expiresAt),
   }
 }
 
-/** Invitations live seven days (08 §2.5, `invitationExpiresIn` in auth.ts). */
-const INVITATION_TTL_MS = 7 * 24 * 60 * 60 * 1000
+/** The plugin's invitation, written for the admin who holds no `member` row (rule 4). */
+async function inviteAsPlatformAdmin(
+  actor: SessionUser,
+  orgId: string,
+  email: string,
+): Promise<repo.OrganizationInvitationRow> {
+  const org = await requireOrganization(orgId)
+  if (await repo.hasMemberWithEmail(orgId, email)) {
+    throw new AppError('CONFLICT', t('tenancy.alreadyMember'))
+  }
+  const expiresAt = new Date(Date.now() + INVITATION_TTL_MS)
+  const invitation = await repo.withTransaction(async (tx) => {
+    const pending = await repo.findPendingInvitation(orgId, email, tx)
+    const row = pending
+      ? await repo.extendInvitation(orgId, pending.id, expiresAt, tx)
+      : await repo.insertInvitation(
+          orgId,
+          { email, role: MEMBERSHIP_ROLE, inviterId: actor.id, expiresAt },
+          tx,
+        )
+    if (!row) throw new AppError('NOT_FOUND', t('tenancy.invitationNotFound'))
+    return row
+  })
+  await sendEmail({
+    to: invitation.email,
+    template: 'invitation',
+    props: {
+      url: `${env.NEXT_PUBLIC_APP_URL}/invitations/${invitation.id}`,
+      organizationName: org.name,
+      inviterName: actor.name,
+    },
+  })
+  return invitation
+}
 
 /**
  * How many outstanding invitations the roster reads. An institution with more open invitations
@@ -314,7 +341,8 @@ const INVITATION_LIST_LIMIT = 200
 /**
  * The institution's outstanding invitations (UI-031). Better Auth owns the `invitation` table and
  * offers no list of its own, so the rows are read through the repository the way every other
- * tenancy read is, and the seat that may create one is the seat that may see them (INVITE_ROLES).
+ * tenancy read is, and the seat that may create one is the seat that may see them: an Instructor of
+ * the institution, or the admin.
  *
  * A stored row is `pending` until it is accepted, rejected, or cancelled; whether its seven days
  * have run out is a fact about the clock, not about the row, so the expiry is resolved here and
@@ -326,22 +354,16 @@ export async function listInvitations(
   actor: SessionUser,
   orgId: string,
 ): Promise<InvitationView[]> {
-  await requireOrgRole(actor, orgId, INVITE_ROLES)
+  await requireVisibleMembership(actor, orgId, TEACHING_ROLES)
   const rows = await repo.listInvitations(orgId, INVITATION_LIST_LIMIT)
   const now = Date.now()
-  return rows.map((row) => {
-    // `invitation.role` is a free-text column; a role outside 08 §3 reads as the least-privileged
-    // seat rather than dropping the row, exactly as `getInvitation` does.
-    const role = OrganizationRoleSchema.safeParse(row.role)
-    return {
-      id: row.id,
-      organizationId: orgId,
-      email: row.email,
-      role: role.success ? role.data : 'student',
-      status: row.expiresAt.getTime() <= now ? 'expired' : 'pending',
-      expiresAt: iso(row.expiresAt),
-    }
-  })
+  return rows.map((row) => ({
+    id: row.id,
+    organizationId: orgId,
+    email: row.email,
+    status: row.expiresAt.getTime() <= now ? 'expired' : 'pending',
+    expiresAt: iso(row.expiresAt),
+  }))
 }
 
 /**
@@ -365,15 +387,11 @@ export async function getInvitation(
   if (row.email.toLowerCase() !== actor.email.toLowerCase()) {
     throw new AppError('INVITATION_EMAIL_MISMATCH')
   }
-  // Better Auth's `invitation.role` is a free-text column; a role outside 08 §3 reads as the
-  // least-privileged seat rather than failing the screen (the accept itself keeps the stored role).
-  const role = OrganizationRoleSchema.safeParse(row.role)
   return {
     id: row.id,
     organizationId: row.organizationId,
     organizationName: row.organizationName,
     email: row.email,
-    role: role.success ? role.data : 'student',
     status: row.status,
     expiresAt: iso(row.expiresAt),
   }
@@ -396,14 +414,12 @@ export async function acceptInvitation(
   if (!membership) throw new AppError('NOT_FOUND', t('tenancy.invitationNotFound'))
 
   const org = await requireOrganization(membership.organizationId)
-  const role = membership.role as OrganizationRoleValue
   // AN-002 (17 §5.2): fired after the membership row exists, never before.
   const invitedAt = accepted.invitation?.expiresAt
   track(
     'invitation_accepted',
     {
       invitation_id: invitationId,
-      role,
       // The invitation carries only its expiry; the age is measured back from it (7 days, 08 §2.5).
       ms_since_invited: invitedAt
         ? Math.max(0, INVITATION_TTL_MS - (new Date(invitedAt).getTime() - Date.now()))
@@ -411,14 +427,14 @@ export async function acceptInvitation(
     },
     { userId: actor.id, organizationId: org.id },
   )
-  return { organizationId: org.id, name: org.name, role }
+  return { organizationId: org.id, name: org.name }
 }
 
 // ---------------------------------------------------------------------------------------------
 // Institution settings
 // ---------------------------------------------------------------------------------------------
 
-/** The institution with its settings; any member may read them (07 §4). */
+/** The institution with its settings; any member, and the admin, may read them (07 §4). */
 export async function getInstitutionSettings(
   actor: SessionUser,
   orgId: string,
@@ -428,13 +444,13 @@ export async function getInstitutionSettings(
   return toInstitutionView(org, await repo.findSettings(orgId))
 }
 
-/** Plan label and default band mapping; program lead or platform admin (07 §4). */
+/** Plan label and default band mapping; the Platform Admin only (07 §4, D-748). */
 export async function updateInstitutionSettings(
   actor: SessionUser,
   orgId: string,
   input: UpdateInstitutionSettingsInput,
 ): Promise<InstitutionView> {
-  await requireOrgRole(actor, orgId, INSTITUTION_ADMIN_ROLES, { platformAdmin: true })
+  await requireInstitutionAdmin(actor, orgId)
   assertMapping(input.defaultMapping)
 
   const org = await requireOrganization(orgId)
@@ -446,14 +462,14 @@ export async function updateInstitutionSettings(
 }
 
 // ---------------------------------------------------------------------------------------------
-// Data agreements (DATA-052, FR-234)
+// Data agreements (DATA-052): the Platform Admin's records of what an institution has signed
 // ---------------------------------------------------------------------------------------------
 
 export async function listDataAgreements(
   actor: SessionUser,
   orgId: string,
 ): Promise<DataAgreementView[]> {
-  await requireAgreementReader(actor, orgId)
+  await requireInstitutionAdmin(actor, orgId)
   const rows = await repo.listAgreements(orgId)
   return rows.map(toAgreement)
 }
@@ -467,7 +483,7 @@ export async function upsertDataAgreement(
   orgId: string,
   input: DataAgreementInput & { id?: string | undefined },
 ): Promise<DataAgreementView> {
-  await requireOrgRole(actor, orgId, INSTITUTION_ADMIN_ROLES, { platformAdmin: true })
+  await requireInstitutionAdmin(actor, orgId)
   assertPurposes(input.purposes)
 
   const values: repo.AgreementInput = {
@@ -522,7 +538,7 @@ export async function updateDataAgreement(
 ): Promise<DataAgreementView> {
   const orgId = actor.activeOrganizationId
   if (!orgId) throw new AppError('NOT_FOUND')
-  await requireOrgRole(actor, orgId, INSTITUTION_ADMIN_ROLES, { platformAdmin: true })
+  await requireInstitutionAdmin(actor, orgId)
 
   const existing = await repo.findAgreement(orgId, agreementId)
   if (!existing) throw new AppError('NOT_FOUND')
@@ -545,14 +561,14 @@ export async function updateDataAgreement(
 }
 
 /**
- * The user ids of an institution's members holding one of `roles`, for a fan-out whose caller has
- * already established its own permission — `confirmVersion` telling the institution's instructors a
- * package is assignable (10 §4). Ids only: nothing here reads a name, an address, or a role, so a
- * caller that must not see the roster still cannot.
+ * The user ids of an institution's members whose platform role is one of `roles` (D-748), for a
+ * fan-out whose caller has already established its own permission — `confirmVersion` telling the
+ * institution's instructors and editors a package is assignable (10 §4). Ids only: nothing here
+ * reads a name, an address, or a role, so a caller that must not see the roster still cannot.
  */
-export async function listMemberIdsWithRoles(
+export async function listMemberIdsWithPlatformRoles(
   orgId: string,
-  roles: readonly string[],
+  roles: readonly PlatformRole[],
 ): Promise<string[]> {
-  return repo.listMemberIdsWithRoles(orgId, roles)
+  return repo.listMemberIdsWithPlatformRoles(orgId, roles)
 }

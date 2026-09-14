@@ -124,21 +124,28 @@ describe('seed', () => {
     expect(row).toEqual({ packages: '1', versions: '1', assignments: '3' })
   })
 
-  it('gives the seats their roles', async () => {
-    const [instructor] = await testSql<{ role: string }[]>`
-      select sm.role from section_memberships sm
-      join "user" u on u.id = sm.user_id
-      where u.email = 'instructor@tassl.local'`
-    expect(instructor?.role).toBe('instructor')
+  it('gives the seats their one role each (D-748)', async () => {
+    const seats = await testSql<{ email: string; platform_role: string; member: boolean }[]>`
+      select u.email, u.platform_role,
+        exists (select 1 from member m where m.user_id = u.id) as member
+      from "user" u where u.email like '%@tassl.local' order by u.email`
+    expect(seats).toEqual([
+      { email: 'admin@tassl.local', platform_role: 'admin', member: false },
+      { email: 'editor@tassl.local', platform_role: 'tassl_scenario_editor', member: true },
+      { email: 'instructor@tassl.local', platform_role: 'instructor', member: true },
+      { email: 'student1@tassl.local', platform_role: 'student', member: true },
+      { email: 'student2@tassl.local', platform_role: 'student', member: true },
+    ])
 
-    const [editor] = await testSql<{ platform_role: string; member_role: string }[]>`
-      select u.platform_role, m.role as member_role from "user" u
-      join member m on m.user_id = u.id
-      where u.email = 'editor@tassl.local'`
-    expect(editor).toEqual({
-      platform_role: 'tassl_scenario_editor',
-      member_role: 'scenario_author',
-    })
+    // The roster of section A: the Instructor who teaches it and the two Students enrolled on it.
+    const roster = await testSql<{ email: string }[]>`
+      select u.email from section_memberships sm
+      join "user" u on u.id = sm.user_id order by u.email`
+    expect(roster.map((row) => row.email)).toEqual([
+      'instructor@tassl.local',
+      'student1@tassl.local',
+      'student2@tassl.local',
+    ])
 
     const [admin] = await testSql<{ platform_role: string; email_verified: boolean }[]>`
       select platform_role, email_verified from "user" where email = 'admin@tassl.local'`
@@ -161,7 +168,7 @@ describe('seed', () => {
     // Three students of the section, signed up through Better Auth with a credential each, and
     // verified so they can sign in without an email.
     const rows = await testSql<{ email: string; role: string; verified: boolean }[]>`
-      select u.email, sm.role, u.email_verified as verified
+      select u.email, u.platform_role as role, u.email_verified as verified
       from "user" u
       join section_memberships sm on sm.user_id = u.id
       where u.email like 'load-student-%'

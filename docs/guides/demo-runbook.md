@@ -151,7 +151,7 @@ One laptop, three Chrome profiles, one account per profile, one window per profi
 |---|---|---|---|---|
 | Instructor | instructor@tassl.local | **Tassl Instructor** | The builder | The editor |
 | Student | student1@tassl.local for parts B, D, E; student2@tassl.local for part F (sign out of student1 first: the icon button at the top right named **Account: Student One** → **Sign out**) | **Tassl Student** | The editor | The builder |
-| Platform admin | admin@tassl.local | **Tassl Admin** | The builder, only for the break-glass row on the assistant | The builder |
-| Judge trying it | The judge's own Google account, added as a test user (break-glass row 4); the instructor sends **Invite to institution** from the section roster to the judge's address with **Role in the institution** **Student**, then **Add to section**; the judge presses **Start** on the **Decision Run 1 (walkthrough)** row | The judge's own device | The judge | The judge |
+| Platform Admin | admin@tassl.local | **Tassl Admin** | The builder, only for the break-glass row on the assistant | The builder |
+| Judge trying it | The judge's own Google account, added as a test user (break-glass row 4); the instructor sends **Invite to institution** from the section roster to the judge's address, then **Add to section** once it is accepted (a new account is a Student); the judge presses **Start** on the **Decision Run 1 (walkthrough)** row | The judge's own device | The judge | The judge |
 
 The editor@tassl.local seat is signed in during the warm-up and stays idle; the demo path does not use it. The projector shows the **Tassl Student** window during parts B, D, E and the student steps of F, and the **Tassl Instructor** window during parts A, C and the review step of F. The person at the Student keyboard reads the "Say" column for their steps; the person at the Instructor keyboard reads theirs.

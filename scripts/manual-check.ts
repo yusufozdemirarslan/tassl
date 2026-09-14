@@ -32,14 +32,7 @@ const SECTIONS = [
   '## 10. Glossary',
 ]
 
-const ROLE_FILES = [
-  '01-instructor.md',
-  '02-learner.md',
-  '03-admin.md',
-  '04-scenario-author.md',
-  '05-teaching-assistant.md',
-  '06-program-lead.md',
-]
+const ROLE_FILES = ['01-instructor.md', '02-learner.md', '03-admin.md', '04-scenario-author.md']
 
 const BANNED = [
   /\bTODO\b/,

@@ -247,7 +247,6 @@ test('walkthrough step 13: the confirmed debrief replaces the drafts in place, a
   })
   await addSectionMember(request, assignment.section.id, {
     email: seatEmail('instructor'),
-    role: 'instructor',
   })
 
   // -------------------------------------------------------------------------------------------

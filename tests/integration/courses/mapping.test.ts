@@ -16,7 +16,8 @@
 //     carrying that number — the append-only ledger keeps the version the course entered before.
 //   * **A mapping that is already the course's changes nothing**: no `course_mapping_changes` row,
 //     no export, no version 2 of a file with the same numbers in it.
-//   * **The seat is the course's instructor** (07 §5): a TA and the student are refused.
+//   * **The seat is the course's instructor** (07 §5): a Scenario Editor and the student are refused,
+//     and the Platform Admin is admitted (D-748).
 // @db:truncate
 import { afterAll, beforeEach, describe, expect, it } from 'vitest'
 import { testSql, truncateAll } from '@tests/setup/integration'
@@ -162,12 +163,15 @@ describe('previewMappingChange', () => {
   })
 
   it('is the course instructor’s alone (07 §5)', async () => {
-    expect(await codeOf(courses.previewMappingChange(fx.ta, courseId, { mapping: DOUBLED }))).toBe(
-      'FORBIDDEN',
-    )
+    expect(
+      await codeOf(courses.previewMappingChange(fx.editor, courseId, { mapping: DOUBLED })),
+    ).toBe('FORBIDDEN')
     expect(
       await codeOf(courses.previewMappingChange(fx.student, courseId, { mapping: DOUBLED })),
     ).toBe('FORBIDDEN')
+    expect(
+      await codeOf(courses.previewMappingChange(fx.admin, courseId, { mapping: DOUBLED })),
+    ).toBe('no error')
   })
 })
 
@@ -263,7 +267,7 @@ describe('changeMapping', () => {
   it('is the course instructor’s alone (07 §5)', async () => {
     await confirmedRun()
     expect(
-      await codeOf(courses.changeMapping(fx.ta, courseId, { mapping: DOUBLED, confirm: true })),
+      await codeOf(courses.changeMapping(fx.editor, courseId, { mapping: DOUBLED, confirm: true })),
     ).toBe('FORBIDDEN')
     expect(
       await codeOf(

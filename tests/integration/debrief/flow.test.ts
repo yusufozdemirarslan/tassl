@@ -325,12 +325,12 @@ describe('the reviewer reads the same document', () => {
     await confirmAll(runId)
     const student = await debrief.getDebrief(fx.student, runId)
     const instructor = await debrief.getDebrief(fx.instructor, runId)
-    const ta = await debrief.getDebrief(fx.ta, runId)
+    const admin = await debrief.getDebrief(fx.admin, runId)
 
     const sectionsOf = (view: typeof student) =>
       view.sections.map(({ key, available, data }) => ({ key, available, data }))
     expect(sectionsOf(instructor)).toEqual(sectionsOf(student))
-    expect(sectionsOf(ta)).toEqual(sectionsOf(student))
+    expect(sectionsOf(admin)).toEqual(sectionsOf(student))
     expect(instructor.bands).toEqual(student.bands)
     expect(instructor.doneWell).toBe(student.doneWell)
     expect(instructor.points).toEqual(student.points)
@@ -345,6 +345,16 @@ describe('the reviewer reads the same document', () => {
     const opened = await eventsOfType(runId, 'debrief_opened')
     expect(opened).toHaveLength(1)
     expect(opened[0]?.payload.version).toBe('draft')
+  })
+
+  it('serves the Platform Admin the reviewer’s view, never the owner’s (D-748)', async () => {
+    const runId = await scoredRun(fx)
+    // `requireRunOwner` admits the admin, so the owner's path would hand them the student's form
+    // and write the student's first open.
+    const view = await debrief.getDebrief(fx.admin, runId)
+    expect(view.labels.viewer).toBe('reviewer')
+    expect(view.questions.canAnswer).toBe(false)
+    expect(await eventsOfType(runId, 'debrief_opened')).toHaveLength(0)
   })
 })
 

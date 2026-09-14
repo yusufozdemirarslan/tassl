@@ -1,6 +1,9 @@
-// Step 3.2 — the permission helpers of docs/tech/08-auth-authz.md §5, one allow case and one deny
-// case each, against the test database. The matrix test that walks 08 §4 endpoint by endpoint
-// arrives in Step 3.6; this file proves the helpers those endpoints will call.
+// Step 3.2 — the permission helpers of docs/tech/08-auth-authz.md §5, allow and deny cases for each,
+// against the test database. The matrix test that walks 08 §4 endpoint by endpoint is
+// tests/integration/auth/matrix.test.ts; this file proves the helpers those endpoints call.
+//
+// One role per account (D-748): Student, Scenario Editor, Instructor, Platform Admin. Memberships
+// say where a person is — which institution, which section roster — and never what they may do.
 //
 // Deny cases assert the error *code*, because 08 §4 distinguishes them: a resource in another
 // organization answers NOT_FOUND (an id must not be probeable for existence) while a member of the
@@ -43,14 +46,16 @@ async function codeOf(call: () => Promise<unknown>): Promise<string> {
 type Fixture = {
   orgA: string
   orgB: string
+  /** Created the course and teaches its section. */
   instructor: UserRow
-  ta: UserRow
+  /** An Instructor of institution A who runs no course there. */
+  otherInstructor: UserRow
   student1: UserRow
   student2: UserRow
-  author: UserRow
-  lead: UserRow
+  /** A Scenario Editor of institution A, also on the section roster. */
   editor: UserRow
   admin: UserRow
+  /** An Instructor of institution B. */
   outsider: UserRow
   courseId: string
   sectionId: string
@@ -64,43 +69,35 @@ async function buildFixture(): Promise<Fixture> {
   const a = await f.createInstitution('perm-a')
   const b = await f.createInstitution('perm-b')
 
-  const instructor = await f.createUser('perm-instructor')
-  const ta = await f.createUser('perm-ta')
+  const instructor = await f.createUser('perm-instructor', { platformRole: 'instructor' })
+  const otherInstructor = await f.createUser('perm-instructor-2', { platformRole: 'instructor' })
   const student1 = await f.createUser('perm-student-1')
   const student2 = await f.createUser('perm-student-2')
-  const author = await f.createUser('perm-author')
-  const lead = await f.createUser('perm-lead')
   const editor = await f.createUser('perm-editor', { platformRole: 'tassl_scenario_editor' })
   const admin = await f.createUser('perm-admin', { platformRole: 'admin' })
-  const outsider = await f.createUser('perm-outsider')
+  const outsider = await f.createUser('perm-outsider', { platformRole: 'instructor' })
 
-  await f.addMember(a.organization.id, instructor.id, 'instructor')
-  await f.addMember(a.organization.id, ta.id, 'teaching_assistant')
-  await f.addMember(a.organization.id, student1.id, 'student')
-  await f.addMember(a.organization.id, student2.id, 'student')
-  await f.addMember(a.organization.id, author.id, 'scenario_author')
-  await f.addMember(a.organization.id, lead.id, 'program_lead')
-  await f.addMember(b.organization.id, outsider.id, 'instructor')
+  for (const person of [instructor, otherInstructor, student1, student2, editor]) {
+    await f.addMember(a.organization.id, person.id)
+  }
+  await f.addMember(b.organization.id, outsider.id)
 
   const course = await f.createCourse(a.organization.id, 'perm-course', {
     createdBy: instructor.id,
   })
   const section = await f.createSection(a.organization.id, course.id, 'perm-section')
-  await f.addSectionMember(a.organization.id, section.id, instructor.id, 'instructor')
-  await f.addSectionMember(a.organization.id, section.id, ta.id, 'ta')
-  await f.addSectionMember(a.organization.id, section.id, student1.id, 'student')
-  await f.addSectionMember(a.organization.id, section.id, student2.id, 'student')
+  for (const person of [instructor, student1, student2, editor]) {
+    await f.addSectionMember(a.organization.id, section.id, person.id)
+  }
 
   const pkg = await f.createPackageVersion(a.organization.id, 'perm-pkg', {
-    createdBy: instructor.id,
+    createdBy: editor.id,
   })
   const assignment = await f.createAssignment(a.organization.id, section.id, 'perm-assignment', {
     packageVersionId: pkg.version.id,
     variantId: pkg.defective.id,
   })
 
-  // The runs module lands in Phase 6; the row itself exists from Phase 2, so the run guards are
-  // exercised against a real run rather than only against their NOT_FOUND path.
   const runId = crypto.randomUUID()
   await testSql`
     insert into runs (id, organization_id, assignment_id, student_id, package_version_id,
@@ -112,11 +109,9 @@ async function buildFixture(): Promise<Fixture> {
     orgA: a.organization.id,
     orgB: b.organization.id,
     instructor,
-    ta,
+    otherInstructor,
     student1,
     student2,
-    author,
-    lead,
     editor,
     admin,
     outsider,
@@ -127,7 +122,7 @@ async function buildFixture(): Promise<Fixture> {
   }
 }
 
-describe('permission helpers (08 §5)', () => {
+describe('permission helpers (08 §5, D-748)', () => {
   beforeAll(async () => {
     await truncateAll()
     permissions = await import('@/server/auth/permissions')
@@ -140,12 +135,12 @@ describe('permission helpers (08 §5)', () => {
   })
 
   describe('requireSession', () => {
-    it('resolves the actor behind a real session cookie and rejects an anonymous request', async () => {
+    it('resolves the actor behind a real session cookie, with its one role', async () => {
       const headers = await asUser(fx.instructor.id, { activeOrganizationId: fx.orgA })
       await expect(permissions.requireSession(headers)).resolves.toMatchObject({
         id: fx.instructor.id,
         email: fx.instructor.email,
-        platformRole: 'none',
+        platformRole: 'instructor',
         activeOrganizationId: fx.orgA,
       })
       expect(await codeOf(() => permissions.requireSession(new Headers()))).toBe('UNAUTHENTICATED')
@@ -160,34 +155,50 @@ describe('permission helpers (08 §5)', () => {
       expect(await codeOf(() => permissions.requireSession(headers))).toBe('UNAUTHENTICATED')
       await testSql`update "user" set deleted_at = null where id = ${fx.student2.id}`
     })
+
+    it('stores nothing but the four roles', async () => {
+      await expect(
+        testSql`update "user" set platform_role = 'none' where id = ${fx.student2.id}`,
+      ).rejects.toThrow(/user_platform_role_check/)
+      await expect(
+        testSql`update "member" set role = 'instructor' where user_id = ${fx.instructor.id}`,
+      ).rejects.toThrow(/member_role_is_membership/)
+    })
   })
 
-  describe('requirePlatformRole', () => {
-    it('allows the exact role and lets admin satisfy every check', () => {
+  describe('requirePlatformRole and requireAnyRole', () => {
+    it('allows the exact role and lets the admin satisfy every check', () => {
       expect(permissions.requirePlatformRole(actorOf(fx.editor), 'tassl_scenario_editor')).toBe(
         'tassl_scenario_editor',
       )
       expect(permissions.requirePlatformRole(actorOf(fx.admin), 'tassl_scenario_editor')).toBe(
         'admin',
       )
-      expect(permissions.requirePlatformRole(actorOf(fx.admin), 'admin')).toBe('admin')
+      expect(permissions.requireAnyRole(actorOf(fx.student1), permissions.LEARNER_ROLES)).toBe(
+        'student',
+      )
     })
 
-    it('denies a platform-roleless user', async () => {
+    it('denies every other role', async () => {
       expect(
         await codeOf(async () => permissions.requirePlatformRole(actorOf(fx.student1), 'admin')),
+      ).toBe('FORBIDDEN')
+      expect(
+        await codeOf(async () =>
+          permissions.requireAnyRole(actorOf(fx.instructor), permissions.LEARNER_ROLES),
+        ),
       ).toBe('FORBIDDEN')
     })
   })
 
   describe('requireMembership', () => {
-    it('returns the organization role, and narrows it when roles are given', async () => {
+    it('returns the platform role of a member, and narrows it when roles are given', async () => {
       await expect(permissions.requireMembership(actorOf(fx.instructor), fx.orgA)).resolves.toBe(
         'instructor',
       )
       await expect(
-        permissions.requireMembership(actorOf(fx.lead), fx.orgA, ['program_lead']),
-      ).resolves.toBe('program_lead')
+        permissions.requireMembership(actorOf(fx.editor), fx.orgA, ['tassl_scenario_editor']),
+      ).resolves.toBe('tassl_scenario_editor')
     })
 
     it('denies a non-member and a member holding a role outside the list', async () => {
@@ -196,67 +207,96 @@ describe('permission helpers (08 §5)', () => {
       )
       expect(
         await codeOf(() =>
-          permissions.requireMembership(actorOf(fx.instructor), fx.orgA, ['program_lead']),
+          permissions.requireMembership(actorOf(fx.student1), fx.orgA, ['instructor']),
         ),
       ).toBe('FORBIDDEN')
     })
 
-    it('does not treat the platform admin as a member of every institution', async () => {
-      expect(await codeOf(() => permissions.requireMembership(actorOf(fx.admin), fx.orgA))).toBe(
-        'FORBIDDEN',
+    it('admits the platform admin to every institution that exists, and none that does not', async () => {
+      await expect(permissions.requireMembership(actorOf(fx.admin), fx.orgA)).resolves.toBe('admin')
+      expect(await codeOf(() => permissions.requireMembership(actorOf(fx.admin), UNKNOWN_ID))).toBe(
+        'NOT_FOUND',
       )
     })
   })
 
-  describe('requireSectionRole', () => {
+  describe('requireSectionSeat', () => {
     it('returns the scope carrying the organization of the section itself', async () => {
       await expect(
-        permissions.requireSectionRole(actorOf(fx.instructor), fx.sectionId, ['instructor']),
-      ).resolves.toEqual({
-        sectionId: fx.sectionId,
-        role: 'instructor',
-        organizationId: fx.orgA,
-      })
+        permissions.requireSectionSeat(
+          actorOf(fx.student1),
+          fx.sectionId,
+          permissions.LEARNER_ROLES,
+        ),
+      ).resolves.toEqual({ sectionId: fx.sectionId, role: 'student', organizationId: fx.orgA })
       await expect(
-        permissions.requireSectionRole(actorOf(fx.ta), fx.sectionId, ['instructor', 'ta']),
-      ).resolves.toMatchObject({ role: 'ta' })
+        permissions.requireSectionSeat(actorOf(fx.admin), fx.sectionId, permissions.LEARNER_ROLES),
+      ).resolves.toMatchObject({ role: 'admin', organizationId: fx.orgA })
     })
 
-    it('denies the wrong role with FORBIDDEN, and an outsider with NOT_FOUND (D-710)', async () => {
+    it('denies the wrong role or no roster row with FORBIDDEN, and an outsider with NOT_FOUND', async () => {
+      // An Instructor on the roster teaches the section; they do not take runs on it.
       expect(
         await codeOf(() =>
-          permissions.requireSectionRole(actorOf(fx.student1), fx.sectionId, ['instructor']),
+          permissions.requireSectionSeat(
+            actorOf(fx.instructor),
+            fx.sectionId,
+            permissions.LEARNER_ROLES,
+          ),
         ),
       ).toBe('FORBIDDEN')
-      // Another institution's seat learns nothing from a section id, not even that it exists.
       expect(
         await codeOf(() =>
-          permissions.requireSectionRole(actorOf(fx.outsider), fx.sectionId, ['instructor', 'ta']),
+          permissions.requireSectionSeat(
+            actorOf(fx.otherInstructor),
+            fx.sectionId,
+            permissions.TEACHING_ROLES,
+          ),
+        ),
+      ).toBe('FORBIDDEN')
+      expect(
+        await codeOf(() =>
+          permissions.requireSectionSeat(
+            actorOf(fx.outsider),
+            fx.sectionId,
+            permissions.TEACHING_ROLES,
+          ),
         ),
       ).toBe('NOT_FOUND')
       expect(
         await codeOf(() =>
-          permissions.requireSectionRole(
-            actorOf(fx.outsider),
-            '00000000-0000-4000-8000-000000000000',
-            ['instructor'],
-          ),
+          permissions.requireSectionSeat(actorOf(fx.outsider), UNKNOWN_ID, ['instructor']),
         ),
       ).toBe('NOT_FOUND')
     })
   })
 
   describe('requireCourseInstructor', () => {
-    it('allows the creator and a section instructor', async () => {
+    it('allows the Instructor who runs the course, and the admin', async () => {
       await expect(
         permissions.requireCourseInstructor(actorOf(fx.instructor), fx.courseId),
       ).resolves.toEqual({ courseId: fx.courseId, organizationId: fx.orgA })
+      await expect(
+        permissions.requireCourseInstructor(actorOf(fx.admin), fx.courseId),
+      ).resolves.toEqual({ courseId: fx.courseId, organizationId: fx.orgA })
     })
 
-    it('denies a TA of the course with FORBIDDEN', async () => {
+    it('denies an Instructor who does not run it, and a learner on its roster, with FORBIDDEN', async () => {
       expect(
-        await codeOf(() => permissions.requireCourseInstructor(actorOf(fx.ta), fx.courseId)),
+        await codeOf(() =>
+          permissions.requireCourseInstructor(actorOf(fx.otherInstructor), fx.courseId),
+        ),
       ).toBe('FORBIDDEN')
+      expect(
+        await codeOf(() => permissions.requireCourseInstructor(actorOf(fx.editor), fx.courseId)),
+      ).toBe('FORBIDDEN')
+    })
+
+    it('stops admitting a creator whose role is no longer Instructor (D-516)', async () => {
+      const demoted = { ...actorOf(fx.instructor), platformRole: 'student' as const }
+      expect(await codeOf(() => permissions.requireCourseInstructor(demoted, fx.courseId))).toBe(
+        'FORBIDDEN',
+      )
     })
 
     it('answers NOT_FOUND for a course in another organization and for an unknown id', async () => {
@@ -270,7 +310,7 @@ describe('permission helpers (08 §5)', () => {
   })
 
   describe('requireRunOwner', () => {
-    it('allows the student the run belongs to', async () => {
+    it('allows the learner the run belongs to, and the admin', async () => {
       await expect(
         permissions.requireRunOwner(actorOf(fx.student1), fx.runId),
       ).resolves.toMatchObject({
@@ -279,12 +319,18 @@ describe('permission helpers (08 §5)', () => {
         sectionId: fx.sectionId,
         organizationId: fx.orgA,
       })
+      await expect(permissions.requireRunOwner(actorOf(fx.admin), fx.runId)).resolves.toMatchObject(
+        { studentId: fx.student1.id },
+      )
     })
 
-    it('hides a run belonging to another student, and an unknown run, behind NOT_FOUND', async () => {
+    it('hides a run belonging to someone else, and an unknown run, behind NOT_FOUND', async () => {
       expect(await codeOf(() => permissions.requireRunOwner(actorOf(fx.student2), fx.runId))).toBe(
         'NOT_FOUND',
       )
+      expect(
+        await codeOf(() => permissions.requireRunOwner(actorOf(fx.instructor), fx.runId)),
+      ).toBe('NOT_FOUND')
       expect(
         await codeOf(() => permissions.requireRunOwner(actorOf(fx.student1), UNKNOWN_ID)),
       ).toBe('NOT_FOUND')
@@ -292,81 +338,62 @@ describe('permission helpers (08 §5)', () => {
   })
 
   describe('requireRunReviewer and requireRunInstructor', () => {
-    it('allows the section instructor and the TA to review, only the instructor to decide', async () => {
-      await expect(
-        permissions.requireRunReviewer(actorOf(fx.instructor), fx.runId),
-      ).resolves.toMatchObject({ runId: fx.runId })
-      await expect(permissions.requireRunReviewer(actorOf(fx.ta), fx.runId)).resolves.toMatchObject(
-        { runId: fx.runId },
-      )
-      await expect(
-        permissions.requireRunInstructor(actorOf(fx.instructor), fx.runId),
-      ).resolves.toMatchObject({ runId: fx.runId })
+    it('allows the Instructor of the section and the admin', async () => {
+      for (const actor of [actorOf(fx.instructor), actorOf(fx.admin)]) {
+        await expect(permissions.requireRunReviewer(actor, fx.runId)).resolves.toMatchObject({
+          runId: fx.runId,
+        })
+        await expect(permissions.requireRunInstructor(actor, fx.runId)).resolves.toMatchObject({
+          runId: fx.runId,
+        })
+      }
     })
 
-    it('denies the TA the instructor-only guard and the owning student the reviewer guard', async () => {
-      expect(await codeOf(() => permissions.requireRunInstructor(actorOf(fx.ta), fx.runId))).toBe(
-        'FORBIDDEN',
-      )
+    it('denies the owning learner with FORBIDDEN and every other seat with NOT_FOUND', async () => {
       expect(
         await codeOf(() => permissions.requireRunReviewer(actorOf(fx.student1), fx.runId)),
       ).toBe('FORBIDDEN')
-    })
-
-    it('answers NOT_FOUND for someone with no membership on the section of the run', async () => {
-      expect(
-        await codeOf(() => permissions.requireRunReviewer(actorOf(fx.outsider), fx.runId)),
-      ).toBe('NOT_FOUND')
+      // A classmate, a Scenario Editor on the roster, an Instructor of another course, a stranger.
+      for (const seat of [fx.student2, fx.editor, fx.otherInstructor, fx.outsider]) {
+        expect(await codeOf(() => permissions.requireRunReviewer(actorOf(seat), fx.runId))).toBe(
+          'NOT_FOUND',
+        )
+      }
     })
   })
 
-  describe('requireAuthorOnPackage', () => {
-    it('allows an instructor and a scenario author in the organization owning the package', async () => {
+  describe('requireAuthorOnPackage and requirePackageReader', () => {
+    it('lets the Scenario Editor author, and the Instructor only read', async () => {
       await expect(
-        permissions.requireAuthorOnPackage(actorOf(fx.instructor), fx.packageId),
+        permissions.requireAuthorOnPackage(actorOf(fx.editor), fx.packageId),
       ).resolves.toEqual({
         packageId: fx.packageId,
         organizationId: fx.orgA,
-        role: 'instructor',
+        role: 'tassl_scenario_editor',
       })
       await expect(
-        permissions.requireAuthorOnPackage(actorOf(fx.author), fx.packageId),
-      ).resolves.toMatchObject({ role: 'scenario_author' })
-    })
-
-    it('denies a student of the same organization', async () => {
+        permissions.requirePackageReader(actorOf(fx.instructor), fx.packageId),
+      ).resolves.toMatchObject({ role: 'instructor' })
       expect(
-        await codeOf(() => permissions.requireAuthorOnPackage(actorOf(fx.student1), fx.packageId)),
+        await codeOf(() =>
+          permissions.requireAuthorOnPackage(actorOf(fx.instructor), fx.packageId),
+        ),
       ).toBe('FORBIDDEN')
-    })
-
-    it('answers NOT_FOUND for a platform editor without a membership there, and for an unknown id', async () => {
-      expect(
-        await codeOf(() => permissions.requireAuthorOnPackage(actorOf(fx.editor), fx.packageId)),
-      ).toBe('NOT_FOUND')
-      expect(
-        await codeOf(() => permissions.requireAuthorOnPackage(actorOf(fx.instructor), UNKNOWN_ID)),
-      ).toBe('NOT_FOUND')
-    })
-  })
-
-  describe('canReadIdentifiedRecords', () => {
-    it('is false for anyone who is not a platform scenario editor (D-055)', async () => {
       await expect(
-        permissions.canReadIdentifiedRecords(actorOf(fx.instructor), fx.orgA),
-      ).resolves.toBe(false)
-      await expect(permissions.canReadIdentifiedRecords(actorOf(fx.admin), fx.orgA)).resolves.toBe(
-        false,
-      )
+        permissions.requireAuthorOnPackage(actorOf(fx.admin), fx.packageId),
+      ).resolves.toMatchObject({ role: 'admin' })
     })
 
-    it('is false for an editor while the institution has no agreement', async () => {
-      await expect(permissions.canReadIdentifiedRecords(actorOf(fx.editor), fx.orgA)).resolves.toBe(
-        false,
-      )
+    it('denies a Student of the same organization both, and answers NOT_FOUND outside it', async () => {
       expect(
-        await codeOf(() => permissions.requireIdentifiedRecordsAccess(actorOf(fx.editor), fx.orgA)),
+        await codeOf(() => permissions.requirePackageReader(actorOf(fx.student1), fx.packageId)),
       ).toBe('FORBIDDEN')
+      expect(
+        await codeOf(() => permissions.requirePackageReader(actorOf(fx.outsider), fx.packageId)),
+      ).toBe('NOT_FOUND')
+      expect(
+        await codeOf(() => permissions.requireAuthorOnPackage(actorOf(fx.editor), UNKNOWN_ID)),
+      ).toBe('NOT_FOUND')
     })
   })
 })

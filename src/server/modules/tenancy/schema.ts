@@ -8,19 +8,9 @@
 import { z } from 'zod'
 
 // ---------------------------------------------------------------------------------------------
-// Enumerations (08 §3, 06 §3.1)
+// Enumerations (06 §3.1). A membership carries no role (D-748): what a member may do is the
+// platform role on their account, so no institution-role vocabulary is restated here.
 // ---------------------------------------------------------------------------------------------
-
-export const ORGANIZATION_ROLES = [
-  'student',
-  'instructor',
-  'teaching_assistant',
-  'scenario_author',
-  'program_lead',
-] as const
-
-export const OrganizationRoleSchema = z.enum(ORGANIZATION_ROLES)
-export type OrganizationRoleValue = z.infer<typeof OrganizationRoleSchema>
 
 export const PlanSchema = z.enum([
   'pilot',
@@ -36,7 +26,7 @@ export const AgreementPurposeSchema = z.enum([
   'drift_review',
 ])
 
-/** The only platform role a data agreement may admit (D-055, FR-234). */
+/** The only platform role a data agreement may name (D-055). */
 export const AgreementPlatformRoleSchema = z.enum(['tassl_scenario_editor'])
 
 /**
@@ -65,6 +55,10 @@ export const AgreementIdParamsSchema = z.object({ agreementId: z.uuid() })
 // Inputs
 // ---------------------------------------------------------------------------------------------
 
+/**
+ * `programLeadEmail` keeps its 07 §4 name, but it names no role any more (D-748): the account behind
+ * it becomes the institution's first member.
+ */
 export const CreateInstitutionSchema = z.object({
   name: z.string().trim().min(1).max(200),
   slug: z
@@ -83,14 +77,14 @@ export const UpdateInstitutionSettingsSchema = z.object({
 })
 export type UpdateInstitutionSettingsInput = z.infer<typeof UpdateInstitutionSettingsSchema>
 
+/** An invitation names a person, never a role: it makes them a member (D-748). */
 export const InviteMemberSchema = z.object({
   email: z.email(),
-  role: OrganizationRoleSchema,
 })
 export type InviteMemberInput = z.infer<typeof InviteMemberSchema>
 
 /**
- * A data agreement as a program lead writes it (DATA-052). `purposes` is deliberately not
+ * A data agreement as the platform admin writes it (DATA-052). `purposes` is deliberately not
  * `.min(1)`: an empty list is `AGREEMENT_PURPOSES_INVALID` (400) from the service, which is the
  * code 07 §4 documents for this row.
  */
@@ -137,8 +131,8 @@ export const InstitutionSchema = z.object({
 })
 export type Institution = z.infer<typeof InstitutionSchema>
 
-/** `GET /institutions`: the institutions the actor belongs to, each with the role they hold. */
-export const MyInstitutionSchema = InstitutionSchema.extend({ role: OrganizationRoleSchema })
+/** `GET /institutions`: the institutions the actor belongs to (every one, for the admin). */
+export const MyInstitutionSchema = InstitutionSchema
 export type MyInstitution = z.infer<typeof MyInstitutionSchema>
 
 export const InstitutionSettingsSchema = z.object({
@@ -154,7 +148,6 @@ export type InstitutionView = z.infer<typeof InstitutionViewSchema>
 export const MembershipSchema = z.object({
   organizationId: z.string(),
   name: z.string(),
-  role: OrganizationRoleSchema,
 })
 export type Membership = z.infer<typeof MembershipSchema>
 
@@ -168,7 +161,6 @@ export const InvitationSchema = z.object({
   id: z.string(),
   organizationId: z.string(),
   email: z.email(),
-  role: OrganizationRoleSchema,
   status: z.string(),
   expiresAt: z.iso.datetime(),
 })

@@ -4,9 +4,13 @@
 //
 // The actor is built by hand rather than through a session: these are service calls, and the
 // session path is what tests/integration/api/courses.test.ts exercises.
+//
+// D-748: the platform role decides. Courses, rosters and assignments are an Instructor's and the
+// admin's — every course of the institution for any of its Instructors — and a Student or a
+// Scenario Editor reads only the assignments on a roster they are on.
 import { afterAll, beforeEach, describe, expect, it } from 'vitest'
 import { truncateAll } from '@tests/setup/integration'
-import type { SessionUser } from '@/server/auth/types'
+import type { PlatformRole, SessionUser } from '@/server/auth/types'
 
 type Courses = typeof import('@/server/modules/courses')
 type Factories = typeof import('@tests/factories')
@@ -25,28 +29,31 @@ const actorFor = (user: UserRow, orgId: string | null = null): SessionUser => ({
   name: user.name,
   emailVerified: true,
   activeOrganizationId: orgId,
-  platformRole: 'none',
+  platformRole: user.platform_role as PlatformRole,
 })
 
 type Fixture = Awaited<ReturnType<typeof setup>>
 
-/** Two institutions, four seats in the first, and a confirmed package version to assign. */
+/** Two institutions, five seats in the first, an admin in neither, and versions to assign. */
 async function setup() {
   const orgA = (await f.createInstitution('svc-a')).organization.id
   const orgB = (await f.createInstitution('svc-b')).organization.id
 
-  const instructor = await f.createUser('svc-instructor')
+  const instructor = await f.createUser('svc-instructor', { platformRole: 'instructor' })
+  const colleague = await f.createUser('svc-colleague', { platformRole: 'instructor' })
   const student = await f.createUser('svc-student')
   const student2 = await f.createUser('svc-student-2')
-  const lead = await f.createUser('svc-lead')
+  const editor = await f.createUser('svc-editor', { platformRole: 'tassl_scenario_editor' })
+  const admin = await f.createUser('svc-admin', { platformRole: 'admin' })
   const stranger = await f.createUser('svc-stranger')
-  const outsider = await f.createUser('svc-outsider')
+  const outsider = await f.createUser('svc-outsider', { platformRole: 'instructor' })
 
-  await f.addMember(orgA, instructor.id, 'instructor')
-  await f.addMember(orgA, student.id, 'student')
-  await f.addMember(orgA, student2.id, 'student')
-  await f.addMember(orgA, lead.id, 'program_lead')
-  await f.addMember(orgB, outsider.id, 'instructor')
+  await f.addMember(orgA, instructor.id)
+  await f.addMember(orgA, colleague.id)
+  await f.addMember(orgA, student.id)
+  await f.addMember(orgA, student2.id)
+  await f.addMember(orgA, editor.id)
+  await f.addMember(orgB, outsider.id)
 
   const pkg = await f.minimalConfirmedVersion(orgA, 'svc-confirmed', {
     createdBy: instructor.id,
@@ -60,7 +67,8 @@ async function setup() {
     instructor,
     student,
     student2,
-    lead,
+    colleague,
+    editor,
     stranger,
     outsider,
     pkg,
@@ -68,7 +76,11 @@ async function setup() {
     otherPkg,
     teacher: actorFor(instructor, orgA),
     learner: actorFor(student, orgA),
-    programLead: actorFor(lead, orgA),
+    author: actorFor(editor, orgA),
+    // An Instructor of the institution who teaches none of the course's sections.
+    peer: actorFor(colleague, orgA),
+    // The admin holds no member row anywhere.
+    platformAdmin: actorFor(admin),
     foreigner: actorFor(outsider, orgB),
   }
 }
@@ -80,8 +92,8 @@ async function withAssignment(fx: Fixture) {
     term: '2026-fall',
   })
   const section = await courses.createSection(fx.teacher, course.id, { name: 'A' })
-  await f.addSectionMember(fx.orgA, section.id, fx.instructor.id, 'instructor')
-  await f.addSectionMember(fx.orgA, section.id, fx.student.id, 'student')
+  await f.addSectionMember(fx.orgA, section.id, fx.instructor.id)
+  await f.addSectionMember(fx.orgA, section.id, fx.student.id)
   const assignment = await courses.createAssignment(fx.teacher, section.id, {
     label: 'Decision Run 1',
     packageVersionId: fx.pkg.version.id,
@@ -147,10 +159,12 @@ describe('createCourse and listCourses (FR-200)', () => {
     expect(listed.nextCursor).toBeNull()
   })
 
-  it('refuses a student and refuses a mapping that is not four positive numbers', async () => {
-    await expect(
-      courses.createCourse(fx.learner, fx.orgA, { name: 'Nope', term: '2026-fall' }),
-    ).rejects.toMatchObject({ code: 'FORBIDDEN' })
+  it('refuses a student and an editor, and refuses a mapping that is not four positive numbers', async () => {
+    for (const actor of [fx.learner, fx.author]) {
+      await expect(
+        courses.createCourse(actor, fx.orgA, { name: 'Nope', term: '2026-fall' }),
+      ).rejects.toMatchObject({ code: 'FORBIDDEN' })
+    }
 
     await expect(
       courses.createCourse(fx.teacher, fx.orgA, {
@@ -170,16 +184,43 @@ describe('createCourse and listCourses (FR-200)', () => {
     })
   })
 
-  it('shows a student only the courses they hold a section membership in', async () => {
+  it('lists every course for any Instructor and the admin, and refuses a Student and an Editor', async () => {
     const { course } = await withAssignment(fx)
-    await courses.createCourse(fx.teacher, fx.orgA, { name: 'Another course', term: '2026-fall' })
+    const another = await courses.createCourse(fx.teacher, fx.orgA, {
+      name: 'Another course',
+      term: '2026-fall',
+    })
 
     const asInstructor = await courses.listCourses(fx.teacher, fx.orgA)
     expect(asInstructor.items).toHaveLength(2)
+    expect(asInstructor.items.find((row) => row.id === course.id)).toMatchObject({
+      sectionCount: 1,
+      assignmentCount: 1,
+    })
+    // An Instructor who teaches neither course still sees both: courses are the institution's.
+    expect((await courses.listCourses(fx.peer, fx.orgA)).items.map((row) => row.id).sort()).toEqual(
+      [course.id, another.id].sort(),
+    )
+    expect((await courses.listCourses(fx.platformAdmin, fx.orgA)).items).toHaveLength(2)
 
-    const asStudent = await courses.listCourses(fx.learner, fx.orgA)
-    expect(asStudent.items.map((row) => row.id)).toEqual([course.id])
-    expect(asStudent.items[0]).toMatchObject({ sectionCount: 1, assignmentCount: 1 })
+    // A student on the course's roster, and an editor, are refused the list (D-748).
+    await expect(courses.listCourses(fx.learner, fx.orgA)).rejects.toMatchObject({
+      code: 'FORBIDDEN',
+    })
+    await expect(courses.listCourses(fx.author, fx.orgA)).rejects.toMatchObject({
+      code: 'FORBIDDEN',
+    })
+  })
+
+  it('lets the admin create a course without a member row', async () => {
+    const course = await courses.createCourse(fx.platformAdmin, fx.orgA, {
+      name: 'Admin course',
+      term: '2026-fall',
+    })
+    expect(course).toMatchObject({ organizationId: fx.orgA, mapping: DEFAULT_MAPPING })
+    await expect(
+      courses.createCourse(fx.platformAdmin, 'no-such-institution', { name: 'X', term: 'Y' }),
+    ).rejects.toMatchObject({ code: 'NOT_FOUND' })
   })
 
   it('paginates on (created_at, id) with the shared cursor', async () => {
@@ -212,18 +253,18 @@ describe('getCourse and updateCoursePolicy (FR-205)', () => {
     expect(view.assignments.map((row) => row.id)).toEqual([assignment.id])
     expect(view.mapping).toEqual(DEFAULT_MAPPING)
 
-    // A member of one of its sections reads it too (07 §5).
-    expect((await courses.getCourse(fx.learner, course.id)).id).toBe(course.id)
+    // Any Instructor of the institution reads it, and so does the admin (07 §5, D-748).
+    expect((await courses.getCourse(fx.peer, course.id)).id).toBe(course.id)
+    expect((await courses.getCourse(fx.platformAdmin, course.id)).id).toBe(course.id)
   })
 
-  it('hides a course from a member of the institution who is in none of its sections', async () => {
+  it('refuses the course to a Student on its roster and to an Editor, and hides it from another tenant', async () => {
     const { course } = await withAssignment(fx)
-    // student2 is a member of the institution but of none of this course's sections.
-    await expect(
-      courses.getCourse(actorFor(fx.student2, fx.orgA), course.id),
-    ).rejects.toMatchObject({
-      code: 'FORBIDDEN',
-    })
+    for (const actor of [fx.learner, fx.author, actorFor(fx.student2, fx.orgA)]) {
+      await expect(courses.getCourse(actor, course.id)).rejects.toMatchObject({
+        code: 'FORBIDDEN',
+      })
+    }
     await expect(courses.getCourse(fx.foreigner, course.id)).rejects.toMatchObject({
       code: 'NOT_FOUND',
     })
@@ -243,9 +284,14 @@ describe('getCourse and updateCoursePolicy (FR-205)', () => {
       critiqueWeightFactor: 0.25,
       taughtConcepts: ['pricing_power', 'cannibalization'],
     })
+    for (const actor of [fx.learner, fx.peer]) {
+      await expect(
+        courses.updateCoursePolicy(actor, course.id, { outsideAiPolicy: 'open' }),
+      ).rejects.toMatchObject({ code: 'FORBIDDEN' })
+    }
     await expect(
-      courses.updateCoursePolicy(fx.learner, course.id, { outsideAiPolicy: 'open' }),
-    ).rejects.toMatchObject({ code: 'FORBIDDEN' })
+      courses.updateCoursePolicy(fx.platformAdmin, course.id, { outsideAiPolicy: 'open' }),
+    ).resolves.toMatchObject({ outsideAiPolicy: 'open' })
   })
 
   it('accepts a mapping while nothing is confirmed and refuses it afterwards', async () => {
@@ -285,10 +331,22 @@ describe('sections and the roster (SYS-005, D-062)', () => {
     )
     expect(roster.nextCursor).toBeNull()
 
-    // A program lead reads the roster; a student in it does not (07 §5 "Ins, PL").
-    expect((await courses.listSectionMembers(fx.programLead, section.id)).items).toHaveLength(2)
-    await expect(courses.listSectionMembers(fx.learner, section.id)).rejects.toMatchObject({
-      code: 'FORBIDDEN',
+    // Each row carries the person's platform role (D-748).
+    expect(Object.fromEntries(roster.items.map((row) => [row.userId, row.role]))).toEqual({
+      [fx.instructor.id]: 'instructor',
+      [fx.student.id]: 'student',
+    })
+
+    // The admin reads the roster; a student on it, and an Instructor who does not teach the course,
+    // do not; another tenant is not told the section exists.
+    expect((await courses.listSectionMembers(fx.platformAdmin, section.id)).items).toHaveLength(2)
+    for (const actor of [fx.learner, fx.peer]) {
+      await expect(courses.listSectionMembers(actor, section.id)).rejects.toMatchObject({
+        code: 'FORBIDDEN',
+      })
+    }
+    await expect(courses.listSectionMembers(fx.foreigner, section.id)).rejects.toMatchObject({
+      code: 'NOT_FOUND',
     })
   })
 
@@ -297,24 +355,24 @@ describe('sections and the roster (SYS-005, D-062)', () => {
 
     const added = await courses.addSectionMember(fx.teacher, section.id, {
       email: fx.student2.email.toUpperCase(),
-      role: 'student',
     })
     expect(added).toMatchObject({ userId: fx.student2.id, role: 'student' })
 
+    // The row has no role of its own: an Instructor added is shown as one, and teaches the section.
+    const colleague = await courses.addSectionMember(fx.platformAdmin, section.id, {
+      email: fx.colleague.email,
+    })
+    expect(colleague).toMatchObject({ userId: fx.colleague.id, role: 'instructor' })
+    expect((await courses.listSectionMembers(fx.peer, section.id)).items).toHaveLength(4)
+
     await expect(
-      courses.addSectionMember(fx.teacher, section.id, {
-        email: fx.stranger.email,
-        role: 'student',
-      }),
+      courses.addSectionMember(fx.teacher, section.id, { email: fx.stranger.email }),
     ).rejects.toMatchObject({ code: 'NOT_SECTION_MEMBER' })
   })
 
   it('writes the section_member.add audit row (08 §4)', async () => {
     const { section } = await withAssignment(fx)
-    await courses.addSectionMember(fx.teacher, section.id, {
-      email: fx.student2.email,
-      role: 'student',
-    })
+    await courses.addSectionMember(fx.teacher, section.id, { email: fx.student2.email })
 
     const admin = await import('@/server/modules/admin/repository')
     const rows = await admin.listAuditLog({ orgId: fx.orgA })
@@ -339,10 +397,7 @@ describe('sections and the roster (SYS-005, D-062)', () => {
   it('refuses a student who tries to add themselves to a section', async () => {
     const { section } = await withAssignment(fx)
     await expect(
-      courses.addSectionMember(fx.learner, section.id, {
-        email: fx.student2.email,
-        role: 'student',
-      }),
+      courses.addSectionMember(fx.learner, section.id, { email: fx.student2.email }),
     ).rejects.toMatchObject({ code: 'FORBIDDEN' })
   })
 })
@@ -394,6 +449,46 @@ describe('assignments (FR-200)', () => {
 
     const asTeacher = await courses.getAssignment(fx.teacher, assignment.id)
     expect(asTeacher.variantKey).toBe('defective')
+    expect(asTeacher).toMatchObject({ canViewExports: true, canOpenRuns: true })
+    expect(asStudent).toMatchObject({ canViewExports: false, canOpenRuns: false })
+  })
+
+  it('reads an Editor on the roster a learner view, the admin a reviewer view, and refuses the rest', async () => {
+    const { section, assignment } = await withAssignment(fx)
+    await f.addSectionMember(fx.orgA, section.id, fx.editor.id)
+
+    const asEditor = await courses.getAssignment(fx.author, assignment.id)
+    expect(asEditor).toMatchObject({ variantKey: null, canViewExports: false, canOpenRuns: false })
+
+    const asAdmin = await courses.getAssignment(fx.platformAdmin, assignment.id)
+    expect(asAdmin).toMatchObject({
+      variantKey: 'defective',
+      canViewExports: true,
+      canOpenRuns: true,
+    })
+
+    // A member of the institution on no roster of it, and an Instructor who does not teach it.
+    for (const actor of [actorFor(fx.student2, fx.orgA), fx.peer]) {
+      await expect(courses.getAssignment(actor, assignment.id)).rejects.toMatchObject({
+        code: 'FORBIDDEN',
+      })
+    }
+  })
+
+  it('lists the confirmed versions for an Instructor and the admin only', async () => {
+    const shelf = await courses.listConfirmedPackageVersions(fx.teacher, fx.orgA)
+    expect(shelf.map((row) => row.id).sort()).toEqual(
+      [fx.pkg.version.id, fx.otherPkg.version.id].sort(),
+    )
+    expect(await courses.listConfirmedPackageVersions(fx.platformAdmin, fx.orgA)).toHaveLength(2)
+    for (const actor of [fx.learner, fx.author]) {
+      await expect(courses.listConfirmedPackageVersions(actor, fx.orgA)).rejects.toMatchObject({
+        code: 'FORBIDDEN',
+      })
+    }
+    await expect(courses.listConfirmedPackageVersions(fx.foreigner, fx.orgA)).rejects.toMatchObject(
+      { code: 'NOT_FOUND' },
+    )
   })
 
   it('refuses a draft version and a variant that belongs to another version', async () => {
@@ -526,8 +621,13 @@ describe('getPolicyDisplay (FR-201)', () => {
 
   it('is not readable by someone outside the section', async () => {
     const { assignment } = await withAssignment(fx)
-    await expect(courses.getPolicyDisplay(fx.programLead, assignment.id)).rejects.toMatchObject({
-      code: 'FORBIDDEN',
+    for (const actor of [actorFor(fx.student2, fx.orgA), fx.author, fx.peer]) {
+      await expect(courses.getPolicyDisplay(actor, assignment.id)).rejects.toMatchObject({
+        code: 'FORBIDDEN',
+      })
+    }
+    await expect(courses.getPolicyDisplay(fx.platformAdmin, assignment.id)).resolves.toMatchObject({
+      uncalibrated: true,
     })
     await expect(courses.getPolicyDisplay(fx.foreigner, assignment.id)).rejects.toMatchObject({
       code: 'NOT_FOUND',
@@ -567,6 +667,17 @@ describe('listMyAssignments (07 §3)', () => {
     // Another student's attempt is never on someone else's row.
     expect((await courses.listMyAssignments(actorFor(fx.student2, fx.orgA))).items).toEqual([])
   })
+
+  it('answers the Instructor on the roster with nothing, and an Editor on it with the assignment', async () => {
+    const { section, assignment } = await withAssignment(fx)
+    await f.addSectionMember(fx.orgA, section.id, fx.editor.id)
+
+    // The Instructor's roster row is a section they teach, not an enrolment (D-748).
+    expect(await courses.listMyAssignments(fx.teacher)).toEqual({ items: [], nextCursor: null })
+    expect(
+      (await courses.listMyAssignments(fx.author)).items.map((row) => row.assignmentId),
+    ).toEqual([assignment.id])
+  })
 })
 
 describe('deleteWalkthroughRun (D-104)', () => {
@@ -599,5 +710,19 @@ describe('deleteWalkthroughRun (D-104)', () => {
       code: 'FORBIDDEN',
     })
     expect(await runsRepo.findRunForUpdate(fx.orgA, run.id)).toBeDefined()
+  })
+
+  it('lets the admin delete a walkthrough run', async () => {
+    const { section } = await withAssignment(fx)
+    const walkthrough = await courses.createAssignment(fx.teacher, section.id, {
+      label: 'Walkthrough',
+      packageVersionId: fx.pkg.version.id,
+      variantId: fx.pkg.defective.id,
+      isWalkthrough: true,
+    })
+    const run = await startRun(fx, walkthrough.id, fx.student.id, 'working')
+
+    await courses.deleteWalkthroughRun(fx.platformAdmin, run.id)
+    expect(await runsRepo.findRunForUpdate(fx.orgA, run.id)).toBeUndefined()
   })
 })

@@ -10,7 +10,7 @@
 //   POST /review/runs/{runId}/test-controls/force-assistant-failure   FR-118, the faculty seat
 //
 // The first four are the student's own run and nobody else's (08 §4: "✓* own run" for the student,
-// "—" for every other seat, the instructor and TA included). The fifth is the mirror image, and it
+// "—" for every other seat, the instructor included). The fifth is the mirror image, and it
 // is the row worth having a test for: the *student cannot arm it*, and the refusal is the one 08 §4
 // gives a section member holding the wrong role.
 //
@@ -83,7 +83,7 @@ const errorOf = (called: Called) =>
     details?: unknown
   }
 
-const sessionFor = (who: 'student' | 'instructor' | 'ta' | 'classmate'): Promise<Headers> =>
+const sessionFor = (who: 'student' | 'instructor' | 'admin' | 'classmate'): Promise<Headers> =>
   asUser(fx[who].id, { activeOrganizationId: fx.orgId })
 
 /** A brief that meets FR-100 and names no figure. */
@@ -102,7 +102,7 @@ const BRIEF = {
 }
 
 /** The three seats 08 §4 refuses this run's own endpoints to. */
-const DENIED = ['instructor', 'ta', 'classmate'] as const
+const DENIED = ['instructor', 'classmate'] as const
 
 beforeEach(async () => {
   await truncateAll()
@@ -355,12 +355,11 @@ describe('POST /review/runs/{runId}/test-controls/force-assistant-failure', () =
     expect(errorOf(called).code).toBe('FORBIDDEN')
   })
 
-  it('refuses the TA with FORBIDDEN and a classmate with NOT_FOUND', async () => {
-    // The TA holds a seat on the section, so the run's existence is no secret from them; a
-    // classmate is told nothing beyond "no such run" (D-703).
+  it('refuses a classmate with NOT_FOUND and arms for the Platform Admin (D-748)', async () => {
+    // A classmate is told nothing beyond "no such run" (D-703); the admin reviews every run.
     for (const [seat, status] of [
-      ['ta', 403],
       ['classmate', 404],
+      ['admin', 200],
     ] as const) {
       const called = await call(forceFailure.POST, {
         method: 'POST',

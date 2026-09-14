@@ -29,12 +29,13 @@ describe('test factories', () => {
     expect(second.pkg.version.id).toBe(first.pkg.version.id)
   })
 
-  it('keeps the org membership unique per user and updates the role in place', async () => {
+  it('keeps the org membership unique per user, and a membership carries no role (D-748)', async () => {
     const { organization } = await factories.createInstitution('other')
     const person = await factories.createUser('person')
-    const a = await factories.addMember(organization.id, person.id, 'student')
-    const b = await factories.addMember(organization.id, person.id, 'instructor')
+    const a = await factories.addMember(organization.id, person.id)
+    const b = await factories.addMember(organization.id, person.id)
     expect(b.id).toBe(a.id)
-    expect(b.role).toBe('instructor')
+    expect(b.role).toBe('member')
+    expect(person.platform_role).toBe('student')
   })
 })

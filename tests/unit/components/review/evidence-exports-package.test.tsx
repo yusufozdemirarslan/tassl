@@ -17,7 +17,7 @@ import type { TraceEventView } from '@/server/modules/trace/schema'
 // them takes an action or holds state — they are Server Components rendering facts about a run that
 // is already scored — so what is worth protecting is the judgement each of them makes about what a
 // reviewer is shown: which evidence is one click away, which file a link actually hands over, and
-// which half of a package version a seat is admitted to.
+// which half of a package version a reader is admitted to.
 //
 // They share a file because they share that shape and their fixtures overlap; each has its own
 // describe, and no test in one reaches into another.
@@ -372,7 +372,6 @@ const VERSION: PackageVersionView = {
   validation: { ok: true, failures: [] },
   warnings: [],
   seedRecord: null,
-  restricted: false,
   capabilities: { canEdit: false, canConfirm: false, canRegenerate: false },
 }
 
@@ -441,41 +440,19 @@ describe('PackageView (UI-033)', () => {
     )
   })
 
-  // 08 §4's program-lead row reads "✓ org (measures only)": the seat is admitted to the accounting
-  // of what authoring cost and to nothing else. The withheld fields arrive empty rather than
-  // absent, so the flag is what lets the screen say which fact it is looking at — and the measures
-  // must still be there, because they are the whole reason that seat opened the screen.
-  it('tells a restricted seat the record is not theirs to read, and still shows the measures', () => {
-    renderPackage({ restricted: true, confirmationRecord: [CONFIRMATION] })
-
-    expect(
-      screen.getByRole('heading', { name: enUS['review.packageRestrictedTitle'] }),
-    ).toBeInTheDocument()
-    expect(screen.getByText(enUS['review.packageRestrictedBody'])).toBeInTheDocument()
-    expect(screen.queryByText(enUS['packageVersion.recordByTypeCaption'])).not.toBeInTheDocument()
-    expect(screen.queryByText(CONFIRMATION.decidedByName)).not.toBeInTheDocument()
-
-    expect(
-      screen.getByRole('heading', { name: enUS['review.packageMeasuresTitle'] }),
-    ).toBeInTheDocument()
-    expect(screen.getByText(enUS['packageVersion.generationPasses'])).toBeInTheDocument()
-  })
-
-  // "There is a record and it is not yours to read" and "there is no record" are different facts,
-  // so each says which one it is (DESIGN.md §Empty states).
-  it('says there is no record when there is none, in different words from the restricted seat', () => {
+  // "There is no record" is a fact of its own, said in words rather than an empty table
+  // (DESIGN.md §Empty states).
+  it('says there is no record when there is none', () => {
     renderPackage()
 
     expect(
       screen.getByRole('heading', { name: enUS['review.packageRecordEmptyTitle'] }),
     ).toBeInTheDocument()
     expect(screen.getByText(enUS['review.packageRecordEmptyBody'])).toBeInTheDocument()
-    expect(
-      screen.queryByRole('heading', { name: enUS['review.packageRestrictedTitle'] }),
-    ).not.toBeInTheDocument()
+    expect(screen.queryByText(enUS['packageVersion.recordByTypeCaption'])).not.toBeInTheDocument()
   })
 
-  it('draws the confirmation record when the seat may read it', () => {
+  it('draws the confirmation record when the reader may read it', () => {
     renderPackage({ confirmationRecord: [CONFIRMATION] })
 
     expect(screen.getByText(enUS['packageVersion.recordByTypeCaption'])).toBeInTheDocument()

@@ -93,7 +93,7 @@ Legend: **PK** primary key, **FK** foreign key, **T** tenant-scoped (has `organi
 | email | text | NN, unique | lower-cased by Better Auth |
 | email_verified | boolean | NN default false | |
 | image | text | null | |
-| platform_role | text | NN default 'none' | `none`, `tassl_scenario_editor`, `admin` (D-007) |
+| platform_role | text | NN default 'student', check `user_platform_role_check` | the account's one role: `student`, `tassl_scenario_editor`, `instructor`, `admin` (D-007, D-748) |
 | deleted_at | timestamptz | null | soft delete; purge after 30 days |
 | created_at, updated_at | timestamptz | NN | |
 
@@ -107,9 +107,9 @@ Indexes: `user_email_idx` unique on `(email)` (sign-in); `user_deleted_at_idx` o
 
 **`organization`** (DATA-005): id, name, slug (unique), logo, metadata, created_at. Index `organization_slug_idx` unique.
 
-**`member`** (DATA-006): id, organization_id FK, user_id FK, role text NN (`student`, `instructor`, `teaching_assistant`, `scenario_author`, `program_lead`; owner/admin semantics per `08-auth-authz.md`), created_at. Unique `(organization_id, user_id)`; index `member_user_id_idx` (institution switcher).
+**`member`** (DATA-006): id, organization_id FK, user_id FK, role text NN — Better Auth's required column, always `member` (check `member_role_is_membership`, D-748): a membership says which institution a person belongs to and carries no role — created_at. Unique `(organization_id, user_id)`; index `member_user_id_idx` (institution switcher).
 
-**`invitation`** (DATA-007): id, organization_id FK, email, role, status, expires_at, inviter_id FK user. Index `(organization_id, status)`.
+**`invitation`** (DATA-007): id, organization_id FK, email, role (null or `member`, check `invitation_role_is_membership`, D-748), status, expires_at, inviter_id FK user. Index `(organization_id, status)`.
 
 **`rate_limit`** (Better Auth's): id, key, count, last_request. Unique `(key)`.
 
@@ -129,7 +129,7 @@ Indexes: `user_email_idx` unique on `(email)` (sign-in); `user_deleted_at_idx` o
 | id | uuid | PK |
 | organization_id | text | NN FK |
 | counterparty | text | NN (institution legal name) |
-| permitted_platform_roles | text[] | NN (subset of `tassl_scenario_editor`) |
+| permitted_platform_roles | text[] | NN (subset of `tassl_scenario_editor`; the agreement's recorded terms, which no permission reads, D-748) |
 | purposes | enum `agreement_purpose`[] (`scoring_audit`,`scenario_calibration`,`drift_review`) | NN, check `array_length >= 1` |
 | record_types_covered | text[] | NN default `{run_records,defense_transcripts,debriefs,instructor_decisions}` |
 | record_types_excluded | text[] | NN default `{accommodation_information,diagnostic_information,defense_audio}` |
@@ -139,7 +139,7 @@ Indexes: `user_email_idx` unique on `(email)` (sign-in); `user_deleted_at_idx` o
 | ends_at | timestamptz | null |
 | created_at, updated_at, deleted_at | timestamptz | |
 
-Index `(organization_id) where deleted_at is null and (ends_at is null or ends_at > now())` — active-agreement lookup (`canReadIdentifiedRecords`).
+Index `(organization_id) where deleted_at is null and (ends_at is null or ends_at > now())` — active-agreement lookup for the Platform Admin's agreement list (D-748).
 
 ### 3.2 Courses (DATA-008 to DATA-011, DATA-055)
 
@@ -164,7 +164,7 @@ Indexes: `(organization_id) where deleted_at is null` (courses list).
 
 **`sections`** **T**: id, organization_id, course_id FK courses, name NN, created_at, updated_at, deleted_at. Index `(course_id)`.
 
-**`section_memberships`** **T**: id, organization_id, section_id FK sections, user_id FK user, role enum `section_role` (`student`,`instructor`,`ta`) NN, created_at, updated_at. Unique `(section_id, user_id)`; indexes `(user_id)` (my runs, my courses), `(section_id, role)` (roster, reviewer checks).
+**`section_memberships`** **T**: id, organization_id, section_id FK sections, user_id FK user, created_at, updated_at. A roster row carries no role (D-748): for a Student or Scenario Editor it is an enrolment, for an Instructor a section they teach. Unique `(section_id, user_id)`; index `(user_id)` (my runs, my courses).
 
 **`assignments`** **T**:
 
@@ -515,9 +515,9 @@ Unique `(run_id, dimension)`. `effective_band` is computed in code: `max(band_be
 `pnpm db:seed` (`src/server/db/seed.ts`) is idempotent (upserts by natural keys) and creates:
 
 1. Organization `walkthrough` ("Walkthrough University"), `institution_settings` plan `pilot`.
-2. Users (D-040): `student1@tassl.local`, `student2@tassl.local`, `instructor@tassl.local`, `editor@tassl.local`, `admin@tassl.local`; password `SEED_PASSWORD`; `email_verified = true`; `admin` has `platform_role = admin`; `editor` has `platform_role = tassl_scenario_editor`. Members: instructor (`instructor` + a second member row is not allowed, so the instructor's org role is `instructor` and their `scenario_author` right comes from the course-level and package-level checks, see `08-auth-authz.md` §4), editor (`scenario_author`), students (`student`).
-3. Course "Marketing Strategy Walkthrough", term `2026-fall`, policy `declared`, default mapping, weight 2.5; section "A"; memberships: instructor as `instructor`, student1 and student2 as `student`.
-4. Scenario package "Meridian Roast (fixture)" imported from `src/server/db/fixtures/meridian-roast.package.json` (the PRD §6 illustrative scenario written as a complete package that passes `validatePackage`; both variants), version 1 confirmed by `instructor@tassl.local` with confirmation rows for every element.
+2. Users (D-040): `student1@tassl.local`, `student2@tassl.local`, `instructor@tassl.local`, `editor@tassl.local`, `admin@tassl.local`; password `SEED_PASSWORD`; `email_verified = true`; roles (D-748): `admin` Platform Admin, `editor` Scenario Editor, `instructor` Instructor, both students Student. Members of the institution: instructor, editor, both students; the admin belongs to none.
+3. Course "Marketing Strategy Walkthrough", term `2026-fall`, policy `declared`, default mapping, weight 2.5; section "A"; roster: instructor, student1 and student2.
+4. Scenario package "Meridian Roast (fixture)" imported from `src/server/db/fixtures/meridian-roast.package.json` (the PRD §6 illustrative scenario written as a complete package that passes `validatePackage`; both variants), version 1 imported and confirmed by `editor@tassl.local` (the Scenario Editor publishes packages, D-748) with confirmation rows for every element.
 5. Assignment "Decision Run 1 (walkthrough)" on section A, defective variant, `is_walkthrough = true`; assignment "Decision Run 1 (sound)" on the sound variant; assignment "Auto-lock test run" on the defective variant with `working_clock_seconds = 120`.
 6. No runs (runs are created through the interface in the walkthrough).
 

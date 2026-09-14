@@ -19,7 +19,7 @@ import postgres from 'postgres'
 import { afterAll, beforeEach, describe, expect, it } from 'vitest'
 import { TEST_DATABASE_URL, truncateAll } from '@tests/setup/integration'
 import { isAppError } from '@/lib/errors'
-import type { SessionUser } from '@/server/auth/types'
+import type { PlatformRole, SessionUser } from '@/server/auth/types'
 
 type Trace = typeof import('@/server/modules/trace')
 type TraceRepo = typeof import('@/server/modules/trace/repository')
@@ -51,7 +51,7 @@ const actorFor = (user: UserRow, orgId: string): SessionUser => ({
   name: user.name,
   emailVerified: true,
   activeOrganizationId: orgId,
-  platformRole: 'none',
+  platformRole: user.platform_role as PlatformRole,
 })
 
 /** Fixed instants, so every clock assertion is an exact number rather than a window. */
@@ -71,12 +71,15 @@ async function setup() {
     workingClockSeconds: 1500,
     turnDelaySeconds: 90,
   })
+  const admin = await f.createUser('trace-append-admin', { platformRole: 'admin' })
   return {
     orgId: w.organization.id,
     run,
     student: w.student1,
     owner: actorFor(w.student1, w.organization.id),
     reviewer: actorFor(w.instructor, w.organization.id),
+    // The Platform Admin: no membership, admitted to every run, and always a reviewer (D-748).
+    admin: actorFor(admin, w.organization.id),
     // A classmate: in the same section, so the reviewer guard can see them, and entitled to nothing.
     classmate: actorFor(w.student2, w.organization.id),
   }
@@ -541,6 +544,20 @@ describe('listEvents (FR-007)', () => {
     // The reviewer had both all along.
     const reviewed = await trace.listEvents(fx.reviewer, fx.run.id)
     expect(reviewed[0]?.payload).toMatchObject({ response_id: 'claim', counts_against_limit: true })
+  })
+
+  it('gives the Platform Admin the reviewer’s record, unsealed, never the owner’s view (D-748)', async () => {
+    await seedThreeEvents()
+    // `requireRunOwner` admits the admin, and the owner's path would renumber, drop the probe and
+    // seal the defense. The admin reads the record.
+    const events = await trace.listEvents(fx.admin, fx.run.id)
+    expect(events.map((event) => [event.seq, event.type])).toEqual([
+      [1, 'readiness_item'],
+      [2, 'probe_fired'],
+      [3, 'brief_closed'],
+    ])
+    await runsRepo.updateRun(fx.orgId, fx.run.id, { state: 'defense_pending' })
+    expect(await trace.listEvents(fx.admin, fx.run.id)).toHaveLength(3)
   })
 
   it('answers NOT_FOUND to a classmate, which never says the run exists', async () => {

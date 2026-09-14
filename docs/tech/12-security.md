@@ -12,11 +12,11 @@ Decisions applied throughout: D-018, D-019, D-021, D-026, D-055, D-065, D-066, D
 
 | Asset | Where it lives | Who may read it | Why it matters |
 |---|---|---|---|
-| Answer keys: `variant_claim_states` (`evidence_status`, `failure_family`, `warranted_stance`, `planted`, `verification_paths`), `answer_space_positions`, `scenario_turns.warrants_change` and `proportionate_response`, `sycophancy_probes`, `defense_questions.expected_answer_notes`, `readiness_items.answer_key`, `scenario_documents.role` | Postgres, package element tables | Instructor, TA (section), author, editor, admin (08 §4) | A student who reads them has the run's measurement; the scenario is burned for every later student |
-| Student run traces: `run_events` and the read models (`run_frames`, `run_briefs`, `run_claims`, `run_delegations`, `run_escalations`, `run_defense_answers`, `run_debrief_answers`) | Postgres | Run owner, section reviewers, platform editor under an active `data_agreements` row | Student-authored text and timing; the basis of every band |
+| Answer keys: `variant_claim_states` (`evidence_status`, `failure_family`, `warranted_stance`, `planted`, `verification_paths`), `answer_space_positions`, `scenario_turns.warrants_change` and `proportionate_response`, `sycophancy_probes`, `defense_questions.expected_answer_notes`, `readiness_items.answer_key`, `scenario_documents.role` | Postgres, package element tables | Scenario Editor and Instructor of the institution, Platform Admin (08 §4) | A student who reads them has the run's measurement; the scenario is burned for every later student |
+| Student run traces: `run_events` and the read models (`run_frames`, `run_briefs`, `run_claims`, `run_delegations`, `run_escalations`, `run_defense_answers`, `run_debrief_answers`) | Postgres | Run owner, the Instructors who run the course, Platform Admin | Student-authored text and timing; the basis of every band |
 | Faculty band decisions: `run_bands.decision`, `note`, `band_decision` events, `course_exports` | Postgres | Run owner (decided band and note), section reviewers | Grade input; must be attributable and immutable once exported |
-| Seed cases under license: `seed_records` (`seed_text`, `license_terms`, `reskin_log`) | Postgres | Instructor, author, editor, admin (never students, FR-028) | Third-party licensed text; attribution obligations |
-| Identity: `user` (name, email, image), `session` (`ip_address`, `user_agent`), `account` (password hash, OAuth tokens), `invitation` | Postgres | The user, admin (list), program lead (members) | PII; account takeover surface |
+| Seed cases under license: `seed_records` (`seed_text`, `license_terms`, `reskin_log`) | Postgres | Scenario Editor of the institution, Platform Admin (never Instructors or students, FR-028) | Third-party licensed text; attribution obligations |
+| Identity: `user` (name, email, image), `session` (`ip_address`, `user_agent`), `account` (password hash, OAuth tokens), `invitation` | Postgres | The user, Platform Admin (list), Instructors of the institution (roster, invitations) | PII; account takeover surface |
 | LLM traffic: delegation requests, free-text band-read inputs, seed text | In flight to MiMo or Anthropic | The provider | Leaves Tassl's boundary; PII minimization applies (D-066) |
 | Secrets: `BETTER_AUTH_SECRET`, `DATABASE_URL`, `DATABASE_URL_UNPOOLED`, `LLM_API_KEY`, `ANTHROPIC_API_KEY`, `RESEND_API_KEY`, `GOOGLE_CLIENT_SECRET`, `CRON_SECRET`, `SEED_PASSWORD`, `SENTRY_AUTH_TOKEN`; CI-only `VERCEL_TOKEN`, `NEON_API_KEY`, `PRODUCTION_DATABASE_URL_UNPOOLED`, `BACKUP_ENCRYPTION_KEY`; `TASSL_APP_DB_PASSWORD` (06 §4) | Vercel env, GitHub secrets | Nobody at runtime except the process | Full compromise if leaked |
 | Test controls: `POST /api/v1/review/runs/{id}/test-controls/force-assistant-failure` | Route behind `FEATURE_TEST_CONTROLS` | Section instructor only (FR-118) | Pauses a live student run on demand |
@@ -117,7 +117,7 @@ Columns: what an attacker does, which asset is at stake, where they get in, the 
 | Student text sent to the LLM provider | Student prose | Every real-provider call | `redactPii()` on every untrusted slot; opaque ids only; no names or emails (D-066) | The prose itself is disclosed to the provider by design; stated on `/privacy` |
 | Internal details in error responses | Implementation | Any error | Envelope `{ error: { code, message, details?, requestId } }`; no stack, no SQL (SYS-022, D-105); 4xx never sent to Sentry | None |
 | Email enumeration | User list | `/api/auth/sign-up/email` | Password reset and resend-verification are enumeration-safe (08 §2.3); rate limit 60/min per address (D-712: a class signing up at once) | Sign-up returns `USER_ALREADY_EXISTS`; accepted because enrollment is by invitation and the limit applies |
-| Identified records read by the platform editor without an agreement | Traces | Editor's cross-tenant helpers | `canReadIdentifiedRecords()` in `src/server/modules/tenancy/service.ts` (D-055, FR-234); purposes exclude any integrity purpose (FR-221) | None |
+| A Scenario Editor reads identified run records | Traces | Package and run routes | No such grant: a Scenario Editor reads only their own runs and the packages of their institution; the FR-234 read under a data agreement is removed (D-748), and agreements are recorded by the Platform Admin only | None |
 | Test-control state visible to the student | Run experience | Run reads | `runs.flags.forced_failure_armed` is stripped by `toStudentWorkspaceView()` | None |
 
 ### 2.5 Denial of service
@@ -139,13 +139,13 @@ Columns: what an attacker does, which asset is at stake, where they get in, the 
 
 | Threat | Asset | Entry point | Control | Residual risk |
 |---|---|---|---|---|
-| Instructor of section A acts on section B's runs | Other sections' traces and bands | Review routes | `requireRunReviewer()` and `requireRunInstructor()` check `section_memberships` on the run's section; `tests/integration/auth/matrix.test.ts` asserts every denied cell (08 §5) | None |
-| TA overrides a band the instructor decided | Bands | `decideBand` | `decideBand()` in `src/server/modules/review/service.ts` refuses with `FORBIDDEN` when `decided_by` holds section role `instructor` and the actor is a TA | None |
+| Instructor of one course acts on another course's runs | Other courses' traces and bands | Review routes | `requireRunReviewer()` (= `requireRunInstructor()`) asks `canReviewSection`: an Instructor on the run's section roster, or one who created or teaches its course; `tests/integration/auth/matrix.test.ts` asserts every denied cell (08 §5) | None |
+| A Student or Scenario Editor reaches the review surface | Bands, other learners' runs | Review routes | `requireRunReviewer()` admits only an Instructor who runs the course and the Platform Admin; the run's own learner gets 403, anyone else 404 (08 §5, D-748) | None |
 | Student calls review or test-control endpoints | Run control | `/api/v1/review/*` | `requireRunInstructor()`; `flags.testControls`; audit row | None |
 | Non-admin creates an organization or sets a platform role | Tenancy | Better Auth organization plugin, `/admin` | `allowUserToCreateOrganization` returns true only for `platform_role = 'admin'`; `requirePlatformRole('admin')` | None |
-| Editor confirms a version in place of the authority | Package integrity | Confirm endpoints | `requireAuthorOnPackage()` grants confirm only to organization `instructor` or `scenario_author` members; a platform-only editor is denied (08 §4) | None |
+| An Instructor or Student edits or confirms a package version | Package integrity | Authoring and confirm endpoints | `requireAuthorOnPackage()` admits only a Scenario Editor who belongs to the package's institution, or the Platform Admin; an Instructor reads packages and is denied every authoring write (08 §4, D-748) | None |
 | Admin edits a locked artifact | Run integrity | `/admin` | No such endpoint; `/admin` reads users, flags, audit only (FR-043, SYS-006) | Owner role at the database |
-| Privileges kept after a demotion | Authorization | Cached session | `auth.api.revokeSessions({ userId })` on every role change (08 §2.6) | Cookie cache can serve the old role for at most 5 minutes; permission helpers read `member` and `section_memberships` from the database, so resource checks are current |
+| Privileges kept after a demotion | Authorization | Cached session | `setPlatformRole` deletes every session of the person in the transaction that changes their one role (08 §2.6, D-570, D-748) | None for resource checks: `getSession()` reads the session and the `user` row with the cookie cache disabled, so `platform_role` is current on every request |
 | Student deletes runs | Records | Delete endpoints | Only section instructors, only `is_walkthrough = true` (D-104) | None |
 | Model output drives an action | Everything | Prompt injection | No tool calling; model output is text or Zod-validated JSON that is displayed or stored, never dispatched (§3.2) | None |
 
@@ -158,7 +158,7 @@ Columns: what an attacker does, which asset is at stake, where they get in, the 
 | A01 Broken Access Control | Session required by default; resource helpers inside services | `defineRoute()` in `src/server/http/define-route.ts`, `defineAction()` in `src/server/http/define-action.ts`; helpers in `src/server/auth/permissions.ts` (08 §5) | `tests/integration/auth/matrix.test.ts` |
 | A01 | Tenant isolation | `tenantId` first argument on every `src/server/modules/*/repository.ts` function; 404 for foreign ids | `tests/integration/auth/tenancy.test.ts` |
 | A01 | Student projections | `src/server/auth/student-view.ts` constants; `toStudentClaimView()`, `toStudentWorkspaceView()`, `toStudentDocumentView()` | `tests/integration/security/student-view-invariants.test.ts` |
-| A01 | Data-agreement gate for identified reads | `canReadIdentifiedRecords()` in `src/server/modules/tenancy/service.ts` | `tests/integration/tenancy/agreement-gate.test.ts` |
+| A01 | One role per account, asked by every guard | `user.platform_role` read by the helpers in `src/server/auth/permissions.ts` (08 §3, §5, D-748) | `tests/integration/auth/permissions.test.ts`, `tests/integration/auth/matrix.test.ts` |
 | A02 Cryptographic Failures | TLS everywhere: Vercel-terminated HTTPS, HSTS (§4), Neon `sslmode=require` in `DATABASE_URL` | `next.config.ts` headers; connection strings from the Neon integration | `tests/e2e/security/headers.spec.ts` |
 | A02 | Password hashing (scrypt), 12 to 128 characters; secret length | Better Auth config `src/server/auth/auth.ts`; `BETTER_AUTH_SECRET` `min(32)` in `src/server/config.ts` | Config boot test `tests/unit/config/env.test.ts` |
 | A02 | Backups encrypted at rest | `scripts/backup.sh`: `openssl enc -aes-256-cbc -pbkdf2 -k "$BACKUP_ENCRYPTION_KEY"` (06 §6) | Weekly restore drill (13 §Runbook: restore from Neon backup) |
@@ -479,7 +479,7 @@ Every Dependabot PR runs the full PR gate; a major bump updates 04 §8 in the sa
 | Name, email, `image` URL | `user` | Sign-up, Google profile | Resend (name and address on transactional mail) | Until purge, 30 days after deletion (D-018) |
 | Password hash, OAuth tokens | `account` | Better Auth | Nobody | Deleted with the user row at purge |
 | IP address, user agent | `session` | Each sign-in | Nobody | Session expiry (30 days) or revocation; purge |
-| Invitation email | `invitation` | Instructor or program lead | Resend | 7-day expiry, then deleted by the daily retention job |
+| Invitation email | `invitation` | Instructor or Platform Admin | Resend | 7-day expiry, then deleted by the daily retention job |
 | Student-authored text: frame, brief, addendum, delegation requests and `why` lines, escalation statements, defense answers, debrief answers, outside-tool declarations | `run_*` tables and `run_events` payloads | The run | LLM provider (delegation requests and free-text band-read inputs only, after `redactPii()`) | Business data, indefinite; re-pointed to `deleted-user@<org-slug>.tassl.local` at purge (D-093) |
 | Faculty notes on bands | `run_bands.note`, `band_decision` events | Replay | Nobody | Indefinite |
 | Seed case text and license terms | `seed_records` | Author paste | LLM provider (generation, after `redactPii()`) | Indefinite with the package version |
@@ -597,7 +597,7 @@ Table `audit_logs` (06 §3.6): `id`, `organization_id`, `actor_id`, `action`, `t
 
 | `action` | Written by | `target_type` / `target_id` | `metadata` keys (ids and enums only) |
 |---|---|---|---|
-| `role.set` | `admin.setPlatformRole`, `admin.setInstitutionRole` (D-747) | `user` / user id | `from`, `to`, `sessionsRevoked`; the institution write adds `scope: organization` and `sectionSeats`, and carries the institution as the row's `organization_id` |
+| `role.set` | `admin.setPlatformRole` | `user` / user id | `from`, `to` (one of the four roles, D-748), `sessionsRevoked` |
 | `band.decide` | `review.decideBand`, `review.confirmRemaining` | `run` / run id | `dimension`, `decision`, `band`, `previous_band`, `has_note` |
 | `run.void` | `runs.voidRun` | `run` / run id | `reason` |
 | `run.reoffer` | `runs.reofferRun` | `run` / new run id | `from_run_id`, `variant_id` |

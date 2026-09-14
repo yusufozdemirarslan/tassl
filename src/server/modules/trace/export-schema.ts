@@ -167,7 +167,7 @@ const ConfirmationEntrySchema = z.strictObject({
   /** Null for a singleton element (the brief, the counterfactual, the clock). */
   element_id: uuid.nullable(),
   decision: ConfirmationDecisionEnum,
-  /** The confirmer's organization role; null when they hold no membership row any more. */
+  /** The confirmer's platform role (D-748); null when their account row is gone. */
   decided_by_role: z.string().nullable(),
   decided_at: isoDate,
 })

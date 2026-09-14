@@ -32,12 +32,15 @@ let orgId: string
 let student: SessionUser
 let instructor: SessionUser
 
-const actorFor = (row: { id: string; email: string }, organizationId: string): SessionUser => ({
+const actorFor = (
+  row: { id: string; email: string; platform_role: string },
+  organizationId: string,
+): SessionUser => ({
   id: row.id,
   email: row.email,
   name: row.email,
   emailVerified: true,
-  platformRole: 'none',
+  platformRole: row.platform_role as SessionUser['platformRole'],
   activeOrganizationId: organizationId,
 })
 
@@ -55,9 +58,11 @@ beforeEach(async () => {
   const { organization } = await f.createInstitution('notifications')
   orgId = organization.id
   const studentUser = await f.createUser('notifications-student')
-  const instructorUser = await f.createUser('notifications-instructor')
-  await f.addMember(orgId, studentUser.id, 'student')
-  await f.addMember(orgId, instructorUser.id, 'instructor')
+  const instructorUser = await f.createUser('notifications-instructor', {
+    platformRole: 'instructor',
+  })
+  await f.addMember(orgId, studentUser.id)
+  await f.addMember(orgId, instructorUser.id)
   student = actorFor(studentUser, orgId)
   instructor = actorFor(instructorUser, orgId)
 })

@@ -18,7 +18,7 @@ const ACTOR: SessionUser = {
   name: 'Ada',
   emailVerified: true,
   activeOrganizationId: 'org_1',
-  platformRole: 'none',
+  platformRole: 'instructor',
 }
 
 const replay = vi.hoisted(() => ({ current: null as unknown }))
@@ -57,7 +57,6 @@ function bundle(scoringStatus: 'held' | 'done'): ReplayBundle {
       canBandManually: scoringStatus === 'held',
       canFlagDelegation: true,
       flagReachesDrafting: true,
-      isInstructor: true,
     },
   } as unknown as ReplayBundle
 }
@@ -83,12 +82,12 @@ vi.mock('next/navigation', () => ({
   useParams: () => ({ runId: RUN_ID }),
 }))
 
-async function renderReplay(scoringStatus: 'held' | 'done') {
+async function renderReplay(scoringStatus: 'held' | 'done', tab = 'trace') {
   replay.current = bundle(scoringStatus)
   render(
     await FacultyReplayPage({
       params: Promise.resolve({ runId: RUN_ID }),
-      searchParams: Promise.resolve({ tab: 'trace' }),
+      searchParams: Promise.resolve({ tab }),
     }),
   )
 }
@@ -112,5 +111,25 @@ describe('FacultyReplayPage header (UI-033, FR-140)', () => {
     const chip = screen.getByText(enUS['run.stateScored'])
     expect(chip.closest('[data-state]')).toHaveAttribute('data-state', 'scored')
     expect(screen.queryByText(enUS['run.stateUnderReview'])).not.toBeInTheDocument()
+  })
+})
+
+// D-748: one Instructor role, so there is no reviewer who reads a run and may not act on it. The
+// screen carries no seat note, no per-dimension lock and no "what this seat can do" panel.
+describe('FacultyReplayPage for any reviewer (D-748)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('draws the actions the capabilities allow, and no seat panel', async () => {
+    await renderReplay('done', 'actions')
+
+    expect(
+      screen.getByRole('heading', { level: 2, name: enUS['review.voidTitle'] }),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('heading', { level: 2, name: enUS['review.neutralizeTitle'] }),
+    ).toBeInTheDocument()
+    expect(screen.queryByText(/teaching-assistant|this seat/i)).not.toBeInTheDocument()
   })
 })

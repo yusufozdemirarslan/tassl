@@ -1,6 +1,6 @@
 # Tassl guides
 
-Three documents live in this folder. Each one is written for one reader, in the product's own words: Student, Instructor, Scenario author, Platform admin; Decision Run; scenario package; claim; stance; the Turn; the defense; band; debrief; Judgment Record.
+Three documents live in this folder. Each one is written for one reader, in the product's own words: the four roles Student, Scenario Editor, Instructor and Platform Admin; Decision Run; scenario package; claim; stance; the Turn; the defense; band; debrief; Judgment Record.
 
 | File | Reader | What it covers |
 |---|---|---|
@@ -16,7 +16,7 @@ Three documents live in this folder. Each one is written for one reader, in the 
 
 **Presenter.** You are showing Tassl to a judge on the production deployment, with a live model and a real clock. Read `demo-runbook.md` the day before, run its T-60 list an hour before the demo, keep its break-glass table open on a second screen during the demo, and rehearse its offline fallback once on the laptop you will present from.
 
-**Scenario author and Platform admin.** The Scenario author's screens (Packages, New package from a seed case, the generation steps, the confirmation workspace) and the Platform admin's screens (Users, Flags, Audit log) appear in the guides only where a demo or a task touches them: the instructor guide shows the confirmed package version that an assignment runs on, and the demo runbook uses the admin's Flags page as the first layer of the kill switch.
+**Scenario Editor and Platform Admin.** Every account holds one of four roles, set by a Platform Admin on the Users screen. The Scenario Editor's screens (Packages, New package from a seed case, the generation steps, the confirmation workspace) and the Platform Admin's screens (Users, Flags, Audit log) appear in the guides only where a demo or a task touches them: the instructor guide reads the confirmed package version that an assignment runs on, and the demo runbook uses the admin's Flags page as the first layer of the kill switch. A Scenario Editor also has a Student's access, so the learner guide applies to them when they take a run.
 
 ## Demo accounts
 
@@ -24,11 +24,11 @@ The same five seat accounts exist locally, in preview, and in production. They b
 
 | Email | Role in the product | Used by |
 |---|---|---|
-| instructor@tassl.local | Instructor member of Walkthrough University; instructor of section A; owner of the seeded course | Instructor guide; demo runbook (the Instructor seat) |
-| student1@tassl.local | Student member, section A | Student guide; demo runbook (the Student seat on the defective variant) |
-| student2@tassl.local | Student member, section A | Demo runbook (the Student seat on the sound variant) |
-| editor@tassl.local | Scenario author member of Walkthrough University; platform role Scenario editor | Package authoring and confirmation |
-| admin@tassl.local | Platform admin; no institution membership | The Admin area: Users, Flags, Audit log; the assistant kill switch |
+| instructor@tassl.local | Instructor; member of Walkthrough University; on the roster of section A; owner of the seeded course | Instructor guide; demo runbook (the Instructor seat) |
+| student1@tassl.local | Student; member, on the roster of section A | Student guide; demo runbook (the Student seat on the defective variant) |
+| student2@tassl.local | Student; member, on the roster of section A | Demo runbook (the Student seat on the sound variant) |
+| editor@tassl.local | Scenario Editor; member of Walkthrough University; published the seeded package | Package authoring and confirmation |
+| admin@tassl.local | Platform Admin; no institution membership (full access needs none) | The Admin area: Users, Flags, Audit log; the assistant kill switch |
 
 The password is in `docs/qa/demo-accounts.md`, which is gitignored and never leaves the builder's machine:
 

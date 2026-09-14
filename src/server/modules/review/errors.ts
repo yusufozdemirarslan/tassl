@@ -1,6 +1,6 @@
 // Error codes of the `review` module (docs/tech/10-backend-spec-modules.md §12) and the throwers the
 // service states its rules with. Every code is in the registry (`src/lib/errors.ts`), which owns the
-// status and the default message; this file names the five that belong to this module and gives each
+// status and the default message; this file names the four that belong to this module and gives each
 // rule one call site, so a rule and its code cannot drift.
 //
 // The throwers return `never` and are function declarations: TypeScript narrows after a
@@ -13,7 +13,6 @@ import { t } from '@/lib/i18n/t'
 export const REVIEW_ERROR_CODES = [
   'BAND_DECISION_INVALID',
   'RUN_NOT_SCORED',
-  'BAND_LOCKED_BY_INSTRUCTOR',
   'RUN_NOT_CONFIRMED',
   'NEUTRALIZATION_EXISTS',
 ] as const satisfies readonly ErrorCode[]
@@ -21,6 +20,11 @@ export const REVIEW_ERROR_CODES = [
 /** The run vanished between the permission check and the read that follows it. */
 export function runNotFound(): never {
   throw new AppError('NOT_FOUND', t('run.notFound'))
+}
+
+/** A section that does not exist, or one outside the actor's institutions (08 §4 "Cross-tenant"). */
+export function sectionNotFound(): never {
+  throw new AppError('NOT_FOUND')
 }
 
 /**
@@ -45,18 +49,6 @@ export function bandDecisionInvalid(reason: 'band_required' | 'band_not_allowed'
  */
 export function runNotScored(state: string): never {
   throw new AppError('RUN_NOT_SCORED', undefined, { details: { state } })
-}
-
-/**
- * 08 §4's TA row: "not a band the instructor already decided".
- *
- * FORBIDDEN rather than NOT_FOUND, and 403 rather than 409, because everything about this refusal is
- * about the seat: the TA may read the band, may decide the other six, and may see exactly what the
- * instructor put here. What they may not do is change it — FR-182 makes an instructor's decision
- * final for their students, and a TA overriding one would make it final until somebody else looked.
- */
-export function bandLockedByInstructor(dimension: string): never {
-  throw new AppError('BAND_LOCKED_BY_INSTRUCTOR', undefined, { details: { dimension } })
 }
 
 /**

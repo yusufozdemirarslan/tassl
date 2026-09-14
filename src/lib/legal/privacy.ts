@@ -7,7 +7,7 @@
 //                      Better Auth — 06 §3.1
 //   signed-in devices  `session.ip_address`, `session.user_agent` — 06 §3.1
 //   Google             `account.access_token / refresh_token / id_token / scope` — 06 §3.1
-//   seats              `member.role`, `section_memberships.role` — 06 §3.1, §3.2
+//   role, memberships  `user.platform_role`, `member`, `section_memberships` — 06 §3.1, §3.2
 //   the run            `run_frames`, `run_delegations.request_text / response_text`,
 //                      `claim_stances`, `run_briefs`, `run_turn_responses`, `run_defense_answers`,
 //                      `run_events` — 06 §3.4

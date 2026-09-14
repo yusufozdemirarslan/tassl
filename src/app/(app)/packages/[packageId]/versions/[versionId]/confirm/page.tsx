@@ -34,8 +34,9 @@ import { getViewer } from '../../../../../viewer'
 // version *is* — how far it has got, which rules it still fails, and what this actor may do to it.
 // `listVersionElements` says what it *holds*: every element with the values its own schema takes,
 // the id a patch addresses it by, and the decision that currently stands on it. Neither is
-// derivable from the other, and the second is authors only — a TA reads a package on UI-044, but
-// the room where it is signed belongs to the people who sign it (08 §4, FR-028).
+// derivable from the other, and the second is authors only — an Instructor reads a package on
+// UI-044, but the room where it is signed belongs to the Scenario Editors who sign it (08 §4, FR-028,
+// D-748).
 //
 // The workspace itself is a Client Component because the whole screen is one interaction: the tree,
 // the form, the drafts that must survive a change of selection, and the `opened_at` the browser is
@@ -44,7 +45,7 @@ import { getViewer } from '../../../../../viewer'
 // screen rather than a loading one.
 //
 // A version the reader may not see is the not-found page, never the error boundary: NOT_FOUND for
-// another institution's id and FORBIDDEN for a seat that may not read packages mean the same thing
+// another institution's id and FORBIDDEN for a role that may not read packages mean the same thing
 // to the person who typed the address.
 
 /**
@@ -74,8 +75,8 @@ const loadVersion = cache(async (versionId: string): Promise<PackageVersionView 
 })
 
 /**
- * Every element of the version, or null for a seat that may read the version but not the room where
- * it is confirmed. A refusal is not an incident: the screen says whose room this is.
+ * Every element of the version, or null for a reader who may read the version but not the room
+ * where it is confirmed. A refusal is not an incident: the screen says whose room this is.
  */
 async function loadElements(versionId: string): Promise<WorkspaceElement[] | null> {
   const { actor } = await getViewer()
@@ -164,7 +165,7 @@ export default async function ConfirmPage({ params, searchParams }: ConfirmPageP
           <EmptyState
             headingLevel={2}
             title={t('confirm.readOnlyTitle')}
-            body={t('confirm.readOnlyBody')}
+            body={t('confirm.refusedBody')}
           />
         </Panel>
       </>

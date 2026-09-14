@@ -411,7 +411,6 @@ test('the debrief and the Judgment Record have no axe violations', async ({ page
   })
   await addSectionMember(request, assignment.section.id, {
     email: seatEmail('instructor'),
-    role: 'instructor',
   })
 
   await signInAs(page, DEBRIEF_STUDENT)
