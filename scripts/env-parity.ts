@@ -57,9 +57,10 @@ const PRODUCTION_REQUIRED = [
   'EMAIL_TRANSPORT',
   'EMAIL_FROM',
   'FEATURE_AI',
+  // Claude Opus 5 in production (D-749): the provider, the model and the key it needs.
   'LLM_PROVIDER',
-  'LLM_BASE_URL',
-  'LLM_API_KEY',
+  'LLM_MODEL',
+  'ANTHROPIC_API_KEY',
   'NEXT_PUBLIC_SENTRY_DSN',
   'NEXT_PUBLIC_POSTHOG_KEY',
   'SENTRY_TRACES_SAMPLE_RATE',
@@ -69,8 +70,10 @@ const PRODUCTION_REQUIRED = [
 function schemaKeys(): string[] {
   const source = readFileSync(join(REPO, 'src', 'server', 'config.ts'), 'utf8')
   const body = source.slice(source.indexOf('z\n  .object({'), source.indexOf('.superRefine('))
-  // `z.…` and `bool.…` (the boolean helper) are the two ways the schema declares a key.
-  return [...body.matchAll(/^\s{4}([A-Z][A-Z0-9_]+):\s*(?:z|bool)\./gm)].map(
+  // `z.…` and `bool.…` (the boolean helper) are the two ways the schema declares a key, and a long
+  // chain breaks after the `z` (`CRON_SECRET: z` then `.string()` on the next line, D-746): a match
+  // that wanted the dot on the same line missed that key and failed the check on the schema itself.
+  return [...body.matchAll(/^\s{4}([A-Z][A-Z0-9_]+):\s*(?:z|bool)\s*\./gm)].map(
     (match) => match[1] ?? '',
   )
 }

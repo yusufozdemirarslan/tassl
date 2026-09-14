@@ -46,7 +46,7 @@ const flags = (aiMode: AiMode, assistantMode: AssistantMode): AdminFlags => ({
   llmUsage: {
     today: { calls: 12, tokens: 8_400, costUsd: 0.11 },
     month: { calls: 340, tokens: 220_000, costUsd: 2.85 },
-    budgets: { userDaily: 60_000, globalMonthly: 4_000_000 },
+    budgets: { userDaily: 60_000, globalMonthly: 4_000_000, globalMonthlyUsd: 100 },
   },
 })
 

@@ -116,6 +116,8 @@ export const admin = {
   'admin.flags.usageCost': 'Estimated cost',
   'admin.flags.usageMonthlyBudget':
     'The month has used {used} of the {budget} tokens in LLM_GLOBAL_MONTHLY_TOKEN_BUDGET, which is {share}. Past it, every model call is refused until the calendar month turns.',
+  'admin.flags.usageMonthlyCostBudget':
+    'The month’s estimated cost is {used} of the {budget} in LLM_GLOBAL_MONTHLY_USD_BUDGET. Past it, every model call is refused until the calendar month turns.',
   'admin.flags.usageDailyBudget':
     'LLM_USER_DAILY_TOKEN_BUDGET is {budget} tokens per person per UTC day. It is counted per person, so the platform-wide figure above is not measured against it.',
 

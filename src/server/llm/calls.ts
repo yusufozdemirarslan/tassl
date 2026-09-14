@@ -32,6 +32,9 @@ import type {
   StructuredRequest,
 } from '@/server/llm/provider'
 import { LLM_PROVIDER_NAMES, defaultModelFor, messagesText } from '@/server/llm/provider'
+import { costEstimateUsd } from '@/server/llm/pricing'
+
+export { MODEL_PRICES, costEstimateUsd, priceFor, type ModelPrice } from '@/server/llm/pricing'
 
 /** `llm_calls.outcome` (06 §3.6); the vocabulary §4 and the analytics event share. */
 export type LlmOutcome =
@@ -59,22 +62,6 @@ export type LlmCallRecord = {
    */
   budgetBefore?: BudgetUsage
   context: CompleteRequest['context']
-}
-
-/**
- * `tokens / 1e6 x USD per MTok`, at the six-decimal scale of `llm_calls.cost_estimate_usd` (§4).
- *
- * Zero for the mock, whatever it counted. Its tokens are an estimate of work nobody was billed for,
- * and pricing them would put a number in the cost panel and in the monthly spend that no invoice
- * will ever match. The token counts are still recorded, so the budgets of D-065 have something to
- * sum and can be exercised without a key.
- */
-export function costEstimateUsd(usage: LlmUsage, provider: string): string {
-  if (provider === 'mock') return (0).toFixed(6)
-  const dollars =
-    (usage.inputTokens / 1_000_000) * env.LLM_INPUT_USD_PER_MTOK +
-    (usage.outputTokens / 1_000_000) * env.LLM_OUTPUT_USD_PER_MTOK
-  return dollars.toFixed(6)
 }
 
 /** De-duplication key for support cases (§4). The digest, never the text. */
@@ -145,7 +132,7 @@ export async function recordLlmCall(
   record: LlmCallRecord,
   messages: readonly LlmMessage[],
 ): Promise<void> {
-  const cost = costEstimateUsd(record.usage, record.provider)
+  const cost = costEstimateUsd(record.usage, record.provider, record.model)
   const logger = getLogger()
 
   try {

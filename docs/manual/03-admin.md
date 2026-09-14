@@ -216,7 +216,7 @@ A deployment meant to run on the live model reads like this:
 |---|---|---|
 | **FEATURE_AI** | Row 1 of the flag table | **On** |
 | **FEATURE_TEST_CONTROLS** | Row 3 of the flag table | **On**, if an instructor needs the armed-outage control during a class |
-| **Effective model provider** | The panel under the table | A network provider — `openai-compatible` or `anthropic`, not `mock` |
+| **Effective model provider** | The panel under the table | `anthropic` on production, which runs on Claude Opus 5; `openai-compatible` on a deployment configured for MiMo; never `mock` |
 | **Effective mode** | The line above the **Assistant mode** radios | **Live model** |
 | **Estimated cost** and the month sentence | The **Model usage** table and the line under it | A share of the monthly budget well short of the whole |
 | **Send a test event to Sentry** | The **Sentry** panel | Pressable, meaning an error-reporting address is configured |
@@ -240,7 +240,7 @@ Three numbers, in two columns, and they are the deployment's real spend with a m
 |---|---|
 | **Calls** | How many requests a model provider answered |
 | **Tokens** | The input and output tokens of those calls, added together |
-| **Estimated cost** | Those tokens priced at the rates this deployment is configured with |
+| **Estimated cost** | Those tokens priced at the model's list price: Claude Opus 5 at $5 per million input tokens and $25 per million output tokens; any other model at the rates this deployment is configured with |
 
 | Column | The window it covers |
 |---|---|
@@ -503,8 +503,8 @@ under it is one word, in a monospace face:
 | Value | What it means |
 |---|---|
 | `mock` | The built-in fixture answers. The panel adds: "This deployment answers the assistant from a fixture: no run text reaches a model provider." |
-| `openai-compatible` | The network model this deployment is configured with answers. This is the normal reading for a deployment running on the live model. |
-| `anthropic` | The Anthropic model this deployment is configured with answers. It is the fallback provider of the two network ones. |
+| `anthropic` | The Claude model this deployment is configured with answers: `claude-opus-5` on production. This is the normal reading for production. |
+| `openai-compatible` | The MiMo model this deployment is configured with answers. A supported network provider, and the one production ran on before Claude. |
 
 One more sentence appears here, and only when **FEATURE_AI** is **Off**: "AI features are running in
 constrained mode: every model call is answered by the built-in fixture provider, which is
@@ -614,13 +614,13 @@ columns — **Measure**, **Today (UTC)**, **This month** — and three rows.
 |---|---|
 | **Calls** | How many requests a model provider answered in the window. |
 | **Tokens** | The input and output tokens of those calls, added together. |
-| **Estimated cost** | Those tokens priced at the rates this deployment is configured with, printed as dollars to two to four decimal places. It is an estimate, and it is labeled as one; the provider's own invoice is the authority. |
+| **Estimated cost** | Those tokens priced at the model's list price — Claude Opus 5 at $5 per million input tokens and $25 per million output tokens, thinking included in the output — or, for a model Tassl has no price for, at the rates this deployment is configured with; printed as dollars to two to four decimal places. It is an estimate, and it is labeled as one; the provider's own invoice is the authority. |
 
 **Today (UTC)** starts at midnight UTC — not at your local midnight. **This month** starts at the
 first instant of this calendar month in UTC, and it resets when the month turns; it is not a rolling
 thirty days.
 
-Two sentences sit under the table and state the budgets in words. In the capture they read:
+The sentences under the table state the budgets in words. In the capture they read:
 
 > "The month has used 1,726,559 of the 20,000,000 tokens in LLM_GLOBAL_MONTHLY_TOKEN_BUDGET, which
 > is 8.6%. Past it, every model call is refused until the calendar month turns."
@@ -628,7 +628,17 @@ Two sentences sit under the table and state the budgets in words. In the capture
 > "LLM_USER_DAILY_TOKEN_BUDGET is 200,000 tokens per person per UTC day. It is counted per person,
 > so the platform-wide figure above is not measured against it."
 
-The first names the platform's monthly ceiling and what share of it has gone. The second names the
+The screen now carries a third sentence between those two, the dollar ceiling, with the month's
+estimated cost and the budget in dollars where the dots are:
+
+> "The month’s estimated cost is … of the … in LLM_GLOBAL_MONTHLY_USD_BUDGET. Past it, every model
+> call is refused until the calendar month turns."
+
+It exists because a token is not a fixed price: at Claude Opus 5's rates the 20,000,000-token
+ceiling alone would allow a month of anywhere from $100 (all input) to $500 (all output). Whichever of the two monthly ceilings is reached
+first refuses the call.
+
+The first names the platform's monthly token ceiling and what share of it has gone. The second names the
 per-person daily ceiling and warns you not to compare it against the table: the daily budget is
 counted against each person separately, so the platform total above says nothing about whether any
 individual is near their own limit.

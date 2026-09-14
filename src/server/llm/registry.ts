@@ -38,7 +38,7 @@ import { CircuitBreaker, withCircuitBreaker } from '@/server/llm/guardrails/circ
 import { withFallback } from '@/server/llm/guardrails/fallback'
 import { withRetries } from '@/server/llm/guardrails/retries'
 import type { LlmProvider, LlmProviderName } from '@/server/llm/provider'
-import { anthropicProvider } from '@/server/llm/providers/anthropic'
+import { anthropicFallbackProvider, anthropicProvider } from '@/server/llm/providers/anthropic'
 import { mockProvider } from '@/server/llm/providers/mock'
 import { openAiCompatibleProvider } from '@/server/llm/providers/openai-compatible'
 
@@ -74,7 +74,7 @@ const breakerFor = (name: LlmProviderName): CircuitBreaker => {
  * would charge one call against the ceiling once and read it twice.
  */
 const fallbackChain = (): LlmProvider =>
-  withRetries(withCircuitBreaker(anthropicProvider, breakerFor('anthropic')))
+  withRetries(withCircuitBreaker(anthropicFallbackProvider, breakerFor('anthropic')))
 
 /** §1.1's chain around a network adapter. */
 function networkChain(name: LlmProviderName): LlmProvider {

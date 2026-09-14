@@ -38,7 +38,7 @@ export const ServerEnvSchema = z
     DEMO_MODE: bool.default(false),
     LLM_PROVIDER: z.enum(['mock', 'openai-compatible', 'anthropic']).default('mock'),
     LLM_BASE_URL: z.string().url().default('https://token-plan-sgp.xiaomimimo.com/v1'),
-    LLM_MODEL: z.string().default('mimo-v2.5-pro'),
+    LLM_MODEL: z.string().default('claude-opus-5'),
     LLM_API_KEY: z.string().default(''),
     LLM_TIMEOUT_MS: z.coerce.number().int().positive().default(60000),
     LLM_MAX_OUTPUT_TOKENS: z.coerce.number().int().positive().default(4096),
@@ -50,6 +50,7 @@ export const ServerEnvSchema = z
     LLM_OUTPUT_USD_PER_MTOK: z.coerce.number().nonnegative().default(0.61),
     LLM_USER_DAILY_TOKEN_BUDGET: z.coerce.number().int().positive().default(200000),
     LLM_GLOBAL_MONTHLY_TOKEN_BUDGET: z.coerce.number().int().positive().default(20000000),
+    LLM_GLOBAL_MONTHLY_USD_BUDGET: z.coerce.number().positive().default(100),
     TRIGGER_MATCHING: z.enum(['deterministic_first', 'llm_first']).default('deterministic_first'),
     ASSISTANT_NUMERIC_GUARD: z.enum(['flag', 'block']).default('flag'),
     NEXT_PUBLIC_POSTHOG_KEY: z.string().default(''),
@@ -96,6 +97,8 @@ export const ServerEnvSchema = z
     if (env.APP_ENV === 'production') {
       if (env.LLM_PROVIDER === 'openai-compatible' && !env.LLM_API_KEY)
         ctx.addIssue({ code: 'custom', message: 'LLM_API_KEY required for openai-compatible' })
+      if (env.LLM_PROVIDER === 'anthropic' && !env.ANTHROPIC_API_KEY)
+        ctx.addIssue({ code: 'custom', message: 'ANTHROPIC_API_KEY required for anthropic' })
       if (env.EMAIL_TRANSPORT === 'resend' && !env.RESEND_API_KEY)
         ctx.addIssue({ code: 'custom', message: 'RESEND_API_KEY required for resend transport' })
     }

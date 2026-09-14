@@ -479,8 +479,12 @@ Once a step has left **Waiting** its row also carries four facts: **Pass** (1 or
 ("{input} in, {output} out", or **Not asked yet**), **Cost estimate** ("US${amount}", or **Not asked
 yet**), and **Took** ("{seconds} s", or "{minutes} min {seconds} s"). A second attempt is labeled
 "Second pass, with the unmet rules restated". Under the rows sit three totals: **Tokens so far**,
-**Cost estimate so far** and **Passes run**. On a deployment running the scripted assistant the token
-counts are real and the money is not: **Cost estimate so far** reads **US$0.00, on the mock provider**.
+**Cost estimate so far** and **Passes run**. On production each step is priced by the model that
+answered it, Claude Opus 5 at $5 per million input tokens and $25 per million output tokens; a
+whole generation measured at about US$0.90 on the evaluation cases, most of it the documents and the
+claims, and more when a step needs a second pass. On a
+deployment running the scripted assistant the token counts are real and the money is not: each step
+reads **US$0.00** and **Cost estimate so far** reads **US$0.00, on the mock provider**.
 
 While it runs, the page's own line reads "running for {duration}", ticking once a second, and the
 screen asks the server where the steps have got to every five seconds. It stops asking in a

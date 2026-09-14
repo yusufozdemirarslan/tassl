@@ -111,9 +111,9 @@ describe('the seven generation prompts', () => {
   // Pinned per prompt rather than derived, so a version bump is a deliberate edit here as well as in
   // the prompt: the number travels to `llm_calls.prompt_version` and is the only thing that tells two
   // wordings apart in the operations panel. Two are at 2 after step 14.4 bounded what they ask for
-  // (D-668).
+  // (D-668); step 1 is at 3 since it says `company` and `market` are names (D-749).
   const VERSIONS: Record<string, number> = {
-    'gen-reskin-brief-stakeholders': 2,
+    'gen-reskin-brief-stakeholders': 3,
     'gen-documents': 2,
     'gen-answer-space-fields': 1,
     'gen-claims-states': 3,

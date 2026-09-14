@@ -197,7 +197,11 @@ export async function getFlags(actor: SessionUser): Promise<AdminFlags> {
     assistantMode,
     llmUsage: {
       ...usage,
-      budgets: { userDaily: limits.userDaily, globalMonthly: limits.globalMonthly },
+      budgets: {
+        userDaily: limits.userDaily,
+        globalMonthly: limits.globalMonthly,
+        globalMonthlyUsd: env.LLM_GLOBAL_MONTHLY_USD_BUDGET,
+      },
     },
   }
 }

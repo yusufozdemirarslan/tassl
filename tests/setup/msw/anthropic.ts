@@ -102,6 +102,19 @@ export function anthropicStream(chunks: readonly string[], model = 'claude-sonne
   })
 }
 
+/** A policy decline that survived every server-side fallback: HTTP 200, `stop_reason: refusal`. */
+export function anthropicRefusal(model = 'claude-opus-5'): HttpHandler {
+  return http.post(ANTHROPIC_MESSAGES_URL, async ({ request }) => {
+    await record(request)
+    return HttpResponse.json({
+      ...message('', model),
+      content: [],
+      stop_reason: 'refusal',
+      stop_details: { type: 'refusal', category: null, explanation: null },
+    })
+  })
+}
+
 export function anthropicStatus(status: number, times = Number.POSITIVE_INFINITY): HttpHandler {
   let served = 0
   return http.post(ANTHROPIC_MESSAGES_URL, async ({ request }) => {
