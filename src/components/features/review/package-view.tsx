@@ -90,16 +90,7 @@ export function PackageView({ version, variantKey, versionHref }: PackageViewPro
         <p className="text-ink-muted text-body max-w-measure">
           {t('review.packageRecordDescription')}
         </p>
-        {version.restricted ? (
-          // Heading, sentence: "there is a record and it is not yours to read" and "there is no
-          // record" are different facts, so each says which one it is (DESIGN.md §Empty states).
-          <div className="flex flex-col gap-1">
-            <h4 className="text-reading">{t('review.packageRestrictedTitle')}</h4>
-            <p className="text-ink-muted text-body max-w-measure">
-              {t('review.packageRestrictedBody')}
-            </p>
-          </div>
-        ) : version.confirmationRecord.length === 0 ? (
+        {version.confirmationRecord.length === 0 ? (
           <div className="flex flex-col gap-1">
             <h4 className="text-reading">{t('review.packageRecordEmptyTitle')}</h4>
             <p className="text-ink-muted text-body max-w-measure">

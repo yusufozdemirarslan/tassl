@@ -3,14 +3,13 @@
 // ./repository, or ./errors.
 export {
   acceptInvitation,
-  canReadIdentifiedRecords,
   createInstitution,
   getInstitutionSettings,
   getInvitation,
   inviteMember,
   listDataAgreements,
   listInvitations,
-  listMemberIdsWithRoles,
+  listMemberIdsWithPlatformRoles,
   listMyInstitutions,
   requireMembership,
   setActiveInstitution,
@@ -31,7 +30,6 @@ export type {
   Mapping,
   Membership,
   MyInstitution,
-  OrganizationRoleValue,
   UpdateDataAgreementInput,
   UpdateInstitutionSettingsInput,
 } from './schema'

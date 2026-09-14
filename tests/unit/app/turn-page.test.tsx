@@ -18,7 +18,7 @@ const ACTOR: SessionUser = {
   name: 'Lena',
   emailVerified: true,
   activeOrganizationId: 'org_1',
-  platformRole: 'none',
+  platformRole: 'student',
 }
 
 const status = {

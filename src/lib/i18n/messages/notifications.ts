@@ -33,7 +33,7 @@ export const notifications = {
   //
   // Both are delivered by e-mail as well as in the app (10 §15), so neither carries any part of the
   // package: not a brief, not a document title, not the sentence a rule failed with. The author
-  // opens the generation screen, which is where all of that lives and where the seat is checked.
+  // opens the generation screen, which is where all of that lives and where the role is checked.
   // -------------------------------------------------------------------------------------------
   'notifications.generationComplete.title': 'Your scenario package has been drafted',
   'notifications.generationComplete.bodyValid':
@@ -72,7 +72,7 @@ export const notifications = {
   // count and no number: the same rule as the scoring notices above, and for the same reason — a
   // notification is delivered by e-mail as well as in the app (D-015).
   //
-  // `export_ready` goes to the section's instructors and TAs, never to the student: the course
+  // `export_ready` goes to the section's instructors, never to the student: the course
   // export is the reviewer's document for the gradebook of record (12 §8.1), and the student's own
   // copy is the Judgment Record they download from their run.
   // -------------------------------------------------------------------------------------------

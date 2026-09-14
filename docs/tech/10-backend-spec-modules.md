@@ -4,7 +4,7 @@
 
 **Requirements covered:** FR-001 to FR-254 (build-slice rows), AI-001 to AI-005, SYS-001 to SYS-028, DATA-001 to DATA-055.
 
-Notation: `Actor` = the session user with resolved roles; all service functions take `actor` first; `tenantId` is derived from the resource and checked, never trusted from input. Types come from the module's `schema.ts`. Every function that writes appends the listed events inside its transaction (`10-backend-spec.md` §6).
+Notation: `Actor` = the session user with their one platform role (D-748: `student`, `tassl_scenario_editor`, `instructor`, `admin`; every guard admits the admin, 08 §5); all service functions take `actor` first; `tenantId` is derived from the resource and checked, never trusted from input. Types come from the module's `schema.ts`. Every function that writes appends the listed events inside its transaction (`10-backend-spec.md` §6).
 
 ## 1. `identity`
 
@@ -14,9 +14,9 @@ Notation: `Actor` = the session user with resolved roles; all service functions 
 
 | Service function | Rules |
 |---|---|
-| `getCurrentUser(actor): Promise<MeView>` | Returns profile, platform role, memberships with org names, active organization, capabilities |
+| `getCurrentUser(actor): Promise<MeView>` | Returns profile, platform role, memberships with org names (no role; every institution for the admin), active organization, capabilities |
 | `updateProfile(actor, { name }): Promise<MeView>` | name 1–120 chars |
-| `exportUserData(actor): Promise<UserExport>` | Profile, memberships, section memberships, runs (record-form exports), notifications, audit rows where actor; rate bucket `auth` 2/hour (`EXPORT_RATE_LIMITED`) |
+| `exportUserData(actor): Promise<UserExport>` | Profile and platform role, memberships, section memberships (neither carries a role), runs (record-form exports), notifications, audit rows where actor; rate bucket `auth` 2/hour (`EXPORT_RATE_LIMITED`) |
 | `requestAccountDeletion(actor): Promise<void>` | Sets `user.deleted_at`, revokes sessions (`auth.api.revokeSessions`), deletes memberships and pending invitations, audit `account.delete` |
 | `purgeDeletedAccounts(): Promise<{ purged: number }>` (job) | For users with `deleted_at < now() − 30 days`: re-point `runs.student_id`, `run_events.actor_id`, `audit_logs.actor_id` to the org placeholder user `deleted-user@<slug>.tassl.local` (created on demand), delete `account`, `session`, `verification` rows, delete the user row |
 
@@ -30,15 +30,14 @@ Errors: `EXPORT_RATE_LIMITED` (429), `USER_DELETED` (401).
 
 | Service function | Rules |
 |---|---|
-| `listMyInstitutions(actor)` | From `member` rows; includes role |
+| `listMyInstitutions(actor)` | From `member` rows (a membership carries no role); every institution for the admin |
 | `setActiveInstitution(actor, orgId)` | Must be a member; updates `session.active_organization_id` via Better Auth `setActiveOrganization` |
-| `requireMembership(actor, orgId, roles?)` | Throws `FORBIDDEN` |
-| `inviteMember(actor, orgId, { email, role })` | Actor: `instructor` or `program_lead`; role ∈ org roles; delegates to `auth.api.createInvitation`; email via `send_email` job; audit `invitation.create` |
+| `requireMembership(actor, orgId, roles?)` | `FORBIDDEN` without a `member` row, or when the actor's platform role is not in `roles`; the admin needs only that the organization exists |
+| `inviteMember(actor, orgId, { email })` | Actor: an Instructor member, or the admin; delegates to `auth.api.createInvitation` with the membership role `member` (for the admin, who has no member row, the repository writes the pending invitation itself); email via `send_email` job; audit `invitation.create` |
 | `acceptInvitation(actor, invitationId)` | Delegates to Better Auth; email must match |
-| `getInstitutionSettings(actor, orgId)` / `updateInstitutionSettings(actor, orgId, { plan, defaultMapping })` | `program_lead` or admin; mapping validated (four positive numbers) |
-| `upsertDataAgreement(actor, orgId, input)` / `listDataAgreements(actor, orgId)` | `program_lead` or admin write; editor reads own org rows; purposes subset of the three; audit `agreement.upsert` |
-| `canReadIdentifiedRecords(actor, orgId): Promise<boolean>` | `actor.platformRole === 'tassl_scenario_editor'` and an active agreement (not deleted, `ends_at` null or future) whose `permitted_platform_roles` includes the role and `purposes` non-empty |
-| `createInstitution(actor, { name, slug, programLeadEmail })` | Admin only; creates organization via Better Auth API, `institution_settings`, and the first `program_lead` member (user must exist) |
+| `getInstitutionSettings(actor, orgId)` / `updateInstitutionSettings(actor, orgId, { plan, defaultMapping })` | Read: members and the admin; write: admin only (D-748); mapping validated (four positive numbers) |
+| `upsertDataAgreement(actor, orgId, input)` / `listDataAgreements(actor, orgId)` | Admin only (D-748); purposes subset of the three; audit `agreement.upsert` |
+| `createInstitution(actor, { name, slug, programLeadEmail })` | Admin only; creates organization via Better Auth API, `institution_settings`, and makes the named account the first member (user must exist; the field keeps its name but grants no role, D-748) |
 
 Repository: `findActiveAgreement(orgId)`, `upsertSettings`, `listAgreements`, `upsertAgreement`, `softDeleteAgreement`.
 
@@ -50,23 +49,23 @@ Errors: `INVITATION_EMAIL_MISMATCH` (409), `AGREEMENT_PURPOSES_INVALID` (400).
 
 | Service function | Rules |
 |---|---|
-| `createCourse(actor, orgId, { name, term, outsideAiPolicy?, mapping?, defaultRunWeight?, taughtConcepts? })` | Actor org role `instructor`; mapping default from institution settings; creates the course with `created_by = actor` |
-| `listCourses(actor, orgId)` | Instructors and program leads see all; students see courses where they have a section membership |
+| `createCourse(actor, orgId, { name, term, outsideAiPolicy?, mapping?, defaultRunWeight?, taughtConcepts? })` | Actor: an Instructor member, or the admin; mapping default from institution settings; creates the course with `created_by = actor` |
+| `listCourses(actor, orgId)` | Instructors see every course of the institution, the admin every course; Student and Scenario Editor are `FORBIDDEN` |
 | `getCourse(actor, courseId)` | Sections, assignments, policy, mapping, weights, membership counts |
 | `updateCoursePolicy(actor, courseId, { outsideAiPolicy?, defaultRunWeight?, taughtConcepts?, critiqueWeightFactor? })` | `requireCourseInstructor` |
 | `previewMappingChange(actor, courseId, newMapping): Promise<MappingChangePreview>` | Lists confirmed runs with `points_effective` now vs under the new mapping (FR-206) |
 | `changeMapping(actor, courseId, { newMapping, confirm: true })` | Requires `confirm`; writes `course_mapping_changes`, updates `courses.mapping`, enqueues `recompute_exports { courseId }`; audit `mapping.change` |
 | `recomputeExports({ courseId })` (job) | For every confirmed/recorded run in the course: recompute points from `effective_band`s, update `run_scores.points_*`, write a new `course_exports` version with reason `mapping_change` |
-| `createSection(actor, courseId, { name })` | instructor |
-| `addSectionMember(actor, sectionId, { email, role })` | The email must belong to an org member; upsert membership; audit `section_member.add` |
+| `createSection(actor, courseId, { name })` | `requireCourseInstructor` |
+| `addSectionMember(actor, sectionId, { email })` | `requireCourseInstructor`; the email must belong to an org member; upsert the roster row (no role: `SectionMember.role` reads back the person's platform role); audit `section_member.add` |
 | `removeSectionMember(actor, sectionId, userId)` | Not allowed if the user has a run in the section that is not voided (`MEMBER_HAS_RUNS`) |
 | `listSectionMembers(actor, sectionId)` | Roster |
 | `createAssignment(actor, sectionId, { label, packageVersionId, variantId, workingClockSeconds?, weight?, isWalkthrough?, opensAt? })` | Package version must be `confirmed` (`PACKAGE_NOT_CONFIRMED`) and belong to the org; variant must belong to the version; `workingClockSeconds` ≥ 60 |
 | `updateAssignment(actor, assignmentId, patch)` | Same checks; forbidden once any run exists that is not voided, except `label`, `isWalkthrough`, `opensAt` (`ASSIGNMENT_IN_USE`) |
 | `getPolicyDisplay(actor, assignmentId): Promise<PolicyDisplay>` | `{ outsideAiPolicy, weight (assignment ?? course default), mapping, countsStatement: 'This run counts toward the course grade. Run one counts.' key in i18n, runType, workingClockSeconds (assignment ?? package), uncalibrated: true }` (FR-201) |
 | `listAssignmentRuns(actor, assignmentId)` | Reviewers; each run with state, attempt, scoring status, latest export version |
-| `listMyAssignments(actor)` | Students: assignments in their sections with their latest run |
-| `deleteWalkthroughRun(actor, runId)` | Instructor of the section; only when `assignments.is_walkthrough` (D-104); hard-deletes the run and children (FK cascade), audit `run.delete` |
+| `listMyAssignments(actor)` | Learner roles (Student, Scenario Editor) and the admin: assignments on the rosters they are on, with their latest run; an Instructor gets an empty page |
+| `deleteWalkthroughRun(actor, runId)` | An Instructor who runs the course, or the admin; only when `assignments.is_walkthrough` (D-104); hard-deletes the run and children (FK cascade), audit `run.delete` |
 
 Repository: `findCourse`, `listCoursesForOrg`, `listCoursesForStudent`, `insertCourse`, `updateCourse`, `insertMappingChange`, `listConfirmedRunsForCourse`, `insertSection`, `upsertSectionMembership`, `deleteSectionMembership`, `listSectionMembers`, `insertAssignment`, `updateAssignment`, `findAssignmentWithContext` (course, section, package version, variant), `listRunsForAssignment`, `listAssignmentsForStudent`.
 
@@ -78,16 +77,16 @@ Errors: `PACKAGE_NOT_CONFIRMED` (409), `VARIANT_MISMATCH` (400), `ASSIGNMENT_IN_
 
 | Service function | Rules |
 |---|---|
-| `createPackageFromSeed(actor, orgId, { title, familyKey, conceptSet, seed: { caseTitle, publisher, licenseTerms, licensePermitsAdaptation, seedText } })` | `requireAuthorOnPackage` (org role instructor or scenario_author, or editor with author membership); `licensePermitsAdaptation` must be true (`LICENSE_NOT_CONFIRMED`); creates package + version 1 (`draft`) + seed record + two variants (defective, sound); returns version id; does not start generation |
-| `listPackages(actor, orgId)` | Authors and instructors: all in org with latest version status, warnings (`FAMILY_LACKS_ETHICAL_DEFECT`, D-083) |
-| `getPackageVersion(actor, versionId): Promise<PackageVersionView>` | Package view: id, version, status, calibration status, confirmation record (element confirmations summary), authoring record (generation runs, model, dates, editors), measures (FR-198), brief, counts; seed record only for authors/instructors/editors/admins (FR-028); students never |
-| `getClaimObject(actor, versionId, claimId, variantId?)` | Claim object view (FR-180): text, source document and passage, importance, consequence, cost, concept, triggers, escalation reply, rationale, and per-variant state (evidence status, failure family, warranted stance, verification paths, planted), plus the confirmation row; reviewers and authors only |
-| `updateElement(actor, versionId, elementType, elementId, patch)` | Version must be `draft` (`VERSION_FROZEN`); validates the element schema; bumps `revision`; records an `element_confirmations` row with decision `edited` when the actor is the authority, else leaves the element unconfirmed (author edits are confirmations) |
+| `createPackageFromSeed(actor, orgId, { title, familyKey, conceptSet, seed: { caseTitle, publisher, licenseTerms, licensePermitsAdaptation, seedText } })` | `requireAuthorOnPackage` (a Scenario Editor member of the institution, or the admin); `licensePermitsAdaptation` must be true (`LICENSE_NOT_CONFIRMED`); creates package + version 1 (`draft`) + seed record + two variants (defective, sound); returns version id; does not start generation |
+| `listPackages(actor, orgId)` | Scenario Editors and Instructors (`PACKAGE_READER_ROLES`) and the admin: all in org with latest version status, warnings (`FAMILY_LACKS_ETHICAL_DEFECT`, D-083) |
+| `getPackageVersion(actor, versionId): Promise<PackageVersionView>` | Package view: id, version, status, calibration status, confirmation record (element confirmations summary), authoring record (generation runs, model, dates, editors), measures (FR-198), brief, counts; seed record only for Scenario Editors and the admin (FR-028); Instructors and students never |
+| `getClaimObject(actor, versionId, claimId, variantId?)` | Claim object view (FR-180): text, source document and passage, importance, consequence, cost, concept, triggers, escalation reply, rationale, and per-variant state (evidence status, failure family, warranted stance, verification paths, planted), plus the confirmation row; package readers (Scenario Editor, Instructor) and the admin only |
+| `updateElement(actor, versionId, elementType, elementId, patch)` | Version must be `draft` (`VERSION_FROZEN`); validates the element schema; bumps `revision`; records an `element_confirmations` row with decision `edited` (every author is the confirming authority since D-748, so an author's edit is a confirmation) |
 | `decideElement(actor, versionId, elementType, elementId, { decision: 'confirmed'|'rejected', note?, openedAt })` | Writes the confirmation row with `opened_at` (from the client, when the element was opened) and `decided_at = now`; `rejected` marks the element for regeneration (`authoring.regenerateElement`) or hand authoring |
-| `confirmVersion(actor, versionId, { teachingNoteChecked: true })` | Requires every element to have a latest decision `confirmed` or `edited` (`ELEMENTS_UNCONFIRMED` with the list), `teaching_note_checked = true` (`TEACHING_NOTE_UNCHECKED`), and `validatePackage` to pass; sets `status = confirmed`, `confirmed_at/by`, writes `snapshot`; audit `package.confirm`; notifies org instructors; AN `package_confirmed` |
+| `confirmVersion(actor, versionId, { teachingNoteChecked: true })` | `requireAuthorOnPackage` (the Scenario Editor publishes, D-748); requires every element to have a latest decision `confirmed` or `edited` (`ELEMENTS_UNCONFIRMED` with the list), `teaching_note_checked = true` (`TEACHING_NOTE_UNCHECKED`), and `validatePackage` to pass; sets `status = confirmed`, `confirmed_at/by`, writes `snapshot`; audit `package.confirm`; notifies the institution's Instructors and Scenario Editors other than the actor; AN `package_confirmed` |
 | `regenerateVersion(actor, versionId, { reason })` | Creates version n+1 as draft by copying every element (new ids; claims get new ids), seed record, variants; runs on the old version keep it (FR-195, FR-199) |
 | `importPackage(actor, orgId, packageJson)` | Validates `PackageExportSchema`, creates package + version + elements, marks every element `confirmed` by the actor when `confirmOnImport: true` (fixture loading), runs `validatePackage` |
-| `exportPackage(actor, versionId): Promise<PackageExport>` | The snapshot (or built on the fly for drafts); authors and reviewers |
+| `exportPackage(actor, versionId): Promise<PackageExport>` | The snapshot (or built on the fly for drafts); package readers (Scenario Editor, Instructor) and the admin |
 | `validatePackage(version): ValidationResult` | Pure; rules table below |
 | `getStudentScenario(actor, runId)` | Student view of brief, documents (id, key, title, author, date, body), named fields (key, label, unit); nothing else |
 
@@ -387,17 +386,17 @@ Errors: `RUN_NOT_SCORABLE` (409), `RUBRIC_VERSION_UNKNOWN` (500).
 
 | Service function | Rules and events |
 |---|---|
-| `getReplay(actor, runId): ReplayBundle` | `requireRunReviewer`; events in order with clock; four graphs; defense transcript (questions, answers, follow-ups, expected-answer notes); bands with evidence and decisions; readiness concept map; package view; claim object views; declarations with course policy; unverified numbers; flags; uncalibrated labels; capabilities (`canDecide`: instructor or TA; TA cannot change an instructor-decided band) |
-| `decideBand(actor, runId, dimension, { decision: 'confirmed'|'overridden'|'unassessed', band?, note? })` | State `scored` (or `confirmed`/`recorded` for a re-decision by an instructor within the build; each re-decision re-exports); `overridden` requires `band`; writes `band_decision`; audit `band.decide`; when all seven have decisions → transition `scored → confirmed`, compute `points_confirmed`, write course export v1 (reason `initial`), notify student (`bands_confirmed`), and if a `debrief_answer` event already exists for the run transition `confirmed → recorded` in the same transaction (FR-152); AN `band_decided`, `run_confirmed` (FR-181) |
+| `getReplay(actor, runId): ReplayBundle` | `requireRunReviewer`; events in order with clock; four graphs; defense transcript (questions, answers, follow-ups, expected-answer notes); bands with evidence and decisions; readiness concept map; package view; claim object views; declarations with course policy; unverified numbers; flags; uncalibrated labels; capabilities (`canDecide`, `canVoid`, `canNeutralize`, `canForceFailure`: any reviewer, when the state and flags allow; no reviewer's decision locks out another's, D-748) |
+| `decideBand(actor, runId, dimension, { decision: 'confirmed'|'overridden'|'unassessed', band?, note? })` | State `scored` (or `confirmed`/`recorded` for a re-decision by a reviewer within the build; each re-decision re-exports); `overridden` requires `band`; writes `band_decision`; audit `band.decide`; when all seven have decisions → transition `scored → confirmed`, compute `points_confirmed`, write course export v1 (reason `initial`), notify student (`bands_confirmed`), and if a `debrief_answer` event already exists for the run transition `confirmed → recorded` in the same transaction (FR-152); AN `band_decided`, `run_confirmed` (FR-181) |
 | `confirmRemaining(actor, runId)` | Confirms every undecided dimension with its draft (unassessed drafts become `unassessed`); the same confirmation and `recorded` rules as `decideBand` apply |
 | `neutralizeClaim(actor, runId, claimId, { reason, creditChallenge, note })` | `requireRunInstructor`; inserts `claim_neutralizations`; calls `scoring.recomputeAfterNeutralization`; sets the package version `review_requested_at/reason` (FR-003); audit |
 | `bandHeldRunManually(actor, runId, bands)` | For `scoring_status = 'held'`: reviewer supplies a band or unassessed per dimension; writes `draft_band` events with basis `none` and `rationale = 'manual'`, then decisions as confirmed; transition `defense_complete → scored → confirmed` (then `→ recorded` if a `debrief_answer` exists) (FR-140) |
-| `getQueue(actor)` | Illustrative sample rows (labeled) plus real runs in `scored` for the actor's sections under a separate heading (D-096) |
+| `getQueue(actor)` | Instructor or admin (`FORBIDDEN` otherwise); illustrative sample rows (labeled) plus real runs in `scored` for the sections the actor reviews (every section for the admin; an Instructor with none gets an empty queue) under a separate heading (D-096) |
 | `listSectionRunsForReview(actor, sectionId)` | Runs with state and decision progress |
 
 Repository: `findReplayData`, `insertNeutralization`, `listNeutralizations`.
 
-Errors: `BAND_DECISION_INVALID` (400), `RUN_NOT_SCORED` (409), `BAND_LOCKED_BY_INSTRUCTOR` (403, TA), `RUN_NOT_CONFIRMED` (409, export), `NEUTRALIZATION_EXISTS` (409).
+Errors: `BAND_DECISION_INVALID` (400), `RUN_NOT_SCORED` (409), `RUN_NOT_CONFIRMED` (409, export), `NEUTRALIZATION_EXISTS` (409).
 
 ## 13. `debrief`
 
@@ -424,11 +423,11 @@ Errors: `DEBRIEF_NOT_AVAILABLE` (409), `DEBRIEF_ANSWERED` (409).
 |---|---|
 | `getRecord(actor, runId)` | Owner; state `confirmed` or `recorded`; builds or returns the snapshot: four graphs, confirmed bands with evidence and notes, mode, variant, record-form trace; `hidden_from_export` present, unused |
 | `exportRecord(actor, runId)` | JSON download of the record form. Owner **or** a reviewer of the run's section (08 §4 "Read own debrief, graphs, record; export record copy"), asked in that order so a classmate keeps the owner guard's NOT_FOUND; state `confirmed` or `recorded`, else `RECORD_NOT_AVAILABLE` with `details.state`. Built on the way out rather than versioned: two downloads of a confirmed run are the same file. Every reader gets the *record* form, so the student and the instructor argue about a grade from one document |
-| `writeCourseExport(tx, run, reason, { actorId? })` | Next version; file = `trace.buildExport(run.organizationId, run.id, 'course', tx)` — through the caller's transaction, so the file carries the band decision it commits with; audit `export.write`; notification `export_ready` to section instructors (Phase 10.4, with the notifications module). `actorId` is null for the mapping-change job, which has no acting user |
-| `getCourseExport(actor, runId, version | 'latest')` / `listCourseExports(actor, assignmentId)` | Reviewers: `requireRunReviewer` by run, `requireSectionRole(['instructor','ta'])` by assignment. `getCourseExport` answers the file **as it was written**, never a rebuild — that is what keeping the versions is for. `listCourseExports` answers summaries, not files |
+| `writeCourseExport(tx, run, reason, { actorId? })` | Next version; file = `trace.buildExport(run.organizationId, run.id, 'course', tx)` — through the caller's transaction, so the file carries the band decision it commits with; audit `export.write`; notification `export_ready` to the section's reviewers, the Instructors on its roster and the course creator (Phase 10.4, with the notifications module). `actorId` is null for the mapping-change job, which has no acting user |
+| `getCourseExport(actor, runId, version | 'latest')` / `listCourseExports(actor, assignmentId)` | Reviewers: `requireRunReviewer` by run, `requireSectionReviewer` by assignment. `getCourseExport` answers the file **as it was written**, never a rebuild — that is what keeping the versions is for. `listCourseExports` answers summaries, not files |
 | `sample.trajectory()` / `sample.queue()` | Static fixtures, only when `flags.sampleData` |
 
-Repository: `upsertRecord`, `findRecord`, `insertExport`, `findExport`, `listExports`, `findRunForRecord` (the state the record opens at), `findAssignmentScope(tenantId, assignmentId)` (the section a `requireSectionRole` needs; the service asks it once per institution the actor belongs to, so the lookup is also the tenancy check — D-389).
+Repository: `upsertRecord`, `findRecord`, `insertExport`, `findExport`, `listExports`, `findRunForRecord` (the state the record opens at), `findAssignmentScope(tenantId, assignmentId)` (the section a `requireSectionReviewer` needs; the service asks it once per institution the actor belongs to, so the lookup is also the tenancy check — D-389).
 
 Errors: `RECORD_NOT_AVAILABLE` (409), `EXPORT_NOT_FOUND` (404).
 
@@ -446,8 +445,7 @@ Errors: none beyond global.
 | Service function | Rules |
 |---|---|
 | `listUsers(actor, { cursor, limit, q? })` | Platform admin; email prefix filter |
-| `setPlatformRole(actor, userId, role)` | Admin; audit `role.set`; revoke the user's sessions |
-| `setInstitutionRole(actor, { userId, organizationId, role })` | Admin; `role` is `student` or `instructor`; the person must already be a member of the institution (NOT_FOUND otherwise — the admin area creates no memberships) and may not be the actor (ROLE_INVALID, D-571); sets `member.role`, gives every `section_memberships` row of theirs in that institution the same seat, revokes their sessions, audits `role.set` with `{ scope: 'organization', from, to, sectionSeats, sessionsRevoked }` — one transaction (D-747) |
+| `setPlatformRole(actor, userId, role)` | Admin; `role` is one of `student`, `tassl_scenario_editor`, `instructor`, `admin`, the account's one role (D-748); a value outside the four, or the actor's own account, is `ROLE_INVALID` (D-571); audit `role.set`; revoke the user's sessions in the same transaction |
 | `listAuditLog(actor, { cursor, limit, orgId? })` | Admin |
 | `getFlags(actor)` | Admin; the three flags, `effectiveLlmProvider()`, and `llmUsage` — calls, tokens and estimated cost for the UTC day and the calendar month against the two ceilings of D-065, counting what the budgets count (no mock rows, D-651). Asynchronous from step 14.5, because it reads `llm_calls` |
 | `audit(tx, { actorId, orgId, action, targetType, targetId, metadata })` | Helper used by every module; includes the request id |

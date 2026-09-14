@@ -6,7 +6,6 @@ export const invitation = {
   'invitation.heading': 'Join {name}',
   'invitation.body':
     '{name} invited you to Tassl. Accept and your courses, assignments, and runs there appear on your home page.',
-  'invitation.roleLabel': 'Your role',
   'invitation.accept': 'Accept the invitation',
   'invitation.accepted': 'You are now a member of {name}.',
   'invitation.acceptFailed': 'The invitation was not accepted. Try again.',

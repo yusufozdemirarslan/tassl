@@ -23,9 +23,17 @@ export type OutsideAiPolicy = z.infer<typeof OutsideAiPolicySchema>
 export const RunTypeSchema = z.enum(['decision', 'critique'])
 export type RunTypeValue = z.infer<typeof RunTypeSchema>
 
-/** `section_memberships.role` (08 §3); the section vocabulary, not the institution's. */
-export const SectionRoleSchema = z.enum(['student', 'instructor', 'ta'])
-export type SectionRoleValue = z.infer<typeof SectionRoleSchema>
+/**
+ * `user.platform_role` (08 §3, D-748). A roster row carries no role of its own: what a person is on
+ * a section — enrolled, or teaching it — is the one role on their account.
+ */
+export const PlatformRoleSchema = z.enum([
+  'student',
+  'tassl_scenario_editor',
+  'instructor',
+  'admin',
+])
+export type PlatformRoleValue = z.infer<typeof PlatformRoleSchema>
 
 /** `scenario_variants.key` (06 §3.3). */
 export const VariantKeySchema = z.enum(['defective', 'sound'])
@@ -183,7 +191,8 @@ export type ChangeMappingInput = z.infer<typeof ChangeMappingSchema>
 export const CreateSectionSchema = z.object({ name: z.string().trim().min(1).max(100) })
 export type CreateSectionInput = z.infer<typeof CreateSectionSchema>
 
-export const AddSectionMemberSchema = z.object({ email: z.email(), role: SectionRoleSchema })
+/** A member of the institution, by address; the roster row carries no role (D-748). */
+export const AddSectionMemberSchema = z.object({ email: z.email() })
 export type AddSectionMemberInput = z.infer<typeof AddSectionMemberSchema>
 
 export const CreateAssignmentSchema = z.object({
@@ -320,23 +329,18 @@ export const AssignmentViewSchema = AssignmentSchema.extend({
    * Whether this reader may open the assignment's export history (FR-204, UI-035, D-483).
    *
    * It is on the view so the "Course exports" link and `records.listCourseExports` answer one
-   * predicate — `canReviewSection`, the section's instructor or TA or the course's own instructor.
-   * A screen that decided for itself who sees the link is how the link came to be drawn for a
-   * reader the endpoint behind it refused.
+   * predicate — `canReviewSection`: an Instructor on the section's roster, the course's own
+   * instructor, or the admin. A screen that decided for itself who sees the link is how the link
+   * came to be drawn for a reader the endpoint behind it refused.
    */
   canViewExports: z.boolean(),
   /**
    * Whether this reader may open the *replay* of a run of this assignment (D-517).
    *
-   * It is **not** `canViewExports`, and that is the whole reason it exists. D-483 widened the
-   * export history to the course's own instructor, who may hold no row in the section, and left
-   * `requireRunReviewer` — a section row alone — guarding the replay, the debrief and the record
-   * file, because those are one student's run rather than the course's gradebook. So the export
-   * history draws a row per filed version with an "Open run" link beside each, and for that seat
-   * every one of them answered 404: D-483's own defect, one level over.
-   *
-   * The two bits are separate because the two guards are separate. A screen that drew the link off
-   * `canViewExports` would be back to a link and an endpoint that disagree.
+   * Since D-748 `requireRunReviewer` asks `canReviewSection` too, so this bit always equals
+   * `canViewExports`. It stays its own field because the two links are guarded by two endpoints, and
+   * a screen that drew one link off the other's bit would be back to a link and an endpoint that
+   * could disagree the moment either guard changed.
    */
   canOpenRuns: z.boolean(),
 })
@@ -359,11 +363,12 @@ export const ConfirmedPackageVersionSchema = z.object({
 })
 export type ConfirmedPackageVersion = z.infer<typeof ConfirmedPackageVersionSchema>
 
+/** A roster row; `role` is the person's platform role (D-748). */
 export const SectionMemberSchema = z.object({
   userId: z.string(),
   name: z.string(),
   email: z.email(),
-  role: SectionRoleSchema,
+  role: PlatformRoleSchema,
 })
 export type SectionMember = z.infer<typeof SectionMemberSchema>
 

@@ -73,7 +73,7 @@ describe('the error envelope under hostile input', () => {
       expect(response.status, raw).toBe(400)
       const body = await envelopeOf(response)
       expect(body.error.code).toBe('VALIDATION_ERROR')
-      expect(await roleOfTarget()).toBe('none')
+      expect(await roleOfTarget()).toBe('student')
     }
   })
 
@@ -83,7 +83,7 @@ describe('the error envelope under hostile input', () => {
       expect(response.status, raw).toBe(400)
       expect((await envelopeOf(response)).error.code).toBe('VALIDATION_ERROR')
     }
-    expect(await roleOfTarget()).toBe('none')
+    expect(await roleOfTarget()).toBe('student')
   })
 
   it('answers 413 PAYLOAD_TOO_LARGE to a body over the cap, declared or not', async () => {
@@ -100,7 +100,7 @@ describe('the error envelope under hostile input', () => {
     expect(lied.status).toBe(413)
     expect((await envelopeOf(lied)).error.code).toBe('PAYLOAD_TOO_LARGE')
 
-    expect(await roleOfTarget()).toBe('none')
+    expect(await roleOfTarget()).toBe('student')
   })
 
   it('accepts a body just under the cap that is otherwise valid', async () => {
@@ -136,6 +136,6 @@ describe('the error envelope under hostile input', () => {
     )
     expect(anonymous.status).toBe(401)
     expect((await envelopeOf(anonymous)).error.code).toBe('UNAUTHENTICATED')
-    expect(await roleOfTarget()).toBe('none')
+    expect(await roleOfTarget()).toBe('student')
   })
 })

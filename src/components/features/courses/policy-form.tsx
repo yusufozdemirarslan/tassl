@@ -99,7 +99,7 @@ export type PolicyFormProps = {
   outsideAiPolicy: OutsideAiPolicy
   defaultRunWeight: number
   taughtConcepts: readonly string[]
-  /** True for a reader who may see the course but not change it (a program lead, a student). */
+  /** True for a reader who may see the course but not change it (an instructor who does not teach it). */
   readOnly?: boolean
 }
 

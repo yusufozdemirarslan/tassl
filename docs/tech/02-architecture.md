@@ -8,10 +8,10 @@
 
 ```mermaid
 flowchart LR
-  student([Student seat]) -->|browser| tassl[Tassl web app]
-  faculty([Faculty seat / instructor]) -->|browser| tassl
-  author([Scenario author / Tassl Scenario Editor]) -->|browser| tassl
-  admin([Admin]) -->|browser| tassl
+  student([Student]) -->|browser| tassl[Tassl web app]
+  faculty([Instructor]) -->|browser| tassl
+  author([Scenario Editor]) -->|browser| tassl
+  admin([Platform Admin]) -->|browser| tassl
   tassl -->|SQL over TLS| neon[(Neon Postgres)]
   tassl -->|HTTPS| mimo[Xiaomi MiMo API<br/>OpenAI-compatible]
   tassl -->|HTTPS, fallback| anthropic[Anthropic API]
@@ -196,7 +196,7 @@ Both paths share: request id from proxy → logger child → error envelope; Zod
 | Module | Owns | Public interface (`index.ts`) |
 |---|---|---|
 | `identity` | users, sessions, account settings, data export, deletion | `getCurrentUser`, `requirePlatformRole`, `updateProfile`, `exportUserData`, `requestAccountDeletion`, `purgeDeletedAccounts` |
-| `tenancy` | organizations (institutions), members, invitations, data agreements, institution settings | `listMyInstitutions`, `requireMembership`, `inviteMember`, `acceptInvitation`, `upsertDataAgreement`, `canReadIdentifiedRecords` |
+| `tenancy` | organizations (institutions), members, invitations, data agreements, institution settings | `listMyInstitutions`, `requireMembership`, `inviteMember`, `acceptInvitation`, `upsertDataAgreement` |
 | `courses` | courses, sections, section memberships, assignments, mapping changes | `createCourse`, `updateCoursePolicy`, `previewMappingChange`, `createSection`, `addSectionMember`, `createAssignment`, `updateAssignment`, `getPolicyDisplay`, `listAssignmentRuns` |
 | `scenarios` | packages, versions, all elements, variants, confirmations, snapshots, import/export, validation | `createPackageFromSeed`, `getPackageVersion`, `getClaimObject`, `updateElement`, `decideElement`, `confirmVersion`, `regenerateVersion`, `importPackage`, `exportPackage`, `validatePackage` |
 | `authoring` | generation runs and steps, warranted-stance table, re-skin log, measures | `startGeneration`, `getGenerationStatus`, `runGenerationStep` (job handler), `computeAuthoringMeasures` |
@@ -210,7 +210,7 @@ Both paths share: request id from proxy → logger child → error envelope; Zod
 | `debrief` | debrief assembly, questions, recorded transition | `getDebrief`, `answerDebrief` |
 | `records` | judgment record snapshot, record export, course exports, sample data | `getRecord`, `exportRecord`, `writeCourseExport`, `getCourseExport`, `sample` |
 | `notifications` | in-app notifications, email copies | `notify`, `listNotifications`, `markRead` |
-| `admin` | user list and roles, flags view, audit log | `listUsers`, `setPlatformRole`, `setInstitutionRole`, `listAuditLog`, `audit` (write helper) |
+| `admin` | user list and each account's one platform role, flags view, audit log | `listUsers`, `setPlatformRole`, `listAuditLog`, `audit` (write helper) |
 
 Detailed signatures, rules, and error codes: `10-backend-spec-modules.md`.
 
@@ -220,8 +220,8 @@ Detailed signatures, rules, and error codes: `10-backend-spec-modules.md`.
 |---|---|
 | Error model | `AppError(code, message, {status, details})`; envelope `{ error: { code, message, details?, requestId } }`; codes registered in `src/lib/errors.ts`; 4xx never reported to Sentry, 5xx always |
 | Validation | Zod schemas in `schema.ts`, shared by forms, actions, and routes; word limits via `wordLimit(n)`; markup stripped before validation on free-text run fields |
-| Authorization | Session from Better Auth; `requireMembership(orgId, roles)`, `requireSectionRole(sectionId, roles)`, `requireRunOwner(runId)`, `requireRunReviewer(runId)`, `requirePlatformRole(role)`; every service function that touches a resource calls one; the UI hides what the actor cannot do but the service enforces it |
-| Tenancy | `organization_id` on tenant-scoped tables; repositories take `tenantId` first; platform roles cross tenants only through explicit helpers |
+| Authorization | Session from Better Auth; one role per account in `user.platform_role` (Student, Scenario Editor, Instructor, Platform Admin, D-748) and no institution or section role; `requireMembership(orgId, roles)`, `requireSectionSeat(sectionId, roles)`, `requireCourseInstructor(courseId)`, `requireRunOwner(runId)`, `requireRunReviewer(runId)`, `requireAuthorOnPackage(packageId)`, `requirePlatformRole(role)`, each admitting the Platform Admin; every service function that touches a resource calls one; the UI hides what the actor cannot do but the service enforces it |
+| Tenancy | `organization_id` on tenant-scoped tables; repositories take `tenantId` first; only the Platform Admin crosses tenants, through the guards that admit it |
 | Logging | pino JSON to stdout; child logger per request with `requestId`, `userId`, `orgId`, `route`; redaction of secrets and PII; levels `debug` locally, `info` elsewhere |
 | Request context | `AsyncLocalStorage` store with `requestId`, `actor`, `logger`, `startedAt`; populated by `defineRoute`/`defineAction` and by the RSC layout |
 | Config | `src/server/config.ts` validates at boot (fail fast); `effectiveLlmProvider()` applies `FEATURE_AI` |

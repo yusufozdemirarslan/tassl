@@ -54,17 +54,12 @@ export const packageVersion = {
   'packageVersion.openWorkspace': 'Open the confirmation workspace',
   'packageVersion.openGeneration': 'Generation',
   'packageVersion.draftReadOnly':
-    'Only an instructor or a scenario author edits and confirms the elements of a draft.',
+    'Only a Scenario Editor edits and confirms the elements of a draft.',
   'packageVersion.durationSeconds': '{seconds} s',
   'packageVersion.durationMinutes': '{minutes} min',
   'packageVersion.durationMinutesSeconds': '{minutes} min {seconds} s',
   'packageVersion.durationHours': '{hours} h {minutes} min',
   'packageVersion.durationDays': '{days} d {hours} h',
-
-  // Program lead (08 §4, D-211): admitted to the measures and nothing else, and told so.
-  'packageVersion.restrictedTitle': 'Measures only',
-  'packageVersion.restrictedBody':
-    'Your seat reads how this version was built — how long confirmation took, how much was rewritten, who signed it — and not what it contains. The brief, the claims, the element-by-element record and the rule report stay with the people who author and teach the scenario package.',
 
   'packageVersion.recordTitle': 'Confirmation record',
   'packageVersion.recordDescription':
@@ -126,7 +121,7 @@ export const packageVersion = {
   'packageVersion.notConfirmed': 'Not yet',
   'packageVersion.seedTitle': 'The seed case',
   'packageVersion.seedWithheld':
-    'The case this package was adapted from, its publisher and the license terms behind it are read by the instructor and the scenario author only.',
+    'The case this package was adapted from, its publisher and the license terms behind it are read by the Scenario Editors who author it.',
   'packageVersion.caseTitleLabel': 'Case title',
   'packageVersion.publisherLabel': 'Publisher',
   'packageVersion.licenseTermsLabel': 'License terms relied on',
@@ -183,9 +178,9 @@ export const packageVersion = {
   'packageVersion.claimsEmptyTitle': 'No claims yet',
   'packageVersion.claimsEmptyBody':
     'A claim is something the assistant states and a student takes a stance on. Write them in the confirmation workspace, or bring in a package export that already has them.',
-  'packageVersion.claimsWithheldTitle': 'The claims are not open to your seat',
+  'packageVersion.claimsWithheldTitle': 'The claims are not open to you',
   'packageVersion.claimsWithheldBody':
-    'Reading a claim means reading the defect placement and the stance each one deserved. An instructor, a scenario author or a teaching assistant of this institution can open them.',
+    'Reading a claim means reading the defect placement and the stance each one deserved. A Scenario Editor or an Instructor of this institution can open them.',
 } as const
 
 /** `t` over this namespace alone; the key is still the full dotted key. */

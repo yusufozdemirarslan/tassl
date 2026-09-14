@@ -82,8 +82,8 @@ beforeEach(async () => {
   orgId = organization.id
   student = await f.createUser('api-notifications-student')
   classmate = await f.createUser('api-notifications-classmate')
-  await f.addMember(orgId, student.id, 'student')
-  await f.addMember(orgId, classmate.id, 'student')
+  await f.addMember(orgId, student.id)
+  await f.addMember(orgId, classmate.id)
 })
 
 afterAll(async () => {

@@ -200,10 +200,8 @@ export type ReplayExport = z.infer<typeof ReplayExportSchema>
  * What this seat may do on this run (07 §8's `capabilities`).
  *
  * It is the permission matrix of 08 §4 answered once, on the server, so the screen draws what the
- * reviewer can actually press rather than offering a control that will refuse. `canDecide` is true
- * for an instructor and a TA alike; whether *this* band is theirs to change is a per-dimension
- * question the band's own `decidedByInstructor` answers, because a TA may decide the six an
- * instructor has not touched.
+ * reviewer can actually press rather than offering a control that will refuse. Every reviewer holds
+ * the same seat (D-748), so each flag turns on the run's state and the flags, never on who is asking.
  */
 export const ReplayCapabilitiesSchema = z.object({
   canDecide: z.boolean(),
@@ -212,8 +210,7 @@ export const ReplayCapabilitiesSchema = z.object({
   canForceFailure: z.boolean(),
   canBandManually: z.boolean(),
   /**
-   * FR-055's mark, which any reviewer of the section may set — a TA reads the log too. It is false
-   * on a voided run for the reason every other capability here is state-shaped: a voided run's
+   * FR-055's mark, which any reviewer of the section may set. It is false on a voided run for the reason every other capability here is state-shaped: a voided run's
    * Delegation band is read by nothing, so the mark would change nothing and a control that
    * changes nothing is worse than an absent one.
    */
@@ -230,7 +227,6 @@ export const ReplayCapabilitiesSchema = z.object({
    * full by a later attempt, and that attempt reads the mark.
    */
   flagReachesDrafting: z.boolean(),
-  isInstructor: z.boolean(),
 })
 export type ReplayCapabilities = z.infer<typeof ReplayCapabilitiesSchema>
 
@@ -341,11 +337,10 @@ export const ReplayBundleSchema = z.object({
   exports: z.array(ReplayExportSchema),
   points: ReplayPointsSchema,
   /**
-   * Who decided each band, by id: their display name, and whether they hold the instructor role on
-   * this section. `run_bands.decided_by` is a user id, which is neither of the two things a screen
-   * needs from it (08 §4's TA rule, and the colleague's name).
+   * Who decided each band, by id: their display name. `run_bands.decided_by` is a user id, and the
+   * screen names the colleague.
    */
-  deciders: z.record(z.string(), z.object({ name: z.string(), isInstructor: z.boolean() })),
+  deciders: z.record(z.string(), z.object({ name: z.string() })),
   /** `runs.flags` — instructor observations, forbidden in every student payload (12 §8.1). */
   flags: z.record(z.string(), z.unknown()),
   /** The same observations, named and de-duplicated across the three tables that hold them. */

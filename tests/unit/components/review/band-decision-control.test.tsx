@@ -284,11 +284,13 @@ describe('the note is optional', () => {
   })
 })
 
-describe('a seat that may not change this dimension', () => {
-  it('says so rather than offering a control that will refuse (08 §4)', () => {
-    render(<BandDecisionControl {...BASE} canDecide={false} />)
+describe('a run whose bands may not be decided here', () => {
+  // Every reviewer decides every dimension (D-748): there is no per-dimension lock to explain, and
+  // the Bands panel says once why the run is read-only. The control offers nothing that would refuse.
+  it('draws no control at all', () => {
+    const { container } = render(<BandDecisionControl {...BASE} canDecide={false} />)
 
-    expect(screen.getByText(enUS['review.decisionLockedByInstructor'])).toBeInTheDocument()
+    expect(container).toBeEmptyDOMElement()
     expect(screen.queryByRole('radio')).not.toBeInTheDocument()
     expect(screen.queryByRole('button')).not.toBeInTheDocument()
   })

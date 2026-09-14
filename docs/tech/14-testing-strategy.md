@@ -21,7 +21,7 @@
 - `vitest.config.ts` and `playwright.config.ts`: `04-repo-structure.md` §9.
 - `tests/setup/unit.ts`: `@testing-library/jest-dom/vitest`, MSW server `beforeAll/afterEach/afterAll`, `vi.useFakeTimers({ now: FROZEN_TIME })` opt-in helper `withFrozenTime()`, i18n loaded.
 - `tests/setup/integration.ts`: connects to `TEST_DATABASE_URL`, runs `drizzle-kit migrate` once per worker (`fileParallelism: false`), creates the `tassl_app` role if missing, and wraps every test in a transaction that is rolled back (`beginTest()/rollbackTest()`); tests that need commit semantics (jobs, immutability grants) use `truncateAll()` in `afterEach` instead and are tagged `// @db:truncate`.
-- Fake session: `asUser(factory.user({ role }))` returns headers with a real Better Auth session created through `auth.api.signInEmail` against the test DB (no cookie forging).
+- Fake session: `asUser(createUser(label, { platformRole }))` (the account's one role, default `student`; `addMember` and `addSectionMember` take no role, D-748) returns headers with a real Better Auth session created through `auth.api.signInEmail` against the test DB (no cookie forging).
 - MSW handlers in `tests/setup/msw/`: `mimo.ts` (chat completions with streaming and a JSON-mode path), `anthropic.ts`, `resend.ts`, `posthog.ts`.
 - Playwright: `tests/e2e/fixtures.ts` provides `signInAs('student1' | 'student2' | 'instructor' | 'editor' | 'admin')` using the seed accounts and `SEED_PASSWORD`; `runToState(runId, state)` drives a run quickly through the API for tests that start mid-flow; `advanceClock(runId, ms)` calls the test-only endpoint `POST /api/v1/test/runs/{id}/advance-clock` which exists only when `APP_ENV=test` (it shifts `working_started_at` back by `ms` so timers materialize without waiting; it is not a product feature and is excluded from the OpenAPI document).
 
@@ -62,7 +62,7 @@ Scoring fixtures (`tests/fixtures/scoring/*.json`): complete event lists for the
 |---|---|---|---|
 | lib | words, errors, flags, i18n keys exist for every `t()` call (a test walks the source) | — | — |
 | identity | view mappers | me, export (rate limit), delete → purge job repoint | settings, export download, delete account |
-| tenancy | access-control roles | invitations, `canReadIdentifiedRecords` with and without agreement | invite → accept |
+| tenancy | access-control roles (the one membership role `member`) | invitations (no role; Instructor or admin), settings and agreements admin-only | invite → accept |
 | courses | mapping validation, `previewMappingChange` arithmetic | all endpoints; `ASSIGNMENT_IN_USE`; recompute job | course create, roster, assignment config |
 | scenarios | `validatePackage` every rule (positive and negative), snapshot builder, student view | import fixture, confirm version (frozen trigger), regenerate, claim view permissions | package view, claim object view |
 | authoring | warranted-stance table, step input builders | pipeline on mock end to end, retry on failed rule, measures | new package from seed → generation → confirm |
@@ -72,7 +72,7 @@ Scoring fixtures (`tests/fixtures/scoring/*.json`): complete event lists for the
 | defense | selection for every condition and the fill rule, follow-up trigger, verbatim-brief rule, template rendering | open, answer, follow-up insertion, complete → job enqueued | step 10 |
 | trace | export schema, two forms differ only by the three keys, sequence gaplessness | append under concurrency (two parallel writers), grants (no UPDATE/DELETE), regenerate graphs from export equals stored graphs | step 14 |
 | scoring | every graph builder against fixtures (numbers), facts, band rules for every rubric placement (FR-139), points (mean, null, exclusion), neutralization floor | `score_run` job on mock, held path when reads fail, stance-record loss paths | step 11 |
-| review | capability rules | decide, confirm-all, TA lock, neutralize → recompute → re-export, manual banding | steps 12, 15, 17 |
+| review | capability rules | decide, confirm-all, neutralize → recompute → re-export, manual banding | steps 12, 15, 17 |
 | debrief | section order, done-well selection, forbidden words | get (events written once per version), answer → recorded | step 13 |
 | records | record form omits points | exports versioned, record export | step 14 |
 | notifications, admin | — | notify + email copy job, role set revokes sessions, audit rows | notifications page, admin pages |

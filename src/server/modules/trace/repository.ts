@@ -29,7 +29,6 @@ import { AppError } from '@/lib/errors'
 import { db } from '@/server/db/client'
 import {
   elementConfirmations,
-  member,
   runActions,
   runClaims,
   runEvents,
@@ -39,6 +38,7 @@ import {
   scenarioClaims,
   scenarioPackageVersions,
   scenarioVariants,
+  user,
   variantClaimStates,
   type NewRunEvent,
   type Run,
@@ -280,14 +280,13 @@ export type ExportConfirmationRow = {
 /**
  * The package confirmation record, oldest decision first.
  *
- * `decidedByRole` is the confirmer's organization role, joined through `member`. It is the role PRD
- * §12 step 1 asks the header to show — "the builder's confirmation record" is a record of who, in
- * what capacity — and it is null when the confirmer no longer holds a membership in the
- * institution, which a file exported long after the fact can legitimately meet.
+ * `decidedByRole` is the confirmer's platform role, joined through `user` (D-748: an account holds
+ * one role, and a membership carries none). It is the role PRD §12 step 1 asks the header to show —
+ * "the builder's confirmation record" is a record of who, in what capacity — and it is null when
+ * the confirmer's account row is gone, which a file exported long after the fact can meet.
  */
 export async function listExportConfirmations(
   packageVersionId: string,
-  organizationId: string,
   dbx: DbOrTx = db,
 ): Promise<ExportConfirmationRow[]> {
   return dbx
@@ -295,17 +294,11 @@ export async function listExportConfirmations(
       elementType: elementConfirmations.elementType,
       elementId: elementConfirmations.elementId,
       decision: elementConfirmations.decision,
-      decidedByRole: member.role,
+      decidedByRole: user.platform_role,
       decidedAt: elementConfirmations.decidedAt,
     })
     .from(elementConfirmations)
-    .leftJoin(
-      member,
-      and(
-        eq(member.userId, elementConfirmations.decidedBy),
-        eq(member.organizationId, organizationId),
-      ),
-    )
+    .leftJoin(user, eq(user.id, elementConfirmations.decidedBy))
     .where(eq(elementConfirmations.packageVersionId, packageVersionId))
     .orderBy(
       asc(elementConfirmations.decidedAt),

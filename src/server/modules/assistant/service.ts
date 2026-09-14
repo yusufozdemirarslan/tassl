@@ -51,7 +51,7 @@ import { AppError, isAppError } from '@/lib/errors'
 import { t } from '@/lib/i18n/t'
 import { claimContext, runContext, type RunContext } from '@/server/analytics/run-context'
 import { track } from '@/server/analytics/track'
-import { requireRunOwner, requireRunReviewer } from '@/server/auth/permissions'
+import { isPlatformAdmin, requireRunOwner, requireRunReviewer } from '@/server/auth/permissions'
 import type { SessionUser } from '@/server/auth/types'
 import { getLogger, getRequestContext } from '@/server/http/request-context'
 import {
@@ -161,14 +161,21 @@ export type DelegationChunk =
  *
  * `requireRunOwner` answers NOT_FOUND both for a run that does not exist and for one belonging to
  * another student (08 §4), so a reviewer arrives at the second guard and is asked for their role
- * there. That guard answers FORBIDDEN to a section member holding the wrong role, which here means
- * one thing only — a classmate of the run's owner — and passing it through would confirm the run
- * exists to the one reader 08 §4 gives no read of it at all.
+ * there. That guard answers FORBIDDEN only to the run's own learner (D-748), who has already passed
+ * the first; it is still answered as NOT_FOUND here, so no refusal on this path can confirm that a
+ * run exists to a reader 08 §4 gives no read of it at all.
+ *
+ * The Platform Admin takes the reviewer's path and never the owner's (D-748): `requireRunOwner`
+ * admits the admin to every run, and the owner's log is sealed by the student's own state gate.
  */
 async function requireOwnerOrReviewer(
   actor: SessionUser,
   runId: string,
 ): Promise<{ organizationId: string; viewer: 'owner' | 'reviewer' }> {
+  if (isPlatformAdmin(actor)) {
+    const scope = await requireRunReviewer(actor, runId)
+    return { organizationId: scope.organizationId, viewer: 'reviewer' }
+  }
   try {
     const scope = await requireRunOwner(actor, runId)
     return { organizationId: scope.organizationId, viewer: 'owner' }
@@ -247,9 +254,11 @@ type DelegationOutcome = {
  * The request text is not a property, and neither is the reply. What travels is the shape of the
  * act: which delegation, how many claims it raised, how many figures the numeric guard could not
  * source, whether it failed, and how long the student waited.
+ *
+ * `learnerId` is the run's student, not the actor, which the admin may not be (D-748).
  */
 function trackDelegationMade(
-  actor: SessionUser,
+  learnerId: string,
   prepared: PreparedDelegation,
   group: RunContext,
   outcome: DelegationOutcome,
@@ -271,7 +280,7 @@ function trackDelegationMade(
       latency_ms: outcome.latencyMs,
       before_any_document_open: prepared.beforeAnyDocumentOpen,
     },
-    { userId: actor.id, organizationId: prepared.organizationId },
+    { userId: learnerId, organizationId: prepared.organizationId },
   )
 }
 
@@ -284,7 +293,8 @@ function trackDelegationMade(
  * level in any state (12 §8), and an analytics group is not a reason to put them on one.
  */
 async function trackClaimsMarkedUsed(options: {
-  actor: SessionUser
+  /** The run's student, whose event this is (D-748). */
+  learnerId: string
   organizationId: string
   group: RunContext
   claimIds: readonly string[]
@@ -301,7 +311,7 @@ async function trackClaimsMarkedUsed(options: {
         ...claimContext(claim, options.inTurnWindow),
         via: options.via,
       },
-      { userId: options.actor.id, organizationId: options.organizationId },
+      { userId: options.learnerId, organizationId: options.organizationId },
     )
   }
 }
@@ -654,7 +664,7 @@ export async function delegate(
   if (prepared.forcedFailure) {
     const group = await runGroup(prepared.run)
     if (group) {
-      trackDelegationMade(actor, prepared, group, {
+      trackDelegationMade(scope.studentId, prepared, group, {
         failed: true,
         claimsSurfaced: 0,
         unverifiedNumbersCount: 0,
@@ -726,7 +736,7 @@ export async function delegate(
     // nothing, and `latency_ms` is what that wait was.
     const group = await runGroup(prepared.run)
     if (group) {
-      trackDelegationMade(actor, prepared, group, {
+      trackDelegationMade(scope.studentId, prepared, group, {
         failed: true,
         claimsSurfaced: 0,
         unverifiedNumbersCount: 0,
@@ -853,7 +863,7 @@ export async function delegate(
   // a claim is the defective one, and no student-facing surface reads PostHog (17 §1.7).
   const group = await runGroup(prepared.run)
   if (group) {
-    trackDelegationMade(actor, prepared, group, {
+    trackDelegationMade(scope.studentId, prepared, group, {
       failed: false,
       claimsSurfaced: written.claimsSurfaced,
       unverifiedNumbersCount: written.unverifiedNumbersCount,
@@ -863,11 +873,11 @@ export async function delegate(
       track(
         'probe_fired',
         { ...group, claim_id: written.probeClaimId },
-        { userId: actor.id, organizationId: tenantId },
+        { userId: scope.studentId, organizationId: tenantId },
       )
     }
     await trackClaimsMarkedUsed({
-      actor,
+      learnerId: scope.studentId,
       organizationId: tenantId,
       group,
       claimIds: written.windowMarkedClaimIds,
@@ -1198,7 +1208,7 @@ export async function updateDelegation(
   const group = await runGroup(marked.run)
   if (group) {
     await trackClaimsMarkedUsed({
-      actor,
+      learnerId: scope.studentId,
       organizationId: tenantId,
       group,
       claimIds: marked.claimIds,
@@ -1302,7 +1312,7 @@ export async function declareOutsideTool(
     track(
       'outside_tool_declared',
       { ...group, course_policy: policy },
-      { userId: actor.id, organizationId: tenantId },
+      { userId: scope.studentId, organizationId: tenantId },
     )
   }
 }

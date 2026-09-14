@@ -18,7 +18,6 @@ import {
   listUsersSchema,
   setAiModeSchema,
   sentryTestResultSchema,
-  setInstitutionRoleBodySchema,
   setPlatformRoleBodySchema,
 } from './schema'
 import {
@@ -26,7 +25,6 @@ import {
   listAuditLog,
   listUsers,
   setAiMode,
-  setInstitutionRole,
   setPlatformRole,
   sendSentryTestEvent,
 } from './service'
@@ -63,30 +61,6 @@ export const adminSetPlatformRole = defineRoute(
   async (ctx) =>
     setPlatformRole(actorOf(ctx), {
       userId: ctx.input.params.userId,
-      role: ctx.input.body.role,
-    }),
-)
-
-/**
- * `PUT /admin/users/{userId}/institution-role` — Student or Instructor in one institution the person
- * belongs to, their section seats there with it, the sessions revoked, audited (D-747).
- */
-export const adminSetInstitutionRole = defineRoute(
-  {
-    auth: 'session',
-    input: { params: adminUserIdSchema, body: setInstitutionRoleBodySchema },
-    output: adminUserSchema,
-    rateLimit: { bucket: 'write' },
-    openapi: {
-      operationId: 'adminSetInstitutionRole',
-      summary: 'Set an institution role',
-      tags: TAGS,
-    },
-  },
-  async (ctx) =>
-    setInstitutionRole(actorOf(ctx), {
-      userId: ctx.input.params.userId,
-      organizationId: ctx.input.body.organizationId,
       role: ctx.input.body.role,
     }),
 )

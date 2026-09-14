@@ -27,7 +27,7 @@ test('the role-change dialog has no axe violations', async ({ page }) => {
 
   const role = page.getByRole('combobox', { name: /^Platform role for / })
   await role.click()
-  await page.getByRole('option', { name: 'Scenario editor' }).click()
+  await page.getByRole('option', { name: 'Scenario Editor' }).click()
 
   const dialog = page.getByRole('alertdialog')
   await expect(dialog).toBeVisible()

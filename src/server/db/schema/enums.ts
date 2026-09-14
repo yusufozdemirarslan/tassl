@@ -22,7 +22,6 @@ export const outsideAiPolicy = pgEnum('outside_ai_policy', [
   'declared',
   'in_environment_only',
 ])
-export const sectionRole = pgEnum('section_role', ['student', 'instructor', 'ta'])
 export const runType = pgEnum('run_type', ['decision', 'critique'])
 
 // 3.3 Scenario packages

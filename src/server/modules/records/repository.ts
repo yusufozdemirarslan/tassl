@@ -283,8 +283,9 @@ export type AssignmentScope = { organizationId: string; sectionId: string; cours
  * assignment id (`GET /assignments/{assignmentId}/exports`, 07 §8: reviewers only).
  *
  * It reads the `courses` module's tables, which is unusual and narrow on purpose: the question is
- * "which section is this, so `requireSectionRole` can answer", and the alternative — `getAssignment`
- * — admits the students of that section, which is exactly the reader FR-184 does not have in mind.
+ * "which section is this, so `requireSectionReviewer` can answer", and the alternative —
+ * `getAssignment` — admits the students of that section, which is exactly the reader FR-184 does not
+ * have in mind.
  * Two columns, read and never written.
  *
  * It takes the tenant first like every other function here (D-006, D-389). The service asks it once

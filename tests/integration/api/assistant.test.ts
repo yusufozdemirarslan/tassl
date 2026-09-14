@@ -88,7 +88,7 @@ async function call(
 const errorCode = (called: Called): unknown =>
   ((called.body as { error?: { code?: unknown } } | null)?.error ?? {}).code
 
-const sessionFor = (who: 'student' | 'instructor' | 'ta' | 'classmate'): Promise<Headers> =>
+const sessionFor = (who: 'student' | 'instructor' | 'admin' | 'classmate'): Promise<Headers> =>
   asUser(fx[who].id, { activeOrganizationId: fx.orgId })
 
 /** Makes one delegation through the service and answers its id. */
@@ -117,11 +117,11 @@ afterAll(async () => {
 })
 
 describe('GET /runs/{runId}/delegations', () => {
-  it('answers the owner and both reviewers, and 404s a classmate', async () => {
+  it('answers the owner, the reviewer and the Platform Admin, and 404s a classmate', async () => {
     const runId = await runInWorking(fx)
     await seedDelegation(runId)
 
-    for (const who of ['student', 'instructor', 'ta'] as const) {
+    for (const who of ['student', 'instructor', 'admin'] as const) {
       const called = await call(delegations.GET, {
         path: `/runs/${runId}/delegations`,
         session: await sessionFor(who),
@@ -313,7 +313,7 @@ describe('GET /runs/{runId}/claims', () => {
 
   it('is the owner’s alone: a reviewer replays a scored run, not a running one', async () => {
     const runId = await runInWorking(fx)
-    for (const who of ['instructor', 'ta', 'classmate'] as const) {
+    for (const who of ['instructor', 'classmate'] as const) {
       const called = await call(claims.GET, {
         path: `/runs/${runId}/claims`,
         session: await sessionFor(who),

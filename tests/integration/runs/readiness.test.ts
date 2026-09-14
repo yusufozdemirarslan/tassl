@@ -25,7 +25,7 @@ import { readFileSync } from 'node:fs'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { asUser, testSql, truncateAll } from '@tests/setup/integration'
 import { isAppError } from '@/lib/errors'
-import type { SessionUser } from '@/server/auth/types'
+import type { PlatformRole, SessionUser } from '@/server/auth/types'
 
 type Runs = typeof import('@/server/modules/runs')
 type RunsRepo = typeof import('@/server/modules/runs/repository')
@@ -55,7 +55,7 @@ const actorFor = (user: UserRow, orgId: string): SessionUser => ({
   name: user.name,
   emailVerified: true,
   activeOrganizationId: orgId,
-  platformRole: 'none',
+  platformRole: user.platform_role as PlatformRole,
 })
 
 const codeOf = async (promise: Promise<unknown>): Promise<string> => {
@@ -88,34 +88,40 @@ type Fixture = Awaited<ReturnType<typeof setup>>
 
 /**
  * One institution with a course, a section holding an instructor and two students, the fixture
- * package imported and confirmed in the instructor's name, and an assignment on its defective
+ * package imported and confirmed in a Scenario Editor's name, and an assignment on its defective
  * variant. The second student is the classmate every cross-reader refusal is proven against.
  */
 async function setup() {
   const { organization } = await f.createInstitution('readiness')
   const orgId = organization.id
 
-  const instructorUser = await f.createUser('readiness-instructor')
+  const instructorUser = await f.createUser('readiness-instructor', { platformRole: 'instructor' })
   const studentUser = await f.createUser('readiness-student')
   const classmateUser = await f.createUser('readiness-classmate')
-  await f.addMember(orgId, instructorUser.id, 'instructor')
-  await f.addMember(orgId, studentUser.id, 'student')
-  await f.addMember(orgId, classmateUser.id, 'student')
+  await f.addMember(orgId, instructorUser.id)
+  await f.addMember(orgId, studentUser.id)
+  await f.addMember(orgId, classmateUser.id)
 
   const course = await f.createCourse(orgId, 'readiness-course', { createdBy: instructorUser.id })
   const section = await f.createSection(orgId, course.id, 'readiness-section')
-  await f.addSectionMember(orgId, section.id, instructorUser.id, 'instructor')
-  await f.addSectionMember(orgId, section.id, studentUser.id, 'student')
-  await f.addSectionMember(orgId, section.id, classmateUser.id, 'student')
+  await f.addSectionMember(orgId, section.id, instructorUser.id)
+  await f.addSectionMember(orgId, section.id, studentUser.id)
+  await f.addSectionMember(orgId, section.id, classmateUser.id)
 
   const instructor = actorFor(instructorUser, orgId)
   // Imported through the service, as `pnpm db:seed` does: the import is what turns the document's
-  // element keys into rows, and the confirmation is what an assignment requires (10 §4).
-  const imported = await scenarios.importPackage(instructor, orgId, {
+  // element keys into rows, and the confirmation is what an assignment requires (10 §4). A Scenario
+  // Editor publishes it, because an Instructor may not (D-748).
+  const editorUser = await f.createUser('readiness-editor', {
+    platformRole: 'tassl_scenario_editor',
+  })
+  await f.addMember(orgId, editorUser.id)
+  const editor = actorFor(editorUser, orgId)
+  const imported = await scenarios.importPackage(editor, orgId, {
     ...(FIXTURE as unknown as Record<string, unknown>),
     confirmOnImport: true,
   })
-  await scenarios.confirmVersion(instructor, imported.versionId, { teachingNoteChecked: true })
+  await scenarios.confirmVersion(editor, imported.versionId, { teachingNoteChecked: true })
 
   const variants = await testSql<{ id: string; key: string }[]>`
     select id, key from scenario_variants where package_version_id = ${imported.versionId}`

@@ -154,7 +154,6 @@ test('walkthrough step 16: the sound variant, seats swapped — a sound claim ac
   })
   await addSectionMember(request, assignment.section.id, {
     email: seatEmail('instructor'),
-    role: 'instructor',
   })
 
   // The walkthrough's own condition for this session, read on the instructor's side and asserted

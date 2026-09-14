@@ -49,7 +49,7 @@ type Reason =
   | 'state_name'
   /** An operation, a job, a document or the assistant that did not complete. Never a person. */
   | 'system_failure'
-  /** A scenario author's vocabulary for a claim or a package element, on an authoring surface. */
+  /** A Scenario Editor's vocabulary for a claim or a package element, on an authoring surface. */
   | 'authored_attribute'
   /** The mean over the assessed dimensions, which PRD §7.19 requires be named as such. */
   | 'arithmetic'

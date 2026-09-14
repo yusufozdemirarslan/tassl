@@ -17,7 +17,7 @@
 // So the plants below are the point of the file. A guard is only proven by what it refuses, and a
 // containment rule is only proven by something it must let through beside something it must not.
 // @db:truncate
-import { afterAll, beforeEach, describe, expect, it } from 'vitest'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { testSql, truncateAll } from '@tests/setup/integration'
 import { isAppError } from '@/lib/errors'
 import { stopBoss } from '@/server/jobs/boss'
@@ -31,6 +31,20 @@ import {
 type Records = typeof import('@/server/modules/records')
 type Review = typeof import('@/server/modules/review')
 type Factories = typeof import('@tests/factories')
+type Track = typeof import('@/server/analytics/track')
+
+// Every event still goes through the real `track`, which validates its props under APP_ENV=test;
+// the list is only what lets a case read back who an event was attributed to.
+const tracked = vi.hoisted(() => [] as { name: string; props: unknown; actor: unknown }[])
+vi.mock('@/server/analytics/track', async (importOriginal) => {
+  const actual = await importOriginal<Track>()
+  return {
+    track: ((name, props, actor) => {
+      tracked.push({ name, props, actor })
+      actual.track(name, props, actor)
+    }) as Track['track'],
+  }
+})
 
 let records: Records
 let review: Review
@@ -39,6 +53,7 @@ let fx: AssistantFixture
 
 beforeEach(async () => {
   await truncateAll()
+  tracked.length = 0
   records = await import('@/server/modules/records')
   review = await import('@/server/modules/review')
   f = (await import('@tests/factories')) as Factories
@@ -139,8 +154,37 @@ describe('records.getRecord', () => {
     // A reviewer reads the run through the replay and the course export; a classmate has no read of
     // it at all. Both answer NOT_FOUND, so a run id cannot be probed for existence.
     expect(await codeOf(records.getRecord(fx.instructor, runId))).toBe('NOT_FOUND')
-    expect(await codeOf(records.getRecord(fx.ta, runId))).toBe('NOT_FOUND')
+    expect(await codeOf(records.getRecord(fx.editor, runId))).toBe('NOT_FOUND')
     expect(await codeOf(records.getRecord(fx.classmate, runId))).toBe('NOT_FOUND')
+  })
+
+  it('admits the admin, and files the open under the run’s student as a non-owner view (D-748)', async () => {
+    const runId = await confirmedRun()
+    const view = await records.getRecord(fx.admin, runId)
+    expect(view.runId).toBe(runId)
+
+    const opened = tracked.filter((event) => event.name === 'record_opened')
+    expect(opened).toHaveLength(1)
+    expect(opened[0]?.props).toMatchObject({ viewer: 'reviewer' })
+    expect(opened[0]?.actor).toMatchObject({ userId: fx.student.id })
+
+    tracked.length = 0
+    await records.getRecord(fx.student, runId)
+    expect(tracked.find((event) => event.name === 'record_opened')?.props).toMatchObject({
+      viewer: 'owner',
+    })
+  })
+})
+
+describe('records.exportRecord (08 §4)', () => {
+  it('hands the record copy to the student, the section’s instructor and the admin, and nobody else', async () => {
+    const runId = await confirmedRun()
+    for (const actor of [fx.student, fx.instructor, fx.admin]) {
+      expect(await codeOf(records.exportRecord(actor, runId))).toBeNull()
+    }
+    for (const actor of [fx.classmate, fx.editor]) {
+      expect(await codeOf(records.exportRecord(actor, runId))).toBe('NOT_FOUND')
+    }
   })
 
   it('stores the snapshot and rebuilds it, so a correction reaches the record (D-436)', async () => {
@@ -217,9 +261,9 @@ describe('the record’s name-containment sweep, and its one exemption (D-421, D
 })
 
 describe('requireCourseExportReader (08 §4, D-483)', () => {
-  it('hands a filed version to a reviewer of the run’s section', async () => {
+  it('hands a filed version to a reviewer of the run’s section, and to the admin', async () => {
     const runId = await confirmedRun()
-    for (const actor of [fx.instructor, fx.ta]) {
+    for (const actor of [fx.instructor, fx.admin]) {
       const file = await records.getCourseExport(actor, runId, 'latest')
       expect((file as { computed?: { points?: number | null } }).computed?.points).not.toBe(
         undefined,
@@ -233,10 +277,12 @@ describe('requireCourseExportReader (08 §4, D-483)', () => {
     // creator is the only instructor who exists.
     const runId = await confirmedRun()
     const { courseId } = await courseAndSection()
-    const other = await f.createUser('records-record-other-instructor')
-    await f.addMember(fx.orgId, other.id, 'instructor')
+    const other = await f.createUser('records-record-other-instructor', {
+      platformRole: 'instructor',
+    })
+    await f.addMember(fx.orgId, other.id)
     const otherSection = await f.createSection(fx.orgId, courseId, 'records-record-section-b')
-    await f.addSectionMember(fx.orgId, otherSection.id, other.id, 'instructor')
+    await f.addSectionMember(fx.orgId, otherSection.id, other.id)
 
     const file = await records.getCourseExport({ ...fx.instructor, id: other.id }, runId, 'latest')
     expect(file).toBeTruthy()
@@ -255,8 +301,8 @@ describe('requireCourseExportReader (08 §4, D-483)', () => {
     // The second branch, and the reason it is NOT_FOUND rather than FORBIDDEN: a refusal that says
     // "you may not" says the run exists (08 §4 "Cross-tenant").
     const runId = await confirmedRun()
-    const stranger = await f.createUser('records-record-stranger')
-    await f.addMember(fx.orgId, stranger.id, 'instructor')
+    const stranger = await f.createUser('records-record-stranger', { platformRole: 'instructor' })
+    await f.addMember(fx.orgId, stranger.id)
     expect(
       await codeOf(records.getCourseExport({ ...fx.instructor, id: stranger.id }, runId, 'latest')),
     ).toBe('NOT_FOUND')
@@ -264,19 +310,21 @@ describe('requireCourseExportReader (08 §4, D-483)', () => {
 })
 
 describe('requireCourseInstructor no longer outlives the seat that created the course (D-516)', () => {
-  it('refuses a creator who has been demoted out of the instructor role', async () => {
+  it('refuses a creator whose role has been changed from Instructor to Student', async () => {
     const runId = await confirmedRun()
     const { courseId } = await courseAndSection()
-    const creator = await f.createUser('records-record-demoted')
-    await f.addMember(fx.orgId, creator.id, 'instructor')
+    const creator = await f.createUser('records-record-demoted', { platformRole: 'instructor' })
+    await f.addMember(fx.orgId, creator.id)
     await testSql`update courses set created_by = ${creator.id} where id = ${courseId}`
 
     const actor = { ...fx.instructor, id: creator.id }
     // While they hold the role, `created_by` is the whole of their claim and it is enough.
     expect(await codeOf(records.getCourseExport(actor, runId, 'latest'))).toBeNull()
 
-    // `courses.created_by` is a record of who made the row, not a grant that outlives the seat.
-    await f.addMember(fx.orgId, creator.id, 'student')
-    expect(await codeOf(records.getCourseExport(actor, runId, 'latest'))).toBe('NOT_FOUND')
+    // `courses.created_by` is a record of who made the row, not a grant that outlives the role
+    // (D-748): the session's platform role is what every guard asks.
+    await testSql`update "user" set platform_role = 'student' where id = ${creator.id}`
+    const demoted = { ...actor, platformRole: 'student' as const }
+    expect(await codeOf(records.getCourseExport(demoted, runId, 'latest'))).toBe('NOT_FOUND')
   })
 })

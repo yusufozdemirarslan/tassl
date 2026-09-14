@@ -313,7 +313,7 @@ describe('what the record keeps', () => {
 
     const fired = await ask(runId, PROBE_REQUEST)
 
-    for (const reviewer of [fx.instructor, fx.ta]) {
+    for (const reviewer of [fx.instructor, fx.admin]) {
       const seen = await assistant.listDelegations(reviewer, runId)
       const entry = seen.find((row) => row.id === fired.delegationId)
       expect(entry?.flags).toContain('probe')

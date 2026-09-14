@@ -27,8 +27,8 @@ import { getViewer } from '../../viewer'
 // nothing because a link already is. The current one carries `aria-current="page"`.
 //
 // A course the reader may not see is the not-found page, never the error boundary: `getCourse`
-// answers NOT_FOUND for another institution's id and FORBIDDEN for a course in this institution
-// that the reader holds no membership in (08 §4), and both mean the same thing to the reader.
+// answers NOT_FOUND for another institution's id and FORBIDDEN for a reader whose role does not run
+// courses (08 §4, D-748), and both mean the same thing to the reader.
 
 const TABS = ['sections', 'assignments', 'policy', 'mapping'] as const
 type Tab = (typeof TABS)[number]
@@ -117,12 +117,10 @@ export default async function CourseDetailPage({
   const course = await loadCourse(courseId)
   if (!course) notFound()
 
-  const role = me.memberships.find((row) => row.organizationId === course.organizationId)?.role
-
-  // A courtesy gate only: `requireCourseInstructor` re-checks that the actor actually teaches this
-  // course, and every refusal comes back through the action envelope (08 §5).
-  const canManage = role === 'instructor'
-  const canReview = role === 'instructor' || role === 'program_lead'
+  // A courtesy gate only, from the one platform role (D-748): `requireCourseInstructor` re-checks
+  // that the actor actually teaches this course, and every refusal comes back through the action
+  // envelope (08 §5).
+  const canManage = me.platformRole === 'instructor' || me.platformRole === 'admin'
   const tab = readTab(query.tab)
 
   // Only the sub-view that offers "New assignment", and only for the person offered it, asks what
@@ -184,13 +182,13 @@ export default async function CourseDetailPage({
             courseId={course.id}
             sections={course.sections}
             canManage={canManage}
-            canViewRosters={canReview}
+            canViewRosters={canManage}
           />
         )}
         {tab === 'assignments' && (
           <AssignmentsList
             assignments={course.assignments}
-            canConfigure={canReview}
+            canConfigure={canManage}
             canCreate={canManage}
             sections={course.sections}
             packageVersions={packageVersions}

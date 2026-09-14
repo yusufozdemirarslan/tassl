@@ -4,6 +4,7 @@
 import { eq } from 'drizzle-orm'
 import { db } from '@/server/db/client'
 import { user } from '@/server/db/schema'
+import type { PlatformRole } from '@/server/auth/types'
 import { emailFrom, uuidFrom } from './ids'
 import { FROZEN_TIME } from './time'
 
@@ -12,7 +13,8 @@ export type UserRow = typeof user.$inferSelect
 export type UserOverrides = {
   name?: string
   email?: string
-  platformRole?: 'none' | 'tassl_scenario_editor' | 'admin'
+  /** The account's one role (D-748); a new account is a Student. */
+  platformRole?: PlatformRole
   emailVerified?: boolean
 }
 
@@ -28,7 +30,7 @@ export async function createUser(label: string, overrides: UserOverrides = {}): 
       name: overrides.name ?? label,
       email: overrides.email ?? emailFrom(label),
       emailVerified: overrides.emailVerified ?? true,
-      platform_role: overrides.platformRole ?? 'none',
+      platform_role: overrides.platformRole ?? 'student',
       createdAt: FROZEN_TIME,
       updatedAt: FROZEN_TIME,
     })

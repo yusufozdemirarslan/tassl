@@ -532,7 +532,8 @@ export async function completeDefense(actor: SessionUser, runId: string): Promis
       duration_ms: interview.durationMs,
       nothing_answered: interview.nothingAnswered,
     },
-    { userId: actor.id, organizationId: tenantId },
+    // The run's student, not the actor: the admin may complete a defense on a run not theirs (D-748).
+    { userId: scope.studentId, organizationId: tenantId },
   )
 
   return guarded(toRunSummary(updated))

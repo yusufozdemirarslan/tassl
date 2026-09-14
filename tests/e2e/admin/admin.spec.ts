@@ -50,9 +50,9 @@ test('an admin sets a platform role, the audit log shows it, and a student canno
   const role = page.getByRole('combobox', { name: 'Platform role for Role Subject' })
   // `toContainText`, not `toHaveText`: the trigger holds the value and the chevron, and WebKit and
   // Firefox both render the icon into the element's text.
-  await expect(role).toContainText('None')
+  await expect(role).toContainText('Student')
   await role.click()
-  await page.getByRole('option', { name: 'Scenario editor' }).click()
+  await page.getByRole('option', { name: 'Scenario Editor' }).click()
 
   // The dialog says the consequence before it is accepted.
   const dialog = page.getByRole('alertdialog')
@@ -61,7 +61,7 @@ test('an admin sets a platform role, the audit log shows it, and a student canno
   await dialog.getByRole('button', { name: 'Change the role' }).click()
 
   await expect(dialog).toBeHidden()
-  await expect(role).toContainText('Scenario editor')
+  await expect(role).toContainText('Scenario Editor')
 
   // The audit log is the record of it, and the row names the act, the target and a request id.
   await page.goto('/admin/audit', { waitUntil: 'networkidle' })
@@ -96,32 +96,55 @@ async function openUserRow(page: Page, email: string, name: string): Promise<voi
   await expect(page.getByRole('rowheader', { name: new RegExp(name) })).toBeVisible()
 }
 
-/** Chooses a seat in the row's institution-role select and confirms it. */
-async function setInstitutionRole(page: Page, name: string, from: string, to: string) {
-  const seat = page.getByRole('combobox', {
-    name: `Institution role for ${name} at ${INSTITUTION}`,
-  })
-  await expect(seat).toContainText(from)
-  await seat.click()
-  // Student and Instructor are two separate choices, and they are the only two offered.
-  await expect(page.getByRole('option')).toHaveText(['Student', 'Instructor'])
+/** The four roles, in the order the picker offers them (D-748). */
+const ROLES = ['Platform Admin', 'Scenario Editor', 'Instructor', 'Student'] as const
+type RoleLabel = (typeof ROLES)[number]
+
+/** Chooses a role in the row's one picker and confirms it. */
+async function setRole(page: Page, name: string, from: RoleLabel, to: RoleLabel): Promise<void> {
+  const picker = page.getByRole('combobox', { name: `Platform role for ${name}` })
+  await expect(picker).toContainText(from)
+  await picker.click()
+  await expect(page.getByRole('option')).toHaveText([...ROLES])
   await page.getByRole('option', { name: to, exact: true }).click()
 
   const dialog = page.getByRole('alertdialog')
-  await expect(dialog).toContainText('Change this institution role?')
   await expect(dialog).toContainText('signs them out of every device')
   await dialog.getByRole('button', { name: 'Change the role' }).click()
   await expect(dialog).toBeHidden()
-  await expect(seat).toContainText(to)
+  await expect(picker).toContainText(to)
 }
 
-// D-747. Student and Instructor are institution seats, and the users table offered only the platform
-// role, so an admin could not give either. The account is this spec's own: an instructor invites it
-// into the walkthrough institution as a teaching assistant, the admin makes it a Student and then an
-// Instructor, and each change is proven where it lands — on the home screen the person sees the next
-// time they sign in. Closing the account at the end removes the membership, so the institution is
-// left with the seats it was seeded with.
-test('an admin makes a member a Student, then an Instructor, and each takes effect at the next sign-in', async ({
+/** What one role reaches on the rail, and one endpoint it may and one it may not call. */
+const REACH: Record<RoleLabel, { rail: string[]; allowed: string; denied: string }> = {
+  Student: {
+    rail: ['Home', 'Runs'],
+    allowed: '/api/v1/me/assignments',
+    denied: '/api/v1/institutions/{org}/courses',
+  },
+  'Scenario Editor': {
+    rail: ['Home', 'Runs', 'Packages'],
+    allowed: '/api/v1/institutions/{org}/packages',
+    denied: '/api/v1/institutions/{org}/courses',
+  },
+  Instructor: {
+    rail: ['Home', 'Courses', 'Review', 'Packages'],
+    allowed: '/api/v1/institutions/{org}/courses',
+    denied: '/api/v1/admin/users',
+  },
+  'Platform Admin': {
+    rail: ['Home', 'Runs', 'Courses', 'Review', 'Packages', 'Admin'],
+    allowed: '/api/v1/admin/users',
+    denied: '/api/v1/institutions/00000000-0000-4000-8000-000000000000/courses',
+  },
+}
+
+// D-748. One role per account. The account is this spec's own: an instructor invites it into the
+// walkthrough institution, and the admin gives it each of the four roles in turn from the one picker
+// on the Users screen. Each change is proven where it lands — the next sign-in — by the rail the
+// person sees and by one endpoint the role may call and one it may not. Closing the account at the
+// end removes the membership, so the institution is left with the seats it was seeded with.
+test('an admin gives an account each of the four roles, and each takes effect at the next sign-in', async ({
   page,
 }) => {
   const email = uniqueEmail('admin-seat')
@@ -132,15 +155,12 @@ test('an admin makes a member a Student, then an Instructor, and each takes effe
   const me = (await (await page.request.get('/api/v1/me')).json()) as {
     memberships: { organizationId: string; name: string }[]
   }
-  const institution = me.memberships.find((membership) => membership.name === INSTITUTION)
-  expect(institution).toBeDefined()
-  const invited = await page.request.post(
-    `/api/v1/institutions/${institution?.organizationId}/invitations`,
-    {
-      data: { email, role: 'teaching_assistant' },
-      headers: { 'content-type': 'application/json', 'X-Requested-With': 'tassl' },
-    },
-  )
+  const orgId = me.memberships.find((membership) => membership.name === INSTITUTION)?.organizationId
+  expect(orgId).toBeDefined()
+  const invited = await page.request.post(`/api/v1/institutions/${orgId}/invitations`, {
+    data: { email },
+    headers: { 'content-type': 'application/json', 'X-Requested-With': 'tassl' },
+  })
   expect(invited.status(), await invited.text()).toBe(201)
   const link = await waitForEmailLink(page, email, { since: sentAfter })
   await signOut(page)
@@ -152,35 +172,33 @@ test('an admin makes a member a Student, then an Instructor, and each takes effe
     await page.waitForURL(/\/home$/)
     await signOut(page)
 
-    // Student.
+    let current: RoleLabel = 'Student'
+    for (const next of ['Scenario Editor', 'Instructor', 'Platform Admin', 'Student'] as const) {
+      await signInAs(page, 'admin')
+      await openUserRow(page, email, name)
+      // One picker, and no second role column beside it.
+      await expect(page.getByRole('columnheader', { name: 'Institution role' })).toHaveCount(0)
+      await setRole(page, name, current, next)
+      await signOut(page)
+      current = next
+
+      await signIn(page, email, TEST_PASSWORD)
+      const rail = page.getByRole('navigation', { name: 'Primary' }).first()
+      await expect(rail.getByRole('link')).toHaveText(REACH[next].rail)
+
+      const reach = REACH[next]
+      const allowed = await page.request.get(reach.allowed.replace('{org}', orgId ?? ''))
+      expect(allowed.status(), `${next} → ${reach.allowed}`).toBe(200)
+      const denied = await page.request.get(reach.denied.replace('{org}', orgId ?? ''))
+      expect([403, 404], `${next} → ${reach.denied}`).toContain(denied.status())
+      await signOut(page)
+    }
+
+    // The audit log is the record of every change.
     await signInAs(page, 'admin')
-    await openUserRow(page, email, name)
-    await setInstitutionRole(page, name, 'Teaching assistant', 'Student')
-    await signOut(page)
-
-    await signIn(page, email, TEST_PASSWORD)
-    await expect(page.getByRole('heading', { level: 2, name: 'Your runs' })).toBeVisible()
-    await expect(page.getByRole('link', { name: 'Runs', exact: true })).toBeVisible()
-    await expect(page.getByRole('heading', { level: 2, name: 'Courses' })).toHaveCount(0)
-    await expect(page.getByRole('heading', { level: 2, name: 'Packages' })).toHaveCount(0)
-    await signOut(page)
-
-    // Instructor.
-    await signInAs(page, 'admin')
-    await openUserRow(page, email, name)
-    await setInstitutionRole(page, name, 'Student', 'Instructor')
-
-    // The audit log records it against the institution.
     await page.goto('/admin/audit', { waitUntil: 'networkidle' })
     await expect(page.getByRole('row').filter({ hasText: 'role.set' }).first()).toBeVisible()
     await signOut(page)
-
-    await signIn(page, email, TEST_PASSWORD)
-    await expect(page.getByRole('heading', { level: 2, name: 'Courses' })).toBeVisible()
-    await expect(page.getByRole('heading', { level: 2, name: 'Packages' })).toBeVisible()
-    await expect(page.getByRole('link', { name: 'Courses', exact: true })).toBeVisible()
-    await expect(page.getByRole('heading', { level: 2, name: 'Your runs' })).toHaveCount(0)
-    await expect(page.getByRole('link', { name: 'Runs', exact: true })).toHaveCount(0)
   } finally {
     await page.context().clearCookies()
     await signIn(page, email, TEST_PASSWORD)

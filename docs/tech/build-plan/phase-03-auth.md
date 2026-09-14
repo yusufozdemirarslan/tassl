@@ -51,7 +51,7 @@ pnpm lint && pnpm typecheck && pnpm test -- tests/unit/email && pnpm test:integr
 - `src/lib/auth-client.ts` — create
 - `src/server/auth/session.ts` — create; `import 'server-only'`; `getSession()`, `requireSession()`
 - `src/server/auth/permissions.ts` — create; every helper in `08-auth-authz.md` §5
-- `src/server/modules/tenancy/{schema,service,index}.ts` — create; `listMyInstitutions`, `setActiveInstitution`, `requireMembership`, `canReadIdentifiedRecords`, `getInstitutionSettings`, `updateInstitutionSettings`, `upsertDataAgreement`, `listDataAgreements`, `createInstitution` (admin), `inviteMember`, `acceptInvitation`
+- `src/server/modules/tenancy/{schema,service,index}.ts` — create; `listMyInstitutions`, `setActiveInstitution`, `requireMembership`, `getInstitutionSettings`, `updateInstitutionSettings`, `upsertDataAgreement`, `listDataAgreements`, `createInstitution` (admin), `inviteMember`, `acceptInvitation`
 - `src/server/modules/admin/{service,index}.ts` — create; `audit()` helper only (the admin screens arrive in Phase 13)
 - `src/server/http/define-route.ts` — modify; `auth: 'session'` uses `requireSession()`; add the `X-Requested-With` CSRF check for non-GET cookie requests
 - `src/proxy.ts` — modify; optimistic redirect for `(app)` paths using `getSessionCookie`
@@ -60,12 +60,12 @@ pnpm lint && pnpm typecheck && pnpm test -- tests/unit/email && pnpm test:integr
 pnpm db:generate && pnpm db:migrate
 ```
 (Regenerate the auth schema first if the config changed: `npx auth@1.7.2 generate --adapter drizzle --dialect pg --config src/server/auth/auth.ts --output src/server/db/schema/auth.ts -y`.)
-**Implementation notes:** Deleted users are treated as signed out (`requireSession` checks `deleted_at`). `canReadIdentifiedRecords` per D-055. `createInstitution` creates the organization through `auth.api.createOrganization` as the admin, inserts `institution_settings`, and adds the program lead member. Invitations expire after 7 days.
+**Implementation notes:** Deleted users are treated as signed out (`requireSession` checks `deleted_at`). Institution settings and data agreements are the Platform Admin's (D-055, D-748). `createInstitution` creates the organization through `auth.api.createOrganization` as the admin, inserts `institution_settings`, and adds the named account as the first member (a membership carries no role, D-748). Invitations expire after 7 days.
 **Secrets (if any):** `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` — Google Cloud Console → APIs & Services → Credentials → OAuth client ID (Web), redirect `${NEXT_PUBLIC_APP_URL}/api/auth/callback/google`; non-secret default: empty (button hidden, D-097).
 **Tests to write:**
 - `tests/integration/auth/flows.test.ts` — sign-up creates an unverified user; sign-in before verification returns `EMAIL_NOT_VERIFIED`; verification token signs in; reset revokes sessions; rate limit on `/sign-in/email` after 10 attempts.
 - `tests/integration/auth/permissions.test.ts` — each helper's allow and deny cases with factory users.
-- `tests/integration/tenancy/agreements.test.ts` — `canReadIdentifiedRecords` false without an agreement, true with an active one, false after `ends_at`.
+- `tests/integration/tenancy/agreements.test.ts` — the admin writes, lists and ends an agreement without a member row, audited; every member of the institution is refused whatever their platform role; settings are written by the admin and read by any member.
 **Verify (all must pass):**
 ```bash
 pnpm lint && pnpm typecheck && pnpm test:integration -- tests/integration/auth tests/integration/tenancy
@@ -156,7 +156,7 @@ pnpm lint && pnpm typecheck && pnpm test:integration -- tests/integration/tenanc
 - `tests/e2e/fixtures.ts` — modify; `signInAs(seat)` using the seed accounts and `SEED_PASSWORD`
 - `tests/setup/integration.ts` — modify; `asUser(user)` helper creating real sessions
 **Commands (in order, from repo root):** none.
-**Implementation notes:** The matrix test reads a JSON table `tests/integration/auth/matrix.json` (`operationId`, `role`, `expected`) so later phases only append rows.
+**Implementation notes:** The matrix test reads a JSON table `tests/integration/auth/matrix.json` (`operationId`, `role`, `expected`; `role` is one of the four platform roles or an Instructor of another institution, D-748) so later phases only append rows.
 **Secrets (if any):** none.
 **Tests to write:** the files above.
 **Verify (all must pass):**

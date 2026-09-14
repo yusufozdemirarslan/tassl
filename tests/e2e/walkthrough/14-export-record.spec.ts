@@ -414,7 +414,6 @@ test('walkthrough step 14: the scored run’s trace is served over the API in th
   // and read the assignment's export history (`requireRunReviewer`, `requireSectionRole`).
   await addSectionMember(request, assignment.section.id, {
     email: seatEmail('instructor'),
-    role: 'instructor',
   })
 
   await signInAs(page, STUDENT_SEAT)

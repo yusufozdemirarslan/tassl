@@ -122,7 +122,6 @@ test('walkthrough step 12: the instructor reads the replay and the seventh decis
   })
   await addSectionMember(request, assignment.section.id, {
     email: seatEmail('instructor'),
-    role: 'instructor',
   })
 
   // ---------------------------------------------------------------------------------------------

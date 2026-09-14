@@ -20,10 +20,9 @@
 //   5. A confirmed version is immutable (NFR-004). `updateElement` and `decideElement` answer
 //      `VERSION_FROZEN` before they touch the database; the `package_frozen` trigger family is the
 //      guarantee behind that answer, not the first line of defence.
-//   6. Confirming is the institution's own act. 08 §4 gives the platform editor everything except
-//      the confirmation ("cannot confirm in place of the authority", PRD §8), so an actor holding a
-//      platform role may edit a package but never signs for it — their edit leaves the element
-//      unconfirmed, and `confirmVersion` refuses them.
+//   6. Authoring and reading are two seats (D-748). A Scenario Editor of the institution (or the
+//      Platform Admin) authors, decides and confirms; an Instructor reads a package to assign and
+//      review it, and every write refuses them.
 //
 // `authoring.computeAuthoringMeasures` (10 §5) and the generation records it reads arrive with the
 // pipeline in Phase 12. The measures the package view needs before then are derived here from the
@@ -33,11 +32,14 @@ import { AppError, isAppError } from '@/lib/errors'
 import { t } from '@/lib/i18n/t'
 import { countWords } from '@/lib/words'
 import { track } from '@/server/analytics/track'
-import type { OrganizationRole } from '@/server/auth/access-control-shared'
 import {
+  AUTHORING_ROLES,
+  PACKAGE_READER_ROLES,
+  hasRole,
   requireAuthorOnPackage,
   requireMembership,
   requireRunOwner,
+  type PlatformRole,
 } from '@/server/auth/permissions'
 import type { SessionUser } from '@/server/auth/types'
 import { audit } from '@/server/modules/admin'
@@ -47,7 +49,7 @@ import { audit } from '@/server/modules/admin'
 import { listGenerationRunsForVersion, type GenerationRunView } from '@/server/modules/authoring'
 import { computeMeasures, type AuthoringMeasureValues } from '@/server/modules/authoring/measures'
 import { notify } from '@/server/modules/notifications'
-import { listMemberIdsWithRoles, listMyInstitutions } from '@/server/modules/tenancy'
+import { listMemberIdsWithPlatformRoles, listMyInstitutions } from '@/server/modules/tenancy'
 import {
   elementsUnconfirmed,
   importInvalid,
@@ -117,60 +119,17 @@ export type {
 } from './validate'
 
 // ---------------------------------------------------------------------------------------------
-// Who may do what (08 §4 "Permission matrix")
+// Who may do what (08 §4 "Permission matrix", D-748)
+//
+// Two role sets from `permissions.ts`, and the admin is admitted to both:
+//   - `PACKAGE_READER_ROLES` (Scenario Editor, Instructor): list packages, read a package, a version,
+//     a claim object, and take the export — an Instructor reads a package to assign and review it;
+//   - `AUTHORING_ROLES` (Scenario Editor): everything that writes, the confirmation workspace's
+//     element list, and the seed record, which is the licensed case behind the package (FR-028).
 // ---------------------------------------------------------------------------------------------
 
-/**
- * The organization roles that may author: create a package, edit and decide its elements, confirm
- * the version (08 §4, and the pair `requireAuthorOnPackage` admits). A platform editor reaches them
- * through a `scenario_author` membership of the institution, which is the only way in (08 §5).
- */
-const PACKAGE_AUTHOR_ROLES: readonly OrganizationRole[] = ['instructor', 'scenario_author']
-
-/**
- * Roles that may read a package family and the versions under it — the row 07 §6 gives
- * `GET /packages/{packageId}`: an author, an instructor, a reviewer, and the platform editor
- * through their membership. A program lead is absent there; what 08 §4 admits them to is the
- * version's measures, which hang off the version view rather than off the family.
- */
-const PACKAGE_READER_ROLES: readonly OrganizationRole[] = [
-  'instructor',
-  'scenario_author',
-  'teaching_assistant',
-]
-
-/** Roles that may read a package version, its authoring record and its measures (08 §4). */
-const VERSION_READER_ROLES: readonly OrganizationRole[] = [
-  'instructor',
-  'scenario_author',
-  'teaching_assistant',
-  'program_lead',
-]
-
-/**
- * Roles admitted to the package's content — its brief, its authoring record, its rule failures.
- * The program lead is deliberately absent: 08 §4 gives them "✓ org (measures only)", which is the
- * institution's own accounting of how long confirmation took, not the scenario the students face.
- */
-const VERSION_CONTENT_ROLES: readonly OrganizationRole[] = [
-  'instructor',
-  'scenario_author',
-  'teaching_assistant',
-]
-
-/** Roles that may read the seed record with it: never a TA, never a student (FR-028, 08 §4). */
-const SEED_RECORD_ROLES: readonly OrganizationRole[] = ['instructor', 'scenario_author']
-
-/**
- * Reviewers and authors, the only people who may open a claim object or take the export (10 §4;
- * 08 §4 row "See answer space, defect placement, warranted stances, verification results"). A
- * program lead is deliberately absent: their row on that line is a dash.
- */
-const CLAIM_OBJECT_ROLES: readonly OrganizationRole[] = [
-  'instructor',
-  'scenario_author',
-  'teaching_assistant',
-]
+/** Who the `package_confirmed` notice goes to: the institution's Instructors and Scenario Editors. */
+const PACKAGE_NOTICE_ROLES: readonly PlatformRole[] = ['instructor', 'tassl_scenario_editor']
 
 // ---------------------------------------------------------------------------------------------
 // Element vocabulary
@@ -284,9 +243,9 @@ function keyImmutable(field: string): never {
 // Resolving a version to its tenant
 //
 // A version, a package and a claim are addressed without their institution, so the tenant is found
-// by asking each institution the actor belongs to — which is also the tenancy check: an id in an
-// institution they do not belong to is simply not found (rule 2). Every repository call stays
-// `tenantId` first (D-006).
+// by asking each institution the actor belongs to (every institution, for the admin) — which is also
+// the tenancy check: an id in an institution they do not belong to is simply not found (rule 2).
+// Every repository call stays `tenantId` first (D-006).
 // ---------------------------------------------------------------------------------------------
 
 async function tenantsOf(actor: SessionUser): Promise<string[]> {
@@ -308,43 +267,33 @@ async function resolveVersion(actor: SessionUser, versionId: string): Promise<Ve
   notFound('package version')
 }
 
-/** Institution membership, with a non-member answered NOT_FOUND rather than FORBIDDEN (rule 2). */
+/**
+ * Institution membership holding one of `roles` (the admin needs neither). A non-member is answered
+ * NOT_FOUND rather than FORBIDDEN (rule 2); a member holding another role is FORBIDDEN.
+ */
 async function requireVisibleMembership(
   actor: SessionUser,
   orgId: string,
+  roles: readonly PlatformRole[],
   what = 'institution',
-): Promise<OrganizationRole> {
+): Promise<void> {
   try {
-    return await requireMembership(actor, orgId)
+    await requireMembership(actor, orgId)
   } catch (error) {
     if (isAppError(error) && error.code === 'FORBIDDEN') notFound(what)
     throw error
   }
+  if (!hasRole(actor, roles)) forbidden()
+}
+
+/** The read side of a version: a Scenario Editor or an Instructor of its institution, or the admin. */
+async function requireVersionReader(actor: SessionUser, scope: VersionScope): Promise<void> {
+  await requireVisibleMembership(actor, scope.tenantId, PACKAGE_READER_ROLES, 'package version')
 }
 
 /**
- * The read side of a version: any member of its institution but a student, whose row on every
- * package line of 08 §4 is a dash.
- *
- * 08 §4 scopes a TA to "section's package". The assignment that ties a section to a package version
- * belongs to `courses`, and a module reads another only through its public index, which offers no
- * lookup from a version back to the sections using it. The read here is therefore institution-wide
- * for a TA — wider than the matrix by the packages their institution authored but their section
- * does not use, and narrower than anything that matters, because the seed record (FR-028) and the
- * claim object stay closed to them either way.
- */
-async function requireVersionReader(
-  actor: SessionUser,
-  scope: VersionScope,
-): Promise<OrganizationRole> {
-  const role = await requireVisibleMembership(actor, scope.tenantId, 'package version')
-  if (!VERSION_READER_ROLES.includes(role)) forbidden()
-  return role
-}
-
-/**
- * The write side: `requireAuthorOnPackage` resolves the package's institution itself and admits an
- * `instructor` or a `scenario_author` there, which is also the platform editor's route in (08 §5).
+ * The write side: `requireAuthorOnPackage` resolves the package's institution itself and admits a
+ * Scenario Editor there, or the admin (08 §5, D-748).
  */
 async function requireAuthor(actor: SessionUser, packageId: string): Promise<string> {
   const scope = await requireAuthorOnPackage(actor, packageId)
@@ -352,12 +301,10 @@ async function requireAuthor(actor: SessionUser, packageId: string): Promise<str
 }
 
 /**
- * Whether the actor signs for the institution. 08 §4 denies the confirmation to the platform editor
- * and to the platform admin — an element is confirmed by the faculty member responsible for it, and
- * nobody at Tassl may stand in for them (PRD §8) — so the authority is an institutional author
- * carrying no platform role at all.
+ * Whether the actor authors and signs for a package: a Scenario Editor, or the admin (D-748). Every
+ * write proves it through `requireAuthor`; the version view asks it to draw the workspace's controls.
  */
-const isConfirmingAuthority = (actor: SessionUser): boolean => actor.platformRole === 'none'
+const isConfirmingAuthority = (actor: SessionUser): boolean => hasRole(actor, AUTHORING_ROLES)
 
 // ---------------------------------------------------------------------------------------------
 // Views
@@ -430,24 +377,6 @@ function countElements(version: repo.VersionFull): ElementCounts {
     defenseQuestions: version.defenseQuestions.length,
     readinessItems: version.readinessItems.length,
   }
-}
-
-/**
- * How many documents a version holds, how many claims, how many of them the variants disagree
- * about: a count is a fact about the contents, not about the cost of authoring them. A seat that
- * reads "measures only" is told the version contains nothing it may read, so the counts are emptied
- * with the rest of the content (08 §4) — otherwise the screen names the size of every part of a
- * package in the same breath as refusing to show any of it.
- */
-const EMPTY_COUNTS: ElementCounts = {
-  documents: 0,
-  stakeholders: 0,
-  answerSpacePositions: 0,
-  namedFields: 0,
-  claims: 0,
-  variants: 0,
-  defenseQuestions: 0,
-  readinessItems: 0,
 }
 
 /**
@@ -1194,8 +1123,7 @@ export async function createPackageFromSeed(
   orgId: string,
   input: CreatePackageFromSeedInput,
 ): Promise<CreatedPackageView> {
-  const role = await requireVisibleMembership(actor, orgId)
-  if (!PACKAGE_AUTHOR_ROLES.includes(role)) forbidden()
+  await requireVisibleMembership(actor, orgId, AUTHORING_ROLES)
 
   // FR-190: a licensed case may only be re-skinned when its license says so, and the author is the
   // one who confirms it. The wire schema takes a plain boolean so this answers the documented code.
@@ -1269,16 +1197,15 @@ const DEFAULT_VARIANTS = [
 
 /**
  * The institution's packages with the status of their latest version and the family warnings D-083
- * records. Authors and instructors, which is the row 07 §6 gives this list; a reviewer reaches the
- * one version their section uses through the assignment, not through the shelf.
+ * records. Scenario Editors and Instructors, who choose a confirmed version for an assignment from
+ * this shelf (D-748).
  */
 export async function listPackages(
   actor: SessionUser,
   orgId: string,
   input: PageQuery = {},
 ): Promise<repo.Page<PackageSummaryView>> {
-  const role = await requireVisibleMembership(actor, orgId)
-  if (!PACKAGE_AUTHOR_ROLES.includes(role)) forbidden()
+  await requireVisibleMembership(actor, orgId, PACKAGE_READER_ROLES)
 
   const page = await repo.pagePackages(orgId, input)
   const versions = await repo.listVersionsForPackages(
@@ -1326,7 +1253,7 @@ export async function listPackages(
 
 /**
  * One package family with every version of it: the row the list shows, plus the versions a reader
- * chooses between (07 §6). A reviewer reaches it as well as an author, because this is the only
+ * chooses between (07 §6). An Instructor reaches it as well as an author, because this is the only
  * screen that answers "which version is my section running", and it carries nothing the version
  * view does not — no seed record, no elements, no defect placement.
  */
@@ -1335,8 +1262,7 @@ export async function getPackage(actor: SessionUser, packageId: string): Promise
     const pkg = await repo.findPackage(tenantId, packageId)
     if (!pkg) continue
 
-    const role = await requireVisibleMembership(actor, tenantId, 'package')
-    if (!PACKAGE_READER_ROLES.includes(role)) forbidden()
+    await requireVisibleMembership(actor, tenantId, PACKAGE_READER_ROLES, 'package')
 
     const versions = await repo.listVersions(tenantId, packageId)
     const withEthicalDefect = new Set(
@@ -1370,23 +1296,21 @@ export async function getPackage(actor: SessionUser, packageId: string): Promise
 
 /**
  * The package version view: what the version is, what it still fails, who decided on it, and what
- * the authoring of it cost (07 §6). The seed record rides along only for the roles 08 §4 admits to
- * it — an instructor, an author, or the platform editor and admin through their own membership —
- * and never for a TA or a student (FR-028).
+ * the authoring of it cost (07 §6). The seed record rides along only for a Scenario Editor or the
+ * admin; an Instructor reads the package without the licensed case behind it (FR-028, D-748).
  */
 export async function getPackageVersion(
   actor: SessionUser,
   versionId: string,
 ): Promise<PackageVersionView> {
   const scope = await resolveVersion(actor, versionId)
-  const role = await requireVersionReader(actor, scope)
-  return buildVersionView(actor, scope, role)
+  await requireVersionReader(actor, scope)
+  return buildVersionView(actor, scope)
 }
 
 async function buildVersionView(
   actor: SessionUser,
   scope: VersionScope,
-  role: OrganizationRole,
 ): Promise<PackageVersionView> {
   const { version } = scope
   const confirmations = await repo.listConfirmations(version.id)
@@ -1396,15 +1320,7 @@ async function buildVersionView(
   const runs = await listGenerationRunsForVersion(version.id)
   const measured = measureAuthoring(version, units, confirmations, runs)
   const isDraft = version.status === 'draft'
-  const mayAuthor = PACKAGE_AUTHOR_ROLES.includes(role)
-
-  // 08 §4: the program lead's row on this line reads "measures only". They are admitted to how long
-  // confirmation took and who signed the version, because that is institutional accounting — not to
-  // the brief, the counterfactual, the element-by-element record, the counts of what it holds, or
-  // the rule failures, which name where the defects are. The fields are emptied rather than dropped
-  // so one shape serves the endpoint, and `restricted` is what lets the screen say so instead of
-  // drawing a blank package.
-  const content = VERSION_CONTENT_ROLES.includes(role)
+  const mayAuthor = isConfirmingAuthority(actor)
 
   return {
     id: version.id,
@@ -1414,20 +1330,20 @@ async function buildVersionView(
     version: version.version,
     status: version.status,
     calibrationStatus: version.calibrationStatus,
-    conceptSet: content ? version.conceptSet : [],
-    brief: content ? version.brief : '',
+    conceptSet: version.conceptSet,
+    brief: version.brief,
     workingClockSeconds: version.workingClockSeconds,
     turnDelaySeconds: version.turnDelaySeconds,
     difficultyProfile: version.difficultyProfile,
-    generalEscalationReply: content ? version.generalEscalationReply : '',
-    debriefCounterfactual: content ? version.debriefCounterfactual : '',
+    generalEscalationReply: version.generalEscalationReply,
+    debriefCounterfactual: version.debriefCounterfactual,
     teachingNoteChecked: version.teachingNoteChecked,
     confirmedAt: isoOrNull(version.confirmedAt),
     confirmedBy: version.confirmedBy,
-    counts: content ? countElements(version) : EMPTY_COUNTS,
-    confirmationRecord: content
-      ? confirmations.map((row) => toConfirmationView(row, names, elementKeyIndex(units)))
-      : [],
+    counts: countElements(version),
+    confirmationRecord: confirmations.map((row) =>
+      toConfirmationView(row, names, elementKeyIndex(units)),
+    ),
     authoringRecord: toAuthoringRecord(version, confirmations, names, runs),
     measures: {
       seedToConfirmedMs: measured.seedToConfirmedMs,
@@ -1436,16 +1352,12 @@ async function buildVersionView(
       generationPasses: measured.generationPasses,
       reviewMsPerElement: measured.reviewMsPerElement,
     },
-    validation: content ? toValidationResult(version) : { ok: true, failures: [] },
-    warnings: content ? versionWarnings(version) : [],
-    seedRecord:
-      version.seedRecord && SEED_RECORD_ROLES.includes(role)
-        ? toSeedRecordView(version.seedRecord)
-        : null,
-    restricted: !content,
+    validation: toValidationResult(version),
+    warnings: versionWarnings(version),
+    seedRecord: version.seedRecord && mayAuthor ? toSeedRecordView(version.seedRecord) : null,
     capabilities: {
       canEdit: isDraft && mayAuthor,
-      canConfirm: isDraft && mayAuthor && isConfirmingAuthority(actor),
+      canConfirm: isDraft && mayAuthor,
       // The pipeline refuses a frozen version on the write itself (10 §5); this is the same rule
       // said early enough for the workspace to draw the buttons, never instead of it.
       canRegenerate: isDraft && mayAuthor,
@@ -1491,17 +1403,16 @@ async function deciderNames(
  * third read, and it is deliberately the shape `updateElement` already answers with, so the
  * workspace can swap the element it just saved into the list it is holding.
  *
- * Authors and instructors only. The seed record is one of the elements here (FR-028), and every
- * action the workspace can take refuses anyone else, so the gate is the write side's, not the
- * version reader's: a TA reads a package on UI-044, never in the room where it is signed.
+ * Scenario Editors and the admin only. The seed record is one of the elements here (FR-028), and
+ * every action the workspace can take refuses anyone else, so the gate is the write side's, not the
+ * version reader's: an Instructor reads a package on UI-044, never in the room where it is signed.
  */
 export async function listVersionElements(
   actor: SessionUser,
   versionId: string,
 ): Promise<ElementView[]> {
   const scope = await resolveVersion(actor, versionId)
-  const role = await requireVisibleMembership(actor, scope.tenantId, 'package version')
-  if (!PACKAGE_AUTHOR_ROLES.includes(role)) forbidden()
+  await requireVisibleMembership(actor, scope.tenantId, AUTHORING_ROLES, 'package version')
 
   const confirmations = await repo.listConfirmations(versionId)
   const decisions = indexDecisions(confirmations)
@@ -1532,9 +1443,9 @@ export async function listVersionElements(
 // ---------------------------------------------------------------------------------------------
 
 /**
- * Everything one claim is, what it deserved, and how it could have been checked (07 §6). Reviewers
- * and authors only: a student who could open this would be reading the answer key (D-117), and a
- * program lead's row on that line of 08 §4 is a dash.
+ * Everything one claim is, what it deserved, and how it could have been checked (07 §6). Package
+ * readers only — a Scenario Editor, an Instructor, the admin: a student who could open this would be
+ * reading the answer key (D-117).
  */
 export async function getClaimObject(
   actor: SessionUser,
@@ -1543,8 +1454,7 @@ export async function getClaimObject(
   variantId?: string,
 ): Promise<ClaimObjectView> {
   const scope = await resolveVersion(actor, versionId)
-  const role = await requireVisibleMembership(actor, scope.tenantId, 'package version')
-  if (!CLAIM_OBJECT_ROLES.includes(role)) forbidden()
+  await requireVisibleMembership(actor, scope.tenantId, PACKAGE_READER_ROLES, 'package version')
 
   const claim = await repo.findClaimWithState(versionId, claimId, variantId ?? null)
   if (!claim) notFound('claim')
@@ -1618,9 +1528,7 @@ async function requireDraftForWrite(
  * export and in the upsert that writes it.
  *
  * An author's edit is a confirmation (10 §4): a change writes an `edited` decision, which is what
- * makes "every element has a decision" true after a hand-authored pass. Two actors do not get one:
- * an actor carrying a platform role may edit but never signs for the institution (08 §4, PRD §8),
- * so their edit leaves the element unconfirmed.
+ * makes "every element has a decision" true after a hand-authored pass.
  */
 export async function updateElement(
   actor: SessionUser,
@@ -1651,13 +1559,12 @@ export async function updateElement(
     if (!sameValue(before, after)) edits[field] = { before, after }
   }
 
-  const authority = isConfirmingAuthority(actor)
   const decidedAt = new Date()
 
   const written = await repo.withTransaction(async (tx) => {
     await repo.upsertElement(tenantId, versionId, elementType, row, tx)
     // A patch that changed nothing is not an edit, so it records no decision.
-    if (Object.keys(edits).length === 0 || !authority) return null
+    if (Object.keys(edits).length === 0) return null
     return repo.insertConfirmation(
       {
         packageVersionId: versionId,
@@ -1831,7 +1738,6 @@ export async function decideElement(
   input: ElementDecisionInput,
 ): Promise<ElementConfirmationView> {
   const { scope } = await requireDraftForWrite(actor, versionId)
-  if (!isConfirmingAuthority(actor)) forbidden()
 
   const found = locateElement(scope.version, elementType, elementId)
   if (!found) notFound('element')
@@ -1895,11 +1801,8 @@ function trackElementDecision(
  *
  * On success the version's status, `confirmed_at/by` and the export-format snapshot are written in
  * one statement — the `package_version_frozen` trigger refuses every later write to the row, so the
- * snapshot must ride with the transition, not follow it — and the audit row commits with them.
- *
- * 10 §4 also has this tell the institution's instructors. It does not yet: `notifications.notify()`
- * (10 §15) is unwritten, and `notification_type` (06 §3.6) has no value that means "a package was
- * confirmed" — adding one is a Postgres enum migration. Both belong to whoever ships that column.
+ * snapshot must ride with the transition, not follow it — and the audit row and the
+ * `package_confirmed` notice commit with them.
  */
 export async function confirmVersion(
   actor: SessionUser,
@@ -1907,9 +1810,8 @@ export async function confirmVersion(
   input: ConfirmVersionInput,
 ): Promise<PackageVersionView> {
   const scope = await resolveVersion(actor, versionId)
+  // A Scenario Editor publishes the version; an Instructor reads it and is refused here (D-748).
   const tenantId = await requireAuthor(actor, scope.version.packageId)
-  // 08 §4: nobody at Tassl confirms in place of the faculty member responsible (PRD §8).
-  if (!isConfirmingAuthority(actor)) forbidden()
   if (scope.version.status !== 'draft') versionFrozen()
 
   const confirmations = await repo.listConfirmations(versionId)
@@ -1959,12 +1861,13 @@ export async function confirmVersion(
       },
     })
 
-    // 10 §4: the institution's instructors learn a package is assignable. Inside the transaction,
-    // so the notice exists exactly when the confirmation does; the author is dropped from the list
-    // because they are the one who just did it.
-    const recipients = (await listMemberIdsWithRoles(tenantId, PACKAGE_AUTHOR_ROLES)).filter(
-      (userId) => userId !== actor.id,
-    )
+    // 10 §4: the institution's Instructors learn a package is assignable, and its Scenario Editors
+    // that it is published (D-748). Inside the transaction, so the notice exists exactly when the
+    // confirmation does; the author is dropped from the list because they are the one who just did
+    // it.
+    const recipients = (
+      await listMemberIdsWithPlatformRoles(tenantId, PACKAGE_NOTICE_ROLES)
+    ).filter((userId) => userId !== actor.id)
     await notify(tx, {
       userIds: recipients,
       type: 'package_confirmed',
@@ -2002,8 +1905,7 @@ export async function confirmVersion(
   )
 
   const confirmed = await resolveVersion(actor, versionId)
-  const role = await requireVersionReader(actor, confirmed)
-  return buildVersionView(actor, confirmed, role)
+  return buildVersionView(actor, confirmed)
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -2072,21 +1974,16 @@ export async function importPackage(
   orgId: string,
   document: unknown,
 ): Promise<ImportedPackageView> {
-  const role = await requireVisibleMembership(actor, orgId)
-  if (!PACKAGE_AUTHOR_ROLES.includes(role)) forbidden()
+  // Importing — with `confirmOnImport`, which files a confirmation for every element in the actor's
+  // name — is the author's act, the same seat `decideElement` and `confirmVersion` require (D-748).
+  await requireVisibleMembership(actor, orgId, AUTHORING_ROLES)
 
   const parsed = ImportPackageSchema.safeParse(document)
   if (!parsed.success) importInvalid({ issues: parsed.error.issues })
   const input = parsed.data
 
   if (input.confirmOnImport) {
-    // Importing with `confirmOnImport` files a confirmation for every element in the actor's name,
-    // which is the same act `decideElement` and `confirmVersion` refuse to anyone but the
-    // disciplinary authority (08 §4, PRD §8: the editor cannot confirm in place of the authority).
-    // Without this, a platform editor holding a `scenario_author` membership could sign for all
-    // sixty-odd elements in one request and skip the review FR-192 exists to require.
-    if (!isConfirmingAuthority(actor)) forbidden()
-    // And the package has to be valid before any of it is written: the refusal used to arrive after
+    // The package has to be valid before any of it is written: the refusal used to arrive after
     // the commit, leaving a draft package on the shelf and the family key taken, so the corrected
     // re-run answered CONFLICT about a fault that no longer existed.
     // Checked here as well as inside the transaction, and not redundantly: this reads the document,
@@ -2495,15 +2392,14 @@ async function writeImportedElements(
  */
 export async function exportPackage(actor: SessionUser, versionId: string): Promise<PackageExport> {
   const scope = await resolveVersion(actor, versionId)
-  const role = await requireVisibleMembership(actor, scope.tenantId, 'package version')
-  if (!CLAIM_OBJECT_ROLES.includes(role)) forbidden()
+  await requireVisibleMembership(actor, scope.tenantId, PACKAGE_READER_ROLES, 'package version')
 
   const snapshot = scope.version.snapshot
   const document = (snapshot ? parseSnapshot(snapshot) : null) ?? buildExport(scope.version)
-  // The same gate the version view applies (FR-028, 08 §4): a TA may take the package, never the
-  // licensed case behind it. Withheld here rather than at the route, because the snapshot path
-  // would otherwise hand back a record the row-built path had already been taught to hide.
-  return SEED_RECORD_ROLES.includes(role) ? document : { ...document, seedRecord: null }
+  // The same gate the version view applies (FR-028, D-748): an Instructor may take the package,
+  // never the licensed case behind it. Withheld here rather than at the route, because the snapshot
+  // path would otherwise hand back a record the row-built path had already been taught to hide.
+  return isConfirmingAuthority(actor) ? document : { ...document, seedRecord: null }
 }
 
 /**

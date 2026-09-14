@@ -32,9 +32,14 @@ export const packages = {
   'packages.noInstitutionTitle': 'No institution yet',
   'packages.noInstitutionBody':
     'Packages belong to an institution. Once you accept an invitation to one, the packages you may author appear here.',
-  'packages.noAccessTitle': 'Packages are not open to your seat',
+  'packages.emptyReaderBody':
+    'A scenario package holds one decision case: the brief, the documents, the claims the assistant states, and the questions a student answers afterwards. A Scenario Editor authors and confirms them; once a version is confirmed, it appears here for you to set an assignment on.',
+  'packages.noAccessTitle': 'Packages are not open to your role',
   'packages.noAccessBody':
-    'Only an instructor or a scenario author reads and writes packages in {name}. If you should be one, an administrator of the institution can change your seat.',
+    'Scenario Editors and Instructors read packages in {name}. If you should be one of them, a Platform Admin can change your role.',
+  'packages.noAuthorTitle': 'Authoring is not open to your role',
+  'packages.noAuthorBody':
+    'A Scenario Editor authors and confirms packages in {name}. If you should be one, a Platform Admin can change your role.',
   // D-083: the ethical-shortcut rule is per family, and the build family carries a single
   // stale-evidence defect, so this is stated as a warning an author can act on rather than a block.
   'packages.warningEthicalShortcut': 'No ethical-shortcut defect',

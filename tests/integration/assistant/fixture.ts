@@ -10,7 +10,7 @@
 import { readFileSync } from 'node:fs'
 import { testSql } from '@tests/setup/integration'
 import { isAppError } from '@/lib/errors'
-import type { SessionUser } from '@/server/auth/types'
+import type { PlatformRole, SessionUser } from '@/server/auth/types'
 
 type Factories = typeof import('@tests/factories')
 type UserRow = Awaited<ReturnType<Factories['createUser']>>
@@ -74,7 +74,8 @@ export const actorFor = (user: UserRow, orgId: string): SessionUser => ({
   name: user.name,
   emailVerified: true,
   activeOrganizationId: orgId,
-  platformRole: 'none',
+  // The account's one role (D-748), read from the row the factory wrote.
+  platformRole: user.platform_role as PlatformRole,
 })
 
 /** The error code a rejected promise carried, or `'no error'` when it resolved. */
@@ -104,8 +105,9 @@ let seat = 0
 
 /**
  * Two institutions' worth of seats is more than these suites need; one section with a student, an
- * instructor, a TA and a classmate is exactly what 07 §7's two readers and 08 §4's two denials ask
- * for.
+ * instructor and a classmate is exactly what 07 §7's two readers and 08 §4's two denials ask for.
+ * The Scenario Editor publishes the package, because an Instructor may not (D-748), and the
+ * Platform Admin holds no membership at all and is admitted everywhere.
  */
 export async function setupAssistantFixture(prefix: string) {
   const f = (await import('@tests/factories')) as Factories
@@ -116,28 +118,31 @@ export async function setupAssistantFixture(prefix: string) {
   const { organization } = await f.createInstitution(label)
   const orgId = organization.id
 
-  const instructorUser = await f.createUser(`${label}-instructor`)
-  const taUser = await f.createUser(`${label}-ta`)
+  const instructorUser = await f.createUser(`${label}-instructor`, { platformRole: 'instructor' })
+  const editorUser = await f.createUser(`${label}-editor`, {
+    platformRole: 'tassl_scenario_editor',
+  })
+  const adminUser = await f.createUser(`${label}-admin`, { platformRole: 'admin' })
   const studentUser = await f.createUser(`${label}-student`)
   const classmateUser = await f.createUser(`${label}-classmate`)
-  await f.addMember(orgId, instructorUser.id, 'instructor')
-  await f.addMember(orgId, taUser.id, 'teaching_assistant')
-  await f.addMember(orgId, studentUser.id, 'student')
-  await f.addMember(orgId, classmateUser.id, 'student')
+  await f.addMember(orgId, instructorUser.id)
+  await f.addMember(orgId, editorUser.id)
+  await f.addMember(orgId, studentUser.id)
+  await f.addMember(orgId, classmateUser.id)
 
   const course = await f.createCourse(orgId, `${label}-course`, { createdBy: instructorUser.id })
   const section = await f.createSection(orgId, course.id, `${label}-section`)
-  await f.addSectionMember(orgId, section.id, instructorUser.id, 'instructor')
-  await f.addSectionMember(orgId, section.id, taUser.id, 'ta')
-  await f.addSectionMember(orgId, section.id, studentUser.id, 'student')
-  await f.addSectionMember(orgId, section.id, classmateUser.id, 'student')
+  await f.addSectionMember(orgId, section.id, instructorUser.id)
+  await f.addSectionMember(orgId, section.id, studentUser.id)
+  await f.addSectionMember(orgId, section.id, classmateUser.id)
 
   const instructor = actorFor(instructorUser, orgId)
-  const imported = await scenarios.importPackage(instructor, orgId, {
+  const editor = actorFor(editorUser, orgId)
+  const imported = await scenarios.importPackage(editor, orgId, {
     ...(FIXTURE as unknown as Record<string, unknown>),
     confirmOnImport: true,
   })
-  await scenarios.confirmVersion(instructor, imported.versionId, { teachingNoteChecked: true })
+  await scenarios.confirmVersion(editor, imported.versionId, { teachingNoteChecked: true })
 
   const variants = await testSql<{ id: string; key: string }[]>`
     select id, key from scenario_variants where package_version_id = ${imported.versionId}`
@@ -160,7 +165,8 @@ export async function setupAssistantFixture(prefix: string) {
     versionId: imported.versionId,
     assignment,
     instructor,
-    ta: actorFor(taUser, orgId),
+    editor,
+    admin: actorFor(adminUser, orgId),
     student: actorFor(studentUser, orgId),
     studentUser,
     classmate: actorFor(classmateUser, orgId),

@@ -9,7 +9,7 @@ import 'server-only'
 import { AppError } from '@/lib/errors'
 import { auth } from '@/server/auth/auth'
 import { findActorRow } from '@/server/auth/queries'
-import { isPlatformRole, type SessionUser } from '@/server/auth/types'
+import { DEFAULT_PLATFORM_ROLE, isPlatformRole, type SessionUser } from '@/server/auth/types'
 
 /**
  * The signed-in actor, or null. A user whose `deleted_at` is set is treated as signed out (08 §2.6,
@@ -34,7 +34,9 @@ export async function getSession(headers: Headers): Promise<SessionUser | null> 
     name: session.user.name,
     emailVerified: session.user.emailVerified,
     activeOrganizationId: session.session.activeOrganizationId ?? null,
-    platformRole: isPlatformRole(actor.platformRole) ? actor.platformRole : 'none',
+    // A value outside the four cannot be stored (the column's check constraint, D-748); reading one
+    // as the least-privileged role is the safe answer if it ever were.
+    platformRole: isPlatformRole(actor.platformRole) ? actor.platformRole : DEFAULT_PLATFORM_ROLE,
   }
 }
 

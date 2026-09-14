@@ -39,7 +39,7 @@ const actorFor = (user: UserRow, orgId: string): SessionUser => ({
   name: user.name,
   emailVerified: true,
   activeOrganizationId: orgId,
-  platformRole: 'none',
+  platformRole: user.platform_role as SessionUser['platformRole'],
 })
 
 // ---------------------------------------------------------------------------------------------
@@ -564,9 +564,10 @@ const ELEMENT_COUNT = 79
 
 async function setup() {
   const orgId = (await f.createInstitution('lifecycle')).organization.id
-  const instructor = await f.createUser('lifecycle-instructor')
-  await f.addMember(orgId, instructor.id, 'instructor')
-  return { orgId, instructor, author: actorFor(instructor, orgId) }
+  // The author is a Scenario Editor: authoring and confirming a package is theirs (D-748).
+  const editor = await f.createUser('lifecycle-editor', { platformRole: 'tassl_scenario_editor' })
+  await f.addMember(orgId, editor.id)
+  return { orgId, editor, author: actorFor(editor, orgId) }
 }
 
 type Fixture = Awaited<ReturnType<typeof setup>>
@@ -746,28 +747,111 @@ describe('listVersionElements (UI-043)', () => {
     expect(afterDecision[0]?.confirmation).toMatchObject({ decision: 'confirmed' })
   })
 
-  it("is the write side's gate, not the version reader's: a teaching assistant is refused", async () => {
+  it("is the write side's gate, not the version reader's: an Instructor is refused", async () => {
     const { versionId } = await draftPackage()
-    const ta = await f.createUser('lifecycle-ta')
-    await f.addMember(fx.orgId, ta.id, 'teaching_assistant')
+    const instructor = await f.createUser('lifecycle-instructor', { platformRole: 'instructor' })
+    await f.addMember(fx.orgId, instructor.id)
 
-    // A TA reads a package on UI-044 and never in the room where it is signed: the seed record is
-    // one of these elements (FR-028), and every action the workspace offers would refuse them.
+    // An Instructor reads a package on UI-044 and never in the room where it is signed: the seed
+    // record is one of these elements (FR-028), and every action the workspace offers would refuse
+    // them (D-748).
     await expect(
-      scenarios.listVersionElements(actorFor(ta, fx.orgId), versionId),
+      scenarios.listVersionElements(actorFor(instructor, fx.orgId), versionId),
     ).rejects.toMatchObject({ code: 'FORBIDDEN' })
   })
 
   it('answers NOT_FOUND for a version another institution owns', async () => {
     const { versionId } = await draftPackage()
     const otherOrg = (await f.createInstitution('lifecycle-other')).organization.id
-    const stranger = await f.createUser('lifecycle-stranger')
-    await f.addMember(otherOrg, stranger.id, 'instructor')
+    const stranger = await f.createUser('lifecycle-stranger', {
+      platformRole: 'tassl_scenario_editor',
+    })
+    await f.addMember(otherOrg, stranger.id)
 
     // Never FORBIDDEN: an id from another institution must not be probeable for existence (08 §4).
     await expect(
       scenarios.listVersionElements(actorFor(stranger, otherOrg), versionId),
     ).rejects.toMatchObject({ code: 'NOT_FOUND' })
+  })
+})
+
+describe('an Instructor reads a package and writes nothing (08 §4, D-748)', () => {
+  async function instructorSeat(): Promise<SessionUser> {
+    const instructor = await f.createUser('lifecycle-reader', { platformRole: 'instructor' })
+    await f.addMember(fx.orgId, instructor.id)
+    return actorFor(instructor, fx.orgId)
+  }
+
+  it('reads the family, the version, a claim object and the export, never the seed record', async () => {
+    const { packageId, versionId } = await draftPackage()
+    const reader = await instructorSeat()
+    const claims = await claimIdsByKey(versionId)
+
+    expect((await scenarios.listPackages(reader, fx.orgId)).items.map((row) => row.id)).toEqual([
+      packageId,
+    ])
+    expect((await scenarios.getPackage(reader, packageId)).versions).toHaveLength(1)
+
+    const view = await scenarios.getPackageVersion(reader, versionId)
+    expect(view.brief.length).toBeGreaterThan(0)
+    expect(view.seedRecord).toBeNull()
+    expect(view.capabilities).toEqual({ canEdit: false, canConfirm: false, canRegenerate: false })
+    // The author's own view carries the seed record and the controls.
+    const authored = await scenarios.getPackageVersion(fx.author, versionId)
+    expect(authored.seedRecord).not.toBeNull()
+    expect(authored.capabilities).toEqual({ canEdit: true, canConfirm: true, canRegenerate: true })
+
+    expect((await scenarios.getClaimObject(reader, versionId, claims.get('C1')!)).key).toBe('C1')
+    expect((await scenarios.exportPackage(reader, versionId)).seedRecord).toBeNull()
+    expect((await scenarios.exportPackage(fx.author, versionId)).seedRecord).not.toBeNull()
+  })
+
+  it('is refused every write: create, import, update, decide, confirm, regenerate', async () => {
+    const { versionId } = await draftPackage()
+    const reader = await instructorSeat()
+    const claims = await claimIdsByKey(versionId)
+    const openedAt = new Date().toISOString()
+
+    // Thunks, so each call starts only when its refusal is awaited.
+    const writes: (() => Promise<unknown>)[] = [
+      () =>
+        scenarios.createPackageFromSeed(reader, fx.orgId, {
+          title: 'Meridian Roast',
+          familyKey: 'instructor-copy',
+          conceptSet: CONCEPTS,
+          seed: SEED,
+        }),
+      () => scenarios.importPackage(reader, fx.orgId, {}),
+      () =>
+        scenarios.updateElement(reader, versionId, 'claim', claims.get('C1')!, { text: 'Edited.' }),
+      () =>
+        scenarios.decideElement(reader, versionId, 'claim', claims.get('C1')!, {
+          decision: 'confirmed',
+          note: '',
+          openedAt,
+        }),
+      () => scenarios.confirmVersion(reader, versionId, { teachingNoteChecked: true }),
+      () =>
+        scenarios.regenerateVersion(reader, versionId, { reason: 'An instructor asked for it.' }),
+    ]
+    for (const write of writes) {
+      expect((await refusal(write())).code).toBe('FORBIDDEN')
+    }
+  })
+
+  it('admits the admin to every write without a membership', async () => {
+    const { versionId } = await draftPackage()
+    const adminUser = await f.createUser('lifecycle-admin', { platformRole: 'admin' })
+    const admin = actorFor(adminUser, fx.orgId)
+    const claims = await claimIdsByKey(versionId)
+
+    const decided = await scenarios.decideElement(admin, versionId, 'claim', claims.get('C1')!, {
+      decision: 'confirmed',
+      note: '',
+      openedAt: new Date().toISOString(),
+    })
+    expect(decided.decidedBy).toBe(adminUser.id)
+    expect((await scenarios.getPackageVersion(admin, versionId)).seedRecord).not.toBeNull()
   })
 })
 
@@ -965,7 +1049,7 @@ describe('confirmVersion freezes the version', () => {
     expect(view).toMatchObject({
       status: 'confirmed',
       teachingNoteChecked: true,
-      confirmedBy: fx.instructor.id,
+      confirmedBy: fx.editor.id,
       capabilities: { canEdit: false, canConfirm: false, canRegenerate: false },
     })
     expect(view.confirmedAt).not.toBeNull()
@@ -973,7 +1057,7 @@ describe('confirmVersion freezes the version', () => {
     // One decision per element, each signed by the author who made it.
     expect(view.confirmationRecord).toHaveLength(decided.length)
     for (const row of view.confirmationRecord) {
-      expect(row).toMatchObject({ decision: 'confirmed', decidedBy: fx.instructor.id })
+      expect(row).toMatchObject({ decision: 'confirmed', decidedBy: fx.editor.id })
     }
     // Each row carries the element's key for the record's Element column (UI-044): a singleton's
     // is null, a row element's is what the workspace lists it under.

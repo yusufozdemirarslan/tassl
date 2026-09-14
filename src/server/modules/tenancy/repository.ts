@@ -10,6 +10,7 @@ import {
   invitation,
   member,
   organization,
+  session,
   user,
   type BandMapping,
   type DataAgreement,
@@ -28,10 +29,7 @@ export { withTransaction } from '@/server/db/tx'
 
 export type OrganizationRow = { id: string; name: string; slug: string }
 
-/** One `member` row joined with the organization it belongs to (08 §3). */
-export type MembershipRow = OrganizationRow & { role: string }
-
-/** Fields of institution settings a program lead may change; omitted fields keep their value. */
+/** Fields of institution settings the admin may change; omitted fields keep their value. */
 export type SettingsPatch = {
   plan?: InstitutionSettings['plan'] | undefined
   defaultMapping?: BandMapping | undefined
@@ -53,26 +51,32 @@ function one<T>(rows: readonly T[]): T {
 // Organizations, members, users
 //
 // Better Auth owns these three tables and the service writes them through `auth.api`. What is left
-// for the repository is the reading the API does not offer (a membership list with the role, an
-// organization row by id) and the one write Better Auth cannot express: the role of the member it
-// stamps on the creator of an organization (08 §3 does not use the built-in `owner` role).
+// for the repository is the reading the API does not offer (a membership list, an organization row
+// by id), and the one invitation write the plugin cannot make: an invitation from the Platform Admin,
+// who needs no `member` row to act in an institution (D-748) and so has none for the plugin to find.
 // ---------------------------------------------------------------------------------------------
 
-/** The actor's institutions with the role held in each; ordered by name for a stable switcher. */
+/** The institutions the user has a `member` row in; ordered by name for a stable switcher. */
 export async function listMembershipsByUser(
   userId: string,
   dbx: DbOrTx = db,
-): Promise<MembershipRow[]> {
+): Promise<OrganizationRow[]> {
   return dbx
-    .select({
-      id: organization.id,
-      name: organization.name,
-      slug: organization.slug,
-      role: member.role,
-    })
+    .select({ id: organization.id, name: organization.name, slug: organization.slug })
     .from(member)
     .innerJoin(organization, eq(organization.id, member.organizationId))
     .where(eq(member.userId, userId))
+    .orderBy(organization.name, organization.id)
+}
+
+/**
+ * Every institution on the platform, by name: the Platform Admin's institution list (D-748). Not
+ * tenant-scoped, because it is the list of tenants itself.
+ */
+export async function listOrganizations(dbx: DbOrTx = db): Promise<OrganizationRow[]> {
+  return dbx
+    .select({ id: organization.id, name: organization.name, slug: organization.slug })
+    .from(organization)
     .orderBy(organization.name, organization.id)
 }
 
@@ -88,46 +92,60 @@ export async function findOrganization(
   return rows[0] ?? null
 }
 
-/** The role the user holds in one institution, or null when they hold none. */
-export async function findMemberRole(
+/** True when the user has a `member` row in the institution. */
+export async function hasMember(
   tenantId: string,
   userId: string,
   dbx: DbOrTx = db,
-): Promise<string | null> {
+): Promise<boolean> {
   const rows = await dbx
-    .select({ role: member.role })
+    .select({ id: member.id })
     .from(member)
     .where(and(eq(member.organizationId, tenantId), eq(member.userId, userId)))
     .limit(1)
-  return rows[0]?.role ?? null
+  return rows.length > 0
 }
 
-/** Sets an existing member's organization role; null when the user is not a member. */
-export async function updateMemberRole(
-  tenantId: string,
+/**
+ * Points one session of `userId` at an institution: the plugin's `setActiveOrganization` write, for
+ * the admin it refuses for holding no `member` row (D-748). Keyed by the session and its owner, so a
+ * session id alone cannot move somebody else's session. Null when no such session exists.
+ */
+export async function setSessionActiveOrganization(
+  sessionId: string,
   userId: string,
-  role: string,
+  tenantId: string,
   dbx: DbOrTx = db,
 ): Promise<string | null> {
   const rows = await dbx
-    .update(member)
-    .set({ role })
-    .where(and(eq(member.organizationId, tenantId), eq(member.userId, userId)))
-    .returning({ role: member.role })
-  return rows[0]?.role ?? null
+    .update(session)
+    .set({ activeOrganizationId: tenantId, updatedAt: new Date() })
+    .where(and(eq(session.id, sessionId), eq(session.userId, userId)))
+    .returning({ id: session.id })
+  return rows[0]?.id ?? null
+}
+
+/** True when an account with this address, matched case-insensitively, is a member. */
+export async function hasMemberWithEmail(
+  tenantId: string,
+  email: string,
+  dbx: DbOrTx = db,
+): Promise<boolean> {
+  const rows = await dbx
+    .select({ id: member.id })
+    .from(member)
+    .innerJoin(user, eq(user.id, member.userId))
+    .where(and(eq(member.organizationId, tenantId), sql`lower(${user.email}) = lower(${email})`))
+    .limit(1)
+  return rows.length > 0
 }
 
 /**
- * The id of the account holding `email`, case-insensitively. Not tenant-scoped on purpose: the
- * program lead of a new institution is resolved before the institution — and therefore the tenant
- * — exists (10 §2 `createInstitution`).
+ * The user ids of an institution's members whose platform role is one of `roles` (D-748), for a
+ * fan-out that has already established its own permission. It reads no personal data — ids only —
+ * so a caller that must not see the roster still cannot.
  */
-/**
- * The user ids of an institution's members holding one of `roles`, for a fan-out that has already
- * established its own permission. It reads no personal data — ids only — so a caller that must not
- * see the roster still cannot.
- */
-export async function listMemberIdsWithRoles(
+export async function listMemberIdsWithPlatformRoles(
   tenantId: string,
   roles: readonly string[],
   dbx: DbOrTx = db,
@@ -136,10 +154,22 @@ export async function listMemberIdsWithRoles(
   const rows = await dbx
     .select({ userId: member.userId })
     .from(member)
-    .where(and(eq(member.organizationId, tenantId), inArray(member.role, [...roles])))
+    .innerJoin(user, eq(user.id, member.userId))
+    .where(
+      and(
+        eq(member.organizationId, tenantId),
+        inArray(user.platform_role, [...roles]),
+        isNull(user.deleted_at),
+      ),
+    )
   return rows.map((row) => row.userId)
 }
 
+/**
+ * The id of the account holding `email`, case-insensitively. Not tenant-scoped on purpose: the
+ * first member of a new institution is resolved before the institution — and therefore the tenant
+ * — exists (10 §2 `createInstitution`).
+ */
 export async function findUserIdByEmail(email: string, dbx: DbOrTx = db): Promise<string | null> {
   const rows = await dbx
     .select({ id: user.id })
@@ -155,7 +185,6 @@ export type InvitationRow = {
   organizationId: string
   organizationName: string
   email: string
-  role: string | null
   status: string
   expiresAt: Date
 }
@@ -175,7 +204,6 @@ export async function findInvitation(
       organizationId: invitation.organizationId,
       organizationName: organization.name,
       email: invitation.email,
-      role: invitation.role,
       status: invitation.status,
       expiresAt: invitation.expiresAt,
     })
@@ -190,7 +218,6 @@ export async function findInvitation(
 export type OrganizationInvitationRow = {
   id: string
   email: string
-  role: string | null
   status: string
   expiresAt: Date
 }
@@ -214,7 +241,6 @@ export async function listInvitations(
     .select({
       id: invitation.id,
       email: invitation.email,
-      role: invitation.role,
       status: invitation.status,
       expiresAt: invitation.expiresAt,
     })
@@ -222,6 +248,92 @@ export async function listInvitations(
     .where(and(eq(invitation.organizationId, tenantId), eq(invitation.status, 'pending')))
     .orderBy(desc(invitation.expiresAt), desc(invitation.id))
     .limit(limit)
+}
+
+/**
+ * The pending invitation to `email` whose seven days have not run out, read the way the plugin's own
+ * `findPendingInvitation` reads it (lower-cased address, `pending`, expiry in the future).
+ */
+export async function findPendingInvitation(
+  tenantId: string,
+  email: string,
+  dbx: DbOrTx = db,
+): Promise<OrganizationInvitationRow | null> {
+  const rows = await dbx
+    .select({
+      id: invitation.id,
+      email: invitation.email,
+      status: invitation.status,
+      expiresAt: invitation.expiresAt,
+    })
+    .from(invitation)
+    .where(
+      and(
+        eq(invitation.organizationId, tenantId),
+        eq(invitation.email, email.toLowerCase()),
+        eq(invitation.status, 'pending'),
+        gt(invitation.expiresAt, sql`now()`),
+      ),
+    )
+    .orderBy(desc(invitation.expiresAt), desc(invitation.id))
+    .limit(1)
+  return rows[0] ?? null
+}
+
+/**
+ * Writes an invitation row as the organization plugin writes one (D-748): used only for the Platform
+ * Admin, who acts without a `member` row and so cannot pass the plugin's inviter check. `role` is the
+ * plugin's single membership role, which the table's check constraint pins.
+ */
+export async function insertInvitation(
+  tenantId: string,
+  values: { email: string; role: string; inviterId: string; expiresAt: Date },
+  dbx: DbOrTx = db,
+): Promise<OrganizationInvitationRow> {
+  const rows = await dbx
+    .insert(invitation)
+    .values({
+      id: crypto.randomUUID(),
+      organizationId: tenantId,
+      email: values.email.toLowerCase(),
+      role: values.role,
+      status: 'pending',
+      expiresAt: values.expiresAt,
+      inviterId: values.inviterId,
+    })
+    .returning({
+      id: invitation.id,
+      email: invitation.email,
+      status: invitation.status,
+      expiresAt: invitation.expiresAt,
+    })
+  return one(rows)
+}
+
+/** Moves a pending invitation's expiry, the plugin's `resend` behaviour; null when none matched. */
+export async function extendInvitation(
+  tenantId: string,
+  invitationId: string,
+  expiresAt: Date,
+  dbx: DbOrTx = db,
+): Promise<OrganizationInvitationRow | null> {
+  const rows = await dbx
+    .update(invitation)
+    .set({ expiresAt })
+    .where(
+      and(
+        eq(invitation.organizationId, tenantId),
+        eq(invitation.id, invitationId),
+        eq(invitation.status, 'pending'),
+      ),
+    )
+    .returning({
+      id: invitation.id,
+      email: invitation.email,
+      status: invitation.status,
+      expiresAt: invitation.expiresAt,
+    })
+  return rows[0] ?? null
 }
 
 export async function findSettings(
@@ -253,10 +365,7 @@ export async function upsertSettings(
   return one(rows)
 }
 
-/**
- * The most recently signed agreement that is not deleted and has not ended
- * (`canReadIdentifiedRecords`); the service checks roles and purposes on it.
- */
+/** The most recently signed agreement that is neither deleted nor ended (D-055). */
 export async function findActiveAgreement(
   tenantId: string,
   dbx: DbOrTx = db,

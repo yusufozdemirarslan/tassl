@@ -26,14 +26,45 @@ describe('better auth schema', () => {
     for (const table of AUTH_TABLES) expect(names.has(table), table).toBe(true)
   })
 
-  it('defaults user.platform_role to none and leaves deleted_at null', async () => {
+  it('defaults user.platform_role to student and leaves deleted_at null', async () => {
     const id = crypto.randomUUID()
     await testSql`
       insert into "user" (id, name, email, email_verified, created_at, updated_at)
       values (${id}, 'Seat One', ${`${id}@example.test`}, false, now(), now())`
     const [row] = await testSql<{ platform_role: string; deleted_at: Date | null }[]>`
       select platform_role, deleted_at from "user" where id = ${id}`
-    expect(row).toMatchObject({ platform_role: 'none', deleted_at: null })
+    expect(row).toMatchObject({ platform_role: 'student', deleted_at: null })
+  })
+
+  it('refuses a platform role outside the four, and any member role but the membership (D-748)', async () => {
+    const id = crypto.randomUUID()
+    await expect(
+      testSql`
+        insert into "user" (id, name, email, email_verified, platform_role, created_at, updated_at)
+        values (${id}, 'Seat Two', ${`${id}@example.test`}, false, 'none', now(), now())`,
+    ).rejects.toThrow(/user_platform_role_check/)
+    for (const role of ['student', 'tassl_scenario_editor', 'instructor', 'admin']) {
+      const seat = crypto.randomUUID()
+      await testSql`
+        insert into "user" (id, name, email, email_verified, platform_role, created_at, updated_at)
+        values (${seat}, 'Seat', ${`${seat}@example.test`}, false, ${role}, now(), now())`
+    }
+
+    const orgId = crypto.randomUUID()
+    await testSql`
+      insert into organization (id, name, slug, created_at)
+      values (${orgId}, 'Walkthrough University', ${`org-${orgId}`}, now())`
+    await testSql`
+      insert into "user" (id, name, email, email_verified, created_at, updated_at)
+      values (${id}, 'Seat Two', ${`${id}@example.test`}, false, now(), now())`
+    await expect(
+      testSql`
+        insert into member (id, organization_id, user_id, role, created_at)
+        values (${crypto.randomUUID()}, ${orgId}, ${id}, 'instructor', now())`,
+    ).rejects.toThrow(/member_role_is_membership/)
+    await testSql`
+      insert into member (id, organization_id, user_id, role, created_at)
+      values (${crypto.randomUUID()}, ${orgId}, ${id}, 'member', now())`
   })
 
   it('keeps member unique per organization and user only once the 2.2 index exists', async () => {

@@ -158,17 +158,22 @@ describe('forceAssistantFailure', () => {
     expect(await eventsOfType(runId, 'pause')).toEqual([])
   })
 
-  it('is refused to the student whose run it is, and to the TA', async () => {
+  it('is refused to the student whose run it is, and to a classmate', async () => {
     const runId = await runInWorking(fx)
 
-    // The run's own student and the TA are told they may not (FORBIDDEN); a classmate is told the
-    // run does not exist for them (NOT_FOUND, D-703) — and none of them can arm it (08 §4).
+    // The run's own student is told they may not (FORBIDDEN); a classmate is told the run does not
+    // exist for them (NOT_FOUND, D-703) — and neither can arm it (08 §4).
     expect(await codeOf(runs.forceAssistantFailure(fx.student, runId))).toBe('FORBIDDEN')
-    expect(await codeOf(runs.forceAssistantFailure(fx.ta, runId))).toBe('FORBIDDEN')
     expect(await codeOf(runs.forceAssistantFailure(fx.classmate, runId))).toBe('NOT_FOUND')
 
     expect((await runRow(runId)).flags.forced_failure_armed).toBeUndefined()
     expect(await auditRows()).toEqual([])
+  })
+
+  it('is armed by the Platform Admin, who reviews every run (D-748)', async () => {
+    const runId = await runInWorking(fx)
+    expect(await runs.forceAssistantFailure(fx.admin, runId)).toEqual({ armed: true })
+    expect((await runRow(runId)).flags).toMatchObject({ forced_failure_armed: true })
   })
 
   it('is refused when the installation has test controls off', async () => {

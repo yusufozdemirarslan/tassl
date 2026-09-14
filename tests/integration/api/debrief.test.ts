@@ -70,7 +70,7 @@ async function call(
 const errorOf = (called: Called) =>
   ((called.body as { error?: { code?: unknown } } | null)?.error ?? {}) as { code?: unknown }
 
-const sessionFor = (who: 'student' | 'instructor' | 'ta' | 'classmate'): Promise<Headers> =>
+const sessionFor = (who: 'student' | 'instructor' | 'admin' | 'classmate'): Promise<Headers> =>
   asUser(fx[who].id, { activeOrganizationId: fx.orgId })
 
 const ANSWERS = {
@@ -140,7 +140,7 @@ describe('GET /runs/{runId}/debrief', () => {
 
   it('answers a reviewer with the same document and no form (FR-154)', async () => {
     const runId = await scoredRun(fx)
-    for (const seat of ['instructor', 'ta'] as const) {
+    for (const seat of ['instructor', 'admin'] as const) {
       const called = await call(routes.debrief, {
         path: `/runs/${runId}/debrief`,
         session: await sessionFor(seat),
@@ -283,7 +283,7 @@ describe('POST /courses/{courseId}/mapping/preview and /mapping', () => {
     expect(preview.changedCount).toBe(1)
     expect(preview.affected[0]?.pointsAfter).toBeGreaterThan(preview.affected[0]?.pointsNow ?? 0)
 
-    for (const seat of ['ta', 'student'] as const) {
+    for (const seat of ['classmate', 'student'] as const) {
       const refused = await call(routes.mappingPreview, {
         method: 'POST',
         path: `/courses/${courseId}/mapping/preview`,

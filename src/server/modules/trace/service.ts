@@ -18,7 +18,7 @@
 // `owner-view.ts`: what they may read depends on the run's state, their payloads are picked field
 // by field from a table the compiler forces to be complete, and their sequence is renumbered.
 import { isAppError } from '@/lib/errors'
-import { requireRunOwner, requireRunReviewer } from '@/server/auth/permissions'
+import { isPlatformAdmin, requireRunOwner, requireRunReviewer } from '@/server/auth/permissions'
 import type { SessionUser } from '@/server/auth/types'
 // The clock is a pure function of the run row (D-042), and every event stores the reading it was
 // written at. It is imported from the `runs` module's own file rather than through that module's
@@ -214,11 +214,19 @@ function toView(event: RunEvent, seq: number, payload: Record<string, unknown>):
   }
 }
 
-/** Which of the two readers the actor is; a run neither owns nor reviews answered NOT_FOUND. */
+/**
+ * Which of the two readers the actor is; a run neither owns nor reviews answered NOT_FOUND. The
+ * Platform Admin is always the reviewer (D-748): `requireRunOwner` admits the admin to every run,
+ * and the owner's projection, sealed through the defense, is the student's view, not theirs.
+ */
 async function requireOwnerOrReviewer(
   actor: SessionUser,
   runId: string,
 ): Promise<{ viewer: 'owner' | 'reviewer'; organizationId: string }> {
+  if (isPlatformAdmin(actor)) {
+    const scope = await requireRunReviewer(actor, runId)
+    return { viewer: 'reviewer', organizationId: scope.organizationId }
+  }
   try {
     const scope = await requireRunOwner(actor, runId)
     return { viewer: 'owner', organizationId: scope.organizationId }
@@ -231,9 +239,9 @@ async function requireOwnerOrReviewer(
     const scope = await requireRunReviewer(actor, runId)
     return { viewer: 'reviewer', organizationId: scope.organizationId }
   } catch (error) {
-    // The reviewer guard answers FORBIDDEN to a section member holding the wrong role, which here
-    // is one thing only: a classmate of the run's owner. Passing that through would confirm the run
-    // exists to the one reader 08 §4 gives no read of it at all.
+    // The reviewer guard answers FORBIDDEN only to the run's own learner (D-748), who has already
+    // passed the first guard. It is still answered as NOT_FOUND, so no refusal on this path can
+    // confirm that a run exists to a reader 08 §4 gives no read of it at all.
     if (isAppError(error) && error.code === 'FORBIDDEN') runNotFound()
     throw error
   }
@@ -392,7 +400,7 @@ export async function buildExport(
     // seam other modules take and does not carry that column; inside this module the repository is
     // where the trace is read from.
     listEventsForRun(runId, dbx),
-    listExportConfirmations(run.packageVersionId, run.organizationId, dbx),
+    listExportConfirmations(run.packageVersionId, dbx),
     listExportReadiness(runId, dbx),
     listExportClaims(runId, run.packageVersionId, run.variantId, dbx),
     listExportActionsByClaim(runId, dbx),

@@ -7,7 +7,8 @@ import { and, desc, eq } from 'drizzle-orm'
 import { readFileSync } from 'node:fs'
 import { pathToFileURL } from 'node:url'
 import { auth } from '@/server/auth/auth'
-import type { SessionUser } from '@/server/auth/types'
+import { MEMBERSHIP_ROLE } from '@/server/auth/access-control-shared'
+import type { PlatformRole, SessionUser } from '@/server/auth/types'
 import { env } from '@/server/config'
 import { client, db } from '@/server/db/client'
 import { stopBoss } from '@/server/jobs/boss'
@@ -32,41 +33,43 @@ export const SEED_PASSWORD_DEFAULT = 'Walkthrough-Pass-2026' // gitleaks:allow
 
 export const SEED_ORGANIZATION = { slug: 'walkthrough', name: 'Walkthrough University' } as const
 
-export type SeatRole = 'student' | 'instructor' | 'scenario_author'
-
+/**
+ * A seeded account: its one role (D-748), and whether it belongs to the walkthrough institution.
+ * The Platform Admin belongs to none — full access needs no membership.
+ */
 export type Seat = {
   email: string
   name: string
-  platformRole: 'none' | 'tassl_scenario_editor' | 'admin'
-  memberRole: SeatRole | null
+  platformRole: PlatformRole
+  member: boolean
 }
 
 export const SEED_USERS: ReadonlyArray<Seat> = [
   {
     email: 'student1@tassl.local',
     name: 'Student One',
-    platformRole: 'none',
-    memberRole: 'student',
+    platformRole: 'student',
+    member: true,
   },
   {
     email: 'student2@tassl.local',
     name: 'Student Two',
-    platformRole: 'none',
-    memberRole: 'student',
+    platformRole: 'student',
+    member: true,
   },
   {
     email: 'instructor@tassl.local',
     name: 'Instructor Seat',
-    platformRole: 'none',
-    memberRole: 'instructor',
+    platformRole: 'instructor',
+    member: true,
   },
   {
     email: 'editor@tassl.local',
     name: 'Scenario Editor',
     platformRole: 'tassl_scenario_editor',
-    memberRole: 'scenario_author',
+    member: true,
   },
-  { email: 'admin@tassl.local', name: 'Platform Admin', platformRole: 'admin', memberRole: null },
+  { email: 'admin@tassl.local', name: 'Platform Admin', platformRole: 'admin', member: false },
 ]
 
 export const SEED_COURSE = { name: 'Marketing Strategy Walkthrough', term: '2026-fall' } as const
@@ -123,20 +126,18 @@ async function ensureUser(seat: Seat, password: string): Promise<string> {
   return id
 }
 
-async function ensureMember(organizationId: string, userId: string, role: SeatRole): Promise<void> {
+/** The account belongs to the institution; a membership carries no role (D-748). */
+async function ensureMember(organizationId: string, userId: string): Promise<void> {
   const [existing] = await db
     .select({ id: member.id })
     .from(member)
     .where(and(eq(member.organizationId, organizationId), eq(member.userId, userId)))
-  if (existing) {
-    await db.update(member).set({ role }).where(eq(member.id, existing.id))
-    return
-  }
+  if (existing) return
   await db.insert(member).values({
     id: crypto.randomUUID(),
     organizationId,
     userId,
-    role,
+    role: MEMBERSHIP_ROLE,
     createdAt: new Date(),
   })
 }
@@ -180,24 +181,21 @@ async function ensureSection(organizationId: string, courseId: string): Promise<
   return row!.id
 }
 
+/** The account is on the section roster: enrolled if it takes runs, teaching if it is an Instructor. */
 async function ensureSectionMembership(
   organizationId: string,
   sectionId: string,
   userId: string,
-  role: 'student' | 'instructor' | 'ta',
 ): Promise<void> {
   await db
     .insert(sectionMemberships)
-    .values({ organizationId, sectionId, userId, role })
-    .onConflictDoUpdate({
-      target: [sectionMemberships.sectionId, sectionMemberships.userId],
-      set: { role },
-    })
+    .values({ organizationId, sectionId, userId })
+    .onConflictDoNothing({ target: [sectionMemberships.sectionId, sectionMemberships.userId] })
 }
 
 /** Creates or refreshes the walkthrough institution, seat accounts, course, and section. */
 
-/** 06 §5 item 4: the Meridian Roast fixture, imported confirmed by the instructor who owns it. */
+/** 06 §5 item 4: the Meridian Roast fixture, imported and published by the Scenario Editor. */
 const SEED_PACKAGE_FAMILY_KEY = 'meridian-roast'
 
 /** 06 §5 item 5. The auto-lock assignment's short clock is what makes a lock observable in a demo. */
@@ -227,11 +225,11 @@ const SEED_ASSIGNMENTS: ReadonlyArray<WantedAssignment> = [
  * what resolves the document's element keys into ids, and seeding it any other way would be a
  * second implementation of that resolution which could drift from the one authors use.
  *
- * `confirmOnImport` files a confirmation for every element in the instructor's name, which is the
- * fixture path 10 §4 describes — the seat is the disciplinary authority for this institution, and
- * the walkthrough needs a version that is already confirmed and frozen.
+ * `confirmOnImport` files a confirmation for every element in the Scenario Editor's name, which is
+ * the fixture path 10 §4 describes — publishing a package is the Scenario Editor's (D-748), and the
+ * walkthrough needs a version that is already confirmed and frozen.
  */
-async function ensurePackage(organizationId: string, instructorId: string): Promise<string> {
+async function ensurePackage(organizationId: string, editorId: string): Promise<string> {
   const [existing] = await db
     .select({ id: scenarioPackages.id })
     .from(scenarioPackages)
@@ -254,22 +252,22 @@ async function ensurePackage(organizationId: string, instructorId: string): Prom
   const document: unknown = JSON.parse(
     readFileSync(new URL('./fixtures/meridian-roast.package.json', import.meta.url), 'utf8'),
   )
-  const instructor: SessionUser = {
-    id: instructorId,
-    email: 'instructor@tassl.local',
-    name: 'Instructor One',
+  const editor: SessionUser = {
+    id: editorId,
+    email: 'editor@tassl.local',
+    name: 'Scenario Editor',
     emailVerified: true,
     activeOrganizationId: organizationId,
-    platformRole: 'none',
+    platformRole: 'tassl_scenario_editor',
   }
-  const imported = await importPackage(instructor, organizationId, {
+  const imported = await importPackage(editor, organizationId, {
     ...(document as Record<string, unknown>),
     confirmOnImport: true,
   })
   // Signing every element is not the same act as confirming the version (10 §4): the import files
   // the decisions, and this is the authority freezing what they add up to. The walkthrough needs a
   // confirmed version, because an assignment refuses any other (PACKAGE_NOT_CONFIRMED).
-  await confirmVersion(instructor, imported.versionId, { teachingNoteChecked: true })
+  await confirmVersion(editor, imported.versionId, { teachingNoteChecked: true })
   return imported.versionId
 }
 
@@ -325,27 +323,17 @@ export async function runSeed(): Promise<SeedSummary> {
   for (const seat of SEED_USERS) {
     const id = await ensureUser(seat, env.SEED_PASSWORD)
     users[seat.email] = id
-    if (seat.memberRole) await ensureMember(organizationId, id, seat.memberRole)
+    if (seat.member) await ensureMember(organizationId, id)
   }
 
   const instructorId = users['instructor@tassl.local']!
   const courseId = await ensureCourse(organizationId, instructorId)
   const sectionId = await ensureSection(organizationId, courseId)
-  await ensureSectionMembership(organizationId, sectionId, instructorId, 'instructor')
-  await ensureSectionMembership(
-    organizationId,
-    sectionId,
-    users['student1@tassl.local']!,
-    'student',
-  )
-  await ensureSectionMembership(
-    organizationId,
-    sectionId,
-    users['student2@tassl.local']!,
-    'student',
-  )
+  await ensureSectionMembership(organizationId, sectionId, instructorId)
+  await ensureSectionMembership(organizationId, sectionId, users['student1@tassl.local']!)
+  await ensureSectionMembership(organizationId, sectionId, users['student2@tassl.local']!)
 
-  const packageVersionId = await ensurePackage(organizationId, instructorId)
+  const packageVersionId = await ensurePackage(organizationId, users['editor@tassl.local']!)
   const assignmentsWritten = await ensureAssignments(organizationId, sectionId, packageVersionId)
 
   log.info(
@@ -387,12 +375,12 @@ export async function ensureLoadSeats(
     const seat: Seat = {
       email: loadSeatEmail(index),
       name: `Load Student ${String(index).padStart(2, '0')}`,
-      platformRole: 'none',
-      memberRole: 'student',
+      platformRole: 'student',
+      member: true,
     }
     const id = await ensureUser(seat, env.SEED_PASSWORD)
-    await ensureMember(summary.organizationId, id, 'student')
-    await ensureSectionMembership(summary.organizationId, summary.sectionId, id, 'student')
+    await ensureMember(summary.organizationId, id)
+    await ensureSectionMembership(summary.organizationId, summary.sectionId, id)
   }
   await ensureAssignments(summary.organizationId, summary.sectionId, summary.packageVersionId, [
     { label: LOAD_ASSIGNMENT_LABEL, variant: 'defective', isWalkthrough: true },

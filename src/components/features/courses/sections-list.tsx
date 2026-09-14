@@ -50,7 +50,7 @@ export type SectionsListProps = {
   sections: readonly SectionRow[]
   /** An instructor who teaches the course: the only person offered "New section". */
   canManage: boolean
-  /** Instructors and program leads may open a roster (UI-031); a student may not. */
+  /** An Instructor or the Platform Admin may open a roster (UI-031, D-748). */
   canViewRosters: boolean
 }
 

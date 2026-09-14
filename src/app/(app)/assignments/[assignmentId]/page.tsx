@@ -31,10 +31,10 @@ export const metadata: Metadata = { title: t('assignment.title') }
 // placeholder table: what a run row says — state, decisions made, export version — is data this
 // build does not have yet.
 //
-// Who may open it: the service lets any member of the assignment's section read it (a student needs
+// Who may open it: the service lets a learner on the assignment's section read it (a student needs
 // it for the run start screen, UI-021), but this screen is the instructor's configuration surface,
-// so a viewer who is neither an instructor nor a program lead of the institution gets the
-// not-found page. That is a courtesy check on top of the service's own: every action behind this
+// so a viewer whose platform role is neither Instructor nor Platform Admin gets the not-found page
+// (D-748). That is a courtesy check on top of the service's own: every action behind this
 // form re-checks the course instructor server-side (08 §5).
 
 /** A resource the viewer may not see renders the not-found page, never the error boundary. */
@@ -53,14 +53,10 @@ export default async function AssignmentPage({ params }: PageProps<'/assignments
   // An id that is not a uuid never reaches the repository: a malformed address is a 404, not a
   // database cast error on the error boundary.
   if (!AssignmentIdParamsSchema.safeParse({ assignmentId }).success) notFound()
+  if (me.platformRole !== 'instructor' && me.platformRole !== 'admin') notFound()
 
   const assignment = await orNotFound(() => getAssignment(actor, assignmentId))
   const course = await orNotFound(() => getCourse(actor, assignment.courseId))
-
-  const role = me.memberships.find(
-    (membership) => membership.organizationId === course.organizationId,
-  )?.role
-  if (role !== 'instructor' && role !== 'program_lead') notFound()
 
   // Every confirmed version of the institution, so the screen can re-point the assignment at
   // another one and offer that version's own variants — which is what UI-032 is for.
@@ -75,7 +71,7 @@ export default async function AssignmentPage({ params }: PageProps<'/assignments
     title: assignment.packageTitle,
     version: assignment.packageVersion,
     calibrationStatus: 'uncalibrated',
-    // The reader here is an instructor or a program lead, so the view names the variant; a student
+    // The reader here is an instructor or the admin, so the view names the variant; a student
     // reading the same assignment is told what they are taking and not what it is (D-254).
     variants:
       assignment.variantKey === null
@@ -158,8 +154,8 @@ export default async function AssignmentPage({ params }: PageProps<'/assignments
         </Panel>
 
         {/* UI-032's runs half. `listAssignmentRuns` refuses anyone who is not a reviewer of the
-            section, and the check above has already narrowed this screen to an instructor or a
-            program lead; the projection it returns is the reviewer's, which no student receives.
+            section, and the check above has already narrowed this screen to an instructor or the
+            Platform Admin; the projection it returns is the reviewer's, which no student receives.
             The delete is offered on a walkthrough assignment alone — a run that counts is voided
             instead, which keeps the record (D-104). */}
         <Panel id="assignment-runs" title={t('assignment.runsTitle')} headingLevel={2}>

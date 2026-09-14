@@ -52,8 +52,11 @@ vi.mock('@/lib/analytics/client', () => ({ resetClient: vi.fn(async () => {}) })
 // `@/lib/toast` reaches sonner through a dynamic import, which this mock answers as well.
 vi.mock('sonner', () => ({ toast: { success: toasts.success, error: toasts.error } }))
 
-/** The membership Better Auth hands back, which is what puts the institution in the switcher. */
-const MEMBERSHIP = { organizationId: 'org-1', name: ORGANIZATION, role: 'student' }
+/**
+ * The membership the service hands back, which is what puts the institution in the switcher. It
+ * carries no role (D-748): what the person can do there is their platform role.
+ */
+const MEMBERSHIP = { organizationId: 'org-1', name: ORGANIZATION }
 
 const accepted = () => ({ ok: true as const, data: MEMBERSHIP })
 

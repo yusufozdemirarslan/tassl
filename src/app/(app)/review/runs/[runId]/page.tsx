@@ -219,7 +219,7 @@ export default async function FacultyReplayPage({ params, searchParams }: Review
   const basePath = `/review/runs/${runId}` as Route
   const tabHref = (key: Tab): Route => `${basePath}?tab=${key}` as Route
 
-  const { run, capabilities, labels } = replay
+  const { run, labels } = replay
   const decided = replay.bands.filter((band) => band.decision !== null).length
   const requestedClaim = typeof query.claim === 'string' ? query.claim : null
   const selectedClaim =
@@ -264,10 +264,6 @@ export default async function FacultyReplayPage({ params, searchParams }: Review
         <p className="border-red bg-red-soft text-ink text-body max-w-measure mb-6 rounded-md border p-3">
           {t('review.voidedBanner')}
         </p>
-      )}
-
-      {!capabilities.isInstructor && (
-        <p className="text-ink-muted text-body max-w-measure mb-6">{t('review.taSeatNote')}</p>
       )}
 
       <nav aria-label={t('review.viewsLabel')} className="mb-6">
@@ -804,14 +800,7 @@ function Bands({
         ) : (
           <div className="flex flex-col gap-8">
             {bands.map((band) => {
-              // 08 §4's TA row, per dimension: a teaching assistant may decide the six an
-              // instructor has not touched, and the control says so rather than refusing on submit.
-              // 08 §4's TA row, exactly: a teaching assistant may re-decide a dimension another
-              // TA decided and may not touch one the *instructor* decided. Locking on "somebody
-              // decided" told a TA that an instructor had made the decision they had just made
-              // themselves, and refused a change the service would have allowed.
               const decider = band.decidedBy === null ? undefined : deciders[band.decidedBy]
-              const lockedForThisSeat = !capabilities.isInstructor && decider?.isInstructor === true
               const raised =
                 band.bandBeforeCorrection !== null &&
                 band.bandAfterCorrection !== null &&
@@ -922,7 +911,7 @@ function Bands({
                     decidedBand={band.decidedBand}
                     decision={band.decision}
                     note={band.note}
-                    canDecide={capabilities.canDecide && !lockedForThisSeat}
+                    canDecide={capabilities.canDecide}
                     willReexport={exported}
                   />
                 </section>
@@ -1241,12 +1230,6 @@ function Actions({
       {capabilities.canBandManually && (
         <Panel id="replay-manual-bands" title={t('review.manualTitle')} headingLevel={2}>
           <ManualBandsForm runId={runId} />
-        </Panel>
-      )}
-
-      {!capabilities.isInstructor && (
-        <Panel id="replay-actions-seat" title={t('review.actionsSeatTitle')} headingLevel={2}>
-          <p className="text-ink text-body max-w-measure">{t('review.actionsInstructorOnly')}</p>
         </Panel>
       )}
 

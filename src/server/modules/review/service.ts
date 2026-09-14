@@ -11,25 +11,29 @@
 //   * **The instructor's judgment is final** (FR-182). Nothing in this file re-scores a confirmed
 //     run, and a correction is a floor under a decision rather than a replacement for it — the
 //     composition lives in `scoring.effectiveBandOf` (D-422) and every reader takes it from there.
-//   * **A TA may decide, but not re-decide what the instructor decided** (08 §4). It is one row of
-//     the permission matrix and it is enforced per dimension, because a TA may perfectly well
-//     decide the six the instructor has not touched.
+//   * **Every reviewer holds the same seat** (D-748). A reviewer is an Instructor who reviews the
+//     run's section, or the Platform Admin, and each may decide, re-decide, neutralize and void;
+//     there is no second reviewing role whose acts are narrower.
 //   * **The replay is the reviewer's document and a student reaches none of it.** It carries
 //     warranted stances, evidence status, failure families, the probe, the expected-answer notes and
 //     the reviewer-only band evidence — every one of them a thing 12 §8.1 keeps out of a student
 //     payload in every state. `requireRunReviewer` is the gate, and there is no student route into
 //     any shape this file builds.
-import { AppError, isAppError } from '@/lib/errors'
+import { isAppError } from '@/lib/errors'
 import { flagsFromEnv } from '@/lib/flags'
 import { t } from '@/lib/i18n/t'
 import { runContext } from '@/server/analytics/run-context'
 import { track } from '@/server/analytics/track'
-import { findSectionMembership } from '@/server/auth/queries'
+import { findSection } from '@/server/auth/queries'
 import {
+  TEACHING_ROLES,
+  isPlatformAdmin,
+  requireAnyRole,
+  requireMembership,
   requireRunInstructor,
   requireRunReviewer,
-  requireSectionRole,
-  type SectionRole,
+  requireSectionReviewer,
+  type RunScope,
 } from '@/server/auth/permissions'
 import type { SessionUser } from '@/server/auth/types'
 import { env } from '@/server/config'
@@ -82,12 +86,12 @@ import { listMyInstitutions } from '@/server/modules/tenancy'
 import { append, listEvents, type TraceEventView } from '@/server/modules/trace'
 import {
   bandDecisionInvalid,
-  bandLockedByInstructor,
   claimNotFound,
   neutralizationExists,
   runNotFound,
   runNotHeld,
   runNotScored,
+  sectionNotFound,
 } from './errors'
 import * as repo from './repository'
 import type {
@@ -129,37 +133,11 @@ const DECIDABLE_STATES: ReadonlySet<string> = new Set(['scored', 'confirmed', 'r
 /** The states in which a decision is a *re*-decision, and so writes a new export (D-087). */
 const CONFIRMED_STATES: ReadonlySet<string> = new Set(['confirmed', 'recorded'])
 
-// ---------------------------------------------------------------------------------------------
-// The seat
-// ---------------------------------------------------------------------------------------------
-
-type Reviewer = {
-  runId: string
-  organizationId: string
-  sectionId: string
-  studentId: string
-  role: SectionRole
-}
-
 /**
- * The section role behind a reviewer, which `requireRunReviewer` proves but does not report.
- *
- * Two questions rather than one, and both are needed: whether this actor may read the run at all
- * (`requireRunReviewer`, which answers NOT_FOUND for a run outside their sections and FORBIDDEN for
- * a classmate), and *which* of the two reviewing roles they hold — because 08 §4 gives an instructor
- * and a TA different rows on void, neutralize and re-decision.
+ * The seat: what `requireRunReviewer` proved — the run, its section and its tenant. A reviewer of
+ * the section may do everything this file does, so there is no role to carry (D-748).
  */
-async function requireReviewer(actor: SessionUser, runId: string): Promise<Reviewer> {
-  const scope = await requireRunReviewer(actor, runId)
-  const membership = await requireSectionRole(actor, scope.sectionId, ['instructor', 'ta'])
-  return {
-    runId: scope.runId,
-    organizationId: scope.organizationId,
-    sectionId: scope.sectionId,
-    studentId: scope.studentId,
-    role: membership.role,
-  }
-}
+type Reviewer = RunScope
 
 // ---------------------------------------------------------------------------------------------
 // The replay (FR-180, UI-033, D-120)
@@ -181,7 +159,7 @@ async function requireReviewer(actor: SessionUser, runId: string): Promise<Revie
  * reason: the fact being recorded is that somebody looked.
  */
 export async function getReplay(actor: SessionUser, runId: string): Promise<ReplayBundle> {
-  const seat = await requireReviewer(actor, runId)
+  const seat = await requireRunReviewer(actor, runId)
   const tenantId = seat.organizationId
 
   const context = await repo.findRunContext(tenantId, runId)
@@ -229,7 +207,6 @@ export async function getReplay(actor: SessionUser, runId: string): Promise<Repl
     claims.push(await getClaimObject(actor, context.packageVersionId, claimId))
   }
 
-  const isInstructor = seat.role === 'instructor'
   return {
     run: toReviewSummary(data.run, context, data.bands, exports),
     events,
@@ -257,28 +234,28 @@ export async function getReplay(actor: SessionUser, runId: string): Promise<Repl
     neutralizations: data.neutralizations.map(toReplayNeutralization),
     exports,
     points: pointsOf(context.mapping, bands),
-    deciders: await decidersOf(tenantId, seat.sectionId, bands),
+    deciders: await decidersOf(bands),
     // `runs.flags` — instructor observations, forbidden in every student payload (12 §8.1).
     flags: { ...data.run.flags },
     observations: observationsOf(data),
     labels: { uncalibrated: true, isWalkthrough: data.run.isWalkthrough },
     // Every one of these answers "may this seat press it *on this run*", not "may this seat press
-    // it at all". A voided run keeps its bands and its claims, so a capability that asked only
-    // about the role would have offered seven decision controls, a correction per claim and a
-    // second void on a run every one of those acts refuses (`assertDecidable`, `voidRun`'s
-    // transition). A control that can only refuse is worse than an absent one.
+    // it at all": every reviewer holds the same seat (D-748), so what varies is the run's state and
+    // the flags. A voided run keeps its bands and its claims, so a capability that ignored the state
+    // would have offered seven decision controls, a correction per claim and a second void on a run
+    // every one of those acts refuses (`assertDecidable`, `voidRun`'s transition). A control that
+    // can only refuse is worse than an absent one.
     capabilities: {
       canDecide: DECIDABLE_STATES.has(data.run.state),
-      canVoid: isInstructor && data.run.state !== 'voided',
-      canNeutralize: isInstructor && DECIDABLE_STATES.has(data.run.state),
-      canForceFailure: isInstructor && flagsFromEnv(env).testControls,
+      canVoid: data.run.state !== 'voided',
+      canNeutralize: DECIDABLE_STATES.has(data.run.state),
+      canForceFailure: flagsFromEnv(env).testControls,
       canBandManually: data.run.scoringStatus === 'held',
       canFlagDelegation: data.run.state !== 'voided',
       // D-482: a mark reaches the drafting while there is a drafting left to reach. `bands` is the
       // run's own `run_bands`, so this is false from the moment the pipeline wrote them and true
       // for a held run, which a later attempt scores in full.
       flagReachesDrafting: bands.length === 0,
-      isInstructor,
     } satisfies ReplayCapabilities,
   }
 }
@@ -305,7 +282,7 @@ export type ReplayBundle = {
   neutralizations: ReplayNeutralization[]
   exports: ExportSummary[]
   points: ReplayPoints
-  deciders: Record<string, { name: string; isInstructor: boolean }>
+  deciders: Record<string, { name: string }>
   flags: Record<string, unknown>
   observations: ReplayObservationValue[]
   labels: { uncalibrated: boolean; isWalkthrough: boolean }
@@ -350,24 +327,15 @@ function pointsOf(mapping: repo.ReviewRunContext['mapping'], bands: readonly Ban
 }
 
 /**
- * Who decided each band, resolved once for the whole bundle (08 §4, `scoring/schema.ts`).
+ * Who decided each band, resolved once for the whole bundle (`scoring/schema.ts`).
  *
- * `run_bands.decided_by` is a user id and a screen needs two other things from it: the colleague's
- * name, and whether they hold the instructor role on *this* section — which is the only thing that
- * makes a dimension untouchable by a teaching assistant. `assertNotInstructorLocked` asks the same
- * question one band at a time when a decision is written; the replay has to ask it for all seven
- * before it draws a control that would refuse.
+ * `run_bands.decided_by` is a user id, and the screen names the colleague whose decision a reviewer
+ * is looking at. A name is all it needs: every reviewer may change any band (D-748).
  */
-async function decidersOf(
-  tenantId: string,
-  sectionId: string,
-  bands: readonly BandView[],
-): Promise<Record<string, { name: string; isInstructor: boolean }>> {
+async function decidersOf(bands: readonly BandView[]): Promise<Record<string, { name: string }>> {
   const ids = [...new Set(bands.map((band) => band.decidedBy).filter((id) => id !== null))]
-  const rows = await repo.findDeciders(tenantId, sectionId, ids)
-  return Object.fromEntries(
-    rows.map((row) => [row.id, { name: row.name, isInstructor: row.role === 'instructor' }]),
-  )
+  const rows = await repo.findDeciders(ids)
+  return Object.fromEntries(rows.map((row) => [row.id, { name: row.name }]))
 }
 
 /**
@@ -530,18 +498,17 @@ export async function decideBand(
   dimension: Dimension,
   input: BandDecisionInput,
 ): Promise<BandDecisionResult> {
-  const seat = await requireReviewer(actor, runId)
+  const seat = await requireRunReviewer(actor, runId)
   const context = await repo.findRunContext(seat.organizationId, runId)
   if (!context) runNotFound()
   const at = new Date()
 
   const { result, report } = await repo.withTransaction(async (tx) => {
     const locked = await lockRunForMutation(tx, seat.organizationId, runId)
-    assertDecidable(locked.state, seat.role)
+    assertDecidable(locked.state)
     const before = await readBands(runId, tx)
     const current = before.find((band) => band.dimension === dimension)
     if (!current) runNotScored(locked.state)
-    await assertNotInstructorLocked(current, seat)
 
     const write = planDecision(dimension, input, current, actor.id, at)
     await append(tx, locked, 'band_decision', {
@@ -585,19 +552,18 @@ export async function decideBand(
 /**
  * `POST /review/runs/{runId}/confirm-remaining`: confirm every undecided dimension with its draft.
  *
- * The same rules as one decision, applied to whatever is left — including the TA lock, which is
- * skipped rather than refused here: a dimension the instructor already decided is not "remaining",
- * so a TA pressing this confirms the six they may and leaves the seventh exactly as it is.
+ * The same rules as one decision, applied to whatever is left: a dimension that already carries a
+ * decision is not "remaining", and is left exactly as it is.
  */
 export async function confirmRemaining(actor: SessionUser, runId: string): Promise<RunSummary> {
-  const seat = await requireReviewer(actor, runId)
+  const seat = await requireRunReviewer(actor, runId)
   const context = await repo.findRunContext(seat.organizationId, runId)
   if (!context) runNotFound()
   const at = new Date()
 
   const { summary, report } = await repo.withTransaction(async (tx) => {
     const locked = await lockRunForMutation(tx, seat.organizationId, runId)
-    assertDecidable(locked.state, seat.role)
+    assertDecidable(locked.state)
     const before = await readBands(runId, tx)
     if (before.length === 0) runNotScored(locked.state)
 
@@ -649,23 +615,12 @@ export async function confirmRemaining(actor: SessionUser, runId: string): Promi
   return summary
 }
 
-/** 10 §12's state gate, with 08 §4's TA row folded into it. */
-function assertDecidable(state: string, role: SectionRole): void {
+/**
+ * 10 §12's state gate: `scored`, or `confirmed`/`recorded` for a re-decision. Every reviewer may
+ * re-decide (D-748).
+ */
+function assertDecidable(state: string): void {
   if (!DECIDABLE_STATES.has(state)) runNotScored(state)
-  // "or `confirmed`/`recorded` for a re-decision by an instructor" (10 §12). A TA decides while the
-  // run is still `scored`; once it is confirmed, changing what a course has already exported is the
-  // instructor's act.
-  if (role !== 'instructor' && CONFIRMED_STATES.has(state)) {
-    throw new AppError('FORBIDDEN', t('review.taCannotRedecide'))
-  }
-}
-
-/** 08 §4: a TA may not change a band the instructor decided; the instructor's is final (FR-182). */
-async function assertNotInstructorLocked(band: BandView, seat: Reviewer): Promise<void> {
-  if (seat.role === 'instructor') return
-  if (band.decision === null || band.decidedBy === null) return
-  const membership = await findSectionMembership(band.decidedBy, seat.sectionId)
-  if (membership?.role === 'instructor') bandLockedByInstructor(band.dimension)
 }
 
 /** FR-181's three decisions, resolved against the draft the reviewer is looking at. */
@@ -931,7 +886,7 @@ export type NeutralizeResult = {
 /**
  * `POST /review/runs/{runId}/claims/{claimId}/neutralize`: Tassl admitting its own error (FR-003).
  *
- * The instructor of the section alone (08 §4). Six things happen, in one transaction:
+ * A reviewer of the section (08 §4, D-748). Six things happen, in one transaction:
  *
  *   1. the `claim_neutralizations` row, which is the record of what was said and by whom;
  *   2. the run claim is marked neutralized, and `inconsistency_credited` when the instructor
@@ -1107,7 +1062,7 @@ export async function bandHeldRunManually(
   runId: string,
   input: ManualBandsInput,
 ): Promise<RunSummary> {
-  const seat = await requireReviewer(actor, runId)
+  const seat = await requireRunReviewer(actor, runId)
   const context = await repo.findRunContext(seat.organizationId, runId)
   if (!context) runNotFound()
   const placements = completePlacements(input.bands)
@@ -1187,27 +1142,27 @@ export type ReviewQueue = {
  * Two lists that are never mixed, because they are two different kinds of thing. `illustrative` is
  * the static sample of PRD §12 — the shapes a queue takes once a course has run for a term — and it
  * carries its own "Illustrative sample data" label inside the data (FR-254). `runs` is the real
- * runs of the actor's own sections that are waiting for a decision or for a hand.
+ * runs of the sections the actor reviews that are waiting for a decision or for a hand.
+ *
+ * The screen is the Instructor's and the admin's (D-748): anyone else is FORBIDDEN, so the
+ * illustrative sample never reaches a student. An Instructor who reviews no section yet has an empty
+ * queue, not a refusal; the admin's queue covers every section of every institution.
  *
  * Nothing here is ranked and there is no queue position: the order is newest first, which is the
  * only order a list of other people's work should have.
  */
 export async function getQueue(actor: SessionUser): Promise<ReviewQueue> {
+  requireAnyRole(actor, TEACHING_ROLES)
   const queue = sample.queue()
   const rows: RunReviewSummary[] = []
-  let reviews = false
   for (const tenantId of await tenantsOf(actor)) {
-    const sectionIds = await repo.listReviewerSectionIds(tenantId, actor.id)
+    const sectionIds = isPlatformAdmin(actor)
+      ? await repo.listSectionIds(tenantId)
+      : await repo.listReviewerSectionIds(tenantId, actor.id)
     if (sectionIds.length === 0) continue
-    reviews = true
     const awaiting = await repo.listRunsAwaitingReview(tenantId, sectionIds)
     rows.push(...awaiting.map(toReviewRow))
   }
-  // Every row of 08 §4 that touches this screen is a reviewer's, and an actor who reviews no section
-  // has no queue rather than an empty one: an empty answer would put the illustrative sample in
-  // front of a student, which is the one place FR-254's label cannot help — the rows are about
-  // reading other people's runs.
-  if (!reviews) throw new AppError('FORBIDDEN')
   return {
     illustrative: queue ? (queue.rows as unknown as Record<string, unknown>[]) : [],
     runs: rows,
@@ -1217,15 +1172,25 @@ export async function getQueue(actor: SessionUser): Promise<ReviewQueue> {
 /**
  * `GET /review/sections/{sectionId}/runs`: the runs of one section with their decision progress.
  *
- * A reviewer of *that* section, asked for directly rather than through a run: the list is the
- * section's, and an instructor with no run in it yet still has a table to look at.
+ * A reviewer of *that* section (`requireSectionReviewer`), asked for directly rather than through a
+ * run: the list is the section's, and an instructor with no run in it yet still has a table to look
+ * at. A section outside the actor's institutions answers NOT_FOUND (08 §4 "Cross-tenant"); a member
+ * who does not review it is FORBIDDEN.
  */
 export async function listSectionRunsForReview(
   actor: SessionUser,
   sectionId: string,
 ): Promise<RunReviewSummary[]> {
-  const scope = await requireSectionRole(actor, sectionId, ['instructor', 'ta'])
-  const rows = await repo.listSectionRuns(scope.organizationId, sectionId)
+  const section = await findSection(sectionId)
+  if (!section) sectionNotFound()
+  await requireMembership(actor, section.organizationId).catch((error: unknown) => {
+    if (isAppError(error) && error.code === 'FORBIDDEN') sectionNotFound()
+    throw error
+  })
+  const courseId = await repo.findSectionCourseId(section.organizationId, sectionId)
+  if (!courseId) sectionNotFound()
+  await requireSectionReviewer(actor, courseId, sectionId)
+  const rows = await repo.listSectionRuns(section.organizationId, sectionId)
   return rows.map(toReviewRow)
 }
 
@@ -1240,7 +1205,10 @@ function toReviewRow(row: repo.ReviewRunRow): RunReviewSummary {
   }
 }
 
-/** The institutions the actor belongs to, active one first (the shape `records` resolves with). */
+/**
+ * The institutions the actor belongs to — every institution, for the admin — active one first (the
+ * shape `records` resolves with).
+ */
 async function tenantsOf(actor: SessionUser): Promise<string[]> {
   const institutions = await listMyInstitutions(actor)
   const ids = institutions.map((institution) => institution.id)

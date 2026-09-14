@@ -30,7 +30,7 @@ export const auth = betterAuth({
   },
   user: {
     additionalFields: {
-      platformRole: { type: 'string', defaultValue: 'none', input: false, fieldName: 'platform_role' },
+      platformRole: { type: 'string', defaultValue: 'student', input: false, fieldName: 'platform_role' },
       deletedAt: { type: 'date', required: false, input: false, fieldName: 'deleted_at' },
     },
   },
@@ -73,7 +73,8 @@ export const auth = betterAuth({
   plugins: [
     organization({
       ac,
-      roles,
+      roles, // one role, `member` (§3)
+      creatorRole: 'member',
       allowUserToCreateOrganization: async (user) => user.platformRole === 'admin',
       sendInvitationEmail: async ({ id, email, organization, inviter }) =>
         sendEmail({ to: email, template: 'invitation', props: { url: `${env.NEXT_PUBLIC_APP_URL}/invitations/${id}`, organizationName: organization.name, inviterName: inviter.user.name } }),
@@ -162,14 +163,14 @@ Redirect URI registered in Google Cloud Console: `${NEXT_PUBLIC_APP_URL}/api/aut
 
 ### 2.5 Invitation (institution membership)
 
-Instructor or program lead on the roster screen → `organization.inviteMember({ email, role, organizationId })` → email with `/invitations/{id}` → invitee signs in or signs up with the same email → `organization.acceptInvitation({ invitationId })` → member row. The roster screen then adds the member to the section (`courses.addSectionMember`). Invitations expire after 7 days (Better Auth default 48 h overridden with `invitationExpiresIn: 60*60*24*7`).
+An Instructor on the roster screen (or the Platform Admin) → `tenancy.inviteMember({ email })`, which calls the plugin with the membership role `member` (the admin, who belongs to no institution, has the invitation row written directly and the same email sent) → email with `/invitations/{id}` → invitee signs in or signs up with the same email → `organization.acceptInvitation({ invitationId })` → member row. The roster screen then adds the member to the section (`courses.addSectionMember`). Invitations expire after 7 days (Better Auth default 48 h overridden with `invitationExpiresIn: 60*60*24*7`).
 
 ### 2.6 Session handling
 
 - Cookie: `httpOnly`, `sameSite=lax`, `secure` outside local/test, path `/`. 30-day expiry, refreshed daily on activity (`updateAge`). Cookie cache 5 minutes reduces DB reads; privilege changes call `auth.api.revokeOtherSessions` and re-issue.
 - Server: `getSession()` in `src/server/auth/session.ts` wraps `auth.api.getSession({ headers: await headers() })` and returns `{ user, session, activeOrganizationId }` or null. Deleted users (`deleted_at` set) are treated as signed out and their sessions revoked by the deletion service.
 - `proxy.ts`: for paths under `(app)` routes, if `getSessionCookie(request)` is absent → redirect to `/sign-in?next=<path>`. This is optimistic only; every page, action, and route re-validates with `getSession()`.
-- Rotation on privilege change: `setPlatformRole` and `setInstitutionRole` (the organization role update, D-747) delete every session row of the affected user inside the transaction that changes the seat (D-570), so they sign in again and the new seat is what their next session reads.
+- Rotation on privilege change: `setPlatformRole` — the one role change there is (D-748) — deletes every session row of the affected user inside the transaction that changes the role (D-570), so they sign in again and the new role is what their next session reads.
 
 ### 2.7 CSRF posture
 
@@ -188,111 +189,93 @@ Instructor or program lead on the roster screen → `organization.inviteMember({
 
 ## 3. Roles
 
-| Layer | Values | Stored in |
+**One role per account (D-748).** Every account holds exactly one role, stored in `user.platform_role` and chosen by a Platform Admin on `/admin/users` (the **Platform role** picker). New accounts start as Student.
+
+| Role | `user.platform_role` | What it is |
 |---|---|---|
-| Platform | `none`, `tassl_scenario_editor`, `admin` | `user.platform_role` |
-| Organization (institution) | `student`, `instructor`, `teaching_assistant`, `scenario_author`, `program_lead` | `member.role` (Better Auth), one row per user per organization; given by invitation, and changed to `student` or `instructor` by the platform admin on `/admin/users` (D-747) |
-| Section | `student`, `instructor`, `ta` | `section_memberships.role` |
+| Student | `student` | Takes the runs assigned on the sections whose roster they are on, and reads their own results |
+| Scenario Editor | `tassl_scenario_editor` | A Student's access, plus authoring and publishing the scenario packages of their institution |
+| Instructor | `instructor` | Runs courses, sections, rosters, invitations and assignments, and reviews learner results; reads packages to assign them |
+| Platform Admin | `admin` | Full access, in every institution, without a membership |
 
-Better Auth access control (`src/server/auth/access-control-shared.ts`):
+There is no institution role and no section role. The two membership tables say *where* a person is, never *what* they may do:
 
-```ts
-import { createAccessControl } from 'better-auth/plugins/access'
+| Table | Meaning |
+|---|---|
+| `member` (Better Auth) | The person belongs to the institution — the tenant every read is scoped to. Better Auth's organization plugin requires a `role` string on the row; it holds the plugin's own value `member` and a check constraint (`member_role_is_membership`, and `invitation_role_is_membership` on `invitation`) keeps it there |
+| `section_memberships` | The person is on the section roster. For a Student or Scenario Editor the row is an enrolment; for an Instructor it is a section they teach. The row has no role column |
 
-export const statement = {
-  organization: ['update', 'delete'],
-  member: ['create', 'update', 'delete'],
-  invitation: ['create', 'cancel'],
-  course: ['create', 'update', 'read'],
-  package: ['create', 'read', 'confirm', 'generate'],
-  agreement: ['read', 'update'],
-  report: ['read'],
-} as const
-
-export const ac = createAccessControl(statement)
-export const roles = {
-  student: ac.newRole({ course: ['read'] }),
-  instructor: ac.newRole({ course: ['create', 'update', 'read'], invitation: ['create', 'cancel'], member: ['create'], package: ['create', 'read', 'confirm', 'generate'] }),
-  teaching_assistant: ac.newRole({ course: ['read'] }),
-  scenario_author: ac.newRole({ package: ['create', 'read', 'confirm', 'generate'], course: ['read'] }),
-  program_lead: ac.newRole({ organization: ['update'], member: ['create', 'update', 'delete'], invitation: ['create', 'cancel'], agreement: ['read', 'update'], report: ['read'], course: ['read'] }),
-}
-```
-
-The `owner` and `admin` built-in roles are not used for people; the seed's organization is created by the `admin` platform user through the admin API and the first `program_lead` is set explicitly.
+Better Auth access control (`src/lib/auth/access-control.ts`, re-exported by `src/server/auth/access-control-shared.ts`) knows one role, `member`, with `invitation: ['create', 'cancel']` — the plugin's precondition for the invitation calls Tassl makes through it. Who may invite is decided by `tenancy.inviteMember` (§4) before the plugin is reached. `creatorRole` is `member`.
 
 ## 4. Permission matrix
 
-Resources and actions. ✓ = allowed; ✓* = allowed with the stated scope; — = denied. "Reviewer" = instructor or TA of the run's section. "Author" = organization `scenario_author` or `instructor`. "Editor" = platform `tassl_scenario_editor`.
+✓ = allowed; ✓* = allowed with the stated scope; — = denied. "Own run" = `runs.student_id` is the actor. "Runs the course" = an Instructor who created the course or is on the roster of one of its sections. Every row is tenant-scoped: a resource in an institution the actor does not belong to is denied to everyone but the Platform Admin, as NOT_FOUND (§5 "Cross-tenant").
 
-| Action / resource | Student | Instructor | TA | Author | Program lead | Editor | Admin |
-|---|---|---|---|---|---|---|---|
-| Start a run on an assignment in own section | ✓* own section | — | — | — | — | — | — |
-| Use every in-run capability (readiness, room, frame, assistant, stances, actions, escalate, brief, lock, addendum, turn, defense, debrief answers) | ✓* own run | — | — | — | — | — | — |
-| Read own debrief and graphs (`GET /runs/{runId}/debrief`) | ✓* own | ✓* section | ✓* section | — | — | ✓* under agreement (FR-234) | — |
-| Read the Judgment Record itself (`GET /runs/{runId}/record`) | ✓* own | — | — | — | — | — | — |
-| Download the record-form trace file (`GET /runs/{runId}/record/export`) | ✓* own, from `confirmed` | ✓* section | ✓* section | — | — | — (the FR-234 path has no endpoint yet) | — |
-| Download a filed course export (`GET /runs/{runId}/exports/{version}`); list an assignment's export history | — | ✓* section | ✓* section, read only | — | — | — | — |
-| Read another student's run | — | ✓* section | ✓* section | — | — | ✓* under agreement | — |
-| See answer space, defect placement, warranted stances, verification results (package view, claim object view, replay) | — | ✓* own courses | ✓* section, read only | ✓* own packages | — | ✓ | — |
-| Edit a locked frame, brief, or Turn response | — | — | — | — | — | — | — |
-| Change bands: confirm, override with note, set unassessed | — | ✓* section | ✓* section, not a band the instructor already decided | — | — | — | — |
-| Void, re-offer, neutralize (from replay) | — | ✓* section | — | — | — | — | — |
-| Force assistant failure (test control) | — | ✓* section, flag on | — | — | — | — | — |
-| Write course export; view export history | — | ✓* section | ✓* view only | — | — | — | — |
-| Create course, sections; set policy, mapping, weights | — | ✓ own | — | — | — | — | — |
-| Change mapping after confirmations (recompute + re-export) | — | ✓ own course | — | — | — | — | — |
-| Manage section roster; invite members | — | ✓ own sections | — | — | ✓ | — | — |
-| Delete walkthrough runs | — | ✓* section, `is_walkthrough` only | — | — | — | — | — |
-| Create package from seed; run generation | — | ✓ | — | ✓ | — | ✓* any org where the editor has a `scenario_author` membership | — |
-| Read the generation status (steps, passes, failed rules) | — | ✓ | — | ✓ | — | ✓* the same membership | — |
-| Confirm, edit, reject generated elements; confirm version | — | ✓ own | — | ✓ own | — | — (cannot confirm in place of the authority, PRD §8) | — |
-| Read package view, authoring record, measures | — | ✓ org | ✓ section's package | ✓ org | ✓ org (measures only) | ✓ | ✓ |
-| Read seed record (case title, license, re-skin log) | — | ✓ org | — | ✓ org | — | ✓ | ✓ |
-| Read data agreement | — | — | — | — | ✓ | ✓* own org rows | ✓ |
-| Upsert data agreement | — | — | — | — | ✓ | — | ✓ |
-| Cohort or program reporting | — | — | — | — | ✓ (future-state; no build screen) | — | — |
-| Investigate an individual for a leak | — | — | — | — | — | — | — |
-| Platform roles, user list, flags view, audit log | — | — | — | — | — | — | ✓ |
-| Set a member's institution role to Student or Instructor (with their section seats in that institution) | — | — | — | — | — | — | ✓* another account that already belongs to the institution (D-747) |
-| Create organization | — | — | — | — | — | — | ✓ |
-| Own account settings, export, delete | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Action / resource | Student | Scenario Editor | Instructor | Platform Admin |
+|---|---|---|---|---|
+| Own account: profile, sessions, export, delete; notifications; my institutions; accept an invitation addressed to me | ✓ | ✓ | ✓ | ✓ |
+| My assignments and my runs | ✓* sections I am on | ✓* sections I am on | — (empty) | ✓ |
+| Read an assignment and its policy display | ✓* on the roster | ✓* on the roster | ✓* runs the course | ✓ |
+| Start a run on an assignment | ✓* on the roster | ✓* on the roster | — | ✓ |
+| Every in-run act (readiness, room, documents, frame, assistant, stances, actions, escalate, brief, lock, addendum, Turn, defense, debrief answers, resume, policy acknowledgement) | ✓* own run | ✓* own run | — | ✓ |
+| Read own Judgment Record (`GET /runs/{runId}/record`) | ✓* own run | ✓* own run | — | ✓ |
+| Read a run, its delegations, trace and debrief; download the record-form file | ✓* own run | ✓* own run | ✓* runs the course | ✓ |
+| Read another learner's run | — | — | ✓* runs the course | ✓ |
+| Institution settings (plan, default mapping), data agreements, create an institution | — | — | — | ✓ |
+| Read an institution I belong to | ✓ | ✓ | ✓ | ✓ |
+| Invite a person to my institution | — | — | ✓ | ✓ |
+| List courses; create a course | — | — | ✓ | ✓ |
+| Read a course; set policy, mapping, weights; change mapping after confirmations | — | — | ✓* read any course of the institution; change the ones they run | ✓ |
+| Sections, rosters (list, add, remove), assignments (create, update), confirmed versions to choose from | — | — | ✓* runs the course | ✓ |
+| Delete walkthrough runs | — | — | ✓* runs the course, `is_walkthrough` only | ✓ |
+| Review: queue, section runs, replay, band decisions, confirm remaining, band a held run, flag a delegation | — | — | ✓* runs the course | ✓ |
+| Void, re-offer, neutralize; force assistant failure (test control, flag on) | — | — | ✓* runs the course | ✓ |
+| Course exports: write, list, download | — | — | ✓* runs the course | ✓ |
+| Read packages: list, package, version, claim object, export | — | ✓* own institution | ✓* own institution | ✓ |
+| Read the seed record (case title, license, re-skin log) | — | ✓* own institution | — | ✓ |
+| Author packages: create from seed, import, edit elements, run generation, read generation status, regenerate | — | ✓* own institution | — | ✓ |
+| Publish packages: decide elements, confirm a version, retire | — | ✓* own institution | — | ✓ |
+| Platform roles, user list, flags, assistant mode, Sentry test event, audit log | — | — | — | ✓ |
+| Edit a locked frame, brief, or Turn response | — | — | — | — |
+| Investigate an individual for a leak | — | — | — | — |
 
-**The generation status is its own row, and it is not the package view's** (Step 12.2). 07 §6 gives `GET /package-versions/{versionId}/generation` to "Auth, Editor" while "Read package view, authoring record, measures" admits a TA and a program lead as well, and the two really are different reads: the status reports which rules the draft still breaks and which elements are at fault, which is where the defects are. `authoring.getGenerationStatus` therefore takes the same guard as the start — `requireAuthorOnPackage` — and the three operations `startGeneration`, `getGenerationStatus` and `regenerateElement` all carry the cells of "Create package from seed; run generation". A platform editor reaches every one of them only through a `scenario_author` membership of the institution (§5), which `tests/integration/api/authoring.test.ts` proves by trying the same platform role twice, once with the membership and once without.
+**The Scenario Editor has a Student's access and nothing else beyond authoring** (D-748). Enrolled on a roster, a Scenario Editor takes the run like any Student; they never reach a course, a roster, another learner's run or the review surface. The Instructor reads packages because an assignment is pointed at a confirmed version and a replay reads the version back, but authoring and publishing belong to the Scenario Editor.
 
-**The debrief and the Judgment Record are two rows, not one** (D-519). They were one — "Read own debrief, graphs, record; export record copy", with `✓* section` for both reviewers — and the code has never implemented it that way: `records.getRecord` is `requireRunOwner` and nothing else, deliberately, because a reviewer reads the run through the replay and what makes the record the *student's* is that it is theirs to keep (10 §14). `tests/integration/auth/matrix.json` records the code's rule, so the fixture and the document disagreed on a whole row, which is how the same edit that fixes a red row could ratify a widening nobody chose. The row is split so each half says what its endpoint does: the debrief to the owner and the section's reviewers (FR-154), the record to the owner alone. The record-form *file* keeps the reviewer grant on its own row below, which is what `records.exportRecord` implements.
+**The Platform Admin has full access** (D-748). Every guard in §5 admits the admin in every institution, without a `member` row; an id that does not exist is still NOT_FOUND. When the admin reads a learner's run, the services take the reviewer path, never the owner's: the admin gets the reviewer projection and never consumes the learner's first debrief open or the defense seal.
 
-The record-form export is a student view in the sense 12 §8 means, and its own row ("Download the record-form trace file") is the whole of its gate: a run's own student, or a reviewer of its section, and only from `confirmed`. Its *contents* are gated separately, by `trace/owner-view.ts` at the `scored` tier — the record carries the claim table whole, because 12 §8.2 names it as what reveals `warranted_stance`, `evidence_status` and `failure_family` after scoring, and it carries none of the fields §8.1 forbids in any state (D-370). §8.1's last row is applied to it by *name containment* rather than by exact name, so `points_before` and `points_effective` are refused the way `points` is (D-421), and the `claim_neutralized` event's two point totals sit at the top level of the payload where `owner-view.ts` can withhold them (D-420). The course form is the reviewer's document and carries everything; no student-facing route reaches it.
+**The debrief and the Judgment Record are two rows, not one** (D-519). The Judgment Record is the learner's own (10 §14); reviewers read the run through the replay, and download the record-form file on its own row.
 
-"Reviewer of the section" in the two export rows above is `canReviewSection` (§5), which admits an `instructor` or `ta` row on the section **and** the instructor of the course above it — the reading §5's `requireCourseInstructor` already gives "the section's instructor", and the one D-062 depends on: between creating a section and putting anyone in it, the course's creator is the only instructor who exists. The same predicate answers `courses.listAssignmentRuns` and `courses.getAssignment`'s `canViewExports`, so the "Course exports" link and the history behind it are one question rather than two guards kept in step by hand (D-483). It is not a widening of the matrix: the seat it admits is the one that *causes* exports through "Change mapping after confirmations", and it can add itself to any section of its own course in one press. `requireRunReviewer` is unchanged and is still a section row alone — a replay, a filed course export and a record-form download are about one student's run, not about the course's gradebook. Which means the two guards give different answers for one seat, and every screen that draws a link across the boundary has to ask both: the export history is `canViewExports` and the "Open run" link on each of its rows is `canOpenRuns`, the section row `requireRunReviewer` will ask for (D-517). A page whose link and endpoint answer different questions is the defect D-483 fixed, and drawing that link off `canViewExports` would have been the same defect one level down.
+The record-form export is a learner view in the sense 12 §8 means. Its *contents* are gated by `trace/owner-view.ts` at the `scored` tier — the record carries the claim table whole, because 12 §8.2 names it as what reveals `warranted_stance`, `evidence_status` and `failure_family` after scoring, and it carries none of the fields §8.1 forbids in any state (D-370, D-420, D-421). The course form is the reviewer's document and carries everything; no learner-facing route reaches it.
 
-Students never see (at any time): the question bank, expected-answer notes, the seed record, the general escalation reply, trigger internals, stakeholder and Turn internals, probe internals, answer keys, instructor flags, other students' runs, and weight, mapping, or points in the record form (any key whose name contains one of the three, at any depth - D-421). Students do not see before their run is scored: warranted stances, evidence status, failure family, planted flags, verification results before running the action, per-claim rationale, concept keys, document roles, the answer space, the escalation response id, and the counterfactual; their own debrief and record reveal these after scoring (PRD §7.14, D-117). The student view models omit these fields at the service layer (`toStudentClaimView` and the key sets in `src/server/auth/student-view.ts`), never only in the UI.
+"Runs the course" is `requireCourseInstructor` and, for a section, `canReviewSection` (§5): the course's creator — between creating a section and putting anyone on it, the only instructor who exists (D-062) — or an Instructor on the roster of one of its sections. The export history, the run list and every "Open run" link on them ask the same predicate (D-483, D-517).
+
+Learners never see (at any time): the question bank, expected-answer notes, the seed record, the general escalation reply, trigger internals, stakeholder and Turn internals, probe internals, answer keys, instructor flags, other learners' runs, and weight, mapping, or points in the record form (any key whose name contains one of the three, at any depth - D-421). Learners do not see before their run is scored: warranted stances, evidence status, failure family, planted flags, verification results before running the action, per-claim rationale, concept keys, document roles, the answer space, the escalation response id, and the counterfactual; their own debrief and record reveal these after scoring (PRD §7.14, D-117). The learner view models omit these fields at the service layer (`toStudentClaimView` and the key sets in `src/server/auth/student-view.ts`), never only in the UI.
 
 ## 5. Enforcement
 
-**Helpers** (`src/server/auth/permissions.ts`), each throwing `AppError('FORBIDDEN')` or `AppError('UNAUTHENTICATED')`:
+**Helpers** (`src/server/auth/permissions.ts`), each throwing `AppError('FORBIDDEN')` or `AppError('NOT_FOUND')` (or `UNAUTHENTICATED`). Every one admits the Platform Admin.
 
 | Helper | Checks |
 |---|---|
 | `requireSession()` | session exists and user not deleted |
-| `requirePlatformRole(role)` | `user.platform_role === role` (admin satisfies all) |
-| `requireMembership(orgId, roles?)` | `member` row exists with a role in `roles` (or any) |
-| `requireSectionRole(sectionId, roles)` | `section_memberships` row with role in `roles`, org matches |
-| `requireRunOwner(runId)` | `runs.student_id === user.id` and run state allows the action |
-| `requireRunReviewer(runId)` | section role `instructor` or `ta` on the run's section |
-| `requireRunInstructor(runId)` | section role `instructor` |
-| `requireAuthorOnPackage(packageId)` | org membership `instructor` or `scenario_author`, same org; or platform editor with `scenario_author` membership |
-| `requireCourseInstructor(courseId)` | course created_by or any section instructor in the course |
-| `canReviewSection(courseId, sectionId)` / `requireSectionReviewer(...)` | `instructor` or `ta` on the section, **or** `requireCourseInstructor` on the course above it — the assignment's export history and its run list (D-483) |
-| `requireCourseExportReader(runId)` | `canReviewSection` on the run's course and section — the download beside each row of that history, which 08 §4 puts on the same matrix row (D-483) |
-| `canReadIdentifiedRecords(orgId)` | platform editor and an active `data_agreements` row listing the role and at least one purpose |
+| `requirePlatformRole(role)` / `requireAnyRole(roles)` | `user.platform_role` is the role (one of the roles) |
+| `requireMembership(orgId, roles?)` | a `member` row in the organization, and the actor's role in `roles` when given; the admin needs only that the organization exists |
+| `requireSectionSeat(sectionId, roles)` | a roster row on the live section and the actor's role in `roles`; not a member of its institution → NOT_FOUND |
+| `requireCourseInstructor(courseId)` | the actor is an Instructor who created the course or is on one of its section rosters; course outside the actor's institution → NOT_FOUND |
+| `canReviewSection(courseId, sectionId)` / `requireSectionReviewer(...)` | an Instructor on that section's roster, **or** `requireCourseInstructor` on the course above it (D-483) |
+| `requireRunOwner(runId)` | `runs.student_id === user.id`; anyone else → NOT_FOUND |
+| `requireRunReviewer(runId)` = `requireRunInstructor` = `requireCourseExportReader` | `canReviewSection` on the run's course and section; the run's own learner → FORBIDDEN, anyone else → NOT_FOUND |
+| `requireAuthorOnPackage(packageId)` | a Scenario Editor who belongs to the package's institution |
+| `requirePackageReader(packageId)` | a Scenario Editor or Instructor who belongs to the package's institution |
+
+Role sets used by the services: `LEARNER_ROLES` (`student`, `tassl_scenario_editor`), `TEACHING_ROLES` (`instructor`), `AUTHORING_ROLES` (`tassl_scenario_editor`), `PACKAGE_READER_ROLES` (`tassl_scenario_editor`, `instructor`).
 
 **Route handlers:** `defineRoute({ auth: 'session' | 'cron' | 'public', ... })` calls `requireSession()` first; the handler calls the resource helper before the service (or the service calls it, which is the rule for anything that mutates). Every service function that reads or writes a run, package, course, or agreement calls the matching helper as its first statement, so a missed check in a handler cannot widen access.
 
 **Server Actions:** `defineAction(schema, handler)` runs `requireSession()` then the handler, which calls the service. Actions never contain permission logic themselves.
 
-**UI:** pages receive `capabilities` objects from services (`{ canDecideBands, canVoid, canNeutralize, canForceFailure, canExport, canConfirmPackage, ... }`) and render controls conditionally. Hidden controls are a courtesy; the service check is the enforcement. Integration tests in `tests/integration/auth/matrix.test.ts` assert every "—" cell returns 403 for at least one representative endpoint.
+**UI:** the rail and the home panels follow the role — Student: Home, Runs; Scenario Editor: Home, Runs, Packages; Instructor: Home, Courses, Review, Packages; Platform Admin: all of them and Admin. Pages receive `capabilities` objects from services and render controls conditionally. Hidden controls are a courtesy; the service check is the enforcement. `tests/integration/auth/matrix.test.ts` drives every registered operation as each of the four roles, plus an Instructor of another institution, through the real route handlers.
 
-**Cross-tenant:** repositories require `tenantId`; a run or package id from another organization returns 404, not 403, to avoid existence leaks.
+**Cross-tenant:** repositories require `tenantId`; a run, course, section or package id from another organization returns 404, not 403, to avoid existence leaks. The Platform Admin is the one exception, by design.
 
-**Audit:** `admin.audit()` records role changes, band decisions, void, re-offer, neutralization, exports, deletions, agreement changes, package confirmations, mapping changes, and test-control use with the request id.
+**Audit:** `admin.audit()` records role changes (`role.set`), band decisions, void, re-offer, neutralization, exports, deletions, agreement changes, package confirmations, mapping changes, and test-control use with the request id.

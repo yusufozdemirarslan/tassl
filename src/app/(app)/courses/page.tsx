@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
+import { notFound } from 'next/navigation'
 import type { Route } from 'next'
 import { CourseForm } from '@/components/features/courses/course-form'
 import { EmptyState } from '@/components/layout/empty-state'
@@ -23,11 +24,10 @@ import { getViewer } from '../viewer'
 export const metadata: Metadata = { title: t('courses.title') }
 
 // UI-030, the list half. The scope is the session's active institution — the same tenant the shell's
-// switcher names — and `listCourses` decides what "the courses" means for the person asking:
-// instructors and program leads see every course of the institution, everyone else sees the ones
-// they hold a section membership in (10 §3). So a student who reaches /courses reads their
-// enrolment rather than a refusal, and the "New course" control is offered only to an instructor,
-// which is the one organization role `createCourse` accepts.
+// switcher names — and the screen is the Instructor's and the Platform Admin's (D-748): both read
+// every course of the institution and both may create one. A Student or a Scenario Editor who types
+// the address is shown the not-found page, the same courtesy the rail pays by not offering it;
+// `listCourses` refuses them again, which is the check that counts (08 §5).
 //
 // `course_created` (AN-002) is emitted by the service; this screen fires no analytics of its own.
 
@@ -43,6 +43,8 @@ const moreHref = (cursor: string): Route => {
 
 export default async function CoursesPage({ searchParams }: PageProps<'/courses'>) {
   const [{ actor, me }, query] = await Promise.all([getViewer(), searchParams])
+  const teaches = me.platformRole === 'instructor' || me.platformRole === 'admin'
+  if (!teaches) notFound()
 
   // The institution the session is working in; the shell resolves the same one for the switcher.
   const membership =
@@ -76,8 +78,7 @@ export default async function CoursesPage({ searchParams }: PageProps<'/courses'
     page = await listCourses(actor, membership.organizationId, {})
   }
 
-  const canCreate = membership.role === 'instructor'
-  const newCourse = canCreate ? <CourseForm orgId={membership.organizationId} /> : undefined
+  const newCourse = <CourseForm orgId={membership.organizationId} />
 
   return (
     <>
@@ -85,7 +86,7 @@ export default async function CoursesPage({ searchParams }: PageProps<'/courses'
         title={t('courses.title')}
         description={t('courses.description')}
         eyebrow={membership.name}
-        {...(page.items.length > 0 && newCourse ? { actions: newCourse } : {})}
+        {...(page.items.length > 0 ? { actions: newCourse } : {})}
       />
       <Panel>
         {page.items.length === 0 ? (
@@ -93,7 +94,7 @@ export default async function CoursesPage({ searchParams }: PageProps<'/courses'
             headingLevel={2}
             title={t('courses.emptyTitle')}
             body={t('courses.emptyBody')}
-            {...(newCourse ? { action: newCourse } : {})}
+            action={newCourse}
           />
         ) : (
           <div className="flex flex-col gap-4">

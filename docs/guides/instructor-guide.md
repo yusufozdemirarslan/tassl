@@ -2,43 +2,41 @@
 
 ## Who this is for
 
-You teach a course that uses Tassl and you hold the **Instructor** seat in your institution.
+You teach a course that uses Tassl and your account holds the **Instructor** role.
 You create courses, sections and assignments, and you decide what one run is worth in your gradebook.
 After a student finishes a Decision Run and Tassl scores it, you read the run back, confirm or change each of the seven draft bands, and enter the result in the gradebook of record; Tassl holds no grade.
-You can also author a scenario package of your own from a case your institution is licensed to adapt, and confirm it element by element before an assignment can run on it.
+The scenario packages your assignments run on are authored and published by your institution's Scenario Editor; you read them, choose a confirmed version for each assignment, and read it back when you review a run.
 You need no software-testing background: every step below names the control you press, in bold, and says what the screen shows next.
-Students, teaching assistants and platform admins have other guides; this one covers what the Instructor seat sees and does.
+Every account holds one of four roles — Student, Scenario Editor, Instructor, Platform Admin — and a Platform Admin sets it; Students have their own guide, and this one covers what an Instructor sees and does.
 
 ## Getting started
 
 **Signing in.** Open the app and go to `/sign-in`. The demo instructor account is **instructor@tassl.local**. Its password is the seed password: on a local build and in CI it is the `SEED_PASSWORD` value in `.env.test`, which is **Walkthrough-Pass-2026**; in production (https://tassl.vercel.app) it is the value of the Vercel production variable `SEED_PASSWORD`, also kept in `~/.config/tassl/seed-password.txt` on the builder machine. Type the address in **Email address**, the password in **Password**, leave **Keep me signed in** ticked, and click **Sign in**. Sign-in is limited to ten attempts a minute; after that the page says **Too many attempts** and how many seconds to wait.
 
-**The first screen.** After sign-in you land on **Home**, headed by your institution's name (**Walkthrough University** in the demo) and the line **What needs your attention, and what is coming up.** Four panels follow:
+**The first screen.** After sign-in you land on **Home**, headed by your institution's name (**Walkthrough University** in the demo) and the line **What needs your attention, and what is coming up.** Two panels follow:
 
-- **Your runs** — the runs you take as a student. It appears only on a seat that is enrolled as a student somewhere; an instructor seat with no student role does not see it.
 - **Review** — runs of your sections that have draft bands waiting for your decision, each with **Open the replay for** the student's name; when there are none it reads **Nothing waiting**. **Open the review queue** opens the Review page.
-- **Packages** — package versions of your institution that are still being confirmed, or **Nothing to confirm**. **Open the shelf** opens the Packages page.
 - **Courses** — your courses with their term and counts, each with **Open** and the course name. **Open all courses** opens the Courses page.
 
 **Navigation map.** Every item an instructor sees, and what it opens:
 
 - **Skip to main content** — the first link on every page; it jumps past the header and the rail.
 - **Tassl** (header) — Home.
-- **Home** (rail) — the four panels above.
+- **Home** (rail) — the two panels above.
 - **Courses** (rail) — every course in the institution; a course opens with the views **Sections**, **Assignments**, **Policy** and **Mapping**. A section row has a **Roster** link; an assignment row opens the assignment page, whose **Runs** table has **Open the replay** for every run and which links to **Course exports**.
 - **Review** (rail) — **Runs waiting for you**: every scored run of a section you review, newest first, each with **Open the replay for** the student. The replay has the views **Overview**, **Bands**, **Trace**, **Package** and **Actions**.
-- **Packages** (rail) — the scenario packages of the institution and **New package from a seed case**; a package row opens its latest version, from which you reach the generation screen and the confirmation workspace.
+- **Packages** (rail) — the scenario packages of the institution, to read; a package row opens its latest version. Authoring and publishing a package belong to the Scenario Editor.
 - **Notifications** (the bell icon at the top right) — what Tassl has told you, newest first.
 - **Account** (the person icon at the top right) — **Settings**, with the sections **Profile**, **Security** and **Data**, then **Privacy**, **Terms** and **Sign out**.
 - The institution name in the header becomes a **Switch institution** menu when you belong to more than one.
 
-Two rail items never appear for an instructor seat: **Runs** belongs to student seats and **Admin** to platform admins.
+Two rail items never appear for an Instructor: **Runs** belongs to Students and Scenario Editors, and **Admin** to the Platform Admin.
 
 ## Tasks
 
 ### Task 1: Sign in and find your way around
 
-*Goal:* Start signed out, sign in as the instructor seat, and open every screen the rail, the bell and the account menu lead to.
+*Goal:* Start signed out, sign in as the instructor account, and open every screen the rail, the bell and the account menu lead to.
 
 *Steps:*
 
@@ -52,7 +50,7 @@ Two rail items never appear for an instructor seat: **Runs** belongs to student 
    ![Task 1 step 4](screenshots/instructor/task-01-step-04.png)
 5. Read the rail under **Tassl** on the left. → You see: **Home**, **Courses**, **Review** and **Packages**.
    ![Task 1 step 5](screenshots/instructor/task-01-step-05.png)
-6. Read the panels on **Home**. → You see: **Review**, **Packages** and **Courses**.
+6. Read the panels on **Home**. → You see: **Review** and **Courses**.
    ![Task 1 step 6](screenshots/instructor/task-01-step-06.png)
 7. Click **Courses** in the rail. → You see: the heading **Courses** and the row **Marketing Strategy Walkthrough**.
    ![Task 1 step 7](screenshots/instructor/task-01-step-07.png)
@@ -97,11 +95,11 @@ Two rail items never appear for an instructor seat: **Runs** belongs to student 
 *If something goes wrong:*
 
 - "Give the course a name." or "Give the course a term." — both fields are required; a name is at most 200 characters and a term at most 100.
-- "You do not have permission to do this." — only an instructor of the institution creates a course; a program lead or a student seat reads courses and cannot add one.
+- "You do not have permission to do this." — only an Instructor creates a course; ask a Platform Admin to check the role on your account.
 
 ### Task 3: Add a section and its students
 
-*Goal:* Do this after Task 2: add a section to Guide course 2026, put both demo students on its roster, and add yourself as its instructor so that its runs reach your Review page.
+*Goal:* Do this after Task 2: add a section to Guide course 2026, put both demo students on its roster, and add yourself to it as the Instructor who teaches it.
 
 *Steps:*
 
@@ -117,7 +115,7 @@ Two rail items never appear for an instructor seat: **Runs** belongs to student 
    ![Task 3 step 5](screenshots/instructor/task-03-step-05.png)
 6. Click **Roster** on the **Guide section** row. → You see: **Section roster** and **Nobody is in this section yet**.
    ![Task 3 step 6](screenshots/instructor/task-03-step-06.png)
-7. Type **student2@tassl.local** in **Email address** under **Add member**. → You see: **Role in this section** reading **Student**.
+7. Type **student2@tassl.local** in **Email address** under **Add member**. → You see: **student2@tassl.local** in the field.
    ![Task 3 step 7](screenshots/instructor/task-03-step-07.png)
 8. Click **Add to section**. → You see: **student2@tassl.local is now in this section.** and the row **Student Two** with the role **Student**.
    ![Task 3 step 8](screenshots/instructor/task-03-step-08.png)
@@ -127,12 +125,10 @@ Two rail items never appear for an instructor seat: **Runs** belongs to student 
    ![Task 3 step 10](screenshots/instructor/task-03-step-10.png)
 11. Type **instructor@tassl.local** in **Email address**. → You see: **instructor@tassl.local** in the field.
    ![Task 3 step 11](screenshots/instructor/task-03-step-11.png)
-12. Choose **Instructor** in **Role in this section**. → You see: **Instructor** on the role control.
+12. Click **Add to section**. → You see: **instructor@tassl.local is now in this section.** and the row **Instructor Seat** with the role **Instructor**.
    ![Task 3 step 12](screenshots/instructor/task-03-step-12.png)
-13. Click **Add to section**. → You see: **instructor@tassl.local is now in this section.** and the row **Instructor Seat** with the role **Instructor**.
+13. Click **Back to the course**. → You see: the heading **Guide course 2026** and **3** in the **Members** column of the **Guide section** row.
    ![Task 3 step 13](screenshots/instructor/task-03-step-13.png)
-14. Click **Back to the course**. → You see: the heading **Guide course 2026** and **3** in the **Members** column of the **Guide section** row.
-   ![Task 3 step 14](screenshots/instructor/task-03-step-14.png)
 
 *If something goes wrong:*
 
@@ -191,7 +187,7 @@ Two rail items never appear for an instructor seat: **Runs** belongs to student 
    ![Task 5 step 3](screenshots/instructor/task-05-step-03.png)
 4. Read **Confirmation record**. → You see: under the table, the caption **Decisions by element type**, and below it the heading **Decisions that were not a plain confirmation**.
    ![Task 5 step 4](screenshots/instructor/task-05-step-04.png)
-5. Read **Authoring record**. → You see: **Generating model**, **The seed case** and **Re-skin log**.
+5. Read **Authoring record**. → You see: **Generating model**, **The seed case** and the line that the seed case is read by the Scenario Editors who author it.
    ![Task 5 step 5](screenshots/instructor/task-05-step-05.png)
 6. Read **Authoring measures**. → You see: **Seed to confirmed**, **Edit rate**, **Rejected share**, **Generation passes** and **Review time per element**.
    ![Task 5 step 6](screenshots/instructor/task-05-step-06.png)
@@ -206,8 +202,7 @@ Two rail items never appear for an instructor seat: **Runs** belongs to student 
 
 *If something goes wrong:*
 
-- "Packages are not open to your seat" — only an instructor or a scenario author of the institution reads packages; ask whoever manages the institution's roster to change your seat.
-- "The claims are not open to your seat" — a program lead reads the measures only; an instructor, a scenario author or a teaching assistant of the institution opens the claims.
+- "Packages are not open to your seat" — only an Instructor or a Scenario Editor reads packages; ask a Platform Admin to check the role on your account.
 - "Not found" — the address names a version of another institution, or a package id that does not exist; go back to **Packages** and open the row.
 
 ### Task 6: Create an assignment
@@ -246,7 +241,7 @@ Two rail items never appear for an instructor seat: **Runs** belongs to student 
 *If something goes wrong:*
 
 - "An assignment belongs to a section. Add a section to this course first." — **New assignment** stays greyed until the course has a section; do Task 3 first.
-- "An assignment runs on a confirmed scenario package version. Confirm one, then configure the assignment." — no version in the institution is confirmed; confirm one (Task 11) or use the seeded Meridian Roast version.
+- "An assignment runs on a confirmed scenario package version. Confirm one, then configure the assignment." — no version in the institution is confirmed; ask your Scenario Editor to publish one, or use the seeded Meridian Roast version.
 - "Enter whole seconds, at least 60, or leave it empty." — the working clock is whole seconds of at least 60; leave the field empty to use the package's own clock.
 
 ### Task 7: Follow your students’ runs
@@ -274,7 +269,7 @@ Two rail items never appear for an instructor seat: **Runs** belongs to student 
 
 - "Nothing waiting" — no run of a section you review is at **Scored**; a run reaches the queue only after the student finishes the defense and scoring completes, and leaves it once you confirm all seven bands.
 - "Your instructor is reviewing this run." on the student's list, **Under review** in the assignment's table — Tassl could not place the bands; open the replay and use **Band this run by hand** (see Troubleshooting).
-- "Not found" on a replay — you hold no row on the run's section roster; add yourself as **Instructor** on the roster (Task 3, steps 11 to 13).
+- "Not found" on a replay — the run is on a course you neither created nor teach; add yourself to the section roster (Task 3, steps 11 and 12).
 
 ### Task 8: Review a scored run
 
@@ -321,7 +316,6 @@ Two rail items never appear for an instructor seat: **Runs** belongs to student 
 
 - "No draft bands yet" with "The seven drafts are written after the defense is filed and the run has been read." — the run is not scored yet; wait for the student to finish the defense, then reload.
 - "Choose a band, or mark the dimension not assessed." — you pressed the decision button with nothing selected; pick a band or **Unassessed** and press again.
-- "The instructor has decided this dimension." — a teaching-assistant seat cannot change a band an instructor decided; the instructor for the section can.
 
 ### Task 9: Correct a claim, arm the outage control, and void a run
 
@@ -400,114 +394,40 @@ Two rail items never appear for an instructor seat: **Runs** belongs to student 
 *If something goes wrong:*
 
 - "No export yet" with "The first export for a run is written when all seven of its bands carry a decision. Every correction after that writes another." — no run on this assignment is confirmed; finish Task 8 first.
-- "Replay needs a place in the section" instead of **Open the replay** — you are the course's instructor without a row on the section roster; add yourself as **Instructor** on the roster.
 - "That export version does not exist for this run." — the run was voided after this version was written, or the version number is wrong; a voided run keeps no export.
 
-### Task 11: Author a new scenario package from a seed case
-
-*Goal:* Build a package of your own from a licensed case on the scripted assistant, decide every element in the confirmation workspace, and freeze version 1.
-
-*Steps:*
-
-1. Click **Packages** in the rail. → You see: the link **New package from a seed case**.
-   ![Task 11 step 1](screenshots/instructor/task-11-step-01.png)
-2. Click **New package from a seed case**. → You see: the heading **New package from a seed case** with the panels **The package** and **The seed case**.
-   ![Task 11 step 2](screenshots/instructor/task-11-step-02.png)
-3. Type **Guide package 2026** in **Title**. → You see: **Family key** reading **guide-package-2026**.
-   ![Task 11 step 3](screenshots/instructor/task-11-step-03.png)
-4. Type **payback, retention, acquisition, pricing** in **Concepts**. → You see: the button **Add** beside the field.
-   ![Task 11 step 4](screenshots/instructor/task-11-step-04.png)
-5. Click **Add**. → You see: **4 added. Four is the minimum.**
-   ![Task 11 step 5](screenshots/instructor/task-11-step-05.png)
-6. Type **Guide seed case** in **Case title**. → You see: **Guide seed case** in the field.
-   ![Task 11 step 6](screenshots/instructor/task-11-step-06.png)
-7. Type **Guide Press** in **Publisher**. → You see: **Guide Press** in the field.
-   ![Task 11 step 7](screenshots/instructor/task-11-step-07.png)
-8. Type **Guide license terms permit adaptation.** in **License terms**. → You see: **Guide license terms permit adaptation.** in the field.
-   ![Task 11 step 8](screenshots/instructor/task-11-step-08.png)
-9. Tick **The license permits adaptation**. → You see: the box ticked and **Tassl records this confirmation against your name and keeps it in the seed record. It will not build a package from a case without it.**
-   ![Task 11 step 9](screenshots/instructor/task-11-step-09.png)
-10. Type **Guide seed case text for the walkthrough.** five times in **Seed case text**. → You see: the counter under the field ending **of 200,000 characters**.
-   ![Task 11 step 10](screenshots/instructor/task-11-step-10.png)
-11. Click **Create and generate**. → You see: the heading **Guide package 2026** and **The seven steps**.
-   ![Task 11 step 11](screenshots/instructor/task-11-step-11.png)
-12. Wait for every row of **The seven steps** to finish. → You see: **Every package rule is met**, **Done** on all seven steps and the link **Open confirmation workspace**.
-   ![Task 11 step 12](screenshots/instructor/task-11-step-12.png)
-13. Click **Open confirmation workspace**. → You see: **Confirming version 1**, the list **Elements** and the heading **Brief**.
-   ![Task 11 step 13](screenshots/instructor/task-11-step-13.png)
-14. Open **Documents** in **Elements** and click **D1**. → You see: the heading **Document · D1**.
-   ![Task 11 step 14](screenshots/instructor/task-11-step-14.png)
-15. Click **Reject**. → You see: under the buttons, **Say what is wrong with it. The note is kept with the decision, and the element stays in the version until it is re-authored.** and the field **Why this element is rejected**.
-   ![Task 11 step 15](screenshots/instructor/task-11-step-15.png)
-16. Type **Guide rejection. The dateline reads as an internal memo.** in **Why this element is rejected**. → You see: the sentence in the field.
-   ![Task 11 step 16](screenshots/instructor/task-11-step-16.png)
-17. Click **Reject element**. → You see: **D1 rejected.** and **1 rejected** in the progress line.
-   ![Task 11 step 17](screenshots/instructor/task-11-step-17.png)
-18. Click **D1** in **Elements** again. → You see: **Rejected, and waiting to be re-authored**.
-   ![Task 11 step 18](screenshots/instructor/task-11-step-18.png)
-19. Click **Rewrite**. → You see: under the buttons, **A new draft is written for every document in this version, this one included.** and the button **Rewrite every document in this version**.
-   ![Task 11 step 19](screenshots/instructor/task-11-step-19.png)
-20. Click **Rewrite every document in this version**. → You see: **A new draft of D1 was asked for.** and **Writing a new draft**.
-   ![Task 11 step 20](screenshots/instructor/task-11-step-20.png)
-21. Wait for **Writing a new draft** to finish. → You see: **The new draft of D1 is on the screen.**
-   ![Task 11 step 21](screenshots/instructor/task-11-step-21.png)
-22. Click **D2** in **Elements**. → You see: the heading **Document · D2**.
-   ![Task 11 step 22](screenshots/instructor/task-11-step-22.png)
-23. Type **Guide document title** in **Title**. → You see: **Guide document title** in the field.
-   ![Task 11 step 23](screenshots/instructor/task-11-step-23.png)
-24. Click **Save edits**. → You see: **D2 saved. The edit is recorded as its decision.** and the chip **Edited**.
-   ![Task 11 step 24](screenshots/instructor/task-11-step-24.png)
-25. Click **Next undecided element**. → You see: the chip **Undecided** on the open element.
-   ![Task 11 step 25](screenshots/instructor/task-11-step-25.png)
-26. Click **Confirm** on each element in turn until **Every element has a decision.** appears. → You see: **Every element has a decision.**
-   ![Task 11 step 26](screenshots/instructor/task-11-step-26.png)
-27. Tick **Teaching note checked against the answer space and claims**. → You see: the box ticked.
-   ![Task 11 step 27](screenshots/instructor/task-11-step-27.png)
-28. Click **Confirm version**. → You see: the dialog **Confirm version 1?** with **All met** and **Checked against the answer space and the claims, and kept with the confirmation**.
-   ![Task 11 step 28](screenshots/instructor/task-11-step-28.png)
-29. Click **Confirm and freeze**. → You see: **Version 1 is confirmed and frozen.** and the link **Back to version 1**.
-   ![Task 11 step 29](screenshots/instructor/task-11-step-29.png)
-30. Click **Back to version 1**. → You see: **Status** with **Confirmed** and the line beginning **Version 1 was confirmed on**.
-   ![Task 11 step 30](screenshots/instructor/task-11-step-30.png)
-
-*If something goes wrong:*
-
-- "This institution already has a package with that family key. Change it and create again." — a package with the key **guide-package-2026** already exists; type a different **Family key** (lowercase letters, digits and hyphens, 3 to 60 characters) and click **Create and generate** again.
-- "Generation has not run on this version" — the package was created but the seven steps did not start; click **Start generation** on that screen and wait for **Every package rule is met**.
-- "Every element needs a decision before the version can be confirmed." or "Confirm you have read the teaching note first." — **Waiting on a decision** names the elements still undecided (a rejected element counts as undecided until it is rewritten or saved); decide each one, tick the teaching-note box, and confirm again.
-
-### Task 12: Manage notifications, your account, and sign out
+### Task 11: Manage notifications, your account, and sign out
 
 *Goal:* Do this after Task 8 so that at least one notification is waiting: read and clear your notifications, check the three account settings sections, and sign out.
 
 *Steps:*
 
 1. Click the **Notifications** bell in the header. → You see: the heading **Notifications** and the row **A run is ready to review**.
-   ![Task 12 step 1](screenshots/instructor/task-12-step-01.png)
+   ![Task 11 step 1](screenshots/instructor/task-11-step-01.png)
 2. Click **Mark all read**. → You see: **Everything is marked read.**
-   ![Task 12 step 2](screenshots/instructor/task-12-step-02.png)
+   ![Task 11 step 2](screenshots/instructor/task-11-step-02.png)
 3. Click the **Account** button in the header. → You see: the menu items **Settings**, **Privacy**, **Terms** and **Sign out**.
-   ![Task 12 step 3](screenshots/instructor/task-12-step-03.png)
+   ![Task 11 step 3](screenshots/instructor/task-11-step-03.png)
 4. Click **Settings**. → You see: the heading **Account settings**, the panel **Profile** and **Your name** reading **Instructor Seat**.
-   ![Task 12 step 4](screenshots/instructor/task-12-step-04.png)
+   ![Task 11 step 4](screenshots/instructor/task-11-step-04.png)
 5. Click **Save changes**. → You see: **Your name is saved.**
-   ![Task 12 step 5](screenshots/instructor/task-12-step-05.png)
+   ![Task 11 step 5](screenshots/instructor/task-11-step-05.png)
 6. Click **Security**. → You see: the panels **Password** and **Signed-in devices** with the badge **This device**.
-   ![Task 12 step 6](screenshots/instructor/task-12-step-06.png)
+   ![Task 11 step 6](screenshots/instructor/task-11-step-06.png)
 7. Click **Data**. → You see: the panels **Download my data** and **Delete account**.
-   ![Task 12 step 7](screenshots/instructor/task-12-step-07.png)
+   ![Task 11 step 7](screenshots/instructor/task-11-step-07.png)
 8. Click **Delete my account**. → You see: the dialog **Delete your account?** and the field **Type instructor@tassl.local to confirm**.
-   ![Task 12 step 8](screenshots/instructor/task-12-step-08.png)
+   ![Task 11 step 8](screenshots/instructor/task-11-step-08.png)
 9. Click **Keep my account**. → You see: the panel **Delete account** with its button **Delete my account** and no dialog.
-   ![Task 12 step 9](screenshots/instructor/task-12-step-09.png)
+   ![Task 11 step 9](screenshots/instructor/task-11-step-09.png)
 10. Click the **Account** button in the header. → You see: the menu items **Settings**, **Privacy**, **Terms** and **Sign out**.
-   ![Task 12 step 10](screenshots/instructor/task-12-step-10.png)
+   ![Task 11 step 10](screenshots/instructor/task-11-step-10.png)
 11. Click **Sign out**. → You see: **Sign in to Tassl**.
-   ![Task 12 step 11](screenshots/instructor/task-12-step-11.png)
+   ![Task 11 step 11](screenshots/instructor/task-11-step-11.png)
 
 *If something goes wrong:*
 
-- "Nothing yet" on Notifications — nothing has been written to you; Tassl writes here when a run in your section is scored, a package finishes generating, or a course export is ready.
+- "Nothing yet" on Notifications — nothing has been written to you; Tassl writes here when a run in your section is scored, a package is published, or a course export is ready.
 - "You can download your data twice an hour. Try again shortly." — **Download my data** is limited to two downloads an hour; wait and try again.
 - "Type the email address of this account to confirm." — the deletion dialog only enables **Delete my account** once the typed address equals the account's own; the demo instructor account is not deleted in this guide, so click **Keep my account**.
 
@@ -519,11 +439,11 @@ Two rail items never appear for an instructor seat: **Runs** belongs to student 
 
 **When the model does not answer.** If the model provider fails, times out, or the usage budget is spent, the student's run pauses on the spot. They see **The run is paused**, **The assistant did not answer.** and **Your clock stopped when it happened, and the time this pause takes is given back to you when you resume. Nothing you have done is lost.**, with one button, **Resume the run**. The Delegation Log keeps the failed request as **No answer came back. The run paused, your clock stopped, and the time was given back when you resumed.**, and the next request answers as usual. In the replay's **Trace** view the pause is the pair **Run paused** and **Run resumed**. The **Test controls** panel on the replay's **Actions** view arms exactly one such outage on a live run (**Arm the outage**), for step 7 of the walkthrough; the student is never told that a control did it.
 
-**Scripted mode.** When the deployment runs with `FEATURE_AI=false`, which is the default, or with `LLM_PROVIDER=mock`, every model call is answered by the built-in scripted assistant: the same request always gets the same reply, each reply carries the scenario's claims verbatim and no figures of its own, no run text leaves the server, and it costs nothing. Every screen works exactly as it does with a live model, and by design nothing on a student screen says which mode is running; the platform admin's **Flags** page says it, and the generation screen prices the seven steps at **US$0.00, on the mock provider**. A demo runs end to end on the scripted assistant; the walkthrough was built for it.
+**Scripted mode.** When the deployment runs with `FEATURE_AI=false`, which is the default, or with `LLM_PROVIDER=mock`, every model call is answered by the built-in scripted assistant: the same request always gets the same reply, each reply carries the scenario's claims verbatim and no figures of its own, no run text leaves the server, and it costs nothing. Every screen works exactly as it does with a live model, and by design nothing on a student screen says which mode is running; the Platform Admin's **Flags** page says it, and the generation screen prices the seven steps at **US$0.00, on the mock provider**. A demo runs end to end on the scripted assistant; the walkthrough was built for it.
 
 **Bands are drafts until you decide.** After the defense, Tassl drafts the seven bands — Framing, Delegation, Verification, Calibration, Decision Quality, Adaptation and Ownership — each with the graphs, trace events and quoted words it was read from. Bands that turn on the model's reading of the student's free text carry **Provisional** until you decide them. The student's debrief shows every one as **Draft band** with the sentence **Every band below is a draft. Your instructor reads the run and confirms or changes each one; when they do, this page shows what they decided in place of the draft.** Nothing reaches a gradebook until all seven carry your decision; the seventh decision writes course export version 1. When the model could not place the bands the run is held: the Bands view reads **Nothing could place this run’s bands, so there are no drafts to decide. The seven are yours to set by hand.**, and you either band it by hand or void it. A correction on a claim can raise a band and never lowers one.
 
-**Generation is drafting.** **Create and generate** writes a package from a seed case in seven model steps; every element it writes is a draft until you read it and record a decision. **Rewrite** asks for a new draft of a whole set of elements, keeps what you have already confirmed, and puts everything else in that set back to undecided.
+**Generation is drafting.** A Scenario Editor's **Create and generate** writes a package from a seed case in seven model steps; every element it writes is a draft until the Scenario Editor reads it and records a decision, and no assignment runs on a version until they publish it.
 
 ## Troubleshooting & FAQ
 
@@ -533,13 +453,11 @@ Two rail items never appear for an instructor seat: **Runs** belongs to student 
 
 **The first page after a quiet spell takes a few seconds, or shows Something went wrong.** In production the database compute sleeps after five idle minutes and the first request wakes it, which measured 2.2 seconds against 0.16 seconds warm. Press **Try again** once and the page loads; nothing you saved is lost.
 
-**A package will not confirm.** The refusal names the reason. **Every element needs a decision before the version can be confirmed.** — **Waiting on a decision** lists the undecided elements; a rejected element blocks until it is rewritten or saved. **Confirm you have read the teaching note first.** — tick **Teaching note checked against the answer space and claims**. **This package does not yet meet the scenario rules.** — **Rules this package does not meet yet** lists each rule with the elements it names; put them right by hand or with **Rewrite**. **This version is confirmed, so it can no longer be changed.** — the version is frozen; a change is a new version.
-
-**A course, an assignment or a replay answers Not found.** Tassl answers **Not found** rather than refusing: the course belongs to an institution you are not an instructor in, the address is wrong, or, for a replay, you hold no **Instructor** or **Teaching assistant** row on the run's section roster. The **Course exports** page says **Replay needs a place in the section** in that last case. Add yourself to the section roster and open it again.
+**A course, an assignment or a replay answers Not found.** Tassl answers **Not found** rather than refusing: the course belongs to an institution you do not belong to, the address is wrong, or, for a replay, the run is on a course you neither created nor teach. Add yourself to the section roster and open it again.
 
 **A student's run does not appear on Review.** The queue lists runs at **Scored** for sections where you hold a roster row; a run that is still in progress is not there yet, and a run you have confirmed has left it. Open the assignment page for the run's state and its **Open the replay** link, or the assignment's **Course exports** for **Open the replay** on a confirmed run.
 
-**New assignment is greyed out.** The line under it says why: **An assignment belongs to a section. Add a section to this course first.** or **An assignment runs on a confirmed scenario package version. Confirm one, then configure the assignment.**
+**New assignment is greyed out.** The line under it says why: **An assignment belongs to a section. Add a section to this course first.** or **An assignment runs on a confirmed scenario package version. Confirm one, then configure the assignment.** A Scenario Editor publishes versions.
 
 **The assignment page says The setup is fixed.** A run has started on the assignment, so the package version, the variant, the working clock and the weight cannot change; the name, the **Walkthrough** switch and **Opens at** still can. Create another assignment for a different setup.
 
@@ -555,11 +473,10 @@ Two rail items never appear for an instructor seat: **Runs** belongs to student 
 
 ## Glossary
 
-- **Student** — the seat that takes a Decision Run; it sees Home and Runs and never sees a variant, a warranted stance, evidence status, a failure family, a planted flag, the question bank or another student's run before its own run is scored.
-- **Instructor** — the seat that creates courses, sections and assignments, reads replays, decides bands, enters corrections, voids runs and exports results; it also authors packages.
-- **Scenario author** — the seat that authors and confirms scenario packages without teaching a course; it sees Home and Packages.
-- **Teaching assistant** — a section seat that decides bands the instructor has not decided; voiding, corrections and test controls stay with the instructor.
-- **Platform admin** — the seat that manages platform roles, reads the Flags page and the audit log under Admin.
+- **Student** — the role that takes a Decision Run; it sees Home and Runs and never sees a variant, a warranted stance, evidence status, a failure family, a planted flag, the question bank or another student's run before its own run is scored.
+- **Instructor** — the role that creates courses, sections and assignments, invites people to the institution, reads replays, decides bands, enters corrections, voids runs and exports results; it reads packages and does not author them.
+- **Scenario Editor** — the role that authors and publishes scenario packages; it also has a Student's access, and sees Home, Runs and Packages.
+- **Platform Admin** — the role with full access: it sets every account's role, reads the Flags page and the audit log under Admin, and reaches every screen.
 - **Institution** — the organization a course, a section, a package and a membership belong to; the header names it and offers Switch institution when you have more than one.
 - **Course** — the unit that carries the outside-AI policy, the default run weight, the taught concepts and the band-to-points mapping, with the views Sections, Assignments, Policy and Mapping.
 - **Section** — a roster inside a course; every assignment belongs to one section and a student needs a row on its roster before a run can start.
@@ -567,15 +484,15 @@ Two rail items never appear for an instructor seat: **Runs** belongs to student 
 - **Decision Run** — one student's single pass through one scenario: Readiness Check, frame, working period with the assistant, filed decision, the Turn, the defense, scoring, debrief and record.
 - **Scenario package** — one decision case, versioned: the brief, the Evidence Room documents, the stakeholders, the answer space, the named fields, the claims with their variant states, the Sycophancy probe, the Turn, the question bank, the counterfactual, the readiness items, the clock and the seed record.
 - **Version** — one frozen text of a package; an assignment runs on exactly that text, and a change means a new version.
-- **Element** — one piece of a version that an author confirms, edits or rejects on its own in the confirmation workspace.
+- **Element** — one piece of a version that a Scenario Editor confirms, edits or rejects on its own in the confirmation workspace.
 - **Seed case** — the licensed case a package is adapted from, with its title, publisher, license terms, the re-skin log and the confirmation that the license permits adaptation; no student ever sees it.
 - **Family key** — the lowercase identifier a package keeps across its versions and exports; no two packages in one institution share it.
-- **Generation** — the seven model steps that draft a version from its seed case; every element they write is a draft until an author decides on it.
-- **Confirmation workspace** — the screen where an author reads each element, uses Save edits, Confirm, Reject or Rewrite, ticks the teaching-note check and confirms the version with Confirm and freeze.
+- **Generation** — the seven model steps that draft a version from its seed case; every element they write is a draft until a Scenario Editor decides on it.
+- **Confirmation workspace** — the screen where a Scenario Editor reads each element, uses Save edits, Confirm, Reject or Rewrite, ticks the teaching-note check and confirms the version with Confirm and freeze.
 - **Variant** — one of the two readings of a package, Defective or Sound, that differ only in the planted claim's evidence status and verification results; the student is never told which one they drew.
 - **Claim** — something the assistant states that a student takes a stance on; each has a key such as C3, a source, an importance, a consequence and a verification cost.
 - **Stance** — the position a student takes on a claim before the outcome is known: Accept, Verify, Challenge, Reject or Escalate.
-- **Warranted stance** — the stance the authored material deserved on a claim in a variant, confirmed by the author and shown to the student only in the debrief.
+- **Warranted stance** — the stance the authored material deserved on a claim in a variant, confirmed by the Scenario Editor and shown to the student only in the debrief.
 - **Delegation Log** — the student's record of every request to the assistant, what came back, why they asked, and which claims they marked used.
 - **Evidence Room** — the six to twelve dated, attributed documents of a scenario, open to the student in any order with no hints or summary.
 - **Readiness Check** — sixteen questions in eight minutes before the scenario opens; it is not scored, never blocks the run, and closes with a concept map.

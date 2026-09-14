@@ -36,31 +36,14 @@ import { admin } from '@/lib/i18n/messages/admin'
 import { ui } from '@/lib/i18n/messages/ui'
 import { scopedT } from '@/lib/i18n/scoped'
 import { toastError, toastSuccess } from '@/lib/toast'
-import {
-  listUsersAction,
-  setInstitutionRoleAction,
-  setPlatformRoleAction,
-} from '@/server/modules/admin/actions'
-import type {
-  AdminMembership,
-  AdminUser,
-  AdminUserPage,
-  AssignableInstitutionRole,
-  PlatformRole,
-} from '@/server/modules/admin/schema'
-import {
-  INSTITUTION_ROLES,
-  INSTITUTION_ROLE_ITEMS,
-  INSTITUTION_ROLE_LABELS,
-  PLATFORM_ROLE_ITEMS,
-  PLATFORM_ROLE_LABELS,
-  isAssignableInstitutionRole,
-} from './platform-roles'
+import { listUsersAction, setPlatformRoleAction } from '@/server/modules/admin/actions'
+import type { AdminUser, AdminUserPage, PlatformRole } from '@/server/modules/admin/schema'
+import { PLATFORM_ROLE_ITEMS, PLATFORM_ROLE_LABELS } from './platform-roles'
 import { useRefresh } from '@/lib/hooks/use-refresh'
 
-// UI-050's users table. The first page is rendered on the server; this component owns the three
-// things the screen does with it — set a platform role, make somebody a Student or an Instructor of
-// an institution they belong to (D-747), and ask for the page after this one.
+// UI-050's users table. The first page is rendered on the server; this component owns the two
+// things the screen does with it — set the one role an account holds (D-748), and ask for the page
+// after this one.
 //
 // A role change is asked about before it happens, because it is not only a role change: the service
 // revokes every session the person holds, so pressing it signs somebody out mid-sentence. The
@@ -68,68 +51,15 @@ import { useRefresh } from '@/lib/hooks/use-refresh'
 // action is confirmed), and the row updates in place afterwards rather than reloading the table,
 // so an admin working down a list does not lose their position.
 //
-// The two role columns are two different questions and stay two controls. A platform role is a
-// right over Tassl; an institution role is a seat in one institution, so a person with seats in two
-// institutions has two controls, each named for the person *and* the institution. The select offers
-// Student and Instructor; a seat outside the two is shown on the trigger and is not offered back.
-//
 // Two rows carry no control at all, and each says why rather than showing a control that refuses:
 // the actor's own row (the service refuses a self-change — a demotion would revoke the sessions it
-// is being made from) and a soft-deleted account (it holds no seat to give). Neither state is drawn
+// is being made from) and a soft-deleted account (it holds no role to give). Neither state is drawn
 // in red: refusal red is for a refusal, an error or a defect row (DESIGN.md §Semantic), and a
 // person who closed their account is none of the three (D-577).
 
 const t = scopedT(admin, ui)
 
-type Pending =
-  | { kind: 'platform'; user: AdminUser; role: PlatformRole }
-  | {
-      kind: 'institution'
-      user: AdminUser
-      membership: AdminMembership
-      role: AssignableInstitutionRole
-    }
-
-/** The dialog's two sentences for whichever change is pending. */
-function confirmation(pending: Pending): { title: string; body: string } {
-  if (pending.kind === 'platform') {
-    return {
-      title: t('admin.users.confirmTitle'),
-      body: t('admin.users.confirmBody', {
-        name: pending.user.name,
-        from: PLATFORM_ROLE_LABELS[pending.user.platformRole],
-        role: PLATFORM_ROLE_LABELS[pending.role],
-      }),
-    }
-  }
-  return {
-    title: t('admin.users.institutionConfirmTitle'),
-    body: t('admin.users.institutionConfirmBody', {
-      name: pending.user.name,
-      institution: pending.membership.organizationName,
-      from: INSTITUTION_ROLE_LABELS[pending.membership.role],
-      role: INSTITUTION_ROLE_LABELS[pending.role],
-    }),
-  }
-}
-
-/** The toast after a change the service accepted, read off the account it returned. */
-function savedMessage(pending: Pending, saved: AdminUser): string {
-  if (pending.kind === 'platform') {
-    return t('admin.users.roleSaved', {
-      name: saved.name,
-      role: PLATFORM_ROLE_LABELS[saved.platformRole],
-    })
-  }
-  const seat = saved.memberships.find(
-    (membership) => membership.organizationId === pending.membership.organizationId,
-  )
-  return t('admin.users.institutionRoleSaved', {
-    name: saved.name,
-    institution: pending.membership.organizationName,
-    role: INSTITUTION_ROLE_LABELS[seat?.role ?? pending.role],
-  })
-}
+type Pending = { user: AdminUser; role: PlatformRole }
 
 export function UserTable({
   initial,
@@ -164,14 +94,7 @@ export function UserTable({
   async function confirm(): Promise<void> {
     if (!pending) return
     setSaving(true)
-    const result =
-      pending.kind === 'platform'
-        ? await setPlatformRoleAction({ userId: pending.user.id, role: pending.role })
-        : await setInstitutionRoleAction({
-            userId: pending.user.id,
-            organizationId: pending.membership.organizationId,
-            role: pending.role,
-          })
+    const result = await setPlatformRoleAction({ userId: pending.user.id, role: pending.role })
     setSaving(false)
     if (!result.ok) {
       setPending(null)
@@ -181,12 +104,15 @@ export function UserTable({
     const saved = result.data
     setItems((current) => current.map((row) => (row.id === saved.id ? saved : row)))
     setPending(null)
-    toastSuccess(savedMessage(pending, saved))
+    toastSuccess(
+      t('admin.users.roleSaved', {
+        name: saved.name,
+        role: PLATFORM_ROLE_LABELS[saved.platformRole],
+      }),
+    )
     // The audit log on the next tab has a new row in it.
     refresh()
   }
-
-  const dialog = pending ? confirmation(pending) : null
 
   if (items.length === 0) {
     return (
@@ -200,14 +126,13 @@ export function UserTable({
 
   return (
     <div className="flex flex-col gap-4">
-      <Table className="min-w-4xl">
+      <Table className="min-w-3xl">
         <TableCaption>{t('admin.users.caption')}</TableCaption>
         <TableHeader>
           <TableRow>
             <TableHead scope="col">{t('admin.users.columnName')}</TableHead>
             <TableHead scope="col">{t('admin.users.columnEmail')}</TableHead>
             <TableHead scope="col">{t('admin.users.columnRole')}</TableHead>
-            <TableHead scope="col">{t('admin.users.columnInstitutionRole')}</TableHead>
             <TableHead scope="col">{t('admin.users.columnJoined')}</TableHead>
           </TableRow>
         </TableHeader>
@@ -243,7 +168,7 @@ export function UserTable({
                       value={row.platformRole}
                       onValueChange={(value: PlatformRole | null) => {
                         if (value === null || value === row.platformRole) return
-                        setPending({ kind: 'platform', user: row, role: value })
+                        setPending({ user: row, role: value })
                       }}
                     >
                       <SelectTrigger
@@ -260,60 +185,6 @@ export function UserTable({
                         ))}
                       </SelectContent>
                     </Select>
-                  )}
-                </TableCell>
-                <TableCell className="align-top">
-                  {row.memberships.length === 0 ? (
-                    <span className="text-ink-muted text-meta">
-                      {t('admin.users.institutionNone')}
-                    </span>
-                  ) : (
-                    <ul className="flex flex-col gap-3">
-                      {row.memberships.map((membership) => (
-                        <li key={membership.organizationId} className="flex flex-col gap-1">
-                          <span className="text-ink-muted text-meta">
-                            {membership.organizationName}
-                          </span>
-                          {isSelf || isDeleted ? (
-                            <span className="text-ink">
-                              {INSTITUTION_ROLE_LABELS[membership.role]}
-                            </span>
-                          ) : (
-                            <Select
-                              items={INSTITUTION_ROLE_ITEMS}
-                              value={membership.role}
-                              onValueChange={(value: string | null) => {
-                                if (value === null || value === membership.role) return
-                                if (!isAssignableInstitutionRole(value)) return
-                                setPending({
-                                  kind: 'institution',
-                                  user: row,
-                                  membership,
-                                  role: value,
-                                })
-                              }}
-                            >
-                              <SelectTrigger
-                                className="w-full"
-                                aria-label={t('admin.users.institutionRoleLabel', {
-                                  name: row.name,
-                                  institution: membership.organizationName,
-                                })}
-                              >
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {INSTITUTION_ROLES.map((value) => (
-                                  <SelectItem key={value} value={value}>
-                                    {INSTITUTION_ROLE_LABELS[value]}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          )}
-                        </li>
-                      ))}
-                    </ul>
                   )}
                 </TableCell>
                 <TableCell className="text-ink-muted align-top whitespace-nowrap">
@@ -348,8 +219,16 @@ export function UserTable({
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>{dialog?.title ?? t('admin.users.confirmTitle')}</AlertDialogTitle>
-            <AlertDialogDescription>{dialog?.body ?? ''}</AlertDialogDescription>
+            <AlertDialogTitle>{t('admin.users.confirmTitle')}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {pending
+                ? t('admin.users.confirmBody', {
+                    name: pending.user.name,
+                    from: PLATFORM_ROLE_LABELS[pending.user.platformRole],
+                    role: PLATFORM_ROLE_LABELS[pending.role],
+                  })
+                : ''}
+            </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={saving}>

@@ -53,7 +53,6 @@ const INVITATIONS = [
     id: 'i1',
     organizationId: 'org1',
     email: 'new@example.edu',
-    role: 'student' as const,
     status: 'pending',
     expiresAt: '2026-09-11T12:00:00.000Z',
   },
@@ -61,7 +60,6 @@ const INVITATIONS = [
     id: 'i2',
     organizationId: 'org1',
     email: 'stale@example.edu',
-    role: 'teaching_assistant' as const,
     status: 'expired',
     expiresAt: '2026-08-01T12:00:00.000Z',
   },
@@ -89,6 +87,56 @@ const removeButton = (name: string) =>
 // `findBy` wait; the component still performs its own import on the press.
 beforeAll(async () => {
   await import('@/components/features/roster/roster-dialogs')
+})
+
+// D-748: a roster row carries no role of its own. The members table prints the person's one
+// platform role, the add form asks for an address and nothing else, and an invitation has no role.
+describe('SectionRoster roles (UI-031, D-748)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    actions.addSectionMemberAction.mockResolvedValue({
+      ok: true,
+      data: { email: 'ada@example.edu' },
+    })
+  })
+
+  it('shows each member’s platform role in the Role column', () => {
+    renderRoster()
+    const members = screen.getByRole('table', { name: 'People in Section A' })
+    const lena = within(members).getByRole('row', { name: /Lena Ortiz/ })
+    const marc = within(members).getByRole('row', { name: /Marc Vidal/ })
+    expect(within(lena).getByText('Student')).toBeInTheDocument()
+    expect(within(marc).getByText('Instructor')).toBeInTheDocument()
+  })
+
+  it('draws no role column on the invitations and no role select anywhere', () => {
+    renderRoster()
+    const invitations = screen.getByRole('table', { name: enUS['roster.invitationsCaption'] })
+    expect(
+      within(invitations)
+        .getAllByRole('columnheader')
+        .map((header) => header.textContent),
+    ).toEqual([
+      enUS['roster.columnEmail'],
+      enUS['roster.columnStatus'],
+      enUS['roster.invitationsExpires'],
+    ])
+    expect(screen.queryByRole('combobox')).not.toBeInTheDocument()
+    expect(screen.queryByText(/Teaching assistant|Role in this section/)).not.toBeInTheDocument()
+  })
+
+  it('adds a member by address alone', async () => {
+    const user = renderRoster()
+    await user.type(screen.getByLabelText(enUS['roster.addEmail']), 'ada@example.edu')
+    await user.click(screen.getByRole('button', { name: enUS['roster.addSubmit'] }))
+
+    await waitFor(() =>
+      expect(actions.addSectionMemberAction).toHaveBeenCalledWith({
+        sectionId: '11111111-1111-4111-8111-111111111111',
+        email: 'ada@example.edu',
+      }),
+    )
+  })
 })
 
 describe('SectionRoster removal (UI-031, SYS-005)', () => {
@@ -185,7 +233,6 @@ describe('SectionRoster invitations (UI-031)', () => {
         id: 'i3',
         organizationId: 'org1',
         email: 'newcomer@example.edu',
-        role: 'student',
         status: 'pending',
         expiresAt: '2026-09-11T12:00:00.000Z',
       },
@@ -220,7 +267,8 @@ describe('SectionRoster invitations (UI-031)', () => {
     expect(within(dialog).getByLabelText(enUS['roster.inviteEmail'])).toHaveValue(
       'newcomer@example.edu',
     )
-    expect(within(dialog).getByLabelText(enUS['roster.inviteRole'])).toBeInTheDocument()
+    // An invitation names a person and no role (D-748).
+    expect(within(dialog).queryByRole('combobox')).not.toBeInTheDocument()
     expect(within(dialog).getByRole('button', { name: enUS['roster.cancel'] })).toBeInTheDocument()
   })
 
@@ -237,7 +285,6 @@ describe('SectionRoster invitations (UI-031)', () => {
       expect(actions.inviteMemberAction).toHaveBeenCalledWith({
         orgId: 'org1',
         email: 'newcomer@example.edu',
-        role: 'student',
       }),
     )
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())

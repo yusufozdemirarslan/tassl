@@ -280,20 +280,18 @@ export function VersionHeader({ version, confirmHref, generationHref }: VersionH
           </Link>
         }
         actions={
-          version.restricted ? undefined : (
-            // A download, not a navigation (D-719). `download` is the DOM's own decision, taken
-            // at the press and before any response is read, so an engine that does not act on
-            // `content-disposition` cannot replace this screen with the JSON — WebKit does not, and
-            // did exactly that. The name is the one the route sets, from the same catalogue key, so
-            // the header and the attribute cannot drift.
-            <a
-              href={exportHref}
-              download={t('package.exportFileName', { familyKey: version.familyKey })}
-              className={buttonVariants({ variant: 'secondary' })}
-            >
-              {t('packageVersion.export')}
-            </a>
-          )
+          // A download, not a navigation (D-719). `download` is the DOM's own decision, taken
+          // at the press and before any response is read, so an engine that does not act on
+          // `content-disposition` cannot replace this screen with the JSON — WebKit does not, and
+          // did exactly that. The name is the one the route sets, from the same catalogue key, so
+          // the header and the attribute cannot drift.
+          <a
+            href={exportHref}
+            download={t('package.exportFileName', { familyKey: version.familyKey })}
+            className={buttonVariants({ variant: 'secondary' })}
+          >
+            {t('packageVersion.export')}
+          </a>
         }
       />
 
@@ -357,14 +355,11 @@ export function VersionHeader({ version, confirmHref, generationHref }: VersionH
 
           {version.conceptSet.length > 0 && <ConceptSet concepts={version.conceptSet} />}
 
-          {/* A restricted seat is told this version's contents are not theirs to read. Titling a
-              panel "What it holds" over eight counts of them would contradict that on the same
-              screen, so the counts belong to the same gate the contents do (08 §4). */}
-          {!version.restricted && <Counts counts={version.counts} />}
+          <Counts counts={version.counts} />
 
           {version.warnings.length > 0 && <Warnings warnings={version.warnings} />}
 
-          {version.status === 'draft' && !version.restricted && (
+          {version.status === 'draft' && (
             <Section title={t('packageVersion.rulesTitle')}>
               {failures.length === 0 ? (
                 <p className="text-ink-muted text-body max-w-measure">

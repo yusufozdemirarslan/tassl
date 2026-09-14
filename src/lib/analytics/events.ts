@@ -113,17 +113,8 @@ export const EVENTS = {
   sign_up_completed: z.strictObject({ method: z.enum(['password', 'google']) }),
   email_verified: z.strictObject({ ms_since_sign_up: Int }),
   sign_in_succeeded: z.strictObject({ method: z.enum(['password', 'google', 'verification']) }),
-  invitation_accepted: z.strictObject({
-    invitation_id: Uuid,
-    role: z.enum([
-      'student',
-      'instructor',
-      'teaching_assistant',
-      'scenario_author',
-      'program_lead',
-    ]),
-    ms_since_invited: Int,
-  }),
+  // An invitation carries no role (D-748): what the member may do is their platform role.
+  invitation_accepted: z.strictObject({ invitation_id: Uuid, ms_since_invited: Int }),
 
   // AN-001 activation: the two writes an instructor makes before a run can exist (17 §5.2)
   course_created: z.strictObject({

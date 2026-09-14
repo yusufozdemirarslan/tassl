@@ -758,8 +758,8 @@ export const ClockAndDifficultyInputSchema = z.object({
 export type ClockAndDifficultyInput = Parsed<typeof ClockAndDifficultyInputSchema>
 
 /**
- * The licensed case a package was re-skinned from (FR-028). Never returned to a student, a TA, or
- * any route outside authoring; the export carries it so a receiving institution keeps the record of
+ * The licensed case a package was re-skinned from (FR-028). Never returned to a student, an
+ * Instructor, or any route outside authoring; the export carries it so a receiving institution keeps the record of
  * what the package is derived from.
  */
 export const SeedRecordInputSchema = z.object({
@@ -1141,7 +1141,7 @@ export type ElementCounts = Parsed<typeof ElementCountsSchema>
 
 /**
  * `GET /package-versions/{versionId}` (FR-180, FR-195, FR-198). `seedRecord` is null for every
- * actor who may not read it — TAs, students and reviewers outside the institution (FR-028, D-117).
+ * reader but a Scenario Editor and the admin (FR-028, D-117, D-748).
  */
 export const PackageVersionViewSchema = z.object({
   id: z.uuid(),
@@ -1168,13 +1168,6 @@ export const PackageVersionViewSchema = z.object({
   validation: ValidationResultSchema,
   warnings: z.array(PackageWarningSchema),
   seedRecord: SeedRecordViewSchema.nullable(),
-  /**
-   * True when the reader is admitted to the measures and nothing else (08 §4: the program lead's
-   * row reads "✓ org (measures only)"). The withheld fields are empty rather than absent, so one
-   * shape serves the endpoint; the flag is what lets a screen say so instead of rendering a package
-   * with no brief.
-   */
-  restricted: z.boolean(),
   capabilities: z.object({
     canEdit: z.boolean(),
     canConfirm: z.boolean(),

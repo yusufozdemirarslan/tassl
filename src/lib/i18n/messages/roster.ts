@@ -20,14 +20,10 @@ export const roster = {
   'roster.membersEmptyBody':
     'Add the people who will take this section’s assignments. A student needs a row here before a run can start.',
   'roster.truncated': 'The first {count} members are shown.',
-  'roster.roleStudent': 'Student',
-  'roster.roleInstructor': 'Instructor',
-  'roster.roleTa': 'Teaching assistant',
   'roster.addTitle': 'Add member',
   'roster.addDescription':
     'Add someone by the address they sign in with. They must already belong to the institution.',
   'roster.addEmail': 'Email address',
-  'roster.addRole': 'Role in this section',
   'roster.addSubmit': 'Add to section',
   'roster.added': '{email} is now in this section.',
   'roster.inviteAction': 'Invite to institution',
@@ -52,7 +48,6 @@ export const roster = {
   'roster.inviteDescription':
     'They get an email with a link that lasts seven days. Accepting it makes them a member of the institution; add them to this section afterwards.',
   'roster.inviteEmail': 'Email address',
-  'roster.inviteRole': 'Role in the institution',
   'roster.inviteSubmit': 'Send invitation',
   'roster.invitePending': 'Sending…',
 } as const

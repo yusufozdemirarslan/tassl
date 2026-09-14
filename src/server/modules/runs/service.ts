@@ -31,10 +31,12 @@ import { countWords } from '@/lib/words'
 import { claimContext, runContext, type RunContext } from '@/server/analytics/run-context'
 import { track, type TrackActor } from '@/server/analytics/track'
 import {
+  isPlatformAdmin,
+  LEARNER_ROLES,
   requireRunInstructor,
   requireRunOwner,
   requireRunReviewer,
-  requireSectionRole,
+  requireSectionSeat,
 } from '@/server/auth/permissions'
 import { assertNoForbiddenKeys } from '@/server/auth/student-view'
 import type { SessionUser } from '@/server/auth/types'
@@ -197,14 +199,20 @@ type RunScope = { runId: string; organizationId: string; studentId: string; sect
  *
  * `requireRunOwner` answers NOT_FOUND both for a run that does not exist and for one belonging to
  * another student (08 §4), so a reviewer arrives at the second guard and is asked for their role
- * there. That guard answers FORBIDDEN to a section member holding the wrong role, which here means
- * one thing only — a classmate of the run's owner — and passing it through would confirm the run
- * exists to the one reader 08 §4 gives no read of it at all.
+ * there. That guard answers FORBIDDEN only to the run's own learner (D-748), who has already passed
+ * the first; it is still answered as NOT_FOUND here, so no refusal on this path can confirm that a
+ * run exists to a reader 08 §4 gives no read of it at all.
+ *
+ * The Platform Admin takes the reviewer's path and never the owner's (D-748): `requireRunOwner`
+ * admits the admin to every run, and the owner's projection is the student's own screen.
  */
 async function requireOwnerOrReviewer(
   actor: SessionUser,
   runId: string,
 ): Promise<{ scope: RunScope; viewer: 'owner' | 'reviewer' }> {
+  if (isPlatformAdmin(actor)) {
+    return { scope: await requireRunReviewer(actor, runId), viewer: 'reviewer' }
+  }
   try {
     return { scope: await requireRunOwner(actor, runId), viewer: 'owner' }
   } catch (error) {
@@ -528,17 +536,17 @@ function asSecondStart(error: unknown): never {
 }
 
 /**
- * The section membership 08 §4 requires to start a run: `student`, and only `student`. An
- * instructor or TA of the same section reaches this having already read the assignment, so the
- * refusal is FORBIDDEN — they can see it, they simply do not take it — while anyone outside the
- * section never got past `getAssignment`.
+ * The seat 08 §4 requires to start a run: on the section's roster with a learner role — a Student or
+ * a Scenario Editor — or the Platform Admin (D-748). An Instructor of the same section reaches this
+ * having already read the assignment, so the refusal is FORBIDDEN — they can see it, they simply do
+ * not take it — while anyone outside the section never got past `getAssignment`.
  */
 async function requireStudentOnSection(
   actor: SessionUser,
   sectionId: string,
 ): Promise<{ organizationId: string }> {
   try {
-    const scope = await requireSectionRole(actor, sectionId, ['student'])
+    const scope = await requireSectionSeat(actor, sectionId, LEARNER_ROLES)
     return { organizationId: scope.organizationId }
   } catch (error) {
     if (isAppError(error) && error.code === 'FORBIDDEN') notSectionStudent()
@@ -620,7 +628,8 @@ export async function acknowledgePolicy(actor: SessionUser, runId: string): Prom
       weight_percent: policy.weight,
       mapping_is_default: sameMapping(policy.mapping, settings.settings.defaultMapping),
     },
-    { userId: actor.id, organizationId: tenantId },
+    // The run's learner, not the actor: the admin may act inside a run that is not theirs (D-748).
+    { userId: scope.studentId, organizationId: tenantId },
   )
   return toRunSummary(updated)
 }
@@ -1467,7 +1476,7 @@ export async function lockFrame(
     const openedCount = await repo.countDocumentOpens(runId, now, tx)
     const readiness = await repo.findReadinessResult(runId, tx)
     const roomOpenedAt = readiness ? (readiness.submittedAt ?? readiness.createdAt) : null
-    const analytics = await runAnalytics(tx, next, actor.id)
+    const analytics = await runAnalytics(tx, next, scope.studentId)
     onCommit(tx, () =>
       track(
         'frame_locked',
@@ -1687,7 +1696,7 @@ export async function lockDecision(
       // of "locks refused over an unstanced claim" wrong, which is the whole reading. The refused
       // brief is not lost either: the `lock_refused` trace event carries the field it broke.
       if (plan.outcome === 'unstanced') {
-        const analytics = await runAnalytics(tx, run, actor.id)
+        const analytics = await runAnalytics(tx, run, scope.studentId)
         onCommit(tx, () =>
           track(
             'lock_refused',
@@ -2027,7 +2036,7 @@ export async function addAddendum(
     // AN-003 (17 §3.3): how long after filing the decision the student came back to it, which is
     // FR-107's whole measure. The fifty words are not sent, here or anywhere.
     // `addendumOpen` has just proved `decision_locked_at` is set.
-    const analytics = await runAnalytics(tx, run, actor.id)
+    const analytics = await runAnalytics(tx, run, scope.studentId)
     onCommit(tx, () =>
       track(
         'addendum_added',
@@ -3088,7 +3097,7 @@ export async function resumeRun(actor: SessionUser, runId: string): Promise<RunS
     // AN-003 (17 §3.3): what the outage cost. `paused_ms` is the wall time the run spent frozen and
     // `credited_ms` is the charge the failed act had already taken, which the resume gives back —
     // zero for a delegation, which charges no clock at all (10 §7).
-    const analytics = await runAnalytics(tx, next, actor.id)
+    const analytics = await runAnalytics(tx, next, scope.studentId)
     onCommit(tx, () =>
       track(
         'run_resumed',

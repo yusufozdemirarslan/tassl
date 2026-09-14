@@ -12,7 +12,7 @@ const location = vi.hoisted(() => ({ pathname: '/home' }))
 
 vi.mock('next/navigation', () => ({ usePathname: () => location.pathname }))
 
-const admin = railFor({ roles: ['student'], platformRole: 'admin' })
+const admin = railFor({ platformRole: 'admin' })
 
 function activeLinks(): string[] {
   return screen

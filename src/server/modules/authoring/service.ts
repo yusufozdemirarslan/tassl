@@ -145,10 +145,9 @@ async function resolveVersion(actor: SessionUser, versionId: string): Promise<Ve
 }
 
 /**
- * The seat 08 §4 gives "Create package from seed; run generation": an `instructor` or a
- * `scenario_author` of the package's institution, which is also the only way in for a platform
- * editor (08 §5). `requireAuthorOnPackage` resolves the institution itself, so an actor who is a
- * member of no institution never gets past `resolveVersion`.
+ * The seat 08 §4 gives "Create package from seed; run generation": a Scenario Editor of the
+ * package's institution, or the admin (D-748). `requireAuthorOnPackage` resolves the institution
+ * itself, so an actor who is a member of no institution never gets past `resolveVersion`.
  */
 async function requireGenerationAuthor(
   actor: SessionUser,

@@ -15,7 +15,7 @@ import {
   uuid,
 } from 'drizzle-orm/pg-core'
 import { organization, user } from './auth'
-import { outsideAiPolicy, runType, sectionRole } from './enums'
+import { outsideAiPolicy, runType } from './enums'
 import { scenarioPackageVersions, scenarioVariants } from './scenarios'
 import { DEFAULT_BAND_MAPPING, type BandMapping } from './tenancy'
 
@@ -96,7 +96,6 @@ export const sectionMemberships = pgTable(
     userId: text('user_id')
       .notNull()
       .references(() => user.id),
-    role: sectionRole('role').notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
   },
@@ -104,8 +103,6 @@ export const sectionMemberships = pgTable(
     uniqueIndex('section_memberships_section_id_user_id_uidx').on(t.sectionId, t.userId),
     // My runs, my courses.
     index('section_memberships_user_id_idx').on(t.userId),
-    // Roster, reviewer checks.
-    index('section_memberships_section_id_role_idx').on(t.sectionId, t.role),
   ],
 )
 

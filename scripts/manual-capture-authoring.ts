@@ -6,8 +6,7 @@
  * Builds a scenario package from a seed case on the scripted assistant and captures every screen on
  * the way: the form, the generation steps, the confirmation workspace while elements are still
  * undecided, one element rejected and rewritten, one edited, the confirmation dialog, and the frozen
- * version. It does it twice — once as the instructor, who may freeze a version, and once as the
- * scenario editor seat, which may do everything except freeze one — so the manual can show both.
+ * version. It runs as the Scenario Editor, who authors and publishes packages (D-748).
  */
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
@@ -18,7 +17,7 @@ const PASSWORD = process.env.SEED_PASSWORD ?? 'Walkthrough-Pass-2026'
 const SHOT_ROOT = join(process.cwd(), 'docs', 'manual', 'screenshots')
 const TEXT_ROOT = process.env.MANUAL_TEXT_DIR ?? join(process.cwd(), '.manual-text')
 
-let role = 'instructor'
+let role = 'editor'
 const captured: string[] = []
 const problems: string[] = []
 
@@ -280,12 +279,6 @@ async function main(): Promise<void> {
   const page = await context.newPage()
   page.setDefaultTimeout(45_000)
 
-  role = 'instructor'
-  await signIn(page, 'instructor')
-  await createPackage(page, process.env.MANUAL_PKG_TITLE ?? 'Manual authoring package', 'authoring')
-  await confirmWorkspace(page, 'authoring', true)
-
-  await context.clearCookies()
   role = 'editor'
   await signIn(page, 'editor')
   await createPackage(
@@ -293,7 +286,7 @@ async function main(): Promise<void> {
     process.env.MANUAL_PKG_TITLE_EDITOR ?? 'Manual editor package',
     'authoring',
   )
-  await confirmWorkspace(page, 'authoring', false)
+  await confirmWorkspace(page, 'authoring', true)
 
   await browser.close()
   console.log(`\ncaptured ${String(captured.length)} screens`)

@@ -132,7 +132,7 @@ describe('better auth flows (08 §2)', () => {
       email: EMAIL,
       name: 'Flows Seat',
       emailVerified: true,
-      platformRole: 'none',
+      platformRole: 'student',
       activeOrganizationId: null,
     })
   })

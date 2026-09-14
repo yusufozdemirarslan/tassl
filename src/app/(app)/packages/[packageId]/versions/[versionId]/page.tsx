@@ -47,18 +47,15 @@ import { getViewer } from '../../../../viewer'
 // Two reads serve the screen. `getPackageVersion` answers the record, the measures and the
 // capabilities; `exportPackage` answers the claims, because the version view publishes counts
 // rather than claims and a claim is only addressable by the element key an export carries. Both
-// functions admit exactly the same three seats — instructor, scenario author, teaching assistant —
-// so a reader who is admitted to the version's content is admitted to the export, and a program
-// lead, whose row in 08 §4 reads "measures only", is refused both. That is why the export is not
-// even attempted for them: the screen states what it is showing instead of drawing a package with
-// no brief (`restricted`, D-211).
+// functions admit exactly the same readers — a Scenario Editor, an Instructor, the Platform Admin
+// (D-748) — so a reader who is admitted to the version's content is admitted to the export.
 //
 // The claim object is a sub-view of this same address (`?claim=<key>`), the way UI-030's four
 // sub-views are: the claim is bookmarkable, the back gesture works, the whole screen stays a server
 // component, and the route ships no JavaScript for any of it.
 //
 // A version the reader may not see is the not-found page, never the error boundary: NOT_FOUND for
-// another institution's id and FORBIDDEN for a seat that may not read packages mean the same thing
+// another institution's id and FORBIDDEN for a role that may not read packages mean the same thing
 // to the person who typed the address.
 
 /**
@@ -144,7 +141,7 @@ export default async function PackageVersionPage({
   const confirmHref = `${basePath}/confirm` as Route
   const generationHref = `${basePath}/generation` as Route
 
-  const packageDocument = version.restricted ? null : await loadExport(versionId)
+  const packageDocument = await loadExport(versionId)
 
   const variantKeys = packageDocument?.variants.map((variant) => variant.key) ?? []
   const documentTitles = new Map(
@@ -196,23 +193,21 @@ export default async function PackageVersionPage({
       <VersionHeader version={version} confirmHref={confirmHref} generationHref={generationHref} />
 
       <div className="flex flex-col gap-6">
-        {!version.restricted && (
-          <Panel
-            id="confirmation-record"
-            title={t('packageVersion.recordTitle')}
-            description={t('packageVersion.recordDescription')}
-            headingLevel={2}
-          >
-            {version.confirmationRecord.length === 0 ? (
-              <EmptyState
-                title={t('packageVersion.recordEmptyTitle')}
-                body={t('packageVersion.recordEmptyBody')}
-              />
-            ) : (
-              <ConfirmationRecord rows={version.confirmationRecord} />
-            )}
-          </Panel>
-        )}
+        <Panel
+          id="confirmation-record"
+          title={t('packageVersion.recordTitle')}
+          description={t('packageVersion.recordDescription')}
+          headingLevel={2}
+        >
+          {version.confirmationRecord.length === 0 ? (
+            <EmptyState
+              title={t('packageVersion.recordEmptyTitle')}
+              body={t('packageVersion.recordEmptyBody')}
+            />
+          ) : (
+            <ConfirmationRecord rows={version.confirmationRecord} />
+          )}
+        </Panel>
 
         <Panel
           id="authoring-record"
@@ -229,57 +224,41 @@ export default async function PackageVersionPage({
           description={t('packageVersion.measuresDescription')}
           headingLevel={2}
         >
-          {/* The measures are the whole of what a "measures only" seat is admitted to, so the
-              sentence saying that is here, with them, rather than two panels above them. */}
-          {version.restricted ? (
-            <div className="flex flex-col gap-5">
-              <section className="border-line flex flex-col gap-2 border-b pb-5">
-                <h3 className="text-h4">{t('packageVersion.restrictedTitle')}</h3>
-                <p className="text-ink-muted text-body max-w-measure">
-                  {t('packageVersion.restrictedBody')}
-                </p>
-              </section>
-              <AuthoringMeasures measures={version.measures} />
-            </div>
-          ) : (
-            <AuthoringMeasures measures={version.measures} />
-          )}
+          <AuthoringMeasures measures={version.measures} />
         </Panel>
 
-        {!version.restricted && (
-          <Panel
-            id="claims"
-            headingLevel={2}
-            title={
-              selected === null
-                ? t('packageVersion.claimsTitle')
-                : t('claimObject.title', { key: selected.key })
-            }
-            {...(selected === null ? { description: t('packageVersion.claimsDescription') } : {})}
-          >
-            {selected !== null ? (
-              <ClaimObjectView
-                claim={selected}
-                sourceDocument={selectedSource}
-                states={statesByClaim.get(selected.key) ?? []}
-                documentTitles={documentTitles}
-                backHref={basePath as Route}
-              />
-            ) : packageDocument === null ? (
-              <EmptyState
-                title={t('packageVersion.claimsWithheldTitle')}
-                body={t('packageVersion.claimsWithheldBody')}
-              />
-            ) : claims.length === 0 ? (
-              <EmptyState
-                title={t('packageVersion.claimsEmptyTitle')}
-                body={t('packageVersion.claimsEmptyBody')}
-              />
-            ) : (
-              <ClaimsTable claims={claims} variantKeys={variantKeys} basePath={basePath} />
-            )}
-          </Panel>
-        )}
+        <Panel
+          id="claims"
+          headingLevel={2}
+          title={
+            selected === null
+              ? t('packageVersion.claimsTitle')
+              : t('claimObject.title', { key: selected.key })
+          }
+          {...(selected === null ? { description: t('packageVersion.claimsDescription') } : {})}
+        >
+          {selected !== null ? (
+            <ClaimObjectView
+              claim={selected}
+              sourceDocument={selectedSource}
+              states={statesByClaim.get(selected.key) ?? []}
+              documentTitles={documentTitles}
+              backHref={basePath as Route}
+            />
+          ) : packageDocument === null ? (
+            <EmptyState
+              title={t('packageVersion.claimsWithheldTitle')}
+              body={t('packageVersion.claimsWithheldBody')}
+            />
+          ) : claims.length === 0 ? (
+            <EmptyState
+              title={t('packageVersion.claimsEmptyTitle')}
+              body={t('packageVersion.claimsEmptyBody')}
+            />
+          ) : (
+            <ClaimsTable claims={claims} variantKeys={variantKeys} basePath={basePath} />
+          )}
+        </Panel>
       </div>
     </>
   )
@@ -318,7 +297,7 @@ function Refusal({ children, action }: { children: ReactNode; action?: ReactNode
  * the licensed case's own record — its title, its publisher and the terms the author relied on —
  * and `getPackageVersion` returns it as null for anyone who may not read it. Null is stated rather
  * than drawn as an empty panel: "there is a seed record and it is not yours to read" and "there is
- * no seed record" are different facts, and only the first is true of a TA.
+ * no seed record" are different facts, and only the first is true of an Instructor.
  */
 function AuthoringRecord({
   version,

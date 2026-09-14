@@ -74,9 +74,9 @@ export type BandDecisionControlProps = {
   /** The note already on the record; it opens in the field so an edit is an edit. */
   note: string | null
   /**
-   * False when this seat may not change this dimension — 08 §4's TA row, answered per dimension
-   * because a teaching assistant may decide the six an instructor has not touched. The control says
-   * so instead of refusing on submit.
+   * False when this run's bands may not be decided from this screen. Every reviewer decides every
+   * dimension (D-748), so the answer is the run's and not the dimension's: the Bands panel says why
+   * once, above the seven, and the control draws nothing rather than a form that would refuse.
    */
   canDecide: boolean
   /** True once the run is exported, so the reviewer knows a change writes a new version (D-087). */
@@ -170,13 +170,7 @@ export function BandDecisionControl({
     })
   }
 
-  if (!canDecide) {
-    return (
-      <p className="border-line bg-paper-sunken text-ink text-body max-w-measure rounded-md border p-3">
-        {t('review.decisionLockedByInstructor')}
-      </p>
-    )
-  }
+  if (!canDecide) return null
 
   return (
     <div className="flex flex-col gap-4">

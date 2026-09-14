@@ -17,8 +17,8 @@ vi.setConfig({ testTimeout: 30_000 })
 // a seat that may not have them, and would then draw an empty screen instead of a 404.
 //
 // So the order is the assertion. The first thing `GenerationPage` does after validating its two
-// ids is ask for the generation status; a refusal of any kind — FORBIDDEN for a teaching assistant
-// or a program lead, NOT_FOUND for another institution's id — is the not-found page, and the
+// ids is ask for the generation status; a refusal of any kind — FORBIDDEN for an Instructor, who
+// reads packages and does not author them, NOT_FOUND for another institution's id — is the not-found page, and the
 // version read never happens.
 
 const PACKAGE_ID = '11111111-1111-4111-8111-111111111111'

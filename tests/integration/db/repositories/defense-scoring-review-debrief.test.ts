@@ -422,6 +422,81 @@ describe('review repository', () => {
     expect(listed.map((row) => row.id)).toEqual([second.id, first.id])
     expect(await review.listNeutralizations(other.runId)).toEqual([])
   })
+
+  // D-748: a roster row carries no role, so who reviews a section is read from the platform role —
+  // the Instructors on its roster and the course's creator while they are an Instructor — and the
+  // sections an Instructor reviews are every live section of a course they created or teach on.
+  it('reads reviewers and reviewed sections from the platform role, inside the tenant', async () => {
+    const { organizationId } = await createRunChain()
+    const person = async (name: string, role: string): Promise<string> => {
+      const id = crypto.randomUUID()
+      await testSql`
+        insert into "user" (id, name, email, email_verified, platform_role, created_at, updated_at)
+        values (${id}, ${name}, ${`${id}@example.test`}, true, ${role}, now(), now())`
+      return id
+    }
+    const course = async (createdBy: string): Promise<string> => {
+      const id = crypto.randomUUID()
+      await testSql`
+        insert into courses (id, organization_id, name, term, created_by)
+        values (${id}, ${organizationId}, 'Pricing', '2026-fall', ${createdBy})`
+      return id
+    }
+    const section = async (courseId: string, name: string): Promise<string> => {
+      const id = crypto.randomUUID()
+      await testSql`
+        insert into sections (id, organization_id, course_id, name)
+        values (${id}, ${organizationId}, ${courseId}, ${name})`
+      return id
+    }
+    const enrol = async (sectionId: string, userId: string): Promise<void> => {
+      await testSql`
+        insert into section_memberships (organization_id, section_id, user_id)
+        values (${organizationId}, ${sectionId}, ${userId})`
+    }
+
+    const creator = await person('Creator', 'instructor')
+    const coTeacher = await person('Co-teacher', 'instructor')
+    const learner = await person('Learner', 'student')
+    const formerInstructor = await person('Former instructor', 'student')
+
+    const pricing = await course(creator)
+    const sectionA = await section(pricing, 'A')
+    const sectionB = await section(pricing, 'B')
+    await enrol(sectionA, learner)
+    await enrol(sectionB, coTeacher)
+    // A course whose creator no longer holds the Instructor role has no reviewer at all.
+    const orphaned = await section(await course(formerInstructor), 'C')
+    await enrol(orphaned, learner)
+
+    const sorted = (ids: string[]) => [...ids].sort()
+    expect(await review.listSectionReviewerIds(organizationId, sectionA)).toEqual([creator])
+    expect(sorted(await review.listSectionReviewerIds(organizationId, sectionB))).toEqual(
+      sorted([creator, coTeacher]),
+    )
+    expect(sorted(await scoring.listSectionReviewerIds(organizationId, sectionB))).toEqual(
+      sorted([creator, coTeacher]),
+    )
+    expect(await review.listSectionReviewerIds(organizationId, orphaned)).toEqual([])
+
+    expect(sorted(await review.listReviewerSectionIds(organizationId, creator))).toEqual(
+      sorted([sectionA, sectionB]),
+    )
+    // On section B's roster, so an instructor of the course, so a reviewer of section A too.
+    expect(sorted(await review.listReviewerSectionIds(organizationId, coTeacher))).toEqual(
+      sorted([sectionA, sectionB]),
+    )
+    expect(await review.listReviewerSectionIds(organizationId, learner)).toEqual([])
+    expect(await review.listReviewerSectionIds(organizationId, formerInstructor)).toEqual([])
+    expect(await review.listReviewerSectionIds(crypto.randomUUID(), creator)).toEqual([])
+
+    await testSql`update sections set deleted_at = now() where id = ${sectionA}`
+    expect(await review.listReviewerSectionIds(organizationId, creator)).toEqual([sectionB])
+    expect(await review.listSectionIds(organizationId)).not.toContain(sectionA)
+    expect(await review.listSectionIds(organizationId)).toContain(orphaned)
+    expect(await review.findSectionCourseId(organizationId, sectionB)).toBe(pricing)
+    expect(await review.findSectionCourseId(crypto.randomUUID(), sectionB)).toBeNull()
+  })
 })
 
 describe('debrief repository', () => {

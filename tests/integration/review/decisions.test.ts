@@ -15,7 +15,8 @@
 //     still readable exactly as it was written.
 //   * **An override carries its note**; `unassessed` is terminal and takes the dimension out of the
 //     arithmetic rather than counting it as zero (FR-202, FR-004).
-//   * **A TA cannot change a band the instructor decided** (08 §4), and may decide the others.
+//   * **Every reviewer holds the same seat** (D-748): the admin may re-decide what the instructor
+//     decided and the other way round; the run's student and anyone who does not review it may not.
 //   * **Every act writes an audit row** (SYS-011).
 // @db:truncate
 import { afterAll, beforeEach, describe, expect, it } from 'vitest'
@@ -274,33 +275,26 @@ describe('confirmRemaining', () => {
   })
 })
 
-describe('the TA lock (08 §4)', () => {
-  it('lets a TA decide a dimension the instructor has not touched', async () => {
-    const runId = await scoredRun(fx)
-    const result = await review.decideBand(fx.ta, runId, 'delegation', { decision: 'confirmed' })
-    expect(result.band.decision).toBe('confirmed')
-    expect(result.band.decidedBy).toBe(fx.ta.id)
-  })
-
-  it('refuses a TA changing a band the instructor decided', async () => {
+describe('who decides (08 §4, D-748)', () => {
+  it('lets the admin re-decide a band the instructor decided, on a confirmed run', async () => {
     const runId = await scoredRun(fx)
     await review.decideBand(fx.instructor, runId, 'framing', {
       decision: 'overridden',
       band: 'professional',
     })
+    await review.confirmRemaining(fx.instructor, runId)
 
-    await expect(
-      review.decideBand(fx.ta, runId, 'framing', { decision: 'confirmed' }),
-    ).rejects.toMatchObject({ code: 'BAND_LOCKED_BY_INSTRUCTOR' })
-
-    // Nothing moved.
-    const framing = (await bandRows(runId)).find((band) => band.dimension === 'framing')
-    expect(framing).toMatchObject({ decision: 'overridden', decided_band: 'professional' })
+    const result = await review.decideBand(fx.admin, runId, 'framing', {
+      decision: 'overridden',
+      band: 'novice',
+    })
+    expect(result.band).toMatchObject({ decision: 'overridden', decidedBy: fx.admin.id })
+    expect((await exportRows(runId)).map((row) => row.reason)).toEqual(['initial', 'override'])
   })
 
-  it('lets an instructor change a band the TA decided', async () => {
+  it('lets the instructor change a band the admin decided', async () => {
     const runId = await scoredRun(fx)
-    await review.decideBand(fx.ta, runId, 'framing', { decision: 'confirmed' })
+    await review.decideBand(fx.admin, runId, 'framing', { decision: 'confirmed' })
     const result = await review.decideBand(fx.instructor, runId, 'framing', {
       decision: 'overridden',
       band: 'novice',
@@ -309,11 +303,17 @@ describe('the TA lock (08 §4)', () => {
     expect(result.band.decidedBy).toBe(fx.instructor.id)
   })
 
-  it('refuses a TA re-deciding after the run is confirmed', async () => {
+  it('refuses the run’s own student with FORBIDDEN, and a classmate or an editor with NOT_FOUND', async () => {
     const runId = await scoredRun(fx)
-    await review.confirmRemaining(fx.instructor, runId)
-    await expect(
-      review.decideBand(fx.ta, runId, 'framing', { decision: 'overridden', band: 'novice' }),
-    ).rejects.toMatchObject({ code: 'FORBIDDEN' })
+    const input = { decision: 'confirmed' as const }
+    await expect(review.decideBand(fx.student, runId, 'framing', input)).rejects.toMatchObject({
+      code: 'FORBIDDEN',
+    })
+    for (const actor of [fx.classmate, fx.editor]) {
+      await expect(review.decideBand(actor, runId, 'framing', input)).rejects.toMatchObject({
+        code: 'NOT_FOUND',
+      })
+    }
+    expect((await bandRows(runId)).every((band) => band.decision === null)).toBe(true)
   })
 })

@@ -4,7 +4,7 @@ import { EmptyState } from '@/components/layout/empty-state'
 import { PageHeader } from '@/components/layout/page-header'
 import { Panel } from '@/components/layout/panel'
 import { t } from '@/lib/i18n/t'
-import type { OrganizationRole } from '@/server/modules/identity/schema'
+import type { PlatformRole } from '@/server/modules/identity/schema'
 import { getViewer } from '../../viewer'
 
 export const metadata: Metadata = { title: t('packageNew.title') }
@@ -12,8 +12,9 @@ export const metadata: Metadata = { title: t('packageNew.title') }
 // UI-041 (FR-190). A package family is written into the session's active institution — the tenant
 // the shell's switcher names — from a case the author holds the rights to adapt.
 //
-// The seat is read here so a person who does not hold it is told so, rather than filling a long
-// form and being refused by `createPackageFromSeed` at the end of it. Hiding the rail item and the
+// The role is read here so a person who does not hold it is told so, rather than filling a long
+// form and being refused by `createPackageFromSeed` at the end of it: only a Scenario Editor or the
+// Platform Admin authors a package (D-748); an Instructor reads the shelf and is not offered this. Hiding the rail item and the
 // list's button is the courtesy; this is the courtesy for the address typed by hand, and the
 // service check behind the action is the enforcement (08 §4).
 //
@@ -25,8 +26,8 @@ export const metadata: Metadata = { title: t('packageNew.title') }
 // the header rather than under the form: a person who arrives with an export in hand finds it
 // before reading eight fields and a case-sized textarea.
 
-/** 08 §4: the two institution seats that read and write a package. */
-const AUTHOR_ROLES: readonly OrganizationRole[] = ['instructor', 'scenario_author']
+/** 08 §4, D-748: the roles that author a package. */
+const AUTHOR_ROLES: readonly PlatformRole[] = ['tassl_scenario_editor', 'admin']
 
 export default async function NewPackagePage() {
   const { me } = await getViewer()
@@ -50,15 +51,15 @@ export default async function NewPackagePage() {
     )
   }
 
-  if (!AUTHOR_ROLES.includes(membership.role)) {
+  if (!AUTHOR_ROLES.includes(me.platformRole)) {
     return (
       <>
         <PageHeader title={t('packageNew.title')} eyebrow={membership.name} />
         <Panel>
           <EmptyState
             headingLevel={2}
-            title={t('packages.noAccessTitle')}
-            body={t('packages.noAccessBody', { name: membership.name })}
+            title={t('packages.noAuthorTitle')}
+            body={t('packages.noAuthorBody', { name: membership.name })}
           />
         </Panel>
       </>

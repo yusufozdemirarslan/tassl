@@ -15,7 +15,7 @@
 // through `../walkthrough/scored-run.ts` exactly as the walkthrough specs drive theirs.
 //
 // The twelve tasks run in order in one worker (`serial`): Task 2 makes the course Task 3 fills,
-// Task 6 makes the assignment Tasks 7 to 10 review, Task 8 writes the notification Task 12 reads.
+// Task 6 makes the assignment Tasks 7 to 10 review, Task 8 writes the notification Task 11 reads.
 // Every row the tasks create is named "Guide …", which is how `resetGuideData` in
 // ../global-setup.ts finds it again before the next engine starts.
 import type { APIRequestContext, Locator, Page, PlaywrightWorkerArgs } from '@playwright/test'
@@ -45,11 +45,7 @@ const COURSE_NAME = 'Guide course 2026'
 const TERM = '2026-fall'
 const SECTION_NAME = 'Guide section'
 const ASSIGNMENT_NAME = 'Guide run'
-const PACKAGE_TITLE = 'Guide package 2026'
 const OVERRIDE_NOTE = 'Guide note. Check the memo date.'
-const REJECTION_NOTE = 'Guide rejection. The dateline reads as an internal memo.'
-const DOCUMENT_TITLE = 'Guide document title'
-const SEED_SENTENCE = 'Guide seed case text for the walkthrough.'
 
 /** The seven band names the screen uses, keyed the way the API reports them. */
 const BAND_LABELS: Record<string, string> = {
@@ -67,10 +63,6 @@ const BAND_LABELS: Record<string, string> = {
  */
 const ACTION_TIMEOUT_MS = 20_000
 const GRAPH_TIMEOUT_MS = 20_000
-
-/** The scripted assistant drafts a package in seconds; the real one takes minutes. Either passes. */
-const GENERATION_TIMEOUT_MS = 120_000
-const REWRITE_TIMEOUT_MS = 90_000
 
 // ---------------------------------------------------------------------------------------------
 // Helpers
@@ -201,11 +193,12 @@ test('Task 1: Sign in and find your way around', async ({ page, shot }) => {
   })
 
   await test.step('1.6 Read the panels on Home.', async () => {
-    // An instructor seat with no student role has no Your runs panel (QA-026).
-    for (const panel of ['Review', 'Packages', 'Courses']) {
+    // An Instructor takes no runs and publishes no packages (D-748): no Your runs panel and no
+    // Packages panel, only the two that are theirs.
+    for (const panel of ['Review', 'Courses']) {
       await expect(page.getByRole('heading', { level: 2, name: panel, exact: true })).toBeVisible()
     }
-    // The third panel is below the fold; the shot scrolls to it so all three are in frame.
+    // The second panel can sit below the fold; the shot scrolls to it so both are in frame.
     await shot(1, 6, page.locator('#home-courses'))
   })
 
@@ -330,7 +323,6 @@ test('Task 3: Add a section and its students', async ({ page, shot }) => {
 
   const addForm = page.locator('#roster-add')
   const email = addForm.getByLabel('Email address')
-  const role = page.locator('#roster-add-role')
   const addToSection = addForm.getByRole('button', { name: 'Add to section' })
 
   await test.step('3.1 Click Courses in the rail.', async () => {
@@ -382,7 +374,6 @@ test('Task 3: Add a section and its students', async ({ page, shot }) => {
   await test.step('3.7 Type student2@tassl.local in Email address under Add member.', async () => {
     await email.fill(seatEmail('student2'))
     await expect(email).toHaveValue(seatEmail('student2'))
-    await expect(role).toContainText('Student')
     await shot(3, 7)
   })
 
@@ -414,28 +405,21 @@ test('Task 3: Add a section and its students', async ({ page, shot }) => {
     await shot(3, 11)
   })
 
-  await test.step('3.12 Choose Instructor in Role in this section.', async () => {
-    await role.click()
-    await page.getByRole('option', { name: 'Instructor', exact: true }).click()
-    await expect(role).toContainText('Instructor')
-    await shot(3, 12)
-  })
-
-  await test.step('3.13 Click Add to section.', async () => {
+  await test.step('3.12 Click Add to section.', async () => {
     await addToSection.click()
     await expect(page.getByText(`${INSTRUCTOR_EMAIL} is now in this section.`)).toBeVisible()
     const row = page.getByRole('row').filter({ hasText: 'Instructor Seat' })
     await expect(row).toBeVisible()
     await expect(row.getByRole('cell').nth(2)).toHaveText('Instructor')
-    await shot(3, 13)
+    await shot(3, 12)
   })
 
-  await test.step('3.14 Click Back to the course.', async () => {
+  await test.step('3.13 Click Back to the course.', async () => {
     await page.getByRole('link', { name: 'Back to the course' }).click()
     await expect(page.getByRole('heading', { level: 1, name: COURSE_NAME })).toBeVisible()
     const row = page.getByRole('row').filter({ hasText: SECTION_NAME })
     await expect(row.getByRole('cell').nth(1)).toHaveText('3')
-    await shot(3, 14)
+    await shot(3, 13)
   })
 })
 
@@ -599,8 +583,9 @@ test('Task 5: Read a scenario package', async ({ page, shot }) => {
     const record = page.locator('#authoring-record')
     await expect(record.getByText('Generating model')).toBeVisible()
     await expect(record.getByRole('heading', { name: 'The seed case' })).toBeVisible()
-    await expect(record.getByRole('heading', { name: 'Re-skin log' })).toBeVisible()
-    await shot(5, 5, record.getByRole('heading', { name: 'Re-skin log' }))
+    // The seed record is the Scenario Editor's (D-748): an Instructor reads that it exists, not what it says.
+    await expect(record.getByText('read by the Scenario Editors who author it')).toBeVisible()
+    await shot(5, 5, record.getByRole('heading', { name: 'The seed case' }))
   })
 
   await test.step('5.6 Read Authoring measures.', async () => {
@@ -1313,341 +1298,51 @@ test('Task 10: Export results to the gradebook', async ({ page, shot }) => {
 // Task 11
 // ---------------------------------------------------------------------------------------------
 
-test('Task 11: Author a new scenario package from a seed case', async ({ page, shot }) => {
-  test.setTimeout(600_000)
-  await signInAs(page, 'instructor')
-
-  const tree = page.getByRole('tree', { name: 'Elements of this version' })
-  const progress = page.locator('[data-slot="progress-value"]')
-  const editor = page.locator('#element-editor')
-  /** A row is named by what it says and its decision, so the key is matched as a word inside. */
-  const treeItem = (key: string): Locator =>
-    tree.getByRole('treeitem', { name: new RegExp(`\\b${key}\\b`) }).first()
-
-  await test.step('11.1 Click Packages in the rail.', async () => {
-    await rail(page).getByRole('link', { name: 'Packages', exact: true }).click()
-    await expect(page.getByRole('link', { name: 'New package from a seed case' })).toBeVisible()
-    await shot(11, 1)
-  })
-
-  await test.step('11.2 Click New package from a seed case.', async () => {
-    await page.getByRole('link', { name: 'New package from a seed case' }).click()
-    await expect(
-      page.getByRole('heading', { level: 1, name: 'New package from a seed case' }),
-    ).toBeVisible()
-    await expect(page.getByRole('heading', { level: 2, name: 'The package' })).toBeVisible()
-    await expect(page.getByRole('heading', { level: 2, name: 'The seed case' })).toBeVisible()
-    await shot(11, 2)
-  })
-
-  await test.step('11.3 Type Guide package 2026 in Title.', async () => {
-    await page.getByLabel('Title', { exact: true }).fill(PACKAGE_TITLE)
-    await expect(page.getByLabel('Family key')).toHaveValue('guide-package-2026')
-    await shot(11, 3)
-  })
-
-  await test.step('11.4 Type payback, retention, acquisition, pricing in Concepts.', async () => {
-    await page.getByLabel('Concepts').fill('payback, retention, acquisition, pricing')
-    await expect(page.getByRole('button', { name: 'Add', exact: true })).toBeVisible()
-    await shot(11, 4)
-  })
-
-  await test.step('11.5 Click Add.', async () => {
-    await page.getByRole('button', { name: 'Add', exact: true }).click()
-    await expect(page.getByText('4 added. Four is the minimum.')).toBeVisible()
-    await shot(11, 5)
-  })
-
-  await test.step('11.6 Type Guide seed case in Case title.', async () => {
-    await page.getByLabel('Case title').fill('Guide seed case')
-    await expect(page.getByLabel('Case title')).toHaveValue('Guide seed case')
-    await shot(11, 6)
-  })
-
-  await test.step('11.7 Type Guide Press in Publisher.', async () => {
-    await page.getByLabel('Publisher').fill('Guide Press')
-    await expect(page.getByLabel('Publisher')).toHaveValue('Guide Press')
-    await shot(11, 7)
-  })
-
-  await test.step('11.8 Type Guide license terms permit adaptation. in License terms.', async () => {
-    await page.getByLabel('License terms').fill('Guide license terms permit adaptation.')
-    await expect(page.getByLabel('License terms')).toHaveValue(
-      'Guide license terms permit adaptation.',
-    )
-    await shot(11, 8)
-  })
-
-  await test.step('11.9 Tick The license permits adaptation.', async () => {
-    const license = page.getByRole('checkbox', { name: 'The license permits adaptation' })
-    await license.check()
-    await expect(license).toBeChecked()
-    await expect(
-      page.getByText(
-        'Tassl records this confirmation against your name and keeps it in the seed record. It will not build a package from a case without it.',
-      ),
-    ).toBeVisible()
-    await shot(11, 9)
-  })
-
-  await test.step('11.10 Type Guide seed case text for the walkthrough. five times in Seed case text.', async () => {
-    await page.getByLabel('Seed case text').fill(Array(5).fill(SEED_SENTENCE).join(' '))
-    const counter = page.getByText(/ of 200,000 characters$/)
-    await expect(counter).toBeVisible()
-    await shot(11, 10, counter)
-  })
-
-  await test.step('11.11 Click Create and generate.', async () => {
-    await page.getByRole('button', { name: 'Create and generate' }).click()
-    await page.waitForURL(/\/packages\/[0-9a-f-]{36}\/versions\/[0-9a-f-]{36}\/generation$/, {
-      timeout: 60_000,
-    })
-    await expect(page.getByRole('heading', { level: 1, name: PACKAGE_TITLE })).toBeVisible()
-    await expect(page.getByRole('heading', { level: 2, name: 'The seven steps' })).toBeVisible()
-    await shot(11, 11)
-  })
-
-  await test.step('11.12 Wait for every row of The seven steps to finish.', async () => {
-    await expect(
-      page.getByRole('heading', { level: 2, name: 'Every package rule is met' }),
-    ).toBeVisible({ timeout: GENERATION_TIMEOUT_MS })
-    const steps = page.getByRole('list', { name: 'The seven steps' })
-    await expect(steps.getByText('Done', { exact: true })).toHaveCount(7)
-    await expect(page.getByRole('link', { name: 'Open confirmation workspace' })).toBeVisible()
-    // The seventh row is the lowest thing the step names; with it in frame the rows above are too.
-    await shot(11, 12, steps.getByText('Done', { exact: true }).last())
-  })
-
-  await test.step('11.13 Click Open confirmation workspace.', async () => {
-    await page.getByRole('link', { name: 'Open confirmation workspace' }).click()
-    await page.waitForURL(/\/confirm$/)
-    await expect(
-      page.getByRole('heading', { level: 2, name: 'Confirming version 1' }),
-    ).toBeVisible()
-    await expect(page.getByRole('heading', { level: 2, name: 'Elements' })).toBeVisible()
-    await expect(page.getByRole('heading', { level: 2, name: 'Brief' })).toBeVisible()
-    await shot(11, 13)
-  })
-
-  await test.step('11.14 Open Documents in Elements and click D1.', async () => {
-    const documents = tree.getByRole('treeitem', { name: /^Documents/ })
-    await expect(documents).toBeVisible()
-    if ((await documents.getAttribute('aria-expanded')) === 'false') await documents.click()
-    await treeItem('D1').click()
-    await expect(page.getByRole('heading', { level: 2, name: 'Document · D1' })).toBeVisible()
-    await shot(11, 14)
-  })
-
-  await test.step('11.15 Click Reject.', async () => {
-    await page.getByRole('button', { name: 'Reject', exact: true }).click()
-    // The panel is named after the editor's heading; its name is what a screen reader announces
-    // and nothing a sighted reader sees, so the guide names the sentence and the field instead.
-    const panel = page.getByRole('group', { name: 'Reject Document · D1' })
-    await expect(panel).toBeVisible()
-    await expect(
-      panel.getByText(
-        'Say what is wrong with it. The note is kept with the decision, and the element stays in the version until it is re-authored.',
-      ),
-    ).toBeVisible()
-    const note = panel.getByLabel('Why this element is rejected')
-    await expect(note).toBeVisible()
-    await shot(11, 15, note)
-  })
-
-  await test.step('11.16 Type Guide rejection. The dateline reads as an internal memo. in Why this element is rejected.', async () => {
-    const note = page.getByLabel('Why this element is rejected')
-    await note.fill(REJECTION_NOTE)
-    await expect(note).toHaveValue(REJECTION_NOTE)
-    await shot(11, 16, note)
-  })
-
-  await test.step('11.17 Click Reject element.', async () => {
-    await page.getByRole('button', { name: 'Reject element' }).click()
-    await expect(page.getByText('D1 rejected.')).toBeVisible()
-    const progress = page.locator('#confirm-progress')
-    await expect(progress).toContainText('1 rejected')
-    await shot(11, 17, progress.getByText(/1 rejected/))
-  })
-
-  await test.step('11.18 Click D1 in Elements again.', async () => {
-    await treeItem('D1').click()
-    const rejected = page.getByText('Rejected, and waiting to be re-authored')
-    await expect(rejected).toBeVisible()
-    await shot(11, 18, rejected)
-  })
-
-  await test.step('11.19 Click Rewrite.', async () => {
-    await page.getByRole('button', { name: 'Rewrite', exact: true }).click()
-    // Named the same way as the reject panel: the group's name is for a screen reader, and the
-    // guide names the sentence and the button a sighted reader sees.
-    const panel = page.getByRole('group', { name: 'Rewrite Document · D1' })
-    await expect(panel).toBeVisible()
-    await expect(
-      panel.getByText(
-        'A new draft is written for every document in this version, this one included.',
-      ),
-    ).toBeVisible()
-    const rewrite = panel.getByRole('button', { name: 'Rewrite every document in this version' })
-    await expect(rewrite).toBeVisible()
-    await shot(11, 19, rewrite)
-  })
-
-  await test.step('11.20 Click Rewrite every document in this version.', async () => {
-    await page.getByRole('button', { name: 'Rewrite every document in this version' }).click()
-    await expect(page.getByText('A new draft of D1 was asked for.')).toBeVisible()
-    const progress = page.locator('#confirm-progress')
-    await expect(progress).toContainText('Writing a new draft')
-    await shot(11, 20, progress.getByText('Writing a new draft'))
-  })
-
-  await test.step('11.21 Wait for Writing a new draft to finish.', async () => {
-    await expect(page.getByText('The new draft of D1 is on the screen.')).toBeVisible({
-      timeout: REWRITE_TIMEOUT_MS,
-    })
-    await expect(page.locator('#confirm-progress')).not.toContainText('Writing a new draft')
-    await shot(11, 21)
-  })
-
-  await test.step('11.22 Click D2 in Elements.', async () => {
-    await treeItem('D2').click()
-    const heading = page.getByRole('heading', { level: 2, name: 'Document · D2' })
-    await expect(heading).toBeVisible()
-    await shot(11, 22, heading)
-  })
-
-  await test.step('11.23 Type Guide document title in Title.', async () => {
-    await page.getByLabel('Title', { exact: true }).fill(DOCUMENT_TITLE)
-    await expect(page.getByLabel('Title', { exact: true })).toHaveValue(DOCUMENT_TITLE)
-    await shot(11, 23)
-  })
-
-  await test.step('11.24 Click Save edits.', async () => {
-    await page.getByRole('button', { name: 'Save edits' }).click()
-    await expect(page.getByText('D2 saved. The edit is recorded as its decision.')).toBeVisible()
-    const edited = editor.getByText('Edited', { exact: true })
-    await expect(edited).toBeVisible()
-    await shot(11, 24, edited)
-  })
-
-  await test.step('11.25 Click Next undecided element.', async () => {
-    await page.getByRole('button', { name: 'Next undecided element' }).click()
-    await expect(editor).toContainText('Undecided')
-    await shot(11, 25)
-  })
-
-  await test.step('11.26 Click Confirm on each element in turn until Every element has a decision. appears.', async () => {
-    // The element count is the mock's, not this spec's: it is read off the progress line so a
-    // package that grows a document is still confirmed to the last element.
-    const opening = (await progress.textContent()) ?? ''
-    const match = /^(\d+) of (\d+) confirmed$/.exec(opening.trim())
-    expect(match, `the progress line reads "${opening}"`).not.toBeNull()
-    let decided = Number(match?.[1])
-    const total = Number(match?.[2])
-    const confirm = page.getByRole('button', { name: 'Confirm', exact: true })
-    while (decided < total) {
-      await confirm.click()
-      decided += 1
-      await expect(progress).toHaveText(`${String(decided)} of ${String(total)} confirmed`)
-    }
-    const complete = page.getByText('Every element has a decision.')
-    await expect(complete).toBeVisible()
-    await shot(11, 26, complete)
-  })
-
-  await test.step('11.27 Tick Teaching note checked against the answer space and claims.', async () => {
-    const teachingNote = page.getByRole('checkbox', {
-      name: 'Teaching note checked against the answer space and claims',
-    })
-    await teachingNote.check()
-    await expect(teachingNote).toBeChecked()
-    await shot(11, 27)
-  })
-
-  const confirmDialog = page.getByRole('alertdialog')
-
-  await test.step('11.28 Click Confirm version.', async () => {
-    await page.getByRole('button', { name: 'Confirm version' }).click()
-    await expect(confirmDialog.getByRole('heading', { name: 'Confirm version 1?' })).toBeVisible()
-    await expect(confirmDialog.getByText('All met')).toBeVisible()
-    await expect(
-      confirmDialog.getByText(
-        'Checked against the answer space and the claims, and kept with the confirmation',
-      ),
-    ).toBeVisible()
-    await shot(11, 28)
-  })
-
-  await test.step('11.29 Click Confirm and freeze.', async () => {
-    await confirmDialog.getByRole('button', { name: 'Confirm and freeze' }).click()
-    await expect(page.getByText('Version 1 is confirmed and frozen.')).toBeVisible({
-      timeout: ACTION_TIMEOUT_MS,
-    })
-    await expect(
-      page.locator('#confirm-progress').getByRole('link', { name: 'Back to version 1' }),
-    ).toBeVisible()
-    await shot(11, 29)
-  })
-
-  await test.step('11.30 Click Back to version 1.', async () => {
-    await page.locator('#confirm-progress').getByRole('link', { name: 'Back to version 1' }).click()
-    await page.waitForURL(/\/versions\/[0-9a-f-]{36}$/)
-    const identity = page.locator('#version-identity')
-    await expect(identity).toContainText('Status')
-    await expect(identity).toContainText('Confirmed')
-    await expect(page.getByText(/^Version 1 was confirmed on /)).toBeVisible()
-    await shot(11, 30)
-  })
-})
-
-// ---------------------------------------------------------------------------------------------
-// Task 12
-// ---------------------------------------------------------------------------------------------
-
-test('Task 12: Manage notifications, your account, and sign out', async ({ page, shot }) => {
+test('Task 11: Manage notifications, your account, and sign out', async ({ page, shot }) => {
   test.setTimeout(180_000)
   await signInAs(page, 'instructor')
 
   const settingsNav = page.getByRole('navigation', { name: 'Account settings sections' })
 
-  await test.step('12.1 Click the Notifications bell in the header.', async () => {
+  await test.step('11.1 Click the Notifications bell in the header.', async () => {
     await page.getByRole('link', { name: /^Notifications:/ }).click()
     await expect(page.getByRole('heading', { level: 1, name: 'Notifications' })).toBeVisible()
     await expect(
       page.getByRole('listitem').filter({ hasText: 'A run is ready to review' }).first(),
     ).toBeVisible()
-    await shot(12, 1)
+    await shot(11, 1)
   })
 
-  await test.step('12.2 Click Mark all read.', async () => {
+  await test.step('11.2 Click Mark all read.', async () => {
     await page.getByRole('button', { name: 'Mark all read' }).click()
     await expect(page.getByText('Everything is marked read.')).toBeVisible()
-    await shot(12, 2)
+    await shot(11, 2)
   })
 
-  await test.step('12.3 Click the Account button in the header.', async () => {
+  await test.step('11.3 Click the Account button in the header.', async () => {
     await openAccountMenu(page)
     await expect(page.getByRole('menuitem', { name: 'Settings' })).toBeVisible()
     await expect(page.getByRole('menuitem', { name: 'Privacy' })).toBeVisible()
     await expect(page.getByRole('menuitem', { name: 'Terms' })).toBeVisible()
     await expect(page.getByRole('menuitem', { name: 'Sign out' })).toBeVisible()
-    await shot(12, 3)
+    await shot(11, 3)
   })
 
-  await test.step('12.4 Click Settings.', async () => {
+  await test.step('11.4 Click Settings.', async () => {
     await page.getByRole('menuitem', { name: 'Settings' }).click()
     await expect(page.getByRole('heading', { level: 1, name: 'Account settings' })).toBeVisible()
     await expect(page.getByRole('heading', { level: 2, name: 'Profile' })).toBeVisible()
     await expect(page.getByLabel('Your name')).toHaveValue('Instructor Seat')
-    await shot(12, 4)
+    await shot(11, 4)
   })
 
-  await test.step('12.5 Click Save changes.', async () => {
+  await test.step('11.5 Click Save changes.', async () => {
     await page.getByRole('button', { name: 'Save changes' }).click()
     await expect(page.getByText('Your name is saved.')).toBeVisible()
-    await shot(12, 5)
+    await shot(11, 5)
   })
 
-  await test.step('12.6 Click Security.', async () => {
+  await test.step('11.6 Click Security.', async () => {
     await settingsNav.getByRole('link', { name: 'Security', exact: true }).click()
     await expect(page.getByRole('heading', { level: 2, name: 'Password' })).toBeVisible()
     await expect(page.getByRole('heading', { level: 2, name: 'Signed-in devices' })).toBeVisible()
@@ -1656,47 +1351,47 @@ test('Task 12: Manage notifications, your account, and sign out', async ({ page,
     await expect(thisDevice).toBeVisible({ timeout: ACTION_TIMEOUT_MS })
     // Step 5's toast sits over the badge until it times out; the shot waits for it to go.
     await expect(page.getByText('Your name is saved.')).toBeHidden({ timeout: ACTION_TIMEOUT_MS })
-    await shot(12, 6, thisDevice)
+    await shot(11, 6, thisDevice)
   })
 
-  await test.step('12.7 Click Data.', async () => {
+  await test.step('11.7 Click Data.', async () => {
     await settingsNav.getByRole('link', { name: 'Data', exact: true }).click()
     await expect(page.getByRole('heading', { level: 2, name: 'Download my data' })).toBeVisible()
     await expect(page.getByRole('heading', { level: 2, name: 'Delete account' })).toBeVisible()
-    await shot(12, 7)
+    await shot(11, 7)
   })
 
   const deletion = page.getByRole('alertdialog')
 
-  await test.step('12.8 Click Delete my account.', async () => {
+  await test.step('11.8 Click Delete my account.', async () => {
     await page.getByRole('button', { name: 'Delete my account' }).click()
     await expect(deletion.getByText('Delete your account?')).toBeVisible()
     await expect(deletion.getByLabel(`Type ${INSTRUCTOR_EMAIL} to confirm`)).toBeVisible()
-    await shot(12, 8)
+    await shot(11, 8)
   })
 
-  await test.step('12.9 Click Keep my account.', async () => {
+  await test.step('11.9 Click Keep my account.', async () => {
     await deletion.getByRole('button', { name: 'Keep my account' }).click()
     await expect(deletion).toBeHidden()
     await expect(page.getByRole('heading', { level: 2, name: 'Delete account' })).toBeVisible()
     await expect(page.getByRole('button', { name: 'Delete my account' })).toBeVisible()
     await expect(page.getByRole('alertdialog')).toHaveCount(0)
-    await shot(12, 9)
+    await shot(11, 9)
   })
 
-  await test.step('12.10 Click the Account button in the header.', async () => {
+  await test.step('11.10 Click the Account button in the header.', async () => {
     await openAccountMenu(page)
     await expect(page.getByRole('menuitem', { name: 'Settings' })).toBeVisible()
     await expect(page.getByRole('menuitem', { name: 'Privacy' })).toBeVisible()
     await expect(page.getByRole('menuitem', { name: 'Terms' })).toBeVisible()
     await expect(page.getByRole('menuitem', { name: 'Sign out' })).toBeVisible()
-    await shot(12, 10)
+    await shot(11, 10)
   })
 
-  await test.step('12.11 Click Sign out.', async () => {
+  await test.step('11.11 Click Sign out.', async () => {
     await page.getByRole('menuitem', { name: 'Sign out' }).click()
     await page.waitForURL(/\/sign-in/)
     await expect(page.getByRole('heading', { level: 1, name: 'Sign in to Tassl' })).toBeVisible()
-    await shot(12, 11)
+    await shot(11, 11)
   })
 })

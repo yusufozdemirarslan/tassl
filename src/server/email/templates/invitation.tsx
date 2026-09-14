@@ -1,6 +1,6 @@
 // Institution invitation (SYS-005, 08-auth-authz.md §2.5): sent by tenancy.inviteMember with a link
 // to /invitations/{id}. The invitation expires after seven days; the invitee must accept it with the
-// same email address.
+// same email address. It names no role: an invitation makes the person a member (D-748).
 import { Button, Heading, Link, Text } from '@react-email/components'
 import type { ReactNode } from 'react'
 import { z } from 'zod'
@@ -12,8 +12,6 @@ export const invitationProps = z.object({
   url: appLink,
   organizationName: z.string().min(1),
   inviterName: z.string().min(1),
-  // Optional: the Better Auth hook in 08 §1 sends url, organizationName and inviterName only.
-  role: z.string().min(1).optional(),
 })
 
 export type InvitationProps = z.infer<typeof invitationProps>
@@ -25,7 +23,6 @@ export default function Invitation({
   url,
   organizationName,
   inviterName,
-  role,
 }: InvitationProps): ReactNode {
   return (
     <EmailLayout preview={t('email.invitation.preview', { organizationName })}>
@@ -35,9 +32,6 @@ export default function Invitation({
       <Text style={emailStyles.text}>
         {t('email.invitation.body', { organizationName, inviterName })}
       </Text>
-      {role === undefined ? null : (
-        <Text style={emailStyles.text}>{t('email.invitation.role', { role })}</Text>
-      )}
       <Text style={emailStyles.text}>
         <Button href={url} style={emailStyles.button}>
           {t('email.invitation.cta')}
@@ -57,5 +51,4 @@ Invitation.PreviewProps = {
   url: 'http://localhost:3000/invitations/00000000-0000-4000-8000-000000000000',
   organizationName: 'Northgate Business School',
   inviterName: 'Ada Lovelace',
-  role: 'instructor',
 } satisfies InvitationProps

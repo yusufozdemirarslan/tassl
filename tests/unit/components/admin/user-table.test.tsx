@@ -2,11 +2,7 @@ import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { UserTable } from '@/components/features/admin/user-table'
-import {
-  INSTITUTION_ROLE_LABELS,
-  PLATFORM_ROLES,
-  PLATFORM_ROLE_LABELS,
-} from '@/components/features/admin/platform-roles'
+import { PLATFORM_ROLES, PLATFORM_ROLE_LABELS } from '@/components/features/admin/platform-roles'
 import { formatDateTime } from '@/lib/format/date-time'
 import { enUS } from '@/lib/i18n/en-US'
 import { t } from '@/lib/i18n/t'
@@ -21,7 +17,6 @@ const router = vi.hoisted(() => ({ refresh: vi.fn() }))
 const actions = vi.hoisted(() => ({
   listUsersAction: vi.fn(),
   setPlatformRoleAction: vi.fn(),
-  setInstitutionRoleAction: vi.fn(),
 }))
 const toasts = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }))
 
@@ -42,7 +37,6 @@ vi.mock('next/navigation', () => ({
 vi.mock('@/server/modules/admin/actions', () => ({
   listUsersAction: actions.listUsersAction,
   setPlatformRoleAction: actions.setPlatformRoleAction,
-  setInstitutionRoleAction: actions.setInstitutionRoleAction,
 }))
 
 // `@/lib/toast` reaches sonner through a dynamic import, which this mock answers as well.
@@ -53,13 +47,6 @@ const SELF: AdminUser = {
   name: 'Rae Whitlock',
   email: 'rae@tassl.example',
   platformRole: 'admin',
-  memberships: [
-    {
-      organizationId: 'org-walk',
-      organizationName: 'Walkthrough University',
-      role: 'program_lead',
-    },
-  ],
   deletedAt: null,
   createdAt: '2026-09-01T09:15:00.000Z',
 }
@@ -68,10 +55,7 @@ const OPEN: AdminUser = {
   id: 'user-open',
   name: 'Ada Okafor',
   email: 'ada@example.edu',
-  platformRole: 'none',
-  memberships: [
-    { organizationId: 'org-walk', organizationName: 'Walkthrough University', role: 'instructor' },
-  ],
+  platformRole: 'student',
   deletedAt: null,
   createdAt: '2026-08-28T14:00:00.000Z',
 }
@@ -81,7 +65,6 @@ const CLOSED: AdminUser = {
   name: 'Ben Iversen',
   email: 'ben@example.edu',
   platformRole: 'tassl_scenario_editor',
-  memberships: [],
   deletedAt: '2026-09-02T10:00:00.000Z',
   createdAt: '2026-08-01T08:00:00.000Z',
 }
@@ -90,28 +73,9 @@ const NEXT_PAGE: AdminUser = {
   id: 'user-next',
   name: 'Cleo Marsh',
   email: 'cleo@example.edu',
-  platformRole: 'none',
-  memberships: [],
+  platformRole: 'instructor',
   deletedAt: null,
   createdAt: '2026-07-14T11:30:00.000Z',
-}
-
-/** A seat in two institutions, one of them a seat the admin area does not hand out. */
-const TWO_SEATS: AdminUser = {
-  id: 'user-two-seats',
-  name: 'Dev Raman',
-  email: 'dev@example.edu',
-  platformRole: 'none',
-  memberships: [
-    { organizationId: 'org-walk', organizationName: 'Walkthrough University', role: 'student' },
-    {
-      organizationId: 'org-north',
-      organizationName: 'Northfield College',
-      role: 'teaching_assistant',
-    },
-  ],
-  deletedAt: null,
-  createdAt: '2026-08-20T10:00:00.000Z',
 }
 
 function renderTable(
@@ -185,7 +149,7 @@ describe('UserTable (UI-050)', () => {
     ).not.toBeInTheDocument()
   })
 
-  // A closed account holds no seat to give (D-577). It is marked and explained, and the marking is
+  // A closed account holds no role to give (D-577). It is marked and explained, and the marking is
   // the secondary badge rather than the refusal red, which belongs to a refusal or a defect.
   it('gives a closed account the same treatment, and says a closed account holds no role', () => {
     renderTable()
@@ -200,18 +164,45 @@ describe('UserTable (UI-050)', () => {
   it('names the person in the control, so a dense table stays unambiguous', () => {
     renderTable()
 
-    expect(roleControl(OPEN.name)).toHaveTextContent(PLATFORM_ROLE_LABELS.none)
+    expect(roleControl(OPEN.name)).toHaveTextContent(PLATFORM_ROLE_LABELS.student)
   })
 
-  // `platform-roles.ts` fixes the order least to most (08 §3, D-007); the select offers it whole.
-  it('offers the three platform roles in order, least right to most', async () => {
+  // D-748: one role per account, and the one column that sets it offers all four, most access
+  // first, under the names every other screen uses.
+  it('offers exactly the four platform roles, in order, under one Platform role column', async () => {
     const user = renderTable()
+
+    expect(screen.getAllByRole('columnheader').map((header) => header.textContent)).toEqual([
+      enUS['admin.users.columnName'],
+      enUS['admin.users.columnEmail'],
+      'Platform role',
+      enUS['admin.users.columnJoined'],
+    ])
+    expect(screen.queryByText(/Institution role/)).not.toBeInTheDocument()
 
     await user.click(roleControl(OPEN.name))
     const options = await screen.findAllByRole('option')
-    expect(options.map((option) => option.textContent)).toEqual(
-      PLATFORM_ROLES.map((value) => PLATFORM_ROLE_LABELS[value]),
-    )
+    expect(options.map((option) => option.textContent)).toEqual([
+      'Platform Admin',
+      'Scenario Editor',
+      'Instructor',
+      'Student',
+    ])
+    expect(PLATFORM_ROLES).toEqual(['admin', 'tassl_scenario_editor', 'instructor', 'student'])
+    expect(PLATFORM_ROLES.map((value) => PLATFORM_ROLE_LABELS[value])).toEqual([
+      'Platform Admin',
+      'Scenario Editor',
+      'Instructor',
+      'Student',
+    ])
+  })
+
+  it('gives every other row the same single control, whatever role it holds', () => {
+    renderTable({ items: [SELF, OPEN, NEXT_PAGE] })
+
+    expect(roleControl(NEXT_PAGE.name)).toHaveTextContent(PLATFORM_ROLE_LABELS.instructor)
+    // The actor's own row has none, so two rows give two controls and nothing else.
+    expect(screen.getAllByRole('combobox')).toHaveLength(2)
   })
 
   // A role change is not only a role change: it revokes every session the person holds. The
@@ -226,7 +217,7 @@ describe('UserTable (UI-050)', () => {
     expect(dialog).toHaveTextContent(
       t('admin.users.confirmBody', {
         name: OPEN.name,
-        from: PLATFORM_ROLE_LABELS.none,
+        from: PLATFORM_ROLE_LABELS.student,
         role: PLATFORM_ROLE_LABELS.tassl_scenario_editor,
       }),
     )
@@ -277,7 +268,7 @@ describe('UserTable (UI-050)', () => {
 
     await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument())
     expect(actions.setPlatformRoleAction).not.toHaveBeenCalled()
-    expect(roleControl(OPEN.name)).toHaveTextContent(PLATFORM_ROLE_LABELS.none)
+    expect(roleControl(OPEN.name)).toHaveTextContent(PLATFORM_ROLE_LABELS.student)
   })
 
   // Re-choosing the role the account already holds is not a change, and must not raise a dialog
@@ -285,7 +276,7 @@ describe('UserTable (UI-050)', () => {
   it('does not ask about a choice that leaves the role where it was', async () => {
     const user = renderTable()
 
-    await chooseRole(user, OPEN.name, PLATFORM_ROLE_LABELS.none)
+    await chooseRole(user, OPEN.name, PLATFORM_ROLE_LABELS.student)
 
     expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
     expect(actions.setPlatformRoleAction).not.toHaveBeenCalled()
@@ -305,7 +296,7 @@ describe('UserTable (UI-050)', () => {
       expect(toasts.error).toHaveBeenCalledWith(enUS['admin.roleSelfRefused'])
     })
     expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
-    expect(roleControl(OPEN.name)).toHaveTextContent(PLATFORM_ROLE_LABELS.none)
+    expect(roleControl(OPEN.name)).toHaveTextContent(PLATFORM_ROLE_LABELS.student)
     expect(toasts.success).not.toHaveBeenCalled()
     expect(router.refresh).not.toHaveBeenCalled()
   })
@@ -339,117 +330,6 @@ describe('UserTable (UI-050)', () => {
 
     release({ ok: true, data: { ...OPEN, platformRole: 'tassl_scenario_editor' } })
     await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument())
-  })
-
-  // D-747. The regression: the only role control on the table was the platform role — None,
-  // Scenario editor, Platform admin — so an admin could not make anybody a Student or an Instructor.
-  // Those are institution seats, and each seat a person holds gets its own control, named for the
-  // person and the institution, offering the two as separate choices.
-  describe('institution role', () => {
-    const seatControl = (name: string, institution: string) =>
-      screen.getByRole('combobox', {
-        name: t('admin.users.institutionRoleLabel', { name, institution }),
-      })
-
-    beforeEach(() => {
-      actions.setInstitutionRoleAction.mockResolvedValue({
-        ok: true,
-        data: {
-          ...OPEN,
-          memberships: [{ ...OPEN.memberships[0]!, role: 'student' }],
-        },
-      })
-    })
-
-    it('offers Student and Instructor as two separate choices, and the current seat on the trigger', async () => {
-      const user = renderTable()
-
-      const control = seatControl(OPEN.name, 'Walkthrough University')
-      expect(control).toHaveTextContent(INSTITUTION_ROLE_LABELS.instructor)
-
-      await user.click(control)
-      const options = await screen.findAllByRole('option')
-      expect(options.map((option) => option.textContent)).toEqual([
-        INSTITUTION_ROLE_LABELS.student,
-        INSTITUTION_ROLE_LABELS.instructor,
-      ])
-      // Neither is a platform role: the two columns are two different questions.
-      expect(options.map((option) => option.textContent)).not.toContain(PLATFORM_ROLE_LABELS.none)
-    })
-
-    it('asks first, then saves the seat with the institution named, and updates the row in place', async () => {
-      const user = renderTable()
-
-      await user.click(seatControl(OPEN.name, 'Walkthrough University'))
-      await user.click(await screen.findByRole('option', { name: INSTITUTION_ROLE_LABELS.student }))
-
-      const dialog = await screen.findByRole('alertdialog')
-      expect(dialog).toHaveTextContent(enUS['admin.users.institutionConfirmTitle'])
-      expect(dialog).toHaveTextContent(
-        t('admin.users.institutionConfirmBody', {
-          name: OPEN.name,
-          institution: 'Walkthrough University',
-          from: INSTITUTION_ROLE_LABELS.instructor,
-          role: INSTITUTION_ROLE_LABELS.student,
-        }),
-      )
-      expect(actions.setInstitutionRoleAction).not.toHaveBeenCalled()
-
-      await user.click(
-        within(dialog).getByRole('button', { name: enUS['admin.users.confirmSubmit'] }),
-      )
-
-      await waitFor(() => {
-        expect(actions.setInstitutionRoleAction).toHaveBeenCalledWith({
-          userId: OPEN.id,
-          organizationId: 'org-walk',
-          role: 'student',
-        })
-      })
-      await waitFor(() => {
-        expect(seatControl(OPEN.name, 'Walkthrough University')).toHaveTextContent(
-          INSTITUTION_ROLE_LABELS.student,
-        )
-      })
-      await waitFor(() => {
-        expect(toasts.success).toHaveBeenCalledWith(
-          t('admin.users.institutionRoleSaved', {
-            name: OPEN.name,
-            institution: 'Walkthrough University',
-            role: INSTITUTION_ROLE_LABELS.student,
-          }),
-        )
-      })
-      expect(actions.setPlatformRoleAction).not.toHaveBeenCalled()
-      expect(router.refresh).toHaveBeenCalled()
-    })
-
-    it('gives every institution its own control, and keeps a seat outside the two on its trigger', async () => {
-      const user = renderTable({ items: [SELF, TWO_SEATS] })
-
-      expect(seatControl(TWO_SEATS.name, 'Walkthrough University')).toHaveTextContent(
-        INSTITUTION_ROLE_LABELS.student,
-      )
-      const assistant = seatControl(TWO_SEATS.name, 'Northfield College')
-      expect(assistant).toHaveTextContent(INSTITUTION_ROLE_LABELS.teaching_assistant)
-
-      // The seat it holds is named on the trigger and is not offered back: the admin area hands out
-      // the two, and a teaching assistant is made one on the roster.
-      await user.click(assistant)
-      const options = await screen.findAllByRole('option')
-      expect(options.map((option) => option.textContent)).toEqual([
-        INSTITUTION_ROLE_LABELS.student,
-        INSTITUTION_ROLE_LABELS.instructor,
-      ])
-    })
-
-    it('says an account with no institution has no seat to set, and the actor’s own row has no control', () => {
-      renderTable({ items: [SELF, NEXT_PAGE] })
-
-      expect(screen.getByText(enUS['admin.users.institutionNone'])).toBeInTheDocument()
-      expect(screen.getByText(INSTITUTION_ROLE_LABELS.program_lead)).toBeInTheDocument()
-      expect(screen.queryAllByRole('combobox', { name: /^Institution role for/ })).toEqual([])
-    })
   })
 
   it('offers no "show more" when the server sent the last page', () => {

@@ -124,7 +124,6 @@ test('core web vitals on the workspace, the debrief and the faculty replay', asy
   })
   await addSectionMember(request, section.id, {
     email: seatEmail('instructor'),
-    role: 'instructor',
   })
 
   await observeVitals(page)

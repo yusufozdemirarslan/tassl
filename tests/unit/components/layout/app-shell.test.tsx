@@ -169,94 +169,65 @@ describe('AppShell', () => {
   })
 })
 
-describe('rail derivation (UI-008)', () => {
-  it('gives everyone Home and nothing else without a membership', () => {
-    expect(permittedRailKeys({ roles: [], platformRole: 'none' })).toEqual(['home'])
-  })
+describe('rail derivation (UI-008, D-748)', () => {
+  const home = { href: '/home', label: enUS['nav.home'], icon: 'home' }
+  const runs = { href: '/runs', label: enUS['nav.runs'], icon: 'runs' }
+  const courses = { href: '/courses', label: enUS['nav.courses'], icon: 'courses' }
+  const review = { href: '/review', label: enUS['nav.review'], icon: 'review' }
+  const packages = { href: '/packages', label: enUS['nav.packages'], icon: 'packages' }
+  const admin = { href: '/admin/users', label: enUS['nav.admin'], icon: 'admin', section: '/admin' }
 
-  it('derives each destination from the role that earns it', () => {
-    expect(permittedRailKeys({ roles: ['student'], platformRole: 'none' })).toEqual([
+  it('derives each destination from the one platform role', () => {
+    expect(permittedRailKeys({ platformRole: 'student' })).toEqual(['home', 'runs'])
+    expect(permittedRailKeys({ platformRole: 'tassl_scenario_editor' })).toEqual([
       'home',
       'runs',
+      'packages',
     ])
-    expect(permittedRailKeys({ roles: ['instructor'], platformRole: 'none' })).toEqual([
+    expect(permittedRailKeys({ platformRole: 'instructor' })).toEqual([
       'home',
       'courses',
       'review',
       'packages',
     ])
-    expect(permittedRailKeys({ roles: ['teaching_assistant'], platformRole: 'none' })).toEqual([
+    expect(permittedRailKeys({ platformRole: 'admin' })).toEqual([
       'home',
-      'review',
-    ])
-    expect(permittedRailKeys({ roles: ['scenario_author'], platformRole: 'none' })).toEqual([
-      'home',
-      'packages',
-    ])
-    expect(permittedRailKeys({ roles: ['program_lead'], platformRole: 'none' })).toEqual([
-      'home',
+      'runs',
       'courses',
+      'review',
+      'packages',
+      'admin',
     ])
-  })
-
-  it('offers Packages on the seat that authors them, not on a platform role', () => {
-    // 08 §4 gives the platform editor the author column "in any org where the editor has a
-    // scenario_author membership", and `listPackages` refuses anyone without that seat, so the
-    // platform role alone offers nothing — a rail link the service turns away is worse than none.
-    expect(permittedRailKeys({ roles: [], platformRole: 'tassl_scenario_editor' })).toEqual([
-      'home',
-    ])
-    expect(
-      permittedRailKeys({ roles: ['scenario_author'], platformRole: 'tassl_scenario_editor' }),
-    ).toEqual(['home', 'packages'])
-    expect(permittedRailKeys({ roles: [], platformRole: 'admin' })).toEqual(['home', 'admin'])
-  })
-
-  it('unions the roles held across institutions, without repeating a destination', () => {
-    expect(
-      permittedRailKeys({ roles: ['student', 'instructor', 'instructor'], platformRole: 'none' }),
-    ).toEqual(['home', 'runs', 'courses', 'review', 'packages'])
   })
 
   it('renders only the destinations whose routes exist, so no rail link can 404', () => {
-    const items = railFor({
-      roles: ['student', 'instructor', 'scenario_author'],
-      platformRole: 'admin',
-    })
     // Every destination now has a route, each landing with the step that built it: `/courses` 4.2,
     // `/packages` 5.4, `/runs` 6.5, `/review` 11.4, `/admin/users` 13.5 — and each renders in the
     // order `permittedRailKeys` puts it. Admin points at its first section rather than at `/admin`,
     // which is a prefix that only redirects (UI-050).
-    expect(items).toEqual([
-      { href: '/home', label: enUS['nav.home'], icon: 'home' },
-      { href: '/runs', label: enUS['nav.runs'], icon: 'runs' },
-      { href: '/courses', label: enUS['nav.courses'], icon: 'courses' },
-      { href: '/review', label: enUS['nav.review'], icon: 'review' },
-      { href: '/packages', label: enUS['nav.packages'], icon: 'packages' },
-      { href: '/admin/users', label: enUS['nav.admin'], icon: 'admin', section: '/admin' },
-    ])
-  })
-
-  it('offers Courses to a program lead and never to a student alone', () => {
-    expect(railFor({ roles: ['program_lead'], platformRole: 'none' })).toEqual([
-      { href: '/home', label: enUS['nav.home'], icon: 'home' },
-      { href: '/courses', label: enUS['nav.courses'], icon: 'courses' },
-    ])
-    // A student is offered their own runs and nothing else: no course, no queue, no shelf.
-    expect(railFor({ roles: ['student'], platformRole: 'none' })).toEqual([
-      { href: '/home', label: enUS['nav.home'], icon: 'home' },
-      { href: '/runs', label: enUS['nav.runs'], icon: 'runs' },
-    ])
-  })
-
-  it('offers Review to the two seats that read a run and to no other', () => {
-    const review = { href: '/review', label: enUS['nav.review'], icon: 'review' as const }
-    expect(railFor({ roles: ['teaching_assistant'], platformRole: 'none' })).toEqual([
-      { href: '/home', label: enUS['nav.home'], icon: 'home' },
+    expect(railFor({ platformRole: 'admin' })).toEqual([
+      home,
+      runs,
+      courses,
       review,
+      packages,
+      admin,
     ])
-    expect(railFor({ roles: ['student'], platformRole: 'none' })).not.toContainEqual(review)
-    expect(railFor({ roles: ['program_lead'], platformRole: 'none' })).not.toContainEqual(review)
+  })
+
+  it('offers a Student their own runs and nothing else: no course, no queue, no shelf', () => {
+    expect(railFor({ platformRole: 'student' })).toEqual([home, runs])
+  })
+
+  it('offers a Scenario Editor a Student’s runs and the shelf, and no course or queue', () => {
+    expect(railFor({ platformRole: 'tassl_scenario_editor' })).toEqual([home, runs, packages])
+  })
+
+  it('offers an Instructor courses, review and the shelf, and no runs of their own', () => {
+    const items = railFor({ platformRole: 'instructor' })
+    expect(items).toEqual([home, courses, review, packages])
+    expect(items).not.toContainEqual(runs)
+    expect(items).not.toContainEqual(admin)
   })
 })
 

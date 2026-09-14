@@ -1,6 +1,7 @@
 // The room the review suites work in (Step 11.1), built on the same fixture package every run suite
 // uses: Meridian Roast, nine documents, eight claims, two variants, one section with a student, an
-// instructor, a TA and a classmate (`tests/integration/assistant/fixture`).
+// instructor and a classmate, a Scenario Editor and the Platform Admin
+// (`tests/integration/assistant/fixture`).
 //
 // What these suites need that the earlier ones did not is a run that has been *scored*: seven draft
 // bands, a score row with the four graphs, and a state of `scored`. Building one means taking a run

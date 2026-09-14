@@ -599,7 +599,7 @@ export async function scoreRun(runId: string): Promise<ScoreRunResult> {
  *
  * `scoring_status = 'held'` is the one thing about scoring a student is shown (10 §6): their run
  * reads "under review" rather than a state they cannot act on. The notice goes to the section's
- * instructors and TAs, who band it by hand or void it from the replay (FR-140, Phase 11).
+ * reviewers, who band it by hand or void it from the replay (FR-140, Phase 11).
  *
  * **Holding twice is holding once, and here the state cannot be the guard** (D-424). The scoring
  * transaction is idempotent because scoring *moves* the run and the second job finds it moved
@@ -954,10 +954,10 @@ export async function readScore(runId: string): Promise<RunScoreView | null> {
  * its state rather than an empty view, so a stale replay tab follows the run instead of drawing
  * nothing.
  *
- * A classmate is answered NOT_FOUND rather than FORBIDDEN, for the reason `trace.listEvents` states
- * at its own guard: `requireRunReviewer` refuses a section member holding the wrong role with
- * FORBIDDEN, and here that is one person only — another student in the same section — to whom 08 §4
- * gives no read of the run at all. A refusal that says "you may not" says the run exists.
+ * Everyone who is not a reviewer is answered NOT_FOUND, the run's own student included:
+ * `requireRunReviewer` refuses that one person with FORBIDDEN, and this read turns it into the same
+ * answer everyone else gets, because the student reads their bands through the debrief and this
+ * endpoint is not theirs to learn about.
  */
 export async function getScore(actor: SessionUser, runId: string): Promise<RunScoreView> {
   const scope = await requireRunReviewer(actor, runId).catch((error: unknown) => {

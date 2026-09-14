@@ -15,18 +15,10 @@ import { getViewer } from '../../viewer'
 
 export const metadata: Metadata = { title: t('invitation.title') }
 
-/** The role as a person reads it (08 §3); the key set is the organization role vocabulary. */
-const ROLE_LABELS: Record<InvitationDetail['role'], string> = {
-  student: t('role.student'),
-  instructor: t('role.instructor'),
-  teaching_assistant: t('role.teaching_assistant'),
-  scenario_author: t('role.scenario_author'),
-  program_lead: t('role.program_lead'),
-}
-
 // UI-005. Three states, and the service is what tells them apart (tenancy.getInvitation):
 //
-//   valid     → the institution, the role, and one action;
+//   valid     → the institution and one action. An invitation names no role (D-748): accepting it
+//               makes the person a member, and what they can do there is their platform role;
 //   mismatch  → INVITATION_EMAIL_MISMATCH: the link is for another address, so the way forward is
 //               to sign out and sign in as that person — the invitation itself is not described,
 //               since whoever is holding the link is not its recipient;
@@ -93,13 +85,6 @@ export default async function AcceptInvitationPage({
           <p className="text-ink text-body max-w-measure">
             {t('invitation.body', { name: invitation.organizationName })}
           </p>
-          <dl className="text-body flex flex-wrap items-baseline gap-x-2">
-            <dt className="text-ink-muted text-meta font-medium">
-              {t('invitation.roleLabel')}
-              {':'}
-            </dt>
-            <dd className="text-ink">{ROLE_LABELS[invitation.role]}</dd>
-          </dl>
           <AcceptInvitationButton
             invitationId={invitation.id}
             organizationName={invitation.organizationName}

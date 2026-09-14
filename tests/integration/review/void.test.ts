@@ -138,10 +138,10 @@ describe('voidRun from working (FR-002)', () => {
     })
   })
 
-  it('refuses a TA, and refuses voiding a voided run', async () => {
+  it('refuses the run’s own student, and refuses voiding a voided run', async () => {
     const runId = await runInWorking(fx)
     await expect(
-      runs.voidRun(fx.ta, runId, { reason: 'other', reoffer: false }),
+      runs.voidRun(fx.student, runId, { reason: 'other', reoffer: false }),
     ).rejects.toMatchObject({ code: 'FORBIDDEN' })
 
     await runs.voidRun(fx.instructor, runId, { reason: 'other', reoffer: false })

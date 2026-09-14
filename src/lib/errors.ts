@@ -106,14 +106,11 @@ export const ERROR_STATUS = {
   EXPORT_NOT_FOUND: 404,
   // review (10 §12). `BAND_DECISION_INVALID` is the shape rule an override breaks by naming no
   // band; `RUN_NOT_SCORED` is a decision asked for on a run that has no draft to decide, and
-  // carries `details.state`, the shape `TURN_NOT_OPEN` uses. `BAND_LOCKED_BY_INSTRUCTOR` is 08 §4's
-  // TA row — "not a band the instructor already decided" — and is a 403 because the TA may read the
-  // band and may decide six others, so the refusal is about this one act. `RUN_NOT_CONFIRMED` is
-  // the export history of a run whose bands nobody has decided: 07 §8 gives it to
+  // carries `details.state`, the shape `TURN_NOT_OPEN` uses. `RUN_NOT_CONFIRMED` is the export
+  // history of a run whose bands nobody has decided: 07 §8 gives it to
   // `GET /runs/{runId}/exports`. `NEUTRALIZATION_EXISTS` is one correction per claim per run.
   BAND_DECISION_INVALID: 400,
   RUN_NOT_SCORED: 409,
-  BAND_LOCKED_BY_INSTRUCTOR: 403,
   RUN_NOT_CONFIRMED: 409,
   NEUTRALIZATION_EXISTS: 409,
   // debrief (10 §13). `DEBRIEF_NOT_AVAILABLE` is a read or an answer asked for on a run whose bands
@@ -139,9 +136,9 @@ export const ERROR_STATUS = {
   LLM_CIRCUIT_OPEN: 503,
   LLM_OUTPUT_INVALID: 502,
   // admin (10 §16). `ROLE_INVALID` is the one refusal the platform screens add: a value outside the
-  // three platform roles, and the admin's own row — a self-demotion revokes the sessions it is made
-  // from (10 §16 "revoke the user's sessions"), so the act would sign the actor out of the seat
-  // that is the only way back in. 400 rather than 403: it is the argument that is refused, not the
+  // four platform roles (D-748), and the admin's own row — a self-demotion revokes the sessions it is
+  // made from (10 §16 "revoke the user's sessions"), so the act would sign the actor out of the
+  // role that is the only way back in. 400 rather than 403: it is the argument that is refused, not the
   // caller, who may set this role on anybody else (D-571).
   ROLE_INVALID: 400,
   INTERNAL_ERROR: 500,
@@ -219,7 +216,6 @@ export const DEFAULT_MESSAGES: Record<ErrorCode, string> = {
   EXPORT_NOT_FOUND: 'That export version does not exist for this run.',
   BAND_DECISION_INVALID: 'An override needs a band to settle on.',
   RUN_NOT_SCORED: 'This run has no drafted bands to decide yet.',
-  BAND_LOCKED_BY_INSTRUCTOR: 'The instructor has decided this dimension.',
   RUN_NOT_CONFIRMED: 'This run has no course export yet; its bands are not confirmed.',
   NEUTRALIZATION_EXISTS: 'A correction has already been entered on this claim for this run.',
   DEBRIEF_NOT_AVAILABLE: 'This run’s debrief opens once its bands have been drafted.',
@@ -231,7 +227,7 @@ export const DEFAULT_MESSAGES: Record<ErrorCode, string> = {
   LLM_PROVIDER_ERROR: 'The assistant provider did not respond correctly.',
   LLM_CIRCUIT_OPEN: 'The assistant is temporarily unavailable.',
   LLM_OUTPUT_INVALID: 'The assistant returned an unusable response.',
-  ROLE_INVALID: 'That is not a platform role that can be set here.',
+  ROLE_INVALID: 'That is not a role that can be set here.',
   INTERNAL_ERROR: 'Something went wrong on our side.',
 }
 

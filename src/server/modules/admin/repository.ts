@@ -1,9 +1,8 @@
 // Repository of the `admin` module (docs/tech/10-backend-spec-modules.md §16): the audit log every
-// module writes through `audit()`, the platform user list, platform roles (DATA-048, D-007), and
-// the two institution seats the users table hands out (D-747). The audit log and the user list are
-// not tenant-scoped — audit rows outlive their organization and users span tenants — while a seat
-// write names its institution first, like every tenant-scoped write.
-import { and, asc, eq, gte, ilike, inArray, ne, sql } from 'drizzle-orm'
+// module writes through `audit()`, the platform user list, and platform roles (DATA-048, D-007,
+// D-748). None of it is tenant-scoped — audit rows outlive their organization, users span tenants,
+// and a platform role belongs to the account rather than to any institution.
+import { and, asc, eq, gte, ilike, ne, sql } from 'drizzle-orm'
 import { AppError } from '@/lib/errors'
 import { db } from '@/server/db/client'
 import { llmCalls } from '@/server/db/schema/platform'
@@ -18,9 +17,7 @@ import {
 } from '@/server/db/pagination'
 import {
   auditLogs,
-  member,
   organization,
-  sectionMemberships,
   session,
   user,
   type AuditLog,
@@ -37,8 +34,8 @@ export { withTransaction } from '@/server/db/tx'
 
 export type UserRow = typeof user.$inferSelect
 
-/** `user.platform_role` values (06 §3.1, D-007). */
-export type PlatformRole = 'none' | 'tassl_scenario_editor' | 'admin'
+/** `user.platform_role` values (06 §3.1, D-748). */
+export type PlatformRole = 'student' | 'tassl_scenario_editor' | 'instructor' | 'admin'
 
 export type ListUsersInput = PageInput & { q?: string | null | undefined }
 export type ListAuditLogInput = PageInput & { orgId?: string | null | undefined }
@@ -113,90 +110,6 @@ export async function setPlatformRole(
   return rows[0] ?? null
 }
 
-/** One `member` row of one account, with the institution's name (D-747). */
-export type MembershipRow = {
-  userId: string
-  organizationId: string
-  organizationName: string
-  role: string
-}
-
-/**
- * Every institution each of `userIds` belongs to, by institution name. One statement for a whole
- * page of the users table rather than one per row; not tenant-scoped, for the reason the user list
- * is not — the admin reads across institutions (08 §4).
- */
-export async function listMembershipsOfUsers(
-  userIds: readonly string[],
-  dbx: DbOrTx = db,
-): Promise<MembershipRow[]> {
-  if (userIds.length === 0) return []
-  return dbx
-    .select({
-      userId: member.userId,
-      organizationId: organization.id,
-      organizationName: organization.name,
-      role: member.role,
-    })
-    .from(member)
-    .innerJoin(organization, eq(organization.id, member.organizationId))
-    .where(inArray(member.userId, [...userIds]))
-    .orderBy(asc(organization.name), asc(organization.id))
-}
-
-/** The seat `userId` holds in the institution, or null when they hold none (D-747). */
-export async function findMemberRole(
-  tenantId: string,
-  userId: string,
-  dbx: DbOrTx = db,
-): Promise<string | null> {
-  const rows = await dbx
-    .select({ role: member.role })
-    .from(member)
-    .where(and(eq(member.organizationId, tenantId), eq(member.userId, userId)))
-    .limit(1)
-  return rows[0]?.role ?? null
-}
-
-/** Sets an existing member's institution seat; null when the user is not a member (D-747). */
-export async function setMemberRole(
-  tenantId: string,
-  userId: string,
-  role: string,
-  dbx: DbOrTx = db,
-): Promise<string | null> {
-  const rows = await dbx
-    .update(member)
-    .set({ role })
-    .where(and(eq(member.organizationId, tenantId), eq(member.userId, userId)))
-    .returning({ role: member.role })
-  return rows[0]?.role ?? null
-}
-
-/**
- * Gives every section seat `userId` holds in the institution the one role (D-747), and answers how
- * many rows changed. Rows already holding it are left alone, so the count is what the change did.
- */
-export async function setSectionRolesOfUser(
-  tenantId: string,
-  userId: string,
-  role: 'student' | 'instructor',
-  dbx: DbOrTx = db,
-): Promise<number> {
-  const rows = await dbx
-    .update(sectionMemberships)
-    .set({ role, updatedAt: sql`now()` })
-    .where(
-      and(
-        eq(sectionMemberships.organizationId, tenantId),
-        eq(sectionMemberships.userId, userId),
-        ne(sectionMemberships.role, role),
-      ),
-    )
-    .returning({ id: sectionMemberships.id })
-  return rows.length
-}
-
 /** A page of audit rows, newest first, optionally limited to one organization. */
 export async function listAuditLog(
   input: ListAuditLogInput,
@@ -221,9 +134,8 @@ export async function listAuditLog(
 /**
  * Every institution, by name, for the audit log's filter (UI-050 "filter by org").
  *
- * A platform-wide list and not `tenancy.listMyInstitutions`, which answers the actor's *memberships*
- * — an admin is a seat over Tassl and not a member of the institutions it hosts (08 §4), so the
- * membership list is empty for exactly the person this filter is for. Capped rather than paged: the
+ * The admin's own read, capped, rather than `tenancy.listMyInstitutions` — which for the admin also
+ * answers every institution (D-748), but uncapped and shaped for the shell. Capped rather than paged: the
  * filter is a control on one screen, and a deployment past the cap gets a filter that names the
  * first two hundred institutions rather than a second pagination to maintain (D-572). The control
  * says so when it is at the cap; the number lives in `./schema` so both sides read one value.

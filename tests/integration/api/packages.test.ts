@@ -2,8 +2,8 @@
 // `Request` through the handler `src/app/api/v1/**/route.ts` exports. Each row gets its happy path,
 // the error envelope of every code the spec names for it, and the cells of 08-auth-authz.md §4 the
 // route answers — including the three the phase file calls out by name: a student is refused the
-// claim object view, a TA is given the version view without its seed record, and an id belonging to
-// another institution answers 404 rather than 403.
+// claim object view, an Instructor is given the version view without its seed record (D-748), and an
+// id belonging to another institution answers 404 rather than 403.
 //
 // The two generation rows (`POST` and `GET /package-versions/{versionId}/generation`) and the
 // element-level `.../regenerate` row belong to the `authoring` module (10 §5) and are covered by
@@ -623,6 +623,9 @@ const SEED = {
 
 // ---------------------------------------------------------------------------------------------
 // The fixture: two institutions, six seats, one imported package and one created from a seed
+//
+// A Scenario Editor authors and publishes; an Instructor reads a package to assign and review it and
+// writes nothing; the Platform Admin holds no membership and is admitted everywhere (D-748).
 // ---------------------------------------------------------------------------------------------
 
 type Fixture = Awaited<ReturnType<typeof seed>>
@@ -646,25 +649,21 @@ async function seed() {
   const orgA = (await f.createInstitution('api-packages-a')).organization.id
   const orgB = (await f.createInstitution('api-packages-b')).organization.id
 
-  const instructor = await f.createUser(who('instructor'))
-  const author = await f.createUser(who('author'))
-  const ta = await f.createUser(who('ta'))
+  const instructor = await f.createUser(who('instructor'), { platformRole: 'instructor' })
+  const author = await f.createUser(who('author'), { platformRole: 'tassl_scenario_editor' })
   const student = await f.createUser(who('student'))
-  const lead = await f.createUser(who('lead'))
-  const editor = await f.createUser(who('editor'), {
-    platformRole: 'tassl_scenario_editor',
-  })
-  const outsider = await f.createUser(who('outsider'))
+  // A second Scenario Editor of the same institution: any of them may sign, not only the creator.
+  const editor = await f.createUser(who('editor'), { platformRole: 'tassl_scenario_editor' })
+  const admin = await f.createUser(who('admin'), { platformRole: 'admin' })
+  const outsider = await f.createUser(who('outsider'), { platformRole: 'instructor' })
 
-  await f.addMember(orgA, instructor.id, 'instructor')
-  await f.addMember(orgA, author.id, 'scenario_author')
-  await f.addMember(orgA, ta.id, 'teaching_assistant')
-  await f.addMember(orgA, student.id, 'student')
-  await f.addMember(orgA, lead.id, 'program_lead')
-  await f.addMember(orgA, editor.id, 'scenario_author')
-  await f.addMember(orgB, outsider.id, 'instructor')
+  await f.addMember(orgA, instructor.id)
+  await f.addMember(orgA, author.id)
+  await f.addMember(orgA, student.id)
+  await f.addMember(orgA, editor.id)
+  await f.addMember(orgB, outsider.id)
 
-  const session = await asUser(instructor.id, { activeOrganizationId: orgA })
+  const session = await asUser(author.id, { activeOrganizationId: orgA })
 
   // The package every read and write row is answered about: complete, valid, and confirmed element
   // by element, so `POST .../confirm` has something it can actually freeze.
@@ -715,10 +714,9 @@ async function seed() {
     orgB,
     instructor,
     author,
-    ta,
     student,
-    lead,
     editor,
+    admin,
     outsider,
     pkg,
     undecided,
@@ -737,10 +735,9 @@ const sessionFor = (user: UserRow, orgId: string | null): Promise<Headers> =>
 
 const asInstructor = (): Promise<Headers> => sessionFor(fx.instructor, fx.orgA)
 const asAuthor = (): Promise<Headers> => sessionFor(fx.author, fx.orgA)
-const asTa = (): Promise<Headers> => sessionFor(fx.ta, fx.orgA)
 const asStudent = (): Promise<Headers> => sessionFor(fx.student, fx.orgA)
-const asLead = (): Promise<Headers> => sessionFor(fx.lead, fx.orgA)
 const asEditor = (): Promise<Headers> => sessionFor(fx.editor, fx.orgA)
+const asAdmin = (): Promise<Headers> => sessionFor(fx.admin, fx.orgA)
 const asOutsider = (): Promise<Headers> => sessionFor(fx.outsider, fx.orgB)
 
 const claimId = (key: string): string => {
@@ -766,7 +763,7 @@ async function freezeFixtureVersion(): Promise<void> {
   const frozen = await call(confirmRoute.POST, {
     method: 'POST',
     path: `/package-versions/${fx.pkg.versionId}/confirm`,
-    session: await asInstructor(),
+    session: await asAuthor(),
     params: { versionId: fx.pkg.versionId },
     body: { teachingNoteChecked: true },
   })
@@ -825,16 +822,24 @@ describe('GET /institutions/{orgId}/packages', () => {
     })
   })
 
-  it('refuses a TA and a student, 404s another institution, and rejects an unknown parameter', async () => {
-    for (const session of [await asTa(), await asStudent(), await asLead()]) {
-      const denied = await call(orgPackages.GET, {
+  it('admits an Instructor and the admin, refuses a student, 404s another institution, and rejects an unknown parameter', async () => {
+    for (const session of [await asInstructor(), await asAdmin()]) {
+      const listed = await call(orgPackages.GET, {
         path: `/institutions/${fx.orgA}/packages`,
         session,
         params: { orgId: fx.orgA },
       })
-      expect(denied.status).toBe(403)
-      expect(errorCode(denied)).toBe('FORBIDDEN')
+      expect(listed.status).toBe(200)
+      expect(listed.body?.items as unknown[]).toHaveLength(2)
     }
+
+    const denied = await call(orgPackages.GET, {
+      path: `/institutions/${fx.orgA}/packages`,
+      session: await asStudent(),
+      params: { orgId: fx.orgA },
+    })
+    expect(denied.status).toBe(403)
+    expect(errorCode(denied)).toBe('FORBIDDEN')
 
     const crossTenant = await call(orgPackages.GET, {
       path: `/institutions/${fx.orgA}/packages`,
@@ -938,7 +943,7 @@ describe('POST /institutions/{orgId}/packages', () => {
     expect(tooFewConcepts.status).toBe(400)
     expect(errorCode(tooFewConcepts)).toBe('VALIDATION_ERROR')
 
-    for (const session of [await asStudent(), await asTa()]) {
+    for (const session of [await asStudent(), await asInstructor()]) {
       const denied = await call(orgPackages.POST, {
         method: 'POST',
         path: `/institutions/${fx.orgA}/packages`,
@@ -993,7 +998,7 @@ describe('POST /institutions/{orgId}/packages/import', () => {
     })
   })
 
-  it('refuses a document that is not a package export, an invalid confirm-on-import, and a TA', async () => {
+  it('refuses a document that is not a package export, an invalid confirm-on-import, and an Instructor', async () => {
     const notAnExport = await call(importRoute.POST, {
       method: 'POST',
       path: `/institutions/${fx.orgA}/packages/import`,
@@ -1043,9 +1048,9 @@ describe('POST /institutions/{orgId}/packages/import', () => {
     const denied = await call(importRoute.POST, {
       method: 'POST',
       path: `/institutions/${fx.orgA}/packages/import`,
-      session: await asTa(),
+      session: await asInstructor(),
       params: { orgId: fx.orgA },
-      body: fixtureExport('api-packages-by-a-ta'),
+      body: fixtureExport('api-packages-by-an-instructor'),
     })
     expect(denied.status).toBe(403)
     expect(errorCode(denied)).toBe('FORBIDDEN')
@@ -1053,8 +1058,8 @@ describe('POST /institutions/{orgId}/packages/import', () => {
 })
 
 describe('GET /packages/{packageId}', () => {
-  it('returns the family with every version, for an author and for a reviewer', async () => {
-    for (const session of [await asAuthor(), await asTa()]) {
+  it('returns the family with every version, for an author, an Instructor and the admin', async () => {
+    for (const session of [await asAuthor(), await asInstructor(), await asAdmin()]) {
       const read = await call(packageRoute.GET, {
         path: `/packages/${fx.pkg.packageId}`,
         session,
@@ -1095,7 +1100,7 @@ describe('GET /package-versions/{versionId}', () => {
   it('returns the version with its counts, confirmation record, measures and seed record', async () => {
     const read = await call(versionRoute.GET, {
       path: `/package-versions/${fx.pkg.versionId}`,
-      session: await asInstructor(),
+      session: await asAuthor(),
       params: { versionId: fx.pkg.versionId },
     })
 
@@ -1124,26 +1129,31 @@ describe('GET /package-versions/{versionId}', () => {
     })
   })
 
-  it('omits the seed record for a TA, admits a program lead, refuses a student, 404s cross-tenant', async () => {
-    // FR-028 and 08 §4: the seed record is the licensed case behind the package; a TA never reads it.
-    const asReviewer = await call(versionRoute.GET, {
+  it('omits the seed record for an Instructor, gives it to the admin, refuses a student, 404s cross-tenant', async () => {
+    // FR-028 and 08 §4: the seed record is the licensed case behind the package; an Instructor reads
+    // the package to assign it and never reads the case (D-748).
+    const asReader = await call(versionRoute.GET, {
       path: `/package-versions/${fx.pkg.versionId}`,
-      session: await asTa(),
+      session: await asInstructor(),
       params: { versionId: fx.pkg.versionId },
     })
-    expect(asReviewer.status).toBe(200)
-    expect(asReviewer.body?.seedRecord).toBeNull()
-    expect(asReviewer.body?.capabilities).toMatchObject({ canEdit: false, canConfirm: false })
+    expect(asReader.status).toBe(200)
+    expect(asReader.body?.seedRecord).toBeNull()
+    expect(asReader.body?.brief).toContain('Halden Roastworks')
+    expect(asReader.body?.capabilities).toEqual({
+      canEdit: false,
+      canConfirm: false,
+      canRegenerate: false,
+    })
+    expect(asReader.body).not.toHaveProperty('restricted')
 
-    // 08 §4 gives the program lead the measures, which hang off this view.
-    const asProgramLead = await call(versionRoute.GET, {
+    const asPlatformAdmin = await call(versionRoute.GET, {
       path: `/package-versions/${fx.pkg.versionId}`,
-      session: await asLead(),
+      session: await asAdmin(),
       params: { versionId: fx.pkg.versionId },
     })
-    expect(asProgramLead.status).toBe(200)
-    expect(asProgramLead.body?.seedRecord).toBeNull()
-    expect(asProgramLead.body?.measures).toBeDefined()
+    expect(asPlatformAdmin.status).toBe(200)
+    expect(asPlatformAdmin.body?.seedRecord).not.toBeNull()
 
     const denied = await call(versionRoute.GET, {
       path: `/package-versions/${fx.pkg.versionId}`,
@@ -1160,88 +1170,6 @@ describe('GET /package-versions/{versionId}', () => {
     })
     expect(crossTenant.status).toBe(404)
     expect(errorCode(crossTenant)).toBe('NOT_FOUND')
-  })
-
-  /**
-   * 08 §4 gives the program lead "✓ org (measures only)" on this line, which is the institution's
-   * own accounting of how long confirmation took and who signed — not the brief, not the
-   * element-by-element record, and above all not the rule failures, which name where the defects
-   * are. So the content fields come back empty rather than absent (one shape serves the endpoint)
-   * and `restricted` is what lets the screen say so instead of drawing a blank package.
-   */
-  it('empties the package for a program lead, keeps their measures, and says it is restricted', async () => {
-    const read = async (session: Headers): Promise<Called> =>
-      call(versionRoute.GET, {
-        path: `/package-versions/${fx.pkg.versionId}`,
-        session,
-        params: { versionId: fx.pkg.versionId },
-      })
-
-    const lead = await read(await asLead())
-    const instructor = await read(await asInstructor())
-
-    expect(lead.status).toBe(200)
-    expect(lead.body).toMatchObject({
-      restricted: true,
-      brief: '',
-      conceptSet: [],
-      generalEscalationReply: '',
-      debriefCounterfactual: '',
-      confirmationRecord: [],
-      validation: { ok: true, failures: [] },
-      warnings: [],
-      seedRecord: null,
-    })
-    // The measures are the whole of what they get, and they are the institution's real numbers.
-    expect(lead.body?.measures).toEqual(instructor.body?.measures)
-    expect(Object.keys(lead.body?.measures as object).sort()).toEqual([
-      'editRate',
-      'generationPasses',
-      'rejectedShare',
-      'reviewMsPerElement',
-      'seedToConfirmedMs',
-    ])
-    // The version is still identified, so the screen can name what it is refusing to show.
-    expect(lead.body).toMatchObject({
-      id: fx.pkg.versionId,
-      familyKey: 'api-packages-fixture',
-      version: 1,
-      status: 'draft',
-    })
-
-    // The control: an instructor on the same version gets the package itself.
-    expect(instructor.status).toBe(200)
-    expect(instructor.body?.restricted).toBe(false)
-    expect(instructor.body?.brief).toContain('Halden Roastworks')
-    expect(instructor.body?.conceptSet).toEqual(CONCEPTS)
-    expect(instructor.body?.warnings).toEqual(['FAMILY_LACKS_ETHICAL_DEFECT'])
-    expect((instructor.body?.confirmationRecord as unknown[]).length).toBeGreaterThan(60)
-
-    // And the rule failures in particular: with a broken brief the instructor is told which rule
-    // broke and on which element, while the lead's report stays empty.
-    const emptied = await call(elementRoute.PATCH, {
-      method: 'PATCH',
-      path: `/package-versions/${fx.pkg.versionId}/elements/brief/${SINGLETON_ELEMENT_ID}`,
-      session: await asInstructor(),
-      params: {
-        versionId: fx.pkg.versionId,
-        elementType: 'brief',
-        elementId: SINGLETON_ELEMENT_ID,
-      },
-      body: { brief: '' },
-    })
-    expect(emptied.status).toBe(200)
-
-    const brokenForInstructor = await read(await asInstructor())
-    expect(
-      (brokenForInstructor.body?.validation as { failures: { code: string }[] }).failures.map(
-        (failure) => failure.code,
-      ),
-    ).toContain('BRIEF_TOO_LONG')
-
-    const brokenForLead = await read(await asLead())
-    expect(brokenForLead.body?.validation).toEqual({ ok: true, failures: [] })
-    expect(brokenForLead.body?.restricted).toBe(true)
   })
 })
 
@@ -1283,23 +1211,22 @@ describe('GET /package-versions/{versionId}/export', () => {
     }
   })
 
-  it('admits a reviewer, refuses a program lead and a student, and 404s cross-tenant', async () => {
-    const reviewer = await call(exportRoute.GET, {
+  it('admits an Instructor without the seed record, refuses a student, and 404s cross-tenant', async () => {
+    const reader = await call(exportRoute.GET, {
       path: `/package-versions/${fx.pkg.versionId}/export`,
-      session: await asTa(),
+      session: await asInstructor(),
       params: { versionId: fx.pkg.versionId },
     })
-    expect(reviewer.status).toBe(200)
+    expect(reader.status).toBe(200)
+    expect((reader.body as unknown as PackageExport).seedRecord).toBeNull()
 
-    for (const session of [await asLead(), await asStudent()]) {
-      const denied = await call(exportRoute.GET, {
-        path: `/package-versions/${fx.pkg.versionId}/export`,
-        session,
-        params: { versionId: fx.pkg.versionId },
-      })
-      expect(denied.status).toBe(403)
-      expect(errorCode(denied)).toBe('FORBIDDEN')
-    }
+    const denied = await call(exportRoute.GET, {
+      path: `/package-versions/${fx.pkg.versionId}/export`,
+      session: await asStudent(),
+      params: { versionId: fx.pkg.versionId },
+    })
+    expect(denied.status).toBe(403)
+    expect(errorCode(denied)).toBe('FORBIDDEN')
 
     const crossTenant = await call(exportRoute.GET, {
       path: `/package-versions/${fx.pkg.versionId}/export`,
@@ -1374,7 +1301,7 @@ describe('GET /package-versions/{versionId}/claims/{claimId}', () => {
     expect(errorCode(rejected)).toBe('VALIDATION_ERROR')
   })
 
-  it('refuses a student and a program lead, and 404s a claim outside the version or the tenant', async () => {
+  it('admits an Instructor, refuses a student, and 404s a claim outside the version or the tenant', async () => {
     // D-117: the claim object is the answer key — warranted stances, the planted flag, the paths.
     const denied = await call(claimRoute.GET, {
       path: `/package-versions/${fx.pkg.versionId}/claims/${claimId('C1')}`,
@@ -1384,14 +1311,13 @@ describe('GET /package-versions/{versionId}/claims/{claimId}', () => {
     expect(denied.status).toBe(403)
     expect(errorCode(denied)).toBe('FORBIDDEN')
 
-    // 08 §4 leaves the program lead off this line; the measures are all they see of a package.
-    const lead = await call(claimRoute.GET, {
+    // An Instructor reviews runs against the claim object, so they read it (08 §4, D-748).
+    const reader = await call(claimRoute.GET, {
       path: `/package-versions/${fx.pkg.versionId}/claims/${claimId('C1')}`,
-      session: await asLead(),
+      session: await asInstructor(),
       params: { versionId: fx.pkg.versionId, claimId: claimId('C1') },
     })
-    expect(lead.status).toBe(403)
-    expect(errorCode(lead)).toBe('FORBIDDEN')
+    expect(reader.status).toBe(200)
 
     const otherVersion = fx.undecided.versionId
     const wrongVersion = await call(claimRoute.GET, {
@@ -1444,7 +1370,7 @@ describe('PATCH /package-versions/{versionId}/elements/{elementType}/{elementId}
     const patched = await call(elementRoute.PATCH, {
       method: 'PATCH',
       path: `/package-versions/${fx.pkg.versionId}/elements/brief/${SINGLETON_ELEMENT_ID}`,
-      session: await asInstructor(),
+      session: await asAuthor(),
       params: {
         versionId: fx.pkg.versionId,
         elementType: 'brief',
@@ -1460,7 +1386,7 @@ describe('PATCH /package-versions/{versionId}/elements/{elementType}/{elementId}
     })
   })
 
-  it('refuses a renamed key, an unknown element, a TA, and a confirmed version', async () => {
+  it('refuses a renamed key, an unknown element, an Instructor, and a confirmed version', async () => {
     const renamed = await call(elementRoute.PATCH, {
       method: 'PATCH',
       path: `/package-versions/${fx.pkg.versionId}/elements/document/${documentId('D5')}`,
@@ -1485,7 +1411,7 @@ describe('PATCH /package-versions/{versionId}/elements/{elementType}/{elementId}
     expect(unknown.status).toBe(404)
     expect(errorCode(unknown)).toBe('NOT_FOUND')
 
-    for (const session of [await asTa(), await asStudent(), await asLead()]) {
+    for (const session of [await asInstructor(), await asStudent()]) {
       const denied = await call(elementRoute.PATCH, {
         method: 'PATCH',
         path: `/package-versions/${fx.pkg.versionId}/elements/document/${documentId('D5')}`,
@@ -1643,7 +1569,7 @@ describe('POST /package-versions/{versionId}/elements/{elementType}/{elementId}/
     const decided = await call(decisionRoute.POST, {
       method: 'POST',
       path: `/package-versions/${fx.pkg.versionId}/elements/claim/${claimId('C3')}/decision`,
-      session: await asInstructor(),
+      session: await asAuthor(),
       params: { versionId: fx.pkg.versionId, elementType: 'claim', elementId: claimId('C3') },
       body: { decision: 'rejected', note: 'The margin of error needs a number.', openedAt },
     })
@@ -1660,32 +1586,33 @@ describe('POST /package-versions/{versionId}/elements/{elementType}/{elementId}/
     })
   })
 
-  it('refuses a bad decision, a platform editor, a TA, and a confirmed version', async () => {
+  it('refuses a bad decision, an Instructor, and a confirmed version, and admits a second editor', async () => {
     const invalid = await call(decisionRoute.POST, {
       method: 'POST',
       path: `/package-versions/${fx.pkg.versionId}/elements/claim/${claimId('C3')}/decision`,
-      session: await asInstructor(),
+      session: await asAuthor(),
       params: { versionId: fx.pkg.versionId, elementType: 'claim', elementId: claimId('C3') },
       body: { decision: 'edited', openedAt: '2026-09-02T10:00:00.000Z' },
     })
     expect(invalid.status).toBe(400)
     expect(errorCode(invalid)).toBe('VALIDATION_ERROR')
 
-    // 08 §4, PRD §8: nobody at Tassl signs for an element in place of the institution's authority.
-    const platform = await call(decisionRoute.POST, {
+    // Any Scenario Editor of the institution signs for an element, not only the package's creator
+    // (D-748).
+    const secondEditor = await call(decisionRoute.POST, {
       method: 'POST',
       path: `/package-versions/${fx.pkg.versionId}/elements/claim/${claimId('C3')}/decision`,
       session: await asEditor(),
       params: { versionId: fx.pkg.versionId, elementType: 'claim', elementId: claimId('C3') },
       body: { decision: 'confirmed', openedAt: '2026-09-02T10:00:00.000Z' },
     })
-    expect(platform.status).toBe(403)
-    expect(errorCode(platform)).toBe('FORBIDDEN')
+    expect(secondEditor.status).toBe(200)
+    expect(secondEditor.body).toMatchObject({ decision: 'confirmed', decidedBy: fx.editor.id })
 
     const denied = await call(decisionRoute.POST, {
       method: 'POST',
       path: `/package-versions/${fx.pkg.versionId}/elements/claim/${claimId('C3')}/decision`,
-      session: await asTa(),
+      session: await asInstructor(),
       params: { versionId: fx.pkg.versionId, elementType: 'claim', elementId: claimId('C3') },
       body: { decision: 'confirmed', openedAt: '2026-09-02T10:00:00.000Z' },
     })
@@ -1696,7 +1623,7 @@ describe('POST /package-versions/{versionId}/elements/{elementType}/{elementId}/
     const frozen = await call(decisionRoute.POST, {
       method: 'POST',
       path: `/package-versions/${fx.pkg.versionId}/elements/claim/${claimId('C3')}/decision`,
-      session: await asInstructor(),
+      session: await asAuthor(),
       params: { versionId: fx.pkg.versionId, elementType: 'claim', elementId: claimId('C3') },
       body: { decision: 'confirmed', openedAt: '2026-09-02T10:00:00.000Z' },
     })
@@ -1710,7 +1637,7 @@ describe('POST /package-versions/{versionId}/confirm', () => {
     const confirmed = await call(confirmRoute.POST, {
       method: 'POST',
       path: `/package-versions/${fx.pkg.versionId}/confirm`,
-      session: await asInstructor(),
+      session: await asAuthor(),
       params: { versionId: fx.pkg.versionId },
       body: { teachingNoteChecked: true },
     })
@@ -1720,7 +1647,7 @@ describe('POST /package-versions/{versionId}/confirm', () => {
       id: fx.pkg.versionId,
       status: 'confirmed',
       teachingNoteChecked: true,
-      confirmedBy: fx.instructor.id,
+      confirmedBy: fx.author.id,
       capabilities: { canEdit: false, canConfirm: false },
     })
     expect(confirmed.body?.confirmedAt).toEqual(expect.any(String))
@@ -1737,7 +1664,7 @@ describe('POST /package-versions/{versionId}/confirm', () => {
     const again = await call(confirmRoute.POST, {
       method: 'POST',
       path: `/package-versions/${fx.pkg.versionId}/confirm`,
-      session: await asInstructor(),
+      session: await asAuthor(),
       params: { versionId: fx.pkg.versionId },
       body: { teachingNoteChecked: true },
     })
@@ -1745,11 +1672,11 @@ describe('POST /package-versions/{versionId}/confirm', () => {
     expect(errorCode(again)).toBe('VERSION_FROZEN')
   })
 
-  it('refuses undecided elements, an unticked teaching note, an invalid package, and an editor', async () => {
+  it('refuses undecided elements, an unticked teaching note, an invalid package, and an Instructor', async () => {
     const undecided = await call(confirmRoute.POST, {
       method: 'POST',
       path: `/package-versions/${fx.undecided.versionId}/confirm`,
-      session: await asInstructor(),
+      session: await asAuthor(),
       params: { versionId: fx.undecided.versionId },
       body: { teachingNoteChecked: true },
     })
@@ -1761,7 +1688,7 @@ describe('POST /package-versions/{versionId}/confirm', () => {
     const unticked = await call(confirmRoute.POST, {
       method: 'POST',
       path: `/package-versions/${fx.pkg.versionId}/confirm`,
-      session: await asInstructor(),
+      session: await asAuthor(),
       params: { versionId: fx.pkg.versionId },
       body: { teachingNoteChecked: false },
     })
@@ -1772,7 +1699,7 @@ describe('POST /package-versions/{versionId}/confirm', () => {
     const emptied = await call(elementRoute.PATCH, {
       method: 'PATCH',
       path: `/package-versions/${fx.pkg.versionId}/elements/brief/${SINGLETON_ELEMENT_ID}`,
-      session: await asInstructor(),
+      session: await asAuthor(),
       params: {
         versionId: fx.pkg.versionId,
         elementType: 'brief',
@@ -1785,7 +1712,7 @@ describe('POST /package-versions/{versionId}/confirm', () => {
     const invalid = await call(confirmRoute.POST, {
       method: 'POST',
       path: `/package-versions/${fx.pkg.versionId}/confirm`,
-      session: await asInstructor(),
+      session: await asAuthor(),
       params: { versionId: fx.pkg.versionId },
       body: { teachingNoteChecked: true },
     })
@@ -1793,7 +1720,7 @@ describe('POST /package-versions/{versionId}/confirm', () => {
     expect(errorCode(invalid)).toBe('PACKAGE_INVALID')
     expect(errorDetails(invalid)['rules']).toContain('BRIEF_TOO_LONG')
 
-    for (const session of [await asEditor(), await asTa(), await asStudent()]) {
+    for (const session of [await asInstructor(), await asStudent()]) {
       const denied = await call(confirmRoute.POST, {
         method: 'POST',
         path: `/package-versions/${fx.pkg.versionId}/confirm`,
@@ -1920,8 +1847,8 @@ describe('POST /package-versions/{versionId}/regenerate', () => {
     expect(source.body).toMatchObject({ status: 'confirmed', version: 1 })
   })
 
-  it('refuses a reviewer and a student, and 404s a version in another institution', async () => {
-    for (const session of [await asTa(), await asStudent(), await asLead()]) {
+  it('refuses an Instructor and a student, and 404s a version in another institution', async () => {
+    for (const session of [await asInstructor(), await asStudent()]) {
       const denied = await call(regenerateRoute.POST, {
         method: 'POST',
         path: `/package-versions/${fx.pkg.versionId}/regenerate`,

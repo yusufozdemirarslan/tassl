@@ -82,8 +82,8 @@ const EVENT_TYPES = [
  */
 export async function seedRunsForPlans(input: PlanFixtureInput): Promise<string> {
   const { organization } = await createInstitution('perf')
-  const instructor = await createUser('perf-instructor')
-  await addMember(organization.id, instructor.id, 'instructor')
+  const instructor = await createUser('perf-instructor', { platformRole: 'instructor' })
+  await addMember(organization.id, instructor.id)
   const course = await createCourse(organization.id, 'perf-course', { createdBy: instructor.id })
   const section = await createSection(organization.id, course.id, 'perf-section')
 

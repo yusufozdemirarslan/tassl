@@ -422,7 +422,6 @@ test('walkthrough step 11: the finished defense becomes a scored run inside the 
   // reviewers a notification that has to land somewhere.
   await addSectionMember(request, assignment.section.id, {
     email: seatEmail('instructor'),
-    role: 'instructor',
   })
 
   await signInAs(page, STUDENT_SEAT)

@@ -130,7 +130,8 @@ export async function createSection(
 export async function addSectionMember(
   target: Requester,
   sectionId: string,
-  input: { email: string; role: 'student' | 'instructor' | 'ta' },
+  /** The roster row carries no role (D-748): the person's platform role says what they do there. */
+  input: { email: string },
 ): Promise<void> {
   await createRow(target, `/api/v1/sections/${sectionId}/members`, input, 'add section member')
 }
@@ -186,7 +187,7 @@ export async function createStudentAssignment(
   const orgId = await walkthroughOrgId(target)
   const course = await createCourse(target, orgId, input.what)
   const section = await createSection(target, course.id, `${input.what} section`)
-  await addSectionMember(target, section.id, { email: input.studentEmail, role: 'student' })
+  await addSectionMember(target, section.id, { email: input.studentEmail })
 
   const label = suiteName(`${input.what} run`)
   const assignment = await createAssignment(target, section.id, {

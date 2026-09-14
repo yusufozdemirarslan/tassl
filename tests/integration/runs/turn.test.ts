@@ -398,7 +398,7 @@ describe('GET /runs/{runId}/turn', () => {
 
   it('is the run’s own student’s and nobody else’s (08 §4)', async () => {
     const runId = await runInTurnWindow()
-    for (const seat of ['instructor', 'ta', 'classmate'] as const) {
+    for (const seat of ['instructor', 'classmate'] as const) {
       expect([seat, await codeOf(runs.getTurn(fx[seat], runId))]).toEqual([seat, 'NOT_FOUND'])
     }
   })

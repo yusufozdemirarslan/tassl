@@ -8,7 +8,7 @@
 //   POST /runs/{runId}/claims/{claimId}/escalation   the colleague's authored reply
 //
 // Each row gets an allow case and a deny case (08 §4: "✓* own run" for the student, "—" for
-// everybody else, including the instructor and TA who may replay the run once it is scored), plus
+// everybody else, including the instructor who may replay the run once it is scored), plus
 // the two things only the wire can show: the error envelope a refusal carries, and the exact shape
 // of a body — which is where D-116's two withheld fields would leak if they were going to.
 // @db:truncate
@@ -71,11 +71,11 @@ async function call(
 const errorCode = (called: Called): unknown =>
   ((called.body as { error?: { code?: unknown } } | null)?.error ?? {}).code
 
-const sessionFor = (who: 'student' | 'instructor' | 'ta' | 'classmate'): Promise<Headers> =>
+const sessionFor = (who: 'student' | 'instructor' | 'admin' | 'classmate'): Promise<Headers> =>
   asUser(fx[who].id, { activeOrganizationId: fx.orgId })
 
 /** The four seats 08 §4 refuses this run's claim endpoints to, and the status each is owed. */
-const DENIED = ['instructor', 'ta', 'classmate'] as const
+const DENIED = ['instructor', 'classmate'] as const
 
 beforeEach(async () => {
   await truncateAll()

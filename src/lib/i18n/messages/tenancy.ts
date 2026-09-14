@@ -9,7 +9,7 @@ export const tenancy = {
   'tenancy.alreadyMember': 'That person is already a member of this institution.',
   'tenancy.alreadyInvited': 'That person already has an invitation to this institution.',
   'tenancy.programLeadNotFound':
-    'No Tassl account uses {email}. The program lead needs an account before the institution is created.',
+    'No Tassl account uses {email}. The person named for the institution needs an account before it is created.',
 } as const
 
 /** `t` over this namespace alone; the key is still the full dotted key. */

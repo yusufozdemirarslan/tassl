@@ -21,12 +21,6 @@
 import { scopedT } from '../scoped'
 
 export const review = {
-  // 08 §4's TA row, in the two places it bites. The first is per dimension and travels as
-  // `BAND_LOCKED_BY_INSTRUCTOR`; the second is the whole screen once the run is confirmed, and is a
-  // plain FORBIDDEN because there is no single band to name.
-  'review.taCannotRedecide':
-    'The bands on this run are confirmed, so only the instructor can change one now. Ask the instructor for this section if a band should be decided again.',
-
   // ---------------------------------------------------------------------------------------------
   // The screen (UI-033)
   // ---------------------------------------------------------------------------------------------
@@ -44,8 +38,6 @@ export const review = {
   'review.tabActions': 'Actions',
   'review.uncalibratedNote':
     'Every band here is a descriptive draft against the authored standard. The rubric has no field calibration yet and the difficulty profile is the authority’s estimate.',
-  'review.taSeatNote':
-    'You hold a teaching-assistant seat on this section. You can decide any dimension the instructor has not decided; voiding the run, entering a correction and the test control stay with the instructor.',
   'review.voidedBanner':
     'This run is voided. It carries no partial result, and no export written afterwards names it.',
 
@@ -190,8 +182,6 @@ export const review = {
   'review.decisionConfirming': 'Confirming…',
   'review.decisionChooseBand': 'Choose a band, or mark the dimension not assessed.',
   'review.decisionSaved': 'The decision is on the record.',
-  'review.decisionLockedByInstructor':
-    'The instructor decided this dimension. A teaching-assistant seat cannot change it: the band it stands on is above, and the instructor for this section can.',
 
   'review.evidenceSummary': 'Show the evidence behind this band',
   'review.evidenceGraphs': 'Graphs it was read from',
@@ -303,9 +293,6 @@ export const review = {
   'review.packageRecordEmptyTitle': 'No confirmation record',
   'review.packageRecordEmptyBody': 'Nothing has been confirmed on this version yet.',
   'review.packageMeasuresTitle': 'Authoring measures',
-  'review.packageRestrictedTitle': 'Only the measures are open to this seat',
-  'review.packageRestrictedBody':
-    'Who confirmed each element of this version is not open to this seat. The authoring measures below are.',
   'review.claimsTitle': 'Claims',
   'review.claimsDescription':
     'Every consequential claim of this package, with what each variant makes of it. The variant this run drew is marked.',
@@ -365,15 +352,9 @@ export const review = {
   /** A mark the log does not yet have a sentence for; the identifier is the honest fallback. */
   'review.guardMarkUnknown': 'An unrecognized guard mark: {flag}',
 
-  // The Actions view for a seat that may take none of them. It is not the tab's own name: a panel
-  // titled "Actions" whose body says you have none reads as a defect rather than an explanation.
-  'review.actionsSeatTitle': 'What this seat can do',
-
   // A standing state, not a confirmation of something just done (the toast says that).
   'review.testForceArmed':
     'One assistant outage is already armed: the student’s next request will not come back.',
-  'review.actionsInstructorOnly':
-    'Voiding a run, entering a correction and the test controls are the instructor’s. A teaching-assistant seat decides bands.',
 
   'review.voidTitle': 'Void this run',
   'review.voidDescription':
@@ -540,9 +521,9 @@ export const review = {
   'review.assignmentExportsColumnRun': 'Run',
   'review.assignmentExportsColumnStudent': 'Student',
   'review.assignmentExportsRunLink': 'Open the replay',
-  // D-517: the course's instructor may read this history without holding a row in the section, and
-  // the replay asks for that row. Saying so is better than a link that answers 404.
-  'review.assignmentExportsRunUnavailable': 'Replay needs a place in the section',
+  // D-517: the link follows `canOpenRuns`, the replay's own question. Where the answer is no, saying
+  // so is better than a link that answers 404.
+  'review.assignmentExportsRunUnavailable': 'Replay not open to you',
   'review.assignmentExportsBack': 'Back to the assignment',
   /** The panel's own title: the page's h1 already says what the screen is. */
   'review.assignmentExportsPanelTitle': 'Every version written',

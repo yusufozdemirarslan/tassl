@@ -11,7 +11,9 @@
 //      organization id from the input.
 //   2. A resource the actor's institutions do not contain answers NOT_FOUND, never FORBIDDEN, so
 //      an id cannot be probed for existence (07 §1 "Tenancy", 08 §4 "Cross-tenant"). FORBIDDEN is
-//      reserved for someone who can see the resource but holds the wrong role.
+//      reserved for someone who can see the resource but whose platform role does not allow the
+//      act (D-748): courses, rosters and assignments are the Instructor's and the admin's; a
+//      Student or Scenario Editor reads only the assignments on their own roster.
 //   3. Every rule that carries its own error code (10 §3) is one call to `./errors.ts`, so a code
 //      and the condition it names cannot drift apart.
 //   4. Analytics fire after the writing transaction commits (17 §5.4), never inside it.
@@ -24,16 +26,17 @@
 import { isAppError } from '@/lib/errors'
 import { t } from '@/lib/i18n/t'
 import { track } from '@/server/analytics/track'
-import type { OrganizationRole } from '@/server/auth/access-control-shared'
 import {
   canReviewSection,
+  hasRole,
+  LEARNER_ROLES,
   requireCourseInstructor,
   requireMembership,
   requireRunInstructor,
-  requireSectionRole,
-  type SectionRole,
+  requireSectionSeat,
+  TEACHING_ROLES,
 } from '@/server/auth/permissions'
-import type { SessionUser } from '@/server/auth/types'
+import type { PlatformRole, SessionUser } from '@/server/auth/types'
 import { audit } from '@/server/modules/admin'
 // `toRunSummary` is the runs module's projection of a run row, and `listAssignmentRuns` below
 // answers with it so that the reviewer's table and the student's own poll report one shape. It is
@@ -71,6 +74,7 @@ import {
 import * as repo from './repository'
 import {
   MappingSchema,
+  PlatformRoleSchema,
   type AddSectionMemberInput,
   type Assignment,
   type AssignmentView,
@@ -88,6 +92,7 @@ import {
   type MappingInput,
   type PreviewMappingChangeInput,
   type PageQuery,
+  type PlatformRoleValue,
   type PolicyDisplay,
   type Section,
   type SectionMember,
@@ -96,14 +101,6 @@ import {
   type UpdateCoursePolicyInput,
   type VariantKeyValue,
 } from './schema'
-
-/** Organization roles that see every course of the institution (10 §3 `listCourses`). */
-const COURSE_READERS: readonly OrganizationRole[] = ['instructor', 'program_lead']
-
-/** Section roles that may read the assignment and its policy display (07 §5 "S (section member)"). */
-const SECTION_MEMBER_ROLES: readonly SectionRole[] = ['student', 'instructor', 'ta']
-/** 08 §4's "Reviewer" seats as `requireRunReviewer` asks for them: a row on the run's section. */
-const REVIEWER_SECTION_ROLES: readonly SectionRole[] = ['instructor', 'ta']
 
 /** The fields of an assignment a started run freezes (10 §3 `ASSIGNMENT_IN_USE`). */
 const STRUCTURAL_ASSIGNMENT_FIELDS = [
@@ -203,40 +200,32 @@ async function resolveAssignment(
 // Guards
 // ---------------------------------------------------------------------------------------------
 
-/** Institution membership, with a non-member answered NOT_FOUND rather than FORBIDDEN (rule 2). */
+/**
+ * Institution membership — the admin belongs everywhere — with a non-member answered NOT_FOUND
+ * rather than FORBIDDEN (rule 2), and a member whose platform role is not one of `roles` FORBIDDEN.
+ */
 async function requireVisibleMembership(
   actor: SessionUser,
   orgId: string,
-): Promise<OrganizationRole> {
+  roles: readonly PlatformRole[],
+): Promise<void> {
   try {
-    return await requireMembership(actor, orgId)
+    await requireMembership(actor, orgId)
   } catch (error) {
     if (isAppError(error) && error.code === 'FORBIDDEN') courseNotFound()
     throw error
   }
+  if (!hasRole(actor, roles)) forbidden()
 }
 
-/** True when the actor holds one of `roles` in the section; the throwing form is 08 §5's helper. */
-async function heldSectionRole(
+/** True when the actor is on the section's roster with one of `roles`; 08 §5's helper throws. */
+async function onRosterAs(
   actor: SessionUser,
   sectionId: string,
-  roles: readonly SectionRole[],
+  roles: readonly PlatformRole[],
 ): Promise<boolean> {
   try {
-    await requireSectionRole(actor, sectionId, roles)
-    return true
-  } catch (error) {
-    if (isAppError(error) && (error.code === 'FORBIDDEN' || error.code === 'NOT_FOUND')) {
-      return false
-    }
-    throw error
-  }
-}
-
-/** True when 08 §5's `requireCourseInstructor` would pass: the creator, or a section instructor. */
-async function instructsCourse(actor: SessionUser, courseId: string): Promise<boolean> {
-  try {
-    await requireCourseInstructor(actor, courseId)
+    await requireSectionSeat(actor, sectionId, roles)
     return true
   } catch (error) {
     if (isAppError(error) && (error.code === 'FORBIDDEN' || error.code === 'NOT_FOUND')) {
@@ -300,11 +289,17 @@ function toAssignment(row: repo.Assignment): Assignment {
   }
 }
 
+/** A stored role outside the four (the column's check refuses one) reads as the least privileged. */
+function toPlatformRole(role: string): PlatformRoleValue {
+  const parsed = PlatformRoleSchema.safeParse(role)
+  return parsed.success ? parsed.data : 'student'
+}
+
 const toSectionMember = (row: repo.SectionMemberPageRow): SectionMember => ({
   userId: row.user.id,
   name: row.user.name,
   email: row.user.email,
-  role: row.role,
+  role: toPlatformRole(row.role),
 })
 
 function toStudentAssignment(row: repo.StudentAssignmentPageRow): StudentAssignment {
@@ -350,17 +345,16 @@ async function msSinceFirstSignIn(actor: SessionUser): Promise<number> {
 // ---------------------------------------------------------------------------------------------
 
 /**
- * Creates a course for an institution the actor teaches in (10 §3). The mapping defaults to the
- * institution's `default_mapping`, so a course that never touches the editor still carries the four
- * numbers the debrief needs (PRD §7.19).
+ * Creates a course for an institution the actor teaches in: an Instructor member, or the admin
+ * (10 §3, D-748). The mapping defaults to the institution's `default_mapping`, so a course that never
+ * touches the editor still carries the four numbers the debrief needs (PRD §7.19).
  */
 export async function createCourse(
   actor: SessionUser,
   orgId: string,
   input: CreateCourseInput,
 ): Promise<Course> {
-  const role = await requireVisibleMembership(actor, orgId)
-  if (role !== 'instructor') forbidden()
+  await requireVisibleMembership(actor, orgId, TEACHING_ROLES)
 
   const settings = await getInstitutionSettings(actor, orgId)
   const requested = assertMapping(input.mapping)
@@ -399,18 +393,16 @@ export async function createCourse(
 }
 
 /**
- * The institution's courses (10 §3): instructors and program leads see all of them, everyone else
- * sees the courses they hold a section membership in — a student's list is their enrolment.
+ * The institution's courses (10 §3): every one of them, for its Instructors and the admin (D-748).
+ * A Student or Scenario Editor is FORBIDDEN — their work is reached through `listMyAssignments`.
  */
 export async function listCourses(
   actor: SessionUser,
   orgId: string,
   input: PageQuery = {},
 ): Promise<repo.Page<CourseSummary>> {
-  const role = await requireVisibleMembership(actor, orgId)
-  const page = COURSE_READERS.includes(role)
-    ? await repo.pageCoursesForOrg(orgId, input)
-    : await repo.pageCoursesForStudent(orgId, actor.id, input)
+  await requireVisibleMembership(actor, orgId, TEACHING_ROLES)
+  const page = await repo.pageCoursesForOrg(orgId, input)
 
   const counts = await repo.countCourseChildren(
     orgId,
@@ -432,16 +424,12 @@ export async function listCourses(
 
 /**
  * The course with its sections (each with the membership count 10 §3 asks for), its assignments,
- * its policy, its mapping and its weights. Readable by an institution instructor or program lead,
- * and by anyone who holds a membership in one of the course's sections (07 §5).
+ * its policy, its mapping and its weights. Readable by any Instructor of the institution and by the
+ * admin (07 §5, D-748).
  */
 export async function getCourse(actor: SessionUser, courseId: string): Promise<CourseView> {
   const course = await resolveCourse(actor, courseId)
-  const role = await requireVisibleMembership(actor, course.organizationId)
-  if (!COURSE_READERS.includes(role)) {
-    const membership = await repo.findCourseMembership(course.organizationId, courseId, actor.id)
-    if (!membership) forbidden()
-  }
+  await requireVisibleMembership(actor, course.organizationId, TEACHING_ROLES)
 
   const [sections, assignments] = await Promise.all([
     repo.listSectionsForCourse(course.organizationId, courseId),
@@ -716,7 +704,8 @@ export async function createSection(
 /**
  * Adds an existing institution member to the section by email (D-062). An address that is not a
  * member yet is `NOT_SECTION_MEMBER`, which is what makes the roster screen offer the invitation
- * instead (UI-031); the invitation itself is tenancy's, not this module's.
+ * instead (UI-031); the invitation itself is tenancy's, not this module's. The row carries no role:
+ * a Student on it is enrolled, an Instructor on it teaches the section (D-748).
  */
 export async function addSectionMember(
   actor: SessionUser,
@@ -728,10 +717,10 @@ export async function addSectionMember(
   const person = await repo.findOrgMemberByEmail(scope.organizationId, input.email)
   if (!person) notSectionMember()
 
-  const membership = await repo.withTransaction(async (tx) => {
+  await repo.withTransaction(async (tx) => {
     const row = await repo.upsertSectionMembership(
       scope.organizationId,
-      { sectionId, userId: person.id, role: input.role },
+      { sectionId, userId: person.id },
       tx,
     )
     if (!row) sectionNotFound()
@@ -742,12 +731,16 @@ export async function addSectionMember(
       targetType: 'section_membership',
       targetId: row.id,
       // The address is on the row itself; audit metadata carries no email (10 §3 redaction).
-      metadata: { sectionId, role: input.role, userId: person.id },
+      metadata: { sectionId, userId: person.id },
     })
-    return row
   })
 
-  return { userId: person.id, name: person.name, email: person.email, role: membership.role }
+  return {
+    userId: person.id,
+    name: person.name,
+    email: person.email,
+    role: toPlatformRole(person.platformRole),
+  }
 }
 
 /**
@@ -771,17 +764,15 @@ export async function removeSectionMember(
   if (!removed) sectionNotFound()
 }
 
-/** The roster (SYS-005): the section's instructor, or a program lead of the institution (07 §5). */
+/** The roster (SYS-005): the instructor of the section's course, or the admin (07 §5, D-748). */
 export async function listSectionMembers(
   actor: SessionUser,
   sectionId: string,
   input: PageQuery = {},
 ): Promise<repo.Page<SectionMember>> {
-  const found = await resolveSection(actor, sectionId)
-  const role = await requireVisibleMembership(actor, found.course.organizationId)
-  if (role !== 'program_lead' && !(await instructsCourse(actor, found.course.id))) forbidden()
+  const scope = await requireSectionInstructor(actor, sectionId)
 
-  const page = await repo.pageSectionMembers(found.course.organizationId, sectionId, input)
+  const page = await repo.pageSectionMembers(scope.organizationId, sectionId, input)
   return { items: page.items.map(toSectionMember), nextCursor: page.nextCursor }
 }
 
@@ -813,14 +804,13 @@ async function requirePackageVersionAndVariant(
  * the only place it can honestly live, because `courses` is what already resolves the institution
  * and already reads these two tables (`requirePackageVersionAndVariant`). Phase 5 may move it.
  *
- * Instructors and program leads only: a student never chooses a package version (08 §4).
+ * Instructors and the admin only: a student never chooses a package version (08 §4, D-748).
  */
 export async function listConfirmedPackageVersions(
   actor: SessionUser,
   orgId: string,
 ): Promise<ConfirmedPackageVersion[]> {
-  const role = await requireVisibleMembership(actor, orgId)
-  if (!COURSE_READERS.includes(role)) forbidden()
+  await requireVisibleMembership(actor, orgId, TEACHING_ROLES)
 
   const versions = await repo.listConfirmedPackageVersions(orgId)
   const variants = await repo.listVariantsOfVersions(
@@ -968,8 +958,8 @@ async function trackAssignment(
 }
 
 /**
- * The assignment with what it points at and the two values UI-032 shows resolved. Readable by any
- * member of its section (07 §5) and by the course's instructor, who configures it.
+ * The assignment with what it points at and the two values UI-032 shows resolved. Readable by a
+ * learner on its section's roster (07 §5) and by a reviewer of the section, who configures it.
  */
 export async function getAssignment(
   actor: SessionUser,
@@ -1003,31 +993,29 @@ export async function getAssignment(
     // link — and would be refused if they addressed the history directly.
     canViewExports: reviewer,
     // D-517: `requireRunReviewer`'s own question, asked once for the assignment. Every run of an
-    // assignment is in its one section, so a section row with a reviewer's role is the whole of
-    // what the replay behind an "Open run" link will ask for — and the course's instructor holding
-    // no such row is exactly the seat `canViewExports` newly admits.
-    canOpenRuns: await heldSectionRole(actor, context.section.id, REVIEWER_SECTION_ROLES),
+    // assignment is in its one section, and since D-748 that guard asks `canReviewSection` — the
+    // same predicate as the export history — so the two bits agree.
+    canOpenRuns: reviewer,
   }
 }
 
 /**
- * A member of the assignment's section, or the instructor of its course (07 §5, 08 §4).
+ * A reviewer of the assignment's section, or a learner on its roster (07 §5, 08 §4, D-748).
  *
  * It answers *which* of the two the reader is, because the assignment says more than a student may
  * hear: the variant is the one field that tells them whether a defect was planted at all (D-228),
- * and a reader who is only a student of the section is told what they are taking, not what it is.
+ * and a reader who is only a learner on the section is told what they are taking, not what it is.
  */
 async function requireAssignmentReader(
   actor: SessionUser,
   context: repo.AssignmentContext,
 ): Promise<{ reviewer: boolean }> {
-  // One predicate, shared with `records.listCourseExports` (D-483): the section's instructor or TA,
-  // or the instructor of the course above it, who may hold no row in a section they own (D-062).
+  // One predicate, shared with `records.listCourseExports` (D-483): an Instructor on the section's
+  // roster, the instructor of the course above it, who may hold no row in a section they own
+  // (D-062), or the admin.
   if (await canReviewSection(actor, context.course.id, context.section.id))
     return { reviewer: true }
-  if (await heldSectionRole(actor, context.section.id, SECTION_MEMBER_ROLES)) {
-    return { reviewer: false }
-  }
+  if (await onRosterAs(actor, context.section.id, LEARNER_ROLES)) return { reviewer: false }
   forbidden()
 }
 
@@ -1057,14 +1045,17 @@ export async function getPolicyDisplay(
 }
 
 /**
- * The assignments in the actor's sections with their own latest attempt (07 §3 `GET
+ * The assignments on the rosters the actor is on, with their own latest attempt (07 §3 `GET
  * /me/assignments`). The actor is the whole scope — the query is keyed by their id and their
  * memberships — so no permission helper appears: another student's work is not reachable from here.
+ * Only a role that takes runs has any (D-748): an Instructor's roster rows are sections they teach,
+ * so their page is empty.
  */
 export async function listMyAssignments(
   actor: SessionUser,
   input: PageQuery = {},
 ): Promise<repo.Page<StudentAssignment>> {
+  if (!hasRole(actor, LEARNER_ROLES)) return { items: [], nextCursor: null }
   const tenantId = (await tenantsOf(actor))[0]
   if (!tenantId) return { items: [], nextCursor: null }
   const page = await repo.pageAssignmentsForStudent(tenantId, actor.id, input)
@@ -1077,7 +1068,7 @@ export async function listMyAssignments(
 
 /**
  * `GET /assignments/{assignmentId}/runs`: every run taken on the assignment, for a reviewer of its
- * section — an instructor or a TA (08 §4 "Read another student's run"). A student is refused here
+ * section (08 §4 "Read another student's run"). A student is refused here
  * even for their own run: this list names every student who has taken the assignment, and 07 §7
  * gives them `/me/runs` instead.
  *
@@ -1091,9 +1082,8 @@ export async function listAssignmentRuns(
   input: RunsQuery = {},
 ): Promise<repo.Page<RunReviewSummary>> {
   const context = await resolveAssignment(actor, assignmentId)
-  // The same two readers the assignment itself admits as a reviewer: a section instructor or TA,
-  // and the instructor of the course, who may not hold a row in every section they own. Guarding
-  // only on the section role refused a course's own instructor the runs on their own assignment.
+  // The readers the assignment itself admits as a reviewer: an Instructor on the section's roster,
+  // the instructor of the course, who may not hold a row in every section they own, and the admin.
   const { reviewer } = await requireAssignmentReader(actor, context)
   if (!reviewer) forbidden()
 
@@ -1120,7 +1110,7 @@ export async function listAssignmentRuns(
 // ---------------------------------------------------------------------------------------------
 
 /**
- * Deletes one run of a walkthrough assignment (D-104): the instructor of the run's section, and
+ * Deletes one run of a walkthrough assignment (D-104): a reviewer of the run's section, and
  * only while `assignments.is_walkthrough` — a run that counts is never deleted, only voided
  * (Phase 11). The row goes with its children through the foreign keys, and the audit row is
  * written in the same transaction so the deletion is still visible afterwards (08 §4).

@@ -41,7 +41,7 @@ Common to every screen: `loading.tsx` renders the panel skeletons; `error.tsx` r
 ### UI-005 Accept invitation (`/invitations/[invitationId]`) — SYS-005
 
 - **Data:** invitation from Better Auth (`organization.getInvitation`); `acceptInvitationAction`.
-- **States:** loading; valid (institution name, role, "Accept"); email mismatch (message explaining the signed-in email differs, with sign-out link); expired; accepted → `/home`.
+- **States:** loading; valid (institution name, "Accept"; an invitation carries no role, D-748); email mismatch (message explaining the signed-in email differs, with sign-out link); expired; accepted → `/home`.
 - **Events:** `invitation_accepted`.
 
 ### UI-006 Privacy and Terms (`/privacy`, `/terms`) — SYS-007
@@ -57,14 +57,14 @@ Static RSC pages generated from `src/lib/legal/privacy.ts` and `terms.ts` (conte
 ### UI-008 App shell (`(app)/layout.tsx`) — SYS-010
 
 - **Data:** `getCurrentUser`, unread notification count, institutions.
-- **Tree:** `AppShell` → `Rail` (Home, Runs, Courses when member of a section as instructor or a course exists, Review when reviewer, Packages when author or editor, Admin when admin) → `InstitutionSwitcher` (`setActiveInstitutionAction`) → `NotificationsBell` (count badge) → `AccountMenu` (name, settings, sign out) → `main`.
+- **Tree:** `AppShell` → `Rail` by the account's one role (D-748): Runs for Student, Scenario Editor and admin; Courses and Review for Instructor and admin; Packages for Scenario Editor, Instructor and admin; Admin for the admin; Home for everyone → `InstitutionSwitcher` (`setActiveInstitutionAction`) → `NotificationsBell` (count badge) → `AccountMenu` (name, settings, sign out) → `main`.
 - **States:** one institution (switcher shows the name, no menu); several; zero memberships (rail shows Home only with an empty state explaining to await an invitation).
 - **Responsive:** rail collapses to a bottom bar under `md`.
 - **A11y:** skip link to `main`; rail is `nav` with `aria-current`.
 
 ### UI-009 Home (`/home`)
 
-- **Data:** `listMyAssignments`, `listCourses` (instructor), `listPackages` (author/editor), `listNotifications({ unread })`, pending held runs (reviewer).
+- **Data:** `listMyAssignments` (Student, Scenario Editor, admin), `listCourses` (Instructor, admin), `listPackages` (Scenario Editor, admin), `listNotifications({ unread })`, pending held runs (Instructor, admin).
 - **Tree:** `PageHeader` (greeting, institution) → role panels: "Your runs" (next action per assignment: Start, Continue, Read debrief), "Review" (scored runs awaiting decisions, held runs), "Packages" (drafts awaiting confirmation, generation in progress), "Courses".
 - **States:** loading skeleton; empty per panel (`EmptyState` with the single relevant action); error per panel.
 - **Events:** page view.
@@ -184,7 +184,7 @@ The largest screen; one column under `2xl` and two from it (see `09-frontend-spe
 ### UI-031 Section roster (`/courses/[courseId]/sections/[sectionId]/roster`) — SYS-005
 
 - **Data:** `listSectionMembers`, `addSectionMemberAction`, `removeSectionMemberAction`, `inviteMemberAction`.
-- **Tree:** table (name, email, role, remove) → "Add member" (email + role; error when the email is not an institution member with an inline "Invite to institution" action that opens the invitation form) → invitations list (pending, expired).
+- **Tree:** table (name, email, role — the person's platform role: Student, Scenario Editor, Instructor or Platform Admin — remove) → "Add member" (email only, a roster row carries no role; error when the email is not an institution member with an inline "Invite to institution" action that opens the invitation form) → invitations list (pending, expired).
 - **States:** empty; remove blocked (`MEMBER_HAS_RUNS` message).
 
 ### UI-032 Assignment configuration and runs (`/assignments/[assignmentId]`) — FR-200
@@ -203,7 +203,7 @@ The largest screen; one column under `2xl` and two from it (see `09-frontend-spe
   - Trace: `ReplayTrace` (seq, clock remaining, type, summary; expandable payload; filter by type).
   - Package: `PackageView` (id, version, confirmation record table, authoring record, measures) and `ClaimObjectView` per claim (both variants' states; the current variant highlighted).
   - Actions: `VoidDialog` (reason, re-offer toggle, variant select), `NeutralizeDialog` per claim (reason, credit challenge checkbox with the PRD sentence, note; shows the recompute result after), `TestControls` (shown only when `capabilities.canForceFailure`: "Force the next assistant call to fail" with an explanation that it exists for the walkthrough's step 7), held-run manual banding form when `scoringStatus = 'held'`.
-- **States:** scored (decisions open); confirmed/recorded (decisions shown, re-decision allowed with the re-export note); TA view (cannot change instructor-decided bands; no void/neutralize/test controls); held; voided (read-only with the re-offer link).
+- **States:** scored (decisions open); confirmed/recorded (decisions shown, re-decision allowed with the re-export note; every reviewer may decide, void and neutralize, D-748); held; voided (read-only with the re-offer link).
 - **Responsive:** tabs stack; graphs full width.
 - **A11y:** the decision control is a radio group per dimension with the draft pre-selected but not submitted; the trace table has sticky headers and row expansion by keyboard.
 - **Events:** `replay_opened`, `band_decided`, `run_confirmed`, `claim_neutralized`, `run_voided`, `run_reoffered`, `export_written` (server).
@@ -220,12 +220,12 @@ The largest screen; one column under `2xl` and two from it (see `09-frontend-spe
 - **Tree:** table (run, student seat, version, reason, created, download) with the note "Enter bands, mapping, and points in the gradebook of record; Tassl holds no grade."
 - **States:** empty; download error.
 
-## Author and editor
+## Scenario Editor (Instructor reads)
 
 ### UI-040 Packages list (`/packages`) — FR-190
 
 - **Data:** `listPackages`.
-- **Tree:** table (title, family, latest version, status chip, calibration chip, warnings such as "family lacks an ethical-shortcut defect") + "New package from a seed case".
+- **Tree:** table (title, family, latest version, status chip, calibration chip, warnings such as "family lacks an ethical-shortcut defect") + "New package from a seed case" (Scenario Editor and admin only; an Instructor reads the list).
 - **States:** empty; generation in progress indicator.
 
 ### UI-041 New package from seed (`/packages/new`) — FR-190
@@ -256,14 +256,14 @@ The largest screen; one column under `2xl` and two from it (see `09-frontend-spe
 
 - **Data:** `getPackageVersion`, `exportPackage`, `regenerateVersionAction`.
 - **Tree:** `VersionHeader` (package id, version, status, calibration chip "uncalibrated: no field calibration; difficulty profile is the authority's estimate") → `ConfirmationRecord` table (element, decision, by, when, revision) → authoring record (model, generated at, confirmed by/at, seed case title, publisher, license terms relied on, re-skin log) → `AuthoringMeasures` (seed to confirmed, edit rate, rejected share, passes, review time per element) → claims table linking to `ClaimObjectView` → "Export package JSON", "Create next version".
-- **States:** draft (links to confirm workspace); confirmed; reviewer read-only (no seed record for TAs).
+- **States:** draft (links to confirm workspace, Scenario Editor); confirmed; Instructor read-only (no seed record, no confirm or next-version actions).
 
 ## Admin and dev
 
 ### UI-050 Admin (`/admin/users`, `/admin/flags`, `/admin/audit`) — SYS-006
 
-- **Data:** `listUsers` (search), `setPlatformRoleAction`, `setInstitutionRoleAction` (D-747), `getFlags`, `listAuditLog`.
-- **Tree:** users table with a platform `RoleSelect` and an **Institution role** column — one select per institution the account belongs to, labelled "Institution role for {name} at {institution}", offering **Student** and **Instructor** (a seat outside the two is shown on the trigger and not offered); "No institution yet" when the account has none; both selects confirm first (dialog: "This signs the user out"); flags table (name, value, source "env", effective LLM provider); audit table (time, actor, action, target, org, request id; filter by org).
+- **Data:** `listUsers` (search), `setPlatformRoleAction`, `getFlags`, `listAuditLog`.
+- **Tree:** users table (name, email, **Platform role**, joined) whose one `RoleSelect`, labelled "Platform role for {name}", offers the account's one role in this order: **Platform Admin**, **Scenario Editor**, **Instructor**, **Student** (D-748; the admin's own row and deleted accounts are read-only); the select confirms first (dialog: "This signs the user out"); flags table (name, value, source "env", effective LLM provider); audit table (time, actor, action, target, org, request id; filter by org).
 - **States:** empty; saving; search.
 
 ### UI-060 Component gallery (`/dev/components`) — SYS-018

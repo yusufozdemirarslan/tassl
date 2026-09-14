@@ -5,7 +5,7 @@ import { and, eq } from 'drizzle-orm'
 import { db } from '@/server/db/client'
 import { member, organization, type InstitutionSettings } from '@/server/db/schema'
 import { upsertSettings } from '@/server/modules/tenancy/repository'
-import type { OrganizationRole } from '@/server/auth/access-control-shared'
+import { MEMBERSHIP_ROLE } from '@/server/auth/access-control-shared'
 import { uuidFrom } from './ids'
 import { FROZEN_TIME } from './time'
 
@@ -37,31 +37,23 @@ export async function createInstitution(
   return { organization: org, settings }
 }
 
-/** Adds (or updates) an organization membership; one row per user per organization (06 §3.1). */
-export async function addMember(
-  organizationId: string,
-  userId: string,
-  role: OrganizationRole,
-): Promise<MemberRow> {
+/**
+ * Adds an organization membership; one row per user per organization (06 §3.1). A membership is
+ * tenancy and carries no role (D-748): what the person may do is the platform role on their account.
+ */
+export async function addMember(organizationId: string, userId: string): Promise<MemberRow> {
   const [existing] = await db
     .select()
     .from(member)
     .where(and(eq(member.organizationId, organizationId), eq(member.userId, userId)))
-  if (existing) {
-    const [row] = await db
-      .update(member)
-      .set({ role })
-      .where(eq(member.id, existing.id))
-      .returning()
-    return row!
-  }
+  if (existing) return existing
   const [row] = await db
     .insert(member)
     .values({
       id: uuidFrom(`member:${organizationId}:${userId}`),
       organizationId,
       userId,
-      role,
+      role: MEMBERSHIP_ROLE,
       createdAt: FROZEN_TIME,
     })
     .returning()

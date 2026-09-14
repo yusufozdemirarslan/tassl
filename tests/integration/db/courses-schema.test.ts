@@ -101,13 +101,13 @@ describe('tenancy and courses schema', () => {
     const courseId = await insertCourse(orgId, userId)
     const sectionId = await insertSection(orgId, courseId)
     await testSql`
-      insert into section_memberships (organization_id, section_id, user_id, role)
-      values (${orgId}, ${sectionId}, ${userId}, 'student')`
+      insert into section_memberships (organization_id, section_id, user_id)
+      values (${orgId}, ${sectionId}, ${userId})`
 
     await expect(
       testSql`
-        insert into section_memberships (organization_id, section_id, user_id, role)
-        values (${orgId}, ${sectionId}, ${userId}, 'ta')`,
+        insert into section_memberships (organization_id, section_id, user_id)
+        values (${orgId}, ${sectionId}, ${userId})`,
     ).rejects.toThrow(/section_memberships_section_id_user_id_uidx/)
   })
 
@@ -115,12 +115,12 @@ describe('tenancy and courses schema', () => {
     const { orgId, userId } = await seedTenant()
     await testSql`
       insert into member (id, organization_id, user_id, role, created_at)
-      values (${crypto.randomUUID()}, ${orgId}, ${userId}, 'student', now())`
+      values (${crypto.randomUUID()}, ${orgId}, ${userId}, 'member', now())`
 
     await expect(
       testSql`
         insert into member (id, organization_id, user_id, role, created_at)
-        values (${crypto.randomUUID()}, ${orgId}, ${userId}, 'instructor', now())`,
+        values (${crypto.randomUUID()}, ${orgId}, ${userId}, 'member', now())`,
     ).rejects.toThrow(/member_organization_user_uidx/)
   })
 

@@ -62,7 +62,7 @@ Triggers name the service function (`02-architecture.md` §6) or the client inte
 | `sign_up_completed` | Better Auth `databaseHooks.user.create.after` in `src/server/auth/auth.ts` (server) | `method: enum(password\|google)` | UI-002 `/sign-up` | AN-002 |
 | `email_verified` | Better Auth `emailVerification.afterEmailVerification` (server) | `ms_since_sign_up: int` | UI-003 `/verify-email` | AN-002 |
 | `sign_in_succeeded` | Better Auth `hooks.after` when `ctx.context.newSession` is set; `method` from `ctx.path`: `/sign-in/email` → `password`, `/callback/google` → `google`, `/verify-email` → `verification` (server) | `method: enum(password\|google\|verification)` | UI-001 `/sign-in` | AN-002 |
-| `invitation_accepted` | `tenancy.acceptInvitation` (server) | `invitation_id: uuid`, `role: enum(student\|instructor\|teaching_assistant\|scenario_author\|program_lead)`, `ms_since_invited: int` | UI-005 `/invitations/[id]` | AN-002 |
+| `invitation_accepted` | `tenancy.acceptInvitation` (server) | `invitation_id: uuid`, `ms_since_invited: int` (an invitation carries no role, D-748) | UI-005 `/invitations/[id]` | AN-002 |
 | `course_created` | `courses.createCourse` (server) | `course_id: uuid`, `outside_ai_policy: enum(open\|declared\|in_environment_only)`, `mapping_is_default: boolean`, `ms_since_first_sign_in: int` | UI-030 `/courses` | AN-002 |
 | `assignment_configured` | `courses.createAssignment` (`is_new: true`) and `courses.updateAssignment` (`is_new: false`) (server) | `assignment_id: uuid`, `course_id: uuid`, `section_id: uuid`, `package_version_id: uuid`, `variant: enum(defective\|sound)`, `is_new: boolean`, `is_walkthrough: boolean`, `working_clock_seconds: int`, `weight_overridden: boolean`, `ms_since_first_sign_in: int` | UI-032 `/assignments/[assignmentId]` | AN-002, FR-200 |
 | `policy_displayed` | `runs.startRun`, mirrors the `policy_displayed` trace event written when the student clicks Begin (server) | `R`, `outside_ai_policy: enum(open\|declared\|in_environment_only)`, `weight_percent: number`, `mapping_is_default: boolean` | UI-021 `/runs/[runId]/start` | AN-002, FR-201 |
@@ -219,11 +219,7 @@ export const EVENTS = {
   sign_up_completed: z.strictObject({ method: z.enum(['password', 'google']) }),
   email_verified: z.strictObject({ ms_since_sign_up: Int }),
   sign_in_succeeded: z.strictObject({ method: z.enum(['password', 'google', 'verification']) }),
-  invitation_accepted: z.strictObject({
-    invitation_id: Uuid,
-    role: z.enum(['student', 'instructor', 'teaching_assistant', 'scenario_author', 'program_lead']),
-    ms_since_invited: Int,
-  }),
+  invitation_accepted: z.strictObject({ invitation_id: Uuid, ms_since_invited: Int }),
   course_created: z.strictObject({ course_id: Uuid, outside_ai_policy: OutsideAiPolicy, mapping_is_default: z.boolean(), ms_since_first_sign_in: Int }),
   assignment_configured: z.strictObject({
     assignment_id: Uuid, course_id: Uuid, section_id: Uuid, package_version_id: Uuid, variant: Variant,
@@ -748,7 +744,7 @@ export const eventExamples: { [N in EventName]: EventProps<N> } = {
   sign_up_completed: { method: 'password' },
   email_verified: { ms_since_sign_up: 120000 },
   sign_in_succeeded: { method: 'google' },
-  invitation_accepted: { invitation_id: U, role: 'student', ms_since_invited: 3600000 },
+  invitation_accepted: { invitation_id: U, ms_since_invited: 3600000 },
   course_created: { course_id: U, outside_ai_policy: 'declared', mapping_is_default: true, ms_since_first_sign_in: 600000 },
   assignment_configured: { assignment_id: R.assignment_id, course_id: U, section_id: U, package_version_id: R.package_version_id, variant: 'sound', is_new: true, is_walkthrough: true, working_clock_seconds: 1500, weight_overridden: false, ms_since_first_sign_in: 900000 },
   policy_displayed: { ...R, outside_ai_policy: 'declared', weight_percent: 2.5, mapping_is_default: true },

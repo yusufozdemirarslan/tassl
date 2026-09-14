@@ -97,7 +97,7 @@ export type AssignmentPatch = Partial<
   >
 >
 
-export type MembershipInput = Pick<NewSectionMembership, 'sectionId' | 'userId' | 'role'>
+export type MembershipInput = Pick<NewSectionMembership, 'sectionId' | 'userId'>
 
 /** A confirmed or recorded run of a course with the assignment it belongs to and its score row. */
 export type ConfirmedRunRow = { run: Run; assignment: Assignment; score: RunScore | null }
@@ -172,7 +172,7 @@ export async function listCoursesForOrg(tenantId: string, dbx: DbOrTx = db): Pro
     .orderBy(desc(courses.createdAt), desc(courses.id))
 }
 
-/** Courses in which the user holds a section membership of any role. */
+/** Courses in which the user is on the roster of a live section. */
 export async function listCoursesForStudent(
   tenantId: string,
   userId: string,
@@ -286,7 +286,10 @@ export async function insertSection(
   return one(rows)
 }
 
-/** Adds the member or changes the role of the existing (section, user) membership. */
+/**
+ * Puts the user on the section roster, or leaves the existing (section, user) row as it is. The row
+ * carries no role (D-748); the returned row is the one on the roster either way.
+ */
 export async function upsertSectionMembership(
   tenantId: string,
   values: MembershipInput,
@@ -297,7 +300,7 @@ export async function upsertSectionMembership(
     .values({ ...values, organizationId: tenantId })
     .onConflictDoUpdate({
       target: [sectionMemberships.sectionId, sectionMemberships.userId],
-      set: { role: values.role, updatedAt: sql`now()` },
+      set: { updatedAt: sql`now()` },
       setWhere: eq(sectionMemberships.organizationId, tenantId),
     })
     .returning()
@@ -526,14 +529,17 @@ export async function listAssignmentsForStudent(
 // is not a member of *this* institution simply is not found, which is `NOT_SECTION_MEMBER`.
 // ---------------------------------------------------------------------------------------------
 
-/** The institution's member with this address, matched case-insensitively as sign-in does. */
+/**
+ * The institution's member with this address, matched case-insensitively as sign-in does, with the
+ * platform role the roster shows beside them (D-748).
+ */
 export async function findOrgMemberByEmail(
   tenantId: string,
   email: string,
   dbx: DbOrTx = db,
-): Promise<UserSummary | null> {
+): Promise<(UserSummary & { platformRole: string }) | null> {
   const rows = await dbx
-    .select({ id: user.id, name: user.name, email: user.email })
+    .select({ id: user.id, name: user.name, email: user.email, platformRole: user.platform_role })
     .from(member)
     .innerJoin(user, eq(user.id, member.userId))
     .where(
@@ -603,48 +609,12 @@ export async function pageCoursesForOrg(
   return toPage(rows, limit)
 }
 
-/** The same page, narrowed to the courses the user holds a section membership in (10 §3). */
-export async function pageCoursesForStudent(
-  tenantId: string,
-  userId: string,
-  input: PageInput = {},
-  dbx: DbOrTx = db,
-): Promise<Page<Course>> {
-  const limit = clampLimit(input.limit)
-  const cursor = decodeCursor(input.cursor)
-  const membershipInCourse = dbx
-    .select({ one: sql`1` })
-    .from(sectionMemberships)
-    .innerJoin(sections, eq(sections.id, sectionMemberships.sectionId))
-    .where(
-      and(
-        eq(sections.courseId, courses.id),
-        isNull(sections.deletedAt),
-        eq(sectionMemberships.userId, userId),
-        eq(sectionMemberships.organizationId, tenantId),
-      ),
-    )
-  const rows = await dbx
-    .select()
-    .from(courses)
-    .where(
-      and(
-        eq(courses.organizationId, tenantId),
-        isNull(courses.deletedAt),
-        exists(membershipInCourse),
-        afterCursor({ createdAt: courses.createdAt, id: courses.id }, cursor),
-      ),
-    )
-    .orderBy(...cursorOrder({ createdAt: courses.createdAt, id: courses.id }))
-    .limit(limit + 1)
-  return toPage(rows, limit)
-}
-
 /** A roster row keyed for the cursor (10 §11); the membership carries the ordering columns. */
 export type SectionMemberPageRow = {
   id: string
   createdAt: Date
-  role: SectionMembership['role']
+  /** The person's platform role (D-748): what they are on this roster. */
+  role: string
   user: UserSummary
 }
 
@@ -660,7 +630,7 @@ export async function pageSectionMembers(
     .select({
       id: sectionMemberships.id,
       createdAt: sectionMemberships.createdAt,
-      role: sectionMemberships.role,
+      role: user.platform_role,
       user: { id: user.id, name: user.name, email: user.email },
     })
     .from(sectionMemberships)
@@ -1039,32 +1009,6 @@ export async function deleteRun(
     .where(and(eq(runs.id, runId), eq(runs.organizationId, tenantId)))
     .returning({ id: runs.id })
   return rows.length > 0
-}
-
-/**
- * The role the user holds in any section of the course, or null. `getCourse` admits a member of one
- * of the course's sections alongside the institution's instructors and program leads (07 §5).
- */
-export async function findCourseMembership(
-  tenantId: string,
-  courseId: string,
-  userId: string,
-  dbx: DbOrTx = db,
-): Promise<SectionMembership['role'] | null> {
-  const rows = await dbx
-    .select({ role: sectionMemberships.role })
-    .from(sectionMemberships)
-    .innerJoin(sections, eq(sections.id, sectionMemberships.sectionId))
-    .where(
-      and(
-        eq(sectionMemberships.userId, userId),
-        eq(sectionMemberships.organizationId, tenantId),
-        eq(sections.courseId, courseId),
-        isNull(sections.deletedAt),
-      ),
-    )
-    .limit(1)
-  return rows[0]?.role ?? null
 }
 
 // ---------------------------------------------------------------------------------------------

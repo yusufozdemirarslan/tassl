@@ -24,6 +24,10 @@ let studentHeaders: Headers
 let leaverHeaders: Headers
 let leaverId: string
 let leaverEmail: string
+let instructorHeaders: Headers
+let editorHeaders: Headers
+let adminHeaders: Headers
+let otherOrgId: string
 
 type Envelope = { error: { code: string; message: string; requestId: string } }
 
@@ -46,13 +50,20 @@ beforeAll(async () => {
   const leaver = await f.createUser('identity-leaver')
   leaverId = leaver.id
   leaverEmail = leaver.email
-  await f.addMember(orgId, leaver.id, 'student')
+  await f.addMember(orgId, leaver.id)
   leaverHeaders = await asUser(leaver.id, { activeOrganizationId: orgId })
   // An invitation to the same address that nobody accepted; deletion clears it (08 §2.9).
   await testSql`
     insert into invitation (id, organization_id, email, role, status, expires_at, inviter_id)
-    values (${crypto.randomUUID()}, ${orgId}, ${leaverEmail}, 'student', 'pending',
+    values (${crypto.randomUUID()}, ${orgId}, ${leaverEmail}, 'member', 'pending',
       ${new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)}, ${fixture.instructor.id})`
+
+  instructorHeaders = await asUser(fixture.instructor.id, { activeOrganizationId: orgId })
+  editorHeaders = await asUser(fixture.editor.id, { activeOrganizationId: orgId })
+  // The admin belongs to no institution and still has every one of them (D-748).
+  otherOrgId = (await f.createInstitution('identity-other')).organization.id
+  const admin = await f.createUser('identity-admin', { platformRole: 'admin' })
+  adminHeaders = await asUser(admin.id)
 })
 
 afterAll(async () => {
@@ -78,19 +89,63 @@ describe('GET /me', () => {
     }
     expect(body.id).toBe(fixture.student1.id)
     expect(body.email).toBe(fixture.student1.email)
-    expect(body.platformRole).toBe('none')
+    expect(body.platformRole).toBe('student')
     expect(body.activeOrganizationId).toBe(fixture.organization.id)
     expect(body.memberships).toEqual([
       {
         organizationId: fixture.organization.id,
         name: fixture.organization.name,
         slug: fixture.organization.slug,
-        role: 'student',
         joinedAt: expect.any(String) as unknown as string,
       },
     ])
-    expect(body.capabilities.canTakeRuns).toBe(true)
-    expect(body.capabilities.canReviewRuns).toBe(false)
+    expect(body.capabilities).toEqual({
+      canTakeRuns: true,
+      canReviewRuns: false,
+      canAuthorPackages: false,
+      canManageInstitution: false,
+      canCreateInstitution: false,
+    })
+  })
+
+  it('derives the capabilities from the platform role alone (D-748)', async () => {
+    const read = async (headers: Headers) => {
+      const res = await router.getMe(new Request(`${BASE}/me`, { headers }), ROUTE_CTX)
+      expect(res.status).toBe(200)
+      return (await res.json()) as {
+        platformRole: string
+        memberships: { organizationId: string }[]
+        capabilities: Record<string, boolean>
+      }
+    }
+
+    const instructor = await read(instructorHeaders)
+    expect(instructor.platformRole).toBe('instructor')
+    expect(instructor.capabilities).toEqual({
+      canTakeRuns: false,
+      canReviewRuns: true,
+      canAuthorPackages: false,
+      canManageInstitution: false,
+      canCreateInstitution: false,
+    })
+
+    const editor = await read(editorHeaders)
+    expect(editor.platformRole).toBe('tassl_scenario_editor')
+    expect(editor.capabilities).toEqual({
+      canTakeRuns: true,
+      canReviewRuns: false,
+      canAuthorPackages: true,
+      canManageInstitution: false,
+      canCreateInstitution: false,
+    })
+
+    // The admin holds every capability and, with no member row, every institution.
+    const admin = await read(adminHeaders)
+    expect(admin.platformRole).toBe('admin')
+    expect(Object.values(admin.capabilities).every(Boolean)).toBe(true)
+    expect(admin.memberships.map((m) => m.organizationId).sort()).toEqual(
+      [fixture.organization.id, otherOrgId].sort(),
+    )
   })
 
   it('refuses an anonymous request', async () => {
@@ -162,6 +217,15 @@ describe('GET /me/assignments and GET /me/runs', () => {
     expect(body.items[0]?.latestRun).toBeNull()
   })
 
+  it('answers an Instructor on the same roster with an empty page: their row is a section they teach', async () => {
+    const res = await router.listMyAssignments(
+      new Request(`${BASE}/me/assignments`, { headers: instructorHeaders }),
+      ROUTE_CTX,
+    )
+    expect(res.status).toBe(200)
+    expect(await res.json()).toEqual({ items: [], nextCursor: null })
+  })
+
   it('answers with an empty page of runs before any run exists', async () => {
     const res = await runsRouter.listMyRunsRoute(
       new Request(`${BASE}/me/runs`, { headers: studentHeaders }),
@@ -212,7 +276,7 @@ describe('POST /me/export', () => {
       exportedAt: string
       profile: { id: string; email: string }
       memberships: { organizationId: string }[]
-      sectionMemberships: { sectionId: string; role: string }[]
+      sectionMemberships: Record<string, unknown>[]
       runs: unknown[]
       notifications: unknown[]
       auditLog: unknown[]
@@ -221,8 +285,10 @@ describe('POST /me/export', () => {
     expect(body.profile.email).toBe(fixture.student1.email)
     expect(body.memberships[0]?.organizationId).toBe(fixture.organization.id)
     expect(body.sectionMemberships).toEqual([
-      expect.objectContaining({ sectionId: fixture.section.id, role: 'student' }),
+      expect.objectContaining({ sectionId: fixture.section.id }),
     ])
+    expect(body.sectionMemberships[0]).not.toHaveProperty('role')
+    expect(body.memberships[0]).not.toHaveProperty('role')
     expect(body.runs).toEqual([])
     expect(Date.parse(body.exportedAt)).not.toBeNaN()
   })

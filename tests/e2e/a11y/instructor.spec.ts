@@ -31,7 +31,7 @@ test('the Phase 4 instructor screens have no axe violations', async ({ page }) =
   const orgId = await walkthroughOrgId(page)
   const course = await createCourse(page, orgId, 'Axe')
   const section = await createSection(page, course.id, SECTION_NAME)
-  await addSectionMember(page, section.id, { email: 'student2@tassl.local', role: 'student' })
+  await addSectionMember(page, section.id, { email: 'student2@tassl.local' })
   // The instructor takes a row on the section as well as owning the course. It is the real
   // arrangement — every review lane in this suite makes it — and it is what the review screens need:
   // a replay is `requireRunReviewer`, which is a `section_memberships` row and nothing else.
@@ -40,7 +40,6 @@ test('the Phase 4 instructor screens have no axe violations', async ({ page }) =
   // `tests/integration/trace/export.test.ts`.
   await addSectionMember(page, section.id, {
     email: seatEmail('instructor'),
-    role: 'instructor',
   })
   const label = suiteName('Decision Run')
   const assignment = await createAssignment(page, section.id, {
@@ -152,7 +151,6 @@ test('the faculty replay has no axe violations in `scored` or in `confirmed`', a
   })
   await addSectionMember(request, assignment.section.id, {
     email: seatEmail('instructor'),
-    role: 'instructor',
   })
 
   await signInAs(page, REPLAY_STUDENT)

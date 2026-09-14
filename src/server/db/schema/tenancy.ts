@@ -35,7 +35,7 @@ export const institutionSettings = pgTable('institution_settings', {
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 })
 
-/** DATA-052 — data-sharing agreements that gate `canReadIdentifiedRecords`. */
+/** DATA-052 — data-sharing agreements, recorded and managed by the Platform Admin (D-748). */
 export const dataAgreements = pgTable(
   'data_agreements',
   {

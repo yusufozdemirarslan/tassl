@@ -30,14 +30,19 @@ export const metadata: Metadata = { title: t('home.title') }
 //   "Packages"   → versions still being confirmed (Phase 5, step 5.4)
 //   "Courses"    → the instructor's courses (Phase 4, step 4.2)
 //
-// **A panel is drawn for the seat that has the data and for nobody else.** Each read is made behind
-// the same guard its destination uses, and a refusal is `null` rather than an empty list: a student
-// gets one panel, an instructor gets three, and nobody is shown an empty box about a thing they
-// cannot do. "Your runs" follows the same rule as the rail's Runs item — it is the student's — with
-// one exception the rail shares: a person with no membership at all gets it, because its empty
-// state is where they are told an invitation is what comes next (UI-009). The reads are made in
-// parallel and none of them can fail the page — a service that refuses is a seat that has no
-// panel, and any other error is the error boundary's.
+// **A panel is drawn for the role that has the data and for nobody else** (D-748). Which panels a
+// person is offered is decided from their one platform role, and each read is still made behind the
+// same guard its destination uses, with a refusal as `null` rather than an empty list:
+//
+//   Your runs → Student, Scenario Editor, Platform Admin — and anyone with no membership at all,
+//               because its empty state is where they are told an invitation comes next (UI-009)
+//   Review    → Instructor, Platform Admin
+//   Packages  → Scenario Editor, Platform Admin: the drafts still to confirm, which only an author
+//               can confirm — an Instructor reads the shelf from the rail and has nothing here
+//   Courses   → Instructor, Platform Admin
+//
+// The reads are made in parallel and none of them can fail the page — a service that refuses is a
+// panel that is not drawn, and any other error is the error boundary's.
 //
 // The loading state for all of them is ./loading.tsx (the shell skeleton) and the error state is
 // ./error.tsx, so every panel inherits both.
@@ -45,7 +50,7 @@ export const metadata: Metadata = { title: t('home.title') }
 /** Enough to fill the panel and to know whether there is more behind the link. */
 const HOME_LIMIT = 20
 
-/** A list this seat may not read is no panel, never an empty one. */
+/** A list this person may not read is no panel, never an empty one. */
 async function orNoPanel<T>(read: () => Promise<T>): Promise<T | null> {
   try {
     return await read()
@@ -56,7 +61,8 @@ async function orNoPanel<T>(read: () => Promise<T>): Promise<T | null> {
 }
 
 /** The runs of this reviewer's own sections that need a decision or a hand (FR-186, FR-140). */
-async function reviewRows(actor: SessionUser): Promise<HomeReviewRow[] | null> {
+async function reviewRows(actor: SessionUser, offered: boolean): Promise<HomeReviewRow[] | null> {
+  if (!offered) return null
   const queue = await orNoPanel(() => getQueue(actor))
   if (queue === null) return null
   return queue.runs.map((run) => ({
@@ -92,12 +98,11 @@ async function packageRows(
 }
 
 /**
- * The instructor's own courses.
+ * The instructor's courses.
  *
- * `offered` is the rail's own predicate rather than a second one: `listCourses` answers a *student*
- * their enrolled courses, which is right for `/courses` and wrong for a panel UI-009 gives to the
- * seat that runs them. The rail is where "who is offered Courses" is decided, and reading it here
- * keeps the home page and the navigation from disagreeing about the same person.
+ * `offered` is the rail's own predicate rather than a second one: the rail is where "who is offered
+ * Courses" is decided, and reading it here keeps the home page and the navigation from disagreeing
+ * about the same person.
  */
 async function courseRows(
   actor: SessionUser,
@@ -122,16 +127,19 @@ export default async function HomePage() {
   const institution = me.memberships.find((m) => m.organizationId === me.activeOrganizationId)
   const eyebrow = institution?.name ?? me.memberships[0]?.name
   const organizationId = institution?.organizationId ?? me.memberships[0]?.organizationId
-  const offered = permittedRailKeys({
-    roles: me.memberships.map((membership) => membership.role),
-    platformRole: me.platformRole,
-  })
+  const offered = permittedRailKeys({ platformRole: me.platformRole })
 
   const showsRuns = me.memberships.length === 0 || offered.includes('runs')
   const [assignments, review, packages, courses] = await Promise.all([
     showsRuns ? listMyAssignments(actor, { limit: HOME_LIMIT }) : null,
-    reviewRows(actor),
-    packageRows(actor, organizationId, offered.includes('packages')),
+    reviewRows(actor, offered.includes('review')),
+    // Not the rail's Packages: the rail offers an Instructor the shelf to read, and this panel is
+    // the drafts waiting on the people who confirm them.
+    packageRows(
+      actor,
+      organizationId,
+      me.platformRole === 'tassl_scenario_editor' || me.platformRole === 'admin',
+    ),
     courseRows(actor, organizationId, offered.includes('courses')),
   ])
 

@@ -37,7 +37,7 @@ import {
   assertNoForbiddenKeys,
   findForbiddenKeys,
 } from '@/server/auth/student-view'
-import type { SessionUser } from '@/server/auth/types'
+import type { PlatformRole, SessionUser } from '@/server/auth/types'
 import { StudentScenarioViewSchema } from '@/server/modules/scenarios/schema'
 
 // ---------------------------------------------------------------------------------------------
@@ -97,7 +97,7 @@ let trace: Trace
 let defense: Defense
 
 const actorFor = (
-  user: { id: string; email: string; name: string },
+  user: { id: string; email: string; name: string; platform_role: string },
   orgId: string,
 ): SessionUser => ({
   id: user.id,
@@ -105,7 +105,7 @@ const actorFor = (
   name: user.name,
   emailVerified: true,
   activeOrganizationId: orgId,
-  platformRole: 'none',
+  platformRole: user.platform_role as PlatformRole,
 })
 
 /**
@@ -119,10 +119,10 @@ const actorFor = (
  */
 async function setup() {
   const orgId = (await f.createInstitution('student-view')).organization.id
-  const instructor = await f.createUser('student-view-instructor')
+  const instructor = await f.createUser('student-view-instructor', { platformRole: 'instructor' })
   const student = await f.createUser('student-view-student')
-  await f.addMember(orgId, instructor.id, 'instructor')
-  await f.addMember(orgId, student.id, 'student')
+  await f.addMember(orgId, instructor.id)
+  await f.addMember(orgId, student.id)
 
   const pkg = await f.createPackageVersion(orgId, 'student-view-package', {
     createdBy: instructor.id,
@@ -402,8 +402,8 @@ async function setup() {
 
   const course = await f.createCourse(orgId, 'student-view-course', { createdBy: instructor.id })
   const section = await f.createSection(orgId, course.id, 'student-view-section')
-  await f.addSectionMember(orgId, section.id, instructor.id, 'instructor')
-  await f.addSectionMember(orgId, section.id, student.id, 'student')
+  await f.addSectionMember(orgId, section.id, instructor.id)
+  await f.addSectionMember(orgId, section.id, student.id)
   const assignment = await f.createAssignment(orgId, section.id, 'student-view-assignment', {
     packageVersionId: versionId,
     variantId: pkg.defective.id,
@@ -1399,7 +1399,7 @@ describe('the key sets themselves', () => {
 // Record and the file it exports — only exist on a run that has been through the pipeline.
 //
 // So this block works in the room the review suites work in (`../review/fixture`): the Meridian
-// Roast package, a section with a student, an instructor, a TA and a classmate, and `scoredRun`,
+// Roast package, a section with a student, an instructor and a classmate, and `scoredRun`,
 // which drives readiness, the frame, a delegation, stances, an action, the Decision Lock, the Turn
 // and the whole defense before running the scorer. Nothing is written into a state.
 //
@@ -1622,7 +1622,7 @@ describe('another student’s run is not a payload at all', () => {
     // so the run is not merely someone else's — it is outside the tenant the actor resolves to.
     const foreignOrg = (await f.createInstitution('student-view-foreign')).organization.id
     const foreignUser = await f.createUser('student-view-foreign-student')
-    await f.addMember(foreignOrg, foreignUser.id, 'student')
+    await f.addMember(foreignOrg, foreignUser.id)
     const foreign = actorFor(foreignUser, foreignOrg)
 
     // 12 §8.3 sketches a 403 for the classmate. This build answers NOT_FOUND, deliberately and in

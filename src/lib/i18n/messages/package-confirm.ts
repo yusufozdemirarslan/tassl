@@ -30,7 +30,9 @@ export const packageConfirm = {
     'Version {version} is confirmed. This is the record of what was signed, element by element; nothing here can be changed.',
   'confirm.readOnlyTitle': 'This version is not yours to edit',
   'confirm.readOnlyBody':
-    'Only an instructor or a scenario author of this institution edits and confirms a package. You can read every element below.',
+    'Only a Scenario Editor of this institution edits and confirms a package. You can read every element below.',
+  'confirm.refusedBody':
+    'Only a Scenario Editor of this institution edits and confirms a package. The version itself, with its record and its claims, is on its own page.',
   'confirm.emptyTitle': 'This version has no elements yet',
   'confirm.emptyBody':
     'A version created from a seed carries only the case behind it. Import a package document on the packages screen, or wait for generation, and the elements to confirm appear here.',

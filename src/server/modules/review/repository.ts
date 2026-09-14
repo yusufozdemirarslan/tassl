@@ -5,7 +5,8 @@
 // `findReplayData` reads the tenant-scoped run row and takes tenantId first (D-006); the children
 // (events, bands, score, questions, neutralizations, claims, readiness) are scoped through that run.
 // The run lists are tenant-scoped for the same reason and take the tenant first as well.
-import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, exists, inArray, isNull, or, sql } from 'drizzle-orm'
+import { alias } from 'drizzle-orm/pg-core'
 import { AppError } from '@/lib/errors'
 import { db } from '@/server/db/client'
 import {
@@ -134,42 +135,25 @@ export async function findReplayData(
   }
 }
 
-/** One person who has decided a band on this run: their name, and their role on the section. */
-export type Decider = { id: string; name: string; role: string | null }
+/** One person who has decided a band on this run. */
+export type Decider = { id: string; name: string }
 
 /**
- * The deciders of a run's bands, resolved in one statement.
+ * The names of the people who decided a run's bands, resolved in one statement.
  *
- * Both halves are needed and neither is on `run_bands`. The **name** is what the replay promises
- * ("the replay names the colleague whose decision a reviewer is looking at", `scoring/schema.ts`),
- * and without it the screen prints a uuid at a colleague. The **role on this section** is 08 §4's
- * TA rule: a teaching assistant may re-decide a dimension another TA decided and may not touch one
- * an instructor decided, so "somebody decided this" is not the question — `assertNotInstructorLocked`
- * asks the same thing one row at a time when the decision is written, and the screen has to ask it
- * for all seven before offering a control that would refuse.
- *
- * `tenantId` first and joined through, like every other tenant-scoped read (D-006): the membership
- * is only a membership of *this* institution's section, and a role read across a tenant boundary is
- * the shape a permission bug takes.
+ * The name is what the replay promises ("the replay names the colleague whose decision a reviewer is
+ * looking at", `scoring/schema.ts`), and `run_bands` holds only the id. Not tenant-scoped: the ids
+ * come from the bands of a run the caller has already resolved in its tenant, and a decider may be
+ * the Platform Admin, who belongs to no institution (D-748).
  */
 export async function findDeciders(
-  tenantId: string,
-  sectionId: string,
   userIds: readonly string[],
   dbx: DbOrTx = db,
 ): Promise<Decider[]> {
   if (userIds.length === 0) return []
   return dbx
-    .select({ id: user.id, name: user.name, role: sectionMemberships.role })
+    .select({ id: user.id, name: user.name })
     .from(user)
-    .leftJoin(
-      sectionMemberships,
-      and(eq(sectionMemberships.userId, user.id), eq(sectionMemberships.sectionId, sectionId)),
-    )
-    .leftJoin(
-      sections,
-      and(eq(sections.id, sectionMemberships.sectionId), eq(sections.organizationId, tenantId)),
-    )
     .where(inArray(user.id, [...userIds]))
 }
 
@@ -316,23 +300,40 @@ export async function hasEventOfType(
   return row !== undefined
 }
 
-/** The instructors and TAs of a section: who an `export_ready` notice goes to (SYS-010). */
+/**
+ * The reviewers of a section: who an `export_ready` notice goes to (SYS-010). The Instructors on its
+ * roster, and the course's creator while their role is Instructor (D-748) — a roster row says what it
+ * means only through the person's platform role.
+ */
 export async function listSectionReviewerIds(
   tenantId: string,
   sectionId: string,
   dbx: DbOrTx = db,
 ): Promise<string[]> {
-  const rows = await dbx
+  const roster = await dbx
     .select({ userId: sectionMemberships.userId })
     .from(sectionMemberships)
+    .innerJoin(user, eq(user.id, sectionMemberships.userId))
     .where(
       and(
         eq(sectionMemberships.organizationId, tenantId),
         eq(sectionMemberships.sectionId, sectionId),
-        inArray(sectionMemberships.role, ['instructor', 'ta']),
+        eq(user.platform_role, 'instructor'),
       ),
     )
-  return [...new Set(rows.map((row) => row.userId))]
+  const creators = await dbx
+    .select({ userId: courses.createdBy })
+    .from(sections)
+    .innerJoin(courses, eq(courses.id, sections.courseId))
+    .innerJoin(user, eq(user.id, courses.createdBy))
+    .where(
+      and(
+        eq(sections.organizationId, tenantId),
+        eq(sections.id, sectionId),
+        eq(user.platform_role, 'instructor'),
+      ),
+    )
+  return [...new Set([...roster, ...creators].map((row) => row.userId))]
 }
 
 /** One row of the reviewer's run list: the run, who took it, and how far the decisions have got. */
@@ -386,7 +387,7 @@ export async function listSectionRuns(
 }
 
 /**
- * The runs waiting for this reviewer across every section they hold a role in (FR-186, D-096).
+ * The runs waiting for review across the given sections of the tenant (FR-186, D-096).
  *
  * `scored` and held runs both: a scored run wants seven decisions, and a held one wants a hand or a
  * void (FR-140). Neither is a "queue position" and nothing here is ranked — the order is newest
@@ -421,21 +422,64 @@ export async function listRunsAwaitingReview(
     .orderBy(desc(runs.createdAt), desc(runs.id))
 }
 
-/** The sections of the tenant this actor may review, from their own memberships (08 §5). */
+/**
+ * The live sections of the tenant this user reviews (08 §5, D-748): `canReviewSection` asked of every
+ * section at once. The user must be an Instructor, and the section's course one they created or
+ * whose roster — on any of its live sections — they are on.
+ */
 export async function listReviewerSectionIds(
   tenantId: string,
   userId: string,
   dbx: DbOrTx = db,
 ): Promise<string[]> {
-  const rows = await dbx
-    .select({ sectionId: sectionMemberships.sectionId })
+  const rosterSections = alias(sections, 'roster_sections')
+  const onCourseRoster = dbx
+    .select({ one: sql`1` })
     .from(sectionMemberships)
+    .innerJoin(rosterSections, eq(rosterSections.id, sectionMemberships.sectionId))
     .where(
       and(
-        eq(sectionMemberships.organizationId, tenantId),
         eq(sectionMemberships.userId, userId),
-        inArray(sectionMemberships.role, ['instructor', 'ta']),
+        eq(sectionMemberships.organizationId, tenantId),
+        eq(rosterSections.courseId, courses.id),
+        isNull(rosterSections.deletedAt),
+      ),
+    )
+  const rows = await dbx
+    .select({ sectionId: sections.id })
+    .from(sections)
+    .innerJoin(courses, eq(courses.id, sections.courseId))
+    .innerJoin(user, and(eq(user.id, userId), eq(user.platform_role, 'instructor')))
+    .where(
+      and(
+        eq(sections.organizationId, tenantId),
+        isNull(sections.deletedAt),
+        isNull(courses.deletedAt),
+        or(eq(courses.createdBy, userId), exists(onCourseRoster)),
       ),
     )
   return [...new Set(rows.map((row) => row.sectionId))]
+}
+
+/** Every live section of the tenant: the Platform Admin's review queue covers all of them (D-748). */
+export async function listSectionIds(tenantId: string, dbx: DbOrTx = db): Promise<string[]> {
+  const rows = await dbx
+    .select({ sectionId: sections.id })
+    .from(sections)
+    .where(and(eq(sections.organizationId, tenantId), isNull(sections.deletedAt)))
+  return rows.map((row) => row.sectionId)
+}
+
+/** The course a section of the tenant belongs to, which `canReviewSection` is asked about. */
+export async function findSectionCourseId(
+  tenantId: string,
+  sectionId: string,
+  dbx: DbOrTx = db,
+): Promise<string | null> {
+  const [row] = await dbx
+    .select({ courseId: sections.courseId })
+    .from(sections)
+    .where(and(eq(sections.organizationId, tenantId), eq(sections.id, sectionId)))
+    .limit(1)
+  return row?.courseId ?? null
 }

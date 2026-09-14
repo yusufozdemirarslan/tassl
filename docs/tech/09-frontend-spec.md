@@ -25,18 +25,18 @@
 | `/runs/[runId]/defense` | RunFrame | owner; state `defense_pending` | | UI-026 |
 | `/runs/[runId]/debrief` | RunFrame | owner or reviewer; state ≥ `scored` | | UI-028 |
 | `/records/[runId]` | `(app)` | owner; state ≥ `confirmed` | | UI-029 |
-| `/courses`, `/courses/[courseId]` | `(app)` | member | | UI-030 |
-| `/courses/[courseId]/sections/[sectionId]/roster` | `(app)` | section instructor, program lead | | UI-031 |
+| `/courses`, `/courses/[courseId]` | `(app)` | Instructor member, or Platform Admin | | UI-030 |
+| `/courses/[courseId]/sections/[sectionId]/roster` | `(app)` | an Instructor who runs the course, or Platform Admin | | UI-031 |
 | `/assignments/[assignmentId]`, `/assignments/[assignmentId]/exports` | `(app)` | reviewer | | UI-032, UI-035 |
 | `/review`, `/review/runs/[runId]` | `(app)` | reviewer | | UI-034, UI-033 |
-| `/packages`, `/packages/new`, `/packages/[packageId]/versions/[versionId]`, `.../generation`, `.../confirm` | `(app)` | author, editor, (reviewer read-only for the version view) | | UI-040 to UI-044 |
+| `/packages`, `/packages/new`, `/packages/[packageId]/versions/[versionId]`, `.../generation`, `.../confirm` | `(app)` | Scenario Editor or Platform Admin; Instructor read-only for the list and the version view | | UI-040 to UI-044 |
 | `/admin/users`, `/admin/flags`, `/admin/audit` | `(app)` → `admin/layout.tsx` | platform admin | | UI-050 |
 | `/dev/components` | root → `dev/layout.tsx` | `APP_ENV` in {local, test}; else `notFound()` | | UI-060 |
 | `not-found.tsx`, `error.tsx`, `global-error.tsx` | root | — | — | UI-007 |
 
 Guards: `src/proxy.ts` redirects requests to `(app)` routes without a session cookie to `/sign-in?next=`; every page calls `getSession()` and the permission helper in its RSC and redirects or renders 404 (`notFound()`) for cross-tenant ids. The RunFrame layout redirects to the state's route when the URL does not match (`RunSummary.links.next`), so a student who opens `/runs/[id]/work` after locking lands on `/locked` or `/turn`.
 
-Navigation model: the `(app)` shell has a left rail (Home, Runs, Courses, Review, Packages, Admin as permitted), the institution switcher, the notifications bell, and the account menu. Run pages hide the rail and show the RunFrame header (run label, state chip, clock, frame panel toggle, declaration control) to keep the working period focused.
+Navigation model: the `(app)` shell has a left rail (Home, Runs, Courses, Review, Packages, Admin as the account's one role permits: Student Home, Runs; Scenario Editor Home, Runs, Packages; Instructor Home, Courses, Review, Packages; Platform Admin all six — D-748, 08 §5), the institution switcher, the notifications bell, and the account menu. Run pages hide the rail and show the RunFrame header (run label, state chip, clock, frame panel toggle, declaration control) to keep the working period focused.
 
 ## 2. Design system (recorded in `DESIGN.md`; D-025)
 
@@ -120,7 +120,7 @@ No illustrations. Empty states are a single serif heading, one sentence of body 
 
 `src/components/features/account`: `ProfileForm`, `PasswordForm`, `SessionsList`, `DataExportButton`, `DeleteAccountDialog`.
 
-`src/components/features/admin`: `UsersTable`, `RoleSelect`, `FlagsTable`, `AuditTable`.
+`src/components/features/admin`: `UsersTable`, `RoleSelect` (the one Platform role picker: Platform Admin, Scenario Editor, Instructor, Student), `FlagsTable`, `AuditTable`.
 
 Every component with text takes strings from `t()`; every interactive component is keyboard operable and has visible focus.
 

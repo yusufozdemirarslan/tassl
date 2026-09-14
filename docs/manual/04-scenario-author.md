@@ -1,9 +1,9 @@
-# Scenario author manual
+# Scenario Editor manual
 
-This file is for the person who builds the cases students run on. After reading it you can start a
-scenario package from a licensed case, have Tassl draft its parts, read and correct every one of
-them, see what still keeps a version from being frozen, and hand a confirmed version to the
-instructors who set assignments on it. The seeded demo seat for this role is
+This file is for the person who builds and publishes the cases students run on. After reading it you
+can start a scenario package from a licensed case, have Tassl draft its parts, read and correct every
+one of them, clear what still keeps a version from being frozen, and confirm the version so the
+instructors of your institution can set assignments on it. The seeded demo account for this role is
 `editor@tassl.local`, named **Scenario Editor**, in the institution **Walkthrough University**. If you
 have not met Tassl before, read [what Tassl is](00-what-tassl-is.md) first; it is three pages and it
 explains what a Decision Run is, which is what everything you author here is for.
@@ -12,85 +12,67 @@ explains what a Decision Run is, which is what everything you author here is for
 
 ## 1. Who you are in Tassl
 
-You hold **two** roles, and they do different things.
+Your account holds one role, **Scenario Editor**, set by a Platform Admin. It is a Student's access
+with authoring on top:
 
-| Layer | Your value | What it does |
-|---|---|---|
-| Your seat in the institution | **Scenario author** | Everything on this page: the **Packages** rail item, the shelf, creating a package from a seed case, importing one, running generation, editing elements, exporting a version. It is granted per institution, so you have it in Walkthrough University and nowhere else. |
-| Your role on the platform | **Scenario editor** | It marks the account as Tassl's own scenario staff. On its own it opens **no** screen: it gives you no rail item, no institution, no course and no package. Its one effect you feel every day is a subtraction — an account carrying any platform role is never the seat that signs, so you can edit an element but you can never sign one. |
+| Part of the role | What it gives you |
+|---|---|
+| A Student's access | The **Runs** rail item, and every screen of a run. Put on a section roster, you take that section's runs exactly as a student does, and read your own debrief and Judgment Record. That half is described in [the learner manual](02-learner.md), and none of it is repeated here. |
+| Authoring and publishing | The **Packages** rail item and everything on this page: the shelf, creating a package from a seed case, importing one, running generation, editing elements, recording a decision on each, confirming a version, exporting it. You have it in every institution you belong to — here, Walkthrough University. |
 
-The rule behind that subtraction: Tassl staff never sign for a faculty member. Only an account whose
-platform role is **None** can record a decision on an element or confirm a version. An instructor of
-the institution normally has that, which is why the confirming step usually falls to them.
-
-An **instructor** of the institution can do everything on this list too — the same shelf, the same
-create form, the same generation screen, the same workspace — and, because their platform role is
-usually **None**, they can also confirm. Nothing here is closed to an instructor. See
-[the instructor manual](01-instructor.md).
+An **instructor** of the institution reads the same shelf and the same version screens, because they
+set assignments on the versions you confirm and read them back beside a run. They do not build, edit
+or confirm a package: that is yours. See [the instructor manual](01-instructor.md) for what they do
+with a confirmed version.
 
 ### You can
 
-- Open **Home** and **Packages**.
+- Open **Home**, **Runs** and **Packages**.
+- Take the runs assigned to any section roster you are on, and read your own results. See
+  [the learner manual](02-learner.md).
 - Read every scenario package this institution has authored, every version of it, what it holds, its
   warnings, its claims, its confirmation record, its authoring record and its authoring measures.
 - Read **The seed case** — the licensed case, its publisher, the license terms and the re-skin log.
-  Only an instructor and a scenario author ever see this; a teaching assistant does not.
+  Only Scenario Editors and a Platform Admin ever see this; an instructor does not.
 - Create a package from a seed case, and import a package export.
 - Run generation on a draft version, watch the seven steps, retry a stopped one, and ask for a
   rewrite of a single element.
-- Edit any element of a draft version and save the edit. The save is kept; on your seat it records no
-  decision, so the element stays undecided.
+- Edit any element of a draft version, and record a decision on it: **Confirm** or **Reject**. An
+  edit you save is recorded as its decision.
+- Tick the teaching-note check and press **Confirm version**, which freezes the version and makes it
+  assignable.
 - Download a version's package file with **Export package JSON**.
 - Manage your own account, password, devices and data.
 
 ### You cannot
 
-- Record a decision on an element — the **Confirm** and **Reject** buttons are drawn but not available
-  on your seat — or press **Confirm version**, which is drawn and not available for the same reason.
-  Your platform role removes that right, and a package you build therefore still needs an instructor of
-  the institution (or any scenario author whose platform role is **None**) to decide its elements and
-  freeze the version.
-- Create or change a course, a section, an assignment or a roster, and you cannot invite anyone.
-- Open the review queue, read anybody's run, decide a band, void a run or correct a claim.
-- Start a run yourself. You hold no student seat on any section.
-- Reach the admin area.
+- Open **Courses**, or create or change a course, a section, an assignment or a roster, and you
+  cannot invite anyone.
+- Open the review queue, read anybody else's run, decide a band, void a run or correct a claim.
+- Edit a version once it is confirmed. Nobody can; a change means a new version.
+- Reach the admin area, or change your own role.
 
 ### What you meet when you open a page that is not yours
 
-Four addresses are worth knowing about, and they answer in two different ways.
-
-The review area and the admin area answer with the in-shell **Not found** page — heading **Not found**,
-the line "There is nothing at this address. It may have moved, or the link may be wrong.", and a
-**Go home** link. The header and the rail stay where they are; only the middle of the screen is the
-refusal. Tassl answers this way on purpose: a refusal that said "forbidden" would tell you the address
-exists.
+The review area, the course screens and the admin area answer with the in-shell **Not found** page —
+heading **Not found**, the line "There is nothing at this address. It may have moved, or the link may
+be wrong.", and a **Go home** link. The header and the rail stay where they are; only the middle of
+the screen is the refusal. Tassl answers this way on purpose: a refusal that said "forbidden" would
+tell you the address exists.
 
 Typing the review address gives you that page.
 
-![The Review address answering with the in-shell Not found page for the scenario author seat](screenshots/editor/forbidden-review.png)
+![The Review address answering with the in-shell Not found page for a Scenario Editor](screenshots/editor/forbidden-review.png)
 
 Typing an admin address gives you the same page.
 
-![An admin address answering with the in-shell Not found page for the scenario author seat](screenshots/editor/forbidden-admin.png)
+![An admin address answering with the in-shell Not found page for a Scenario Editor](screenshots/editor/forbidden-admin.png)
 
-The other two open, and hold nothing, because they are keyed to seats you do not have. **Courses** draws
-its own screen with the empty state **No courses yet** and the line "A course carries the outside-AI
-policy, the run weight, and the band-to-points mapping its assignments run under." You see no course
-because you hold no seat on any section, and there is no control here for you to create one.
-
-![The Courses screen showing the No courses yet empty state](screenshots/editor/forbidden-courses.png)
-
-**Runs** does the same with **No assignments yet**: a run needs a student seat on a section, and you
-have none.
+**Runs**, on the other hand, is yours. Until an instructor puts you on a section roster it holds
+nothing and reads **No assignments yet**; once you are on one, the section's assignments appear there
+and in **Your runs** on Home, exactly as they do for a student.
 
 ![The Runs screen showing the No assignments yet empty state](screenshots/editor/forbidden-runs.png)
-
-Neither of those addresses is in your rail. You reach them only by typing them.
-
-So the rule is: an address whose *contents* are closed to you answers **Not found**; an address that is
-open to you but has nothing keyed to your seat answers with its own empty state. **Packages** is the
-one screen that answers a wrong seat politely rather than hiding — it draws **Packages are not open to
-your seat**, covered in [section 5.1](#51-the-shelf). Your seat never sees that one.
 
 ---
 
@@ -118,21 +100,23 @@ sign-up, password reset and email confirmation, are covered once in
 ### Your home screen
 
 Home is at `/home` and is the same page for everyone; what differs is which regions are drawn. You
-get exactly one: **Packages**. The eyebrow above the heading is the institution name, **Walkthrough
-University**; the heading is **Home**, with "What needs your attention, and what is coming up."
+get two: **Your runs** and **Packages**. The eyebrow above the heading is the institution name,
+**Walkthrough University**; the heading is **Home**, with "What needs your attention, and what is
+coming up."
 
-![The scenario author's home screen showing the Packages region and its Nothing to confirm empty state](screenshots/editor/home.png)
+![The Scenario Editor's home screen showing the Your runs region and the Packages region with its Nothing to confirm empty state](screenshots/editor/home.png)
 
 | Element | What it is |
 |---|---|
+| Region heading **Your runs** | The runs assigned to the sections you are on, each with its next action. On no roster it reads **Nothing to do yet**. Described in [the learner manual](02-learner.md). |
 | Region heading **Packages** | Package versions of this institution that are still being confirmed. |
 | **Open the shelf** | Goes to `/packages`. |
 | A row | One draft version, reading **Version {version}, in confirmation**. Its link opens that version. |
 | Empty state **Nothing to confirm** | Shown when no version is mid-confirmation: "A package version appears here while its elements are still being confirmed. Build one from a seed case to start." This is what the demo seat sees, because the one seeded package is already confirmed. |
 
-You do **not** get a "Your runs" region (you hold no student seat), a review region (you review
-nothing) or a courses region (the rail does not offer **Courses** to your seat). A region with no
-data behind it is not drawn as an empty box — it is not drawn at all.
+You do **not** get a review region (you review nothing) or a courses region (your role does not
+reach **Courses**). A region your role has no data behind is not drawn as an empty box — it is not
+drawn at all.
 
 ---
 
@@ -151,7 +135,9 @@ Header
 
 Primary rail
 ├── Home                    → /home
+│   ├── Your runs region    → your runs (the learner manual)
 │   └── Packages region → Open the shelf → /packages
+├── Runs                    → /runs  (your own runs; the learner manual)
 └── Packages                → /packages  (the shelf)
     ├── New package from a seed case → /packages/new
     │   ├── Import a package export  (dialog on this screen)
@@ -178,7 +164,8 @@ Primary rail
 
 | Destination | How you get there | What is there |
 |---|---|---|
-| **Home** | Rail | The **Packages** region and nothing else |
+| **Home** | Rail | The **Your runs** and **Packages** regions |
+| **Runs** | Rail | The runs assigned to you; described in [the learner manual](02-learner.md) |
 | **Packages** | Rail | The shelf: every package of this institution |
 | **New package from a seed case** | Header action on the shelf, and on the shelf's empty state | The two-panel create form |
 | **Import a package export** | Header action on `/packages/new` only | A dialog that takes a pasted export |
@@ -190,16 +177,13 @@ Primary rail
 | **Settings** → **Profile** / **Security** / **Data** | Account menu → **Settings**, then the tab strip | Your name; your password and devices; your export and account deletion |
 | **Privacy**, **Terms** | Account menu | The two public documents |
 | **Sign out** | Account menu | Ends this session |
-| **Courses** | Not in your rail; only by typing the address | Opens, and reads **No courses yet**, because you hold no section seat |
-| **Runs** | Not in your rail; only by typing the address | Opens, and reads **No assignments yet**, for the same reason |
 
-Those last two are the whole of what this role can reach outside **Home**, **Packages** and its own
-account. Everything else — the review area, the admin area, another institution's package — answers
-**Not found**, as [section 1](#1-who-you-are-in-tassl) sets out.
+Everything else — the course screens, the review area, the admin area, another institution's
+package — answers **Not found**, as [section 1](#1-who-you-are-in-tassl) sets out.
 
-The rail is the same two items on a narrow screen; nothing is hidden behind a menu.
+The rail keeps the same items on a narrow screen; nothing is hidden behind a menu.
 
-![The scenario author's home screen at phone width, with the same Home and Packages rail](screenshots/editor/home-mobile.png)
+![The Scenario Editor's home screen at phone width, with the same rail](screenshots/editor/home-mobile.png)
 
 ---
 
@@ -318,10 +302,11 @@ documents, the claims the assistant states, and the questions a student answers 
 from a seed case you hold the rights to adapt, then confirm every element to freeze a version an
 assignment can run on." — with **New package from a seed case** beside it.
 
-**If your seat were wrong.** The screen would read **Packages are not open to your seat** / "Only an
-instructor or a scenario author reads and writes packages in {name}. If you should be one, an
-administrator of the institution can change your seat." With no institution at all it reads **No
-institution yet**.
+**If your role were wrong.** A Student reads **Packages are not open to your role** / "Scenario
+Editors and Instructors read packages in {name}. If you should be one of them, a Platform Admin can
+change your role." An instructor reads the shelf without **New package from a seed case**, and the
+create form tells them **Authoring is not open to your role**. With no institution at all the shelf
+reads **No institution yet**.
 
 ### 5.2 Starting a package from a seed case
 
@@ -459,9 +444,9 @@ call each, each writing the elements it owns and then checking them against the 
 those elements.
 
 **Where to find it.** The version screen's **Generation** button on a draft, or straight from
-**Create and generate** / **Generate version 1**. Only an instructor or a scenario author of the
-institution can open this screen at all; every other seat gets the not-found page, because the
-report on it names the rules a draft breaks, which is where its defects are.
+**Create and generate** / **Generate version 1**. Only a Scenario Editor of the institution (or a
+Platform Admin) can open this screen at all; everyone else, instructors included, gets the not-found
+page, because the report on it names the rules a draft breaks, which is where its defects are.
 
 ![The generation screen for a confirmed version, listing the seven steps with Waiting chips](screenshots/editor/package-generation.png)
 
@@ -632,8 +617,8 @@ concept rests on one item**.
 Either "Every package rule passes. Confirm each element to freeze the version." or "{count} package
 rules still fail. The version stays a draft until each one passes." followed by each failure's own
 sentence, its code, and the elements it names. An author gets two buttons here: **Open the
-confirmation workspace** and **Generation**. Someone who may read but not author reads "Only an
-instructor or a scenario author edits and confirms the elements of a draft." instead.
+confirmation workspace** and **Generation**. An instructor, who may read but not author, reads
+"Only a Scenario Editor edits and confirms the elements of a draft." instead.
 
 #### **Confirmation record**
 
@@ -650,13 +635,12 @@ Covered in full in [section 4](#the-confirmation-records-decision-table).
 | **Confirmed by** | Who signed it, or **Not yet** |
 | **Confirmed** | When, or **Not yet** |
 
-Then **The seed case**, which only an instructor and a scenario author ever see: **Case title**,
+Then **The seed case**, which only Scenario Editors and a Platform Admin ever see: **Case title**,
 **Publisher**, **License terms relied on**, and then either the green line "The author confirmed that
 these terms permit adaptation before the package was built." or a red box reading "This seed record
-carries no confirmation that the terms permit adaptation." A teaching assistant reading this screen
-sees instead: "The case this package was adapted from, its publisher and the license terms behind it
-are read by the instructor and the scenario author only." — see
-[the teaching assistant manual](05-teaching-assistant.md) for what that seat does read.
+carries no confirmation that the terms permit adaptation." An instructor reading this screen sees
+instead: "The case this package was adapted from, its publisher and the license terms behind it are
+read by the Scenario Editors who author it."
 
 Then **Re-skin log**, captioned "What was changed from the licensed case", with columns **Change**,
 **From**, **To** and **Note**. A change reads **Renamed entity**, **Altered number** or
@@ -665,8 +649,8 @@ record names nothing that was changed from the case. A version cannot be confirm
 
 #### **Authoring measures**
 
-"What building this version cost, read off the seed record and the element decisions." Five measures,
-and the only panel a program lead can see of a package at all.
+"What building this version cost, read off the seed record and the element decisions." Five
+measures.
 
 | Measure | What it measures | When there is nothing to show |
 |---|---|---|
@@ -790,7 +774,7 @@ A version with nothing in it reads **This version has no elements yet** / "A ver
 seed carries only the case behind it. Import a package document on the packages screen, or wait for
 generation, and the elements to confirm appear here."
 
-#### What it looks like on the first open, and what your seat can press
+#### What it looks like on the first open
 
 A freshly generated version opens with the whole job still in front of you. The progress bar reads
 **0 of 93 confirmed** with "93 left to decide" under it; every leaf in the tree is undecided; the
@@ -799,37 +783,20 @@ A freshly generated version opens with the whole job still in front of you. The 
 
 ![The confirmation workspace on first open for a newly generated version, the progress bar reading 0 of 93 confirmed, the element tree below it and the Brief editor open beside it](screenshots/editor/authoring-workspace.png)
 
-This is also the screen that shows your seat's one limit in the plainest possible way. Scroll the
-editor down to its action bar, which screen readers announce as "Actions on this element". Four buttons
-are drawn there, and on your seat three of them are grayed:
+Scroll the editor down to its action bar, which screen readers announce as "Actions on this element".
+Four buttons are drawn there:
 
-| Button | On the scenario author seat with the **Scenario editor** platform role | Why |
+| Button | When it is live | What it is |
 |---|---|---|
-| **Save edits** | Grayed until you change something in the fields above, then live | Nothing has been touched yet. Its own note says so: "Nothing has changed in this element yet." Editing is open to you |
-| **Confirm** | Grayed, always | Recording a decision is signing, and your platform role may not sign |
-| **Reject** | Grayed, always | Rejecting is a decision too, and the same rule holds |
-| **Rewrite** | Live | Asking the model for a new draft is authoring, not signing |
+| **Save edits** | Once you change something in the fields above | Writing your correction. Until then its own note says "Nothing has changed in this element yet." |
+| **Confirm** | Always, on a draft | Recording that the element stands as written |
+| **Reject** | Always, on a draft | Recording that it does not, with a reason |
+| **Rewrite** | Always, on a draft | Asking the model for a new draft |
 
-The screen says it in its own words, once beside **Confirm version** in the progress panel and again
-beside the element's own action bar: "Only an instructor or a scenario author of this institution edits
-and confirms a package. You can read every element below." The **Teaching note checked against the
-answer space and claims** checkbox and the **Confirm version** button are drawn and grayed for the same
-reason.
-
-Read that sentence with the permission rule behind it, because the wording is broader than the effect:
-
-- An instructor or a scenario author of this institution may edit, confirm, reject and freeze —
-  *provided* their platform role is **None**, which an instructor's normally is.
-- Your seat is a scenario author of this institution, so editing, discarding, rewriting and reading are
-  all open to you; only the two decision buttons and **Confirm version** are not.
-- A teaching assistant, a program lead, or anyone with no package seat does not get this screen at all:
-  they read **This version is not yours to edit** with the same sentence under it.
-
-So a package your seat builds is finished up to, and not including, the signature. Draft it, generate
-it, correct every element, clear every rule — then hand the version to an instructor of the institution
-(or to any scenario author whose platform role is **None**) to decide the elements and press **Confirm
-version**. Nothing you have written is lost in the hand-off; the other seat opens the same workspace and
-sees the same fields.
+Every one of them is yours: editing, deciding and signing are the same role. Someone who reads
+packages but does not author them — an instructor — does not get this screen at all: they read **This
+version is not yours to edit** / "Only a Scenario Editor of this institution edits and confirms a
+package. The version itself, with its record and its claims, is on its own page."
 
 #### The element tree, and opening a group
 
@@ -840,10 +807,9 @@ see at a glance which part of the package is behind: **Documents** 0 of 9, **Sta
 **Debrief counterfactual**, **General escalation reply**, **Clock and difficulty**, **Seed re-skin
 log** — carry a status word instead of a count.
 
-![The confirmation workspace scrolled down to the element tree, every group showing its decided-of-total count, the single elements listed under them, and the action bar under the brief with Save edits, Confirm and Reject grayed and Rewrite live](screenshots/editor/authoring-workspace-elements.png)
+![The confirmation workspace scrolled down to the element tree, every group showing its decided-of-total count, the single elements listed under them, and the action bar under the brief](screenshots/editor/authoring-workspace-elements.png)
 
-That shot is also where the action bar described above is visible: **Save edits**, **Confirm** and
-**Reject** grayed, **Rewrite** the one live control.
+That shot is also where the action bar described above sits, under the element's fields.
 
 Open a group and it lists its elements by the name they will be read under, with the element key in
 mono underneath each one and a status marker beside it — the marker's accessible name is the status
@@ -935,7 +901,7 @@ words; there are {count}."
    box headed **Rules this element does not meet** sits above the fields with each sentence and code.
 3. Change what needs changing.
 4. Press **Save edits** (pending **Saving…**), or **Discard edits** to throw the changes away.
-5. Record a decision — or, on your seat, ask an instructor to (see below).
+5. Record a decision (see below).
 
 A claim's editor also shows **What each variant makes of this claim** — "The two readings are
 elements of their own and are confirmed separately. Open one to change what it says." — with **Open
@@ -947,7 +913,7 @@ The action bar is grouped as "Actions on this element".
 
 | Button | What it does |
 |---|---|
-| **Save edits** | Writes your changes. For an author of the institution whose platform role is **None**, the save itself records an **edited** decision — "{name} saved. The edit is recorded as its decision." For your seat it does not: "{name} saved. It still needs a decision." On an element that already carries a standing decision: "{name} saved. The decision already on it is unchanged." |
+| **Save edits** | Writes your changes, and the save itself records an **edited** decision — "{name} saved. The edit is recorded as its decision." On an element that already carries a standing decision: "{name} saved. The decision already on it is unchanged." |
 | **Discard edits** | Only shown while there are unsaved changes. Toast: "Edits to {name} discarded." |
 | **Confirm** | Records that the element stands. Toast "{name} confirmed.", and the next undecided element opens. |
 | **Reject** | Opens the reject panel. |
@@ -967,11 +933,6 @@ this one." with **Reopen for editing**.
 
 When the version is confirmed, every element reads **Frozen** / "This element is part of a confirmed
 version. It is shown as it was signed and cannot be edited."
-
-On your own seat, **Confirm** and **Reject** are drawn and grayed, with the line "Only an instructor or
-a scenario author of this institution edits and confirms a package. You can read every element below."
-beside them. **Save edits**, **Discard edits** and **Rewrite** all work; only signing does not. This is
-the limit set out in full under [What it looks like on the first open](#what-it-looks-like-on-the-first-open-and-what-your-seat-can-press).
 
 Two other refusals appear beside the bar when they apply: "Save or discard the edits in this element
 before recording a decision on it." and "A new draft is being written. Nothing can be saved or
@@ -1027,12 +988,9 @@ per outstanding element, labeled with its key; pressing one opens it.
 person with the authority to stand behind them, and it freezes the version so that an assignment can
 point at text that will never move under it.
 
-**Who may do it.** An instructor or a scenario author of the institution whose platform role is
-**None**. Your seat carries the platform role **Scenario editor**, so you cannot: the **Confirm
-version** button is drawn and not available, with "Only an instructor or a scenario author of this
-institution edits and confirms a package. You can read every element below." beside it. Everything up
-to the signature is yours to do; the signature is not. Hand the finished version to an instructor of the
-institution, or to any scenario author there whose platform role is **None**, and they press it.
+**Who may do it.** A Scenario Editor of the institution — you — or a Platform Admin. An instructor
+reads the version but cannot confirm it. Everything from the seed case to the signature is yours, so
+nobody else has to be found to finish a package you built.
 
 **What it checks**, in this order, each with its own refusal:
 
@@ -1068,7 +1026,7 @@ reads **Frozen**, and the toast reads "Version {version} is confirmed and frozen
 the person who signed it. Any change at all means a new version.
 
 **What it unlocks.** A confirmed version is the only thing an assignment can run on. The moment it is
-signed, every other instructor and scenario author of the institution is notified — **A scenario
+signed, every instructor and every other Scenario Editor of the institution is notified — **A scenario
 package is ready to assign** / "{title} version {version} is confirmed and frozen, so it can be set
 on an assignment." — and the version starts appearing in the assignment form's package list. The
 shelf row flips from **Draft** to **Confirmed**.
@@ -1077,9 +1035,9 @@ shelf row flips from **Draft** to **Confirmed**.
 
 **Export.** **Export package JSON**, at the top right of any version screen, downloads the whole
 version as one file whose name is `tassl-package-` followed by the family key — for the seeded
-package, `tassl-package-meridian-roast.json`. An instructor, a scenario author and a teaching assistant can
-take it; a program lead cannot see the control at all, because that seat reads a version's measures and
-nothing else (see [the program lead manual](06-program-lead.md)).
+package, `tassl-package-meridian-roast.json`. A Scenario Editor and an instructor of the institution
+can both take it; the instructor's copy leaves out the seed record, which stays with the people who
+author the package.
 
 What is inside: the package's title, family key and discipline; the version's concept set, brief,
 working clock, Turn delay, difficulty estimate, general escalation reply and debrief counterfactual;
@@ -1165,8 +1123,10 @@ question bank are withheld always.
 | What it writes | A draft you then read, correct and sign | Its own connective prose only; every consequential claim is carried from your authored text, word for word |
 | Who is responsible for it | You | You, for the claims; nobody, for the prose, which is why nothing consequential is left to it |
 
-You never open the run assistant. You do not see anyone's delegations, and you cannot start a run.
-What you control about it is the material: which claims exist, what they say, which trigger phrases
+As an author you never see anyone else's delegations. You do meet the run assistant in your own
+runs, if an instructor puts you on a section roster — it behaves for you exactly as it does for any
+student, and [the learner manual](02-learner.md) describes it. What you control about it, as an
+author, is the material: which claims exist, what they say, which trigger phrases
 bring them up, which checks each one offers and what each returns, whether a claim can be escalated
 and what the reply is, and the Sycophancy probe's scripted reversal. The assistant is never told
 which claim is defective — that part of the package is not loaded while it answers — and the words
@@ -1232,7 +1192,7 @@ the title, the body and a UTC timestamp; unread rows are bold with a colored lef
 instructor confirms your bands." Marking a row that no longer exists toasts "That notification no longer
 exists."
 
-The ones your seat can actually receive:
+The ones about your packages:
 
 | Kind | Title | When | Where it links |
 |---|---|---|---|
@@ -1240,7 +1200,9 @@ The ones your seat can actually receive:
 | **Generation stopped** | "A generation step could not be completed" | A step did not meet the rules after a second attempt, on a package you created. The body reads "One step did not meet the scenario rules after a second attempt, so it has stopped. The generation screen names the rules; you can run the step again or author that part by hand." | That version's generation screen |
 | **Package confirmed** | "A scenario package is ready to assign" | Someone else confirmed a version in your institution: "{title} version {version} is confirmed and frozen, so it can be set on an assignment." | That version screen |
 
-You never receive run notifications: no run is yours and you review none.
+You review no one's run, so you never receive the notifications written for a section's
+instructors. When you take a run yourself, you receive the student's notifications about it —
+**Run scored** and **Bands confirmed** — as [the learner manual](02-learner.md) describes.
 
 No notification ever carries a band, a count, a rate or any student's words, because notifications are
 also sent by email. Whether email copies are sent at all is set for the whole installation by whoever
@@ -1258,7 +1220,7 @@ your password and devices, and your data.", with a tab strip: **Profile**, **Sec
 | Field | Notes |
 |---|---|
 | **Your name** | Editable, 1 to 120 characters. Empty → "Enter your name."; too long → "Use 120 characters or fewer." |
-| **Email address** | Disabled. "Your institution knows you by this address, so it is not editable here. Ask your program lead if it needs to change." |
+| **Email address** | Disabled. "Your institution knows you by this address, so it is not editable here. Ask your instructor if it needs to change." |
 | **Save changes** | Toast: "Your name is saved." |
 
 There is no way to change your email address anywhere in Tassl. Your name is what appears in the
@@ -1286,8 +1248,8 @@ line reads **No other device is signed in.**
 **Download my data** — "A JSON file holding your profile, your memberships, your runs, your
 notifications, and the actions you took. Twice an hour." The button downloads a file called
 `tassl-my-data.json`. Asking a third time inside an hour answers "You can download your data twice an
-hour. Try again shortly." The file holds your profile, your institution and section memberships, your
-notifications and the audit rows where you are the one who acted. It does **not** hold the packages
+hour. Try again shortly." The file holds your profile and role, your institution and section
+memberships, your runs, your notifications and the audit rows where you are the one who acted. It does **not** hold the packages
 you authored — those belong to the institution, and a version's own file comes from **Export package
 JSON**.
 
@@ -1347,15 +1309,18 @@ confirmation workspace** → **Documents** → the document → edit → **Save 
 and the general escalation reply**. Anything you have already confirmed survives untouched.
 
 **I want to say what is wrong with an element rather than fix it myself.** In the workspace, open it →
-**Reject** → fill **Why this element is rejected** → **Reject element**. (On your seat this button is
-inert; ask an instructor of the institution.)
+**Reject** → fill **Why this element is rejected** → **Reject element**.
 
 **I want to find what is still undecided.** **Open the confirmation workspace** → tick **Show only
 what is undecided**, or press **Next undecided element**.
 
 **I want this version signed so an assignment can run on it.** Finish the workspace, tick **Teaching
-note checked against the answer space and claims**, clear every rule, then ask an **instructor** of
-the institution to press **Confirm version** → **Confirm and freeze**. Your platform role cannot sign.
+note checked against the answer space and claims**, clear every rule, then press **Confirm version** →
+**Confirm and freeze**. Every instructor of the institution is told it is ready to assign.
+
+**I want to take a run myself.** Ask an instructor of the course to add you to a section roster. The
+section's assignments then appear on **Runs** and in **Your runs** on Home; everything from there is
+in [the learner manual](02-learner.md).
 
 **I want to move a package to another institution.** On the version screen, **Export package JSON**;
 in the other institution, **Packages** → **New package from a seed case** → **Import a package
@@ -1369,9 +1334,9 @@ time per element**.
 **Confirmation record** → read **Decisions by element type**, then **Decisions that were not a plain
 confirmation**, then open **All {count} decisions, newest first**.
 
-To practice the whole flow once with someone else's words for each click, work through Task 11 of
-[the instructor guide](../guides/instructor-guide.md), which builds a package from a seed case end to
-end; Task 5 of the same guide walks a finished one screen by screen.
+To walk a finished package screen by screen with someone else's words for each click, work through
+Task 5 of [the instructor guide](../guides/instructor-guide.md), which reads the confirmed version an
+assignment runs on.
 
 ---
 
@@ -1416,8 +1381,6 @@ end; Task 5 of the same guide walks a finished one screen by screen.
 | "Save or discard the edits in this element before recording a decision on it." | A decision was pressed with unsaved edits open | **Save edits** or **Discard edits** first |
 | "A new draft is being written. Nothing can be saved or decided on until it lands, so that no decision is recorded against values about to be replaced." | A rewrite is in flight | Wait for it to land |
 | "Reject this one first, and the new draft will replace it." | **Rewrite** on a settled element | Reject, then rewrite |
-| "Only an instructor or a scenario author of this institution edits and confirms a package. You can read every element below." | Beside the inert **Confirm** / **Reject** / **Confirm version** buttons on your seat | Ask an instructor of the institution to sign |
-| "{name} saved. It still needs a decision." | You saved an edit and your seat cannot sign | The edit is kept; the element is still undecided |
 | "Every element needs a decision before the version can be confirmed." | **Confirm version** with elements undecided or rejected | Use the **Waiting on a decision** buttons |
 | "Confirm you have read the teaching note first." | **Confirm version** with the box unticked | Read it, tick it, confirm again |
 | "This package does not yet meet the scenario rules." | **Confirm version** with rules failing | Fix each rule listed in the red band |
@@ -1460,11 +1423,11 @@ end; Task 5 of the same guide walks a finished one screen by screen.
 
 | What you see | When |
 |---|---|
-| **Not found** / "There is nothing at this address. It may have moved, or the link may be wrong." / **Go home** | The review area, the admin area, a package of another institution, or a package or version that does not exist |
-| **Packages are not open to your seat** / "Only an instructor or a scenario author reads and writes packages in {name}. If you should be one, an administrator of the institution can change your seat." | A seat without package rights on the shelf |
+| **Not found** / "There is nothing at this address. It may have moved, or the link may be wrong." / **Go home** | The course screens, the review area, the admin area, a package of another institution, or a package or version that does not exist |
+| **Packages are not open to your role** / "Scenario Editors and Instructors read packages in {name}. If you should be one of them, a Platform Admin can change your role." | A Student on the shelf |
+| **Authoring is not open to your role** / "A Scenario Editor authors and confirms packages in {name}. If you should be one, a Platform Admin can change your role." | An instructor on the create form |
 | **No institution yet** / "Packages belong to an institution. Once you accept an invitation to one, the packages you may author appear here." | An account with no membership |
-| **This version is not yours to edit** / "Only an instructor or a scenario author of this institution edits and confirms a package. You can read every element below." | A reader on the confirmation workspace |
-| **This version is not yours to generate** / "Only an instructor or a scenario author of this institution runs generation on a package. You can read this version and its record." | A reader on the generation screen |
+| **This version is not yours to edit** / "Only a Scenario Editor of this institution edits and confirms a package. The version itself, with its record and its claims, is on its own page." | An instructor on the confirmation workspace |
 | **No packages yet** | The shelf, with no package in the institution |
 | **This version has no elements yet** | The workspace on a version created from a seed with no generation run and no import |
 | **No element open** / "Choose an element on the left to read it and record a decision." | The workspace with nothing selected |
@@ -1474,9 +1437,10 @@ end; Task 5 of the same guide walks a finished one screen by screen.
 | "No passage is quoted from the source document." / "This claim carries no figure of its own." / "No rationale is written for this claim yet." | A claim object with those parts unauthored |
 | "No variant of this version says anything about this claim yet." | A claim with no variant states written |
 | "No interrogation action returns anything for this claim in this variant." | A variant state with no check results authored |
-| **No courses yet** on **Courses**, **No assignments yet** on **Runs** | Addresses that open for you but hold nothing, because you have no section seat |
+| **No assignments yet** on **Runs** | You are on no section roster yet |
 | **Generation has not run on this version** | The generation screen before a first run |
 | **Nothing to confirm** | The Home packages region with no version mid-confirmation |
+| **Nothing to do yet** | The Home runs region, with no run assigned to you |
 | **Nothing yet** | Notifications, with none |
 | **Something went wrong** / "The problem has been recorded. If it continues, quote the reference below." | An unexpected failure. Quote the **Reference** if you report it |
 
@@ -1500,9 +1464,8 @@ and every planted defect must sit inside the set.
 **Confirm** — The button that records that an element stands as written. **Edited** counts as a
 decision too; **Rejected** does not.
 
-**Confirm version** — The button that freezes a version for good and makes it assignable. Only an
-instructor or a scenario author of the institution whose platform role is **None** can press it; an
-account carrying any platform role never can.
+**Confirm version** — The button that freezes a version for good and makes it assignable. A Scenario
+Editor of the institution presses it, or a Platform Admin; an instructor cannot.
 
 **Confirmation record** — Every decision an author took on an element of a version, newest first, with
 the revision it was taken on.
@@ -1545,8 +1508,8 @@ confirmed. Thirty-three of them; each prints its own sentence with the elements 
 **Planted defect** — The one defective claim state the **Defective** variant carries. The **Sound**
 variant carries none.
 
-**Platform role** — A right over Tassl itself, not a seat in an institution. Yours is **Scenario
-editor**; the values are **None**, **Scenario editor** and **Platform admin**.
+**Platform role** — The one role an account holds, set by a Platform Admin. Yours is **Scenario
+Editor**; the others are **Student**, **Instructor** and **Platform Admin**.
 
 **Re-skin log** — The record of what was changed from the licensed case: renamed entities, altered
 numbers, restructured documents. A version cannot be confirmed without one.
@@ -1557,7 +1520,8 @@ never blocks the run.
 **Rewrite** — Asking the model for a new draft of an element and everything written with it, keeping
 anything already confirmed.
 
-**Scenario author** — The institution seat that lets you read and write that institution's packages.
+**Scenario Editor** — Your role: a Student's access, plus building, editing and confirming the
+scenario packages of the institutions you belong to.
 
 **Scenario package** — One decision case: the brief, the documents, the claims the assistant states,
 and the questions a student answers afterwards.

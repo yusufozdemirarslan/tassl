@@ -12,19 +12,18 @@
 // is to resolve an id *to* its organization before any tenant is known. Nothing here is reachable
 // from a route or service — only from `permissions.ts`, which turns every answer into an
 // organization-scoped decision — so no query widens what a caller can read.
-import { and, desc, eq, gt, isNull, or, sql } from 'drizzle-orm'
+import { and, eq, isNull } from 'drizzle-orm'
 import { db } from '@/server/db/client'
 import {
   assignments,
   courses,
-  dataAgreements,
   member,
+  organization,
   runs,
   scenarioPackages,
   sectionMemberships,
   sections,
   user,
-  type DataAgreement,
 } from '@/server/db/schema'
 
 /** The columns of `user` that decide whether a session is live and what it may do (08 §2.6, §3). */
@@ -42,7 +41,8 @@ export type RunContext = {
   courseId: string
 }
 
-export type SectionMembershipRow = { role: string; organizationId: string }
+/** A section roster row: the person is on the section. It carries no role (D-748). */
+export type SectionMembershipRow = { organizationId: string }
 
 export type CourseRow = { organizationId: string; createdBy: string }
 
@@ -57,14 +57,24 @@ export async function findActorRow(userId: string): Promise<ActorRow | null> {
   return rows[0] ?? null
 }
 
-/** The organization role of the user's `member` row, or null when there is none (08 §3). */
-export async function findOrganizationRole(userId: string, orgId: string): Promise<string | null> {
+/** True when the user has a `member` row in the organization: they belong to it (08 §3, D-748). */
+export async function isMember(userId: string, orgId: string): Promise<boolean> {
   const rows = await db
-    .select({ role: member.role })
+    .select({ id: member.id })
     .from(member)
     .where(and(eq(member.userId, userId), eq(member.organizationId, orgId)))
     .limit(1)
-  return rows[0]?.role ?? null
+  return rows.length > 0
+}
+
+/** True when the organization exists; the platform admin's guards ask nothing else of it. */
+export async function organizationExists(orgId: string): Promise<boolean> {
+  const rows = await db
+    .select({ id: organization.id })
+    .from(organization)
+    .where(eq(organization.id, orgId))
+    .limit(1)
+  return rows.length > 0
 }
 
 /** The user's `section_memberships` row for a live section, with the section's organization. */
@@ -73,7 +83,7 @@ export async function findSectionMembership(
   sectionId: string,
 ): Promise<SectionMembershipRow | null> {
   const rows = await db
-    .select({ role: sectionMemberships.role, organizationId: sections.organizationId })
+    .select({ organizationId: sections.organizationId })
     .from(sectionMemberships)
     .innerJoin(sections, eq(sections.id, sectionMemberships.sectionId))
     .where(
@@ -107,8 +117,11 @@ export async function findSection(sectionId: string): Promise<{ organizationId: 
   return rows[0] ?? null
 }
 
-/** True when the user holds an `instructor` section membership in one of the course's sections. */
-export async function teachesCourse(userId: string, courseId: string): Promise<boolean> {
+/**
+ * True when the user is on the roster of one of the course's live sections. For an Instructor that
+ * is the section they teach (D-748); the caller decides what the row means from the platform role.
+ */
+export async function onCourseRoster(userId: string, courseId: string): Promise<boolean> {
   const rows = await db
     .select({ id: sectionMemberships.id })
     .from(sectionMemberships)
@@ -116,33 +129,12 @@ export async function teachesCourse(userId: string, courseId: string): Promise<b
     .where(
       and(
         eq(sectionMemberships.userId, userId),
-        eq(sectionMemberships.role, 'instructor'),
         eq(sections.courseId, courseId),
         isNull(sections.deletedAt),
       ),
     )
     .limit(1)
   return rows.length > 0
-}
-
-/**
- * The organization's most recently signed agreement that is neither deleted nor ended (D-055).
- * Mirrors `tenancy.findActiveAgreement`, which this layer may not import (see the file header).
- */
-export async function findActiveAgreement(orgId: string): Promise<DataAgreement | null> {
-  const rows = await db
-    .select()
-    .from(dataAgreements)
-    .where(
-      and(
-        eq(dataAgreements.organizationId, orgId),
-        isNull(dataAgreements.deletedAt),
-        or(isNull(dataAgreements.endsAt), gt(dataAgreements.endsAt, sql`now()`)),
-      ),
-    )
-    .orderBy(desc(dataAgreements.signedAt), desc(dataAgreements.createdAt), desc(dataAgreements.id))
-    .limit(1)
-  return rows[0] ?? null
 }
 
 /** The run with the section its assignment belongs to; null when no such run exists. */

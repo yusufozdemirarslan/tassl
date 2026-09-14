@@ -23,7 +23,7 @@ const CONCEPTS =
   'private label margin, shelf space allocation, brand cannibalization, cost to serve'
 
 test('the Phase 5 authoring screens have no axe violations', async ({ page }) => {
-  await signInAs(page, 'instructor')
+  await signInAs(page, 'editor')
   const seeded = seededPackage()
 
   // UI-040, the shelf. The first page is scanned, because it is the one page that is populated on

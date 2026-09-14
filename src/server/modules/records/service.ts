@@ -18,6 +18,7 @@
 import { runContext } from '@/server/analytics/run-context'
 import { track } from '@/server/analytics/track'
 import {
+  isPlatformAdmin,
   requireCourseExportReader,
   requireRunOwner,
   requireRunReviewer,
@@ -79,9 +80,9 @@ export type ExportableRun = { id: string; organizationId: string; assignmentId: 
 /**
  * `GET /runs/{runId}/record/export`: the record-form trace, as a JSON file.
  *
- * Read by the run's own student, and by an instructor or TA of its section — the matrix row that
- * reads "Read own debrief, graphs, record; export record copy" (08 §4). The student is asked for
- * first, because a run belongs to one and every other reader is an exception to that.
+ * Read by the run's own student, and by a reviewer of its section — the matrix row that reads "Read
+ * own debrief, graphs, record; export record copy" (08 §4). The student is asked for first, because
+ * a run belongs to one and every other reader is an exception to that.
  *
  * The file is the *record* form, for every one of those readers. A reviewer who wants the run's
  * whole record has the replay and the course export; what this endpoint answers is the student's
@@ -104,25 +105,29 @@ export async function exportRecord(actor: SessionUser, runId: string): Promise<R
  * The owner, or a reviewer of the run's section (08 §4).
  *
  * `requireRunOwner` answers NOT_FOUND both for a run that does not exist and for one belonging to
- * another student, so a reviewer arrives here too and is asked for their role next; a classmate is
- * refused by both and keeps the NOT_FOUND, because 08 §4 gives a student no read of another
- * student's run at all. The same two-step `trace.listEvents` makes, for the same reason.
+ * another student, so a reviewer arrives here too and is asked the reviewer's question next; a
+ * classmate is refused by both and keeps the NOT_FOUND, because 08 §4 gives a student no read of
+ * another student's run at all. The same two-step `trace.listEvents` makes, for the same reason.
+ *
+ * The Platform Admin takes the reviewer's path straight away (D-748): `requireRunOwner` admits the
+ * admin too, and a reader who is not the run's student is not its owner.
  */
 async function requireRecordReader(
   actor: SessionUser,
   runId: string,
 ): Promise<{ organizationId: string }> {
-  try {
-    return await requireRunOwner(actor, runId)
-  } catch (error) {
-    if (!isAppError(error) || error.code !== 'NOT_FOUND') throw error
+  if (!isPlatformAdmin(actor)) {
+    try {
+      return await requireRunOwner(actor, runId)
+    } catch (error) {
+      if (!isAppError(error) || error.code !== 'NOT_FOUND') throw error
+    }
   }
   try {
     return await requireRunReviewer(actor, runId)
   } catch (error) {
-    // The reviewer guard answers FORBIDDEN to a section member holding the wrong role, which here
-    // is one thing only: a classmate of the run's owner. Passing that through would confirm the run
-    // exists to the one reader 08 §4 gives no read of it at all.
+    // The reviewer guard answers FORBIDDEN only to the run's own learner, who was admitted above and
+    // never reaches it; NOT_FOUND is kept for anyone else it refuses.
     if (isAppError(error) && error.code === 'FORBIDDEN') throw new AppError('NOT_FOUND')
     throw error
   }
@@ -144,7 +149,7 @@ async function requireRecordReader(
  * `actorId` is null for the job that re-exports a whole course after a mapping change: there is no
  * acting user, and the column says so rather than borrowing the last instructor who touched it.
  *
- * The `export_ready` notice goes to the section's instructors and TAs and never to the student
+ * The `export_ready` notice goes to the section's reviewers and never to the student
  * (SYS-010, 10 §14): the course export is the reviewer's document for the gradebook of record, and
  * the student's own copy is the Judgment Record they download from their run (12 §8.1). It carries
  * no band, no reason and no number — the same rule every other notification in this codebase keeps,
@@ -271,8 +276,9 @@ export async function getCourseExport(
  * own download. A reviewer of the assignment's section only — a student's own exports are their
  * record, which they reach by run.
  *
- * "A reviewer of the section" is `canReviewSection`, which is the section's instructor or TA *and*
- * the instructor of the course above it (08 §5, D-062, D-483). The same predicate answers
+ * "A reviewer of the section" is `canReviewSection`, which is an Instructor on the section's roster
+ * *and* the instructor of the course above it, or the admin (08 §5, D-062, D-483, D-748). The same
+ * predicate answers
  * `courses.listAssignmentRuns` one screen up, so the "Course exports" link on the assignment screen
  * and the history behind it are one question asked twice rather than two guards that have to be
  * kept in step by hand — which they were not: a course's creator holding no section row saw the
@@ -344,8 +350,9 @@ function toExportSummary(row: CourseExport): ExportSummary {
  * is (D-421). The debrief is the screen that shows a student their points, because the debrief is
  * teaching and the record is the artifact that leaves Tassl (12 §8.3).
  *
- * Owner only, from `confirmed`. A reviewer reads the run through the replay, which carries
- * everything; what makes this endpoint the student's is that it is theirs to keep.
+ * Owner only, from `confirmed` (the admin is admitted by `requireRunOwner` too, D-748). A reviewer
+ * reads the run through the replay, which carries everything; what makes this endpoint the
+ * student's is that it is theirs to keep.
  *
  * **Built on every read, and stored** (D-436). 10 §14 says "builds or returns the snapshot", and a
  * stored snapshot returned unconditionally would go stale the moment a neutralization corrected the
@@ -375,15 +382,18 @@ export async function getRecord(actor: SessionUser, runId: string): Promise<Reco
   ])
   if (!context) throw new AppError('NOT_FOUND')
 
-  // AN-003 (17 §3.3). `viewer` is `owner` because `requireRunOwner` above is the only way in: 08 §4
-  // gives the Judgment Record to the run's own student alone, and a reviewer reads the run through
-  // the replay, which fires `replay_opened` instead. The enum keeps the second value for the day
-  // that row of the matrix changes; until then the reviewer half of it is never emitted from here.
+  // AN-003 (17 §3.3). `requireRunOwner` above is the only way in: 08 §4 gives the Judgment Record to
+  // the run's own student, and a reviewer reads the run through the replay, which fires
+  // `replay_opened` instead. The admin is the one other reader it admits (D-748), so the distinct id
+  // is the run's student and `viewer` says whether it was the student who looked.
   if (analytics) {
     track(
       'record_opened',
-      { ...runContext(analytics, analytics.variantKey), viewer: 'owner' },
-      { userId: actor.id, organizationId: scope.organizationId },
+      {
+        ...runContext(analytics, analytics.variantKey),
+        viewer: actor.id === scope.studentId ? 'owner' : 'reviewer',
+      },
+      { userId: scope.studentId, organizationId: scope.organizationId },
     )
   }
 

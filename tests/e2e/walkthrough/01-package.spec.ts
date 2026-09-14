@@ -33,7 +33,6 @@ test('walkthrough step 1: the faculty seat reads the package behind a run — id
   })
   await addSectionMember(request, assignment.section.id, {
     email: seatEmail('instructor'),
-    role: 'instructor',
   })
 
   await signInAs(page, STUDENT_SEAT)

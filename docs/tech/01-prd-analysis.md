@@ -20,12 +20,14 @@ Tassl is a practice environment where students in professional degree programs m
 |---|---|---|---|
 | Student in a professional degree program (3rd/4th-year undergraduate, MBA; marketing and strategy) | §3 | Seat account played by the builder or editor ("student seat") | Takes runs, reads debriefs, controls the Judgment Record |
 | Course instructor (buyer and enabler) | §3, §8 Roles | Seat account played by the builder or editor ("faculty seat") | Configures courses, reviews and confirms bands, decides appeals |
-| Teaching assistant | §8 Roles | Not used (future-state) | Reviews and scores runs in assigned sections |
-| Scenario author (faculty or Tassl scenario editor acting as disciplinary authority) | §7.18, §8 Roles | The builder: supplies the seed case, confirms or edits every generated element | Faculty author for their course |
-| Program lead (associate dean, chair, chief AI officer) | §3, §8 Roles | Not used (future-state) | Sees aggregate reporting, manages plan and roster capacity |
-| Tassl Scenario Editor (Tassl-side) | §8 Roles | The editor: runs AI generation from the seed case | Runs generation, calibration, drift audit under the written data agreement |
+| Teaching assistant | §8 Roles | Not used (future-state); no account role, review belongs to the Instructor (D-748) | Reviews and scores runs in assigned sections |
+| Scenario author (faculty or Tassl scenario editor acting as disciplinary authority) | §7.18, §8 Roles | The Scenario Editor role: supplies the seed case, edits and confirms every generated element (the seeded package is imported and confirmed by `editor@tassl.local`) | Faculty author for their course |
+| Program lead (associate dean, chair, chief AI officer) | §3, §8 Roles | Not used (future-state); no account role (D-748) | Sees aggregate reporting, manages plan and roster capacity |
+| Tassl Scenario Editor (Tassl-side) | §8 Roles | The Scenario Editor role: runs AI generation from the seed case, edits and confirms versions | Runs generation, calibration, drift audit under the written data agreement |
 | Individual student outside an adopting course (Practice Pass) | §3, §8 Pricing | Not used (future-state) | Buys for themselves, library scenarios |
-| Admin (Tassl operations) | Not in PRD (`SYS`) | Support and operations account | Same |
+| Admin (Tassl operations) | Not in PRD (`SYS`) | The Platform Admin role: full access in every institution | Same |
+
+The build has four account roles, one per account, held in `user.platform_role` (D-748, `08-auth-authz.md` §3): **Student**, **Scenario Editor** (a Student's access plus authoring and publishing packages), **Instructor**, and **Platform Admin**.
 
 The two people in the walkthrough are **the builder** (PRD author, teaches the pilot course, disciplinary authority) and **the editor** (the AI collaborator that generated the scenario content). They swap the student and faculty seats between the two variant sessions (PRD §12, Who is in the room).
 
@@ -100,7 +102,7 @@ Conventions: `Priority` is MoSCoW for the build: **M** must, **S** should, **C**
 | FR-025 | FR | Imported outside facts, or a figure carried over from the recognized seed case, are not penalized and become assumptions to defend; the defense asks where they came from | §7.2 edge | M | A brief numeric field value that matches no claim and no document triggers the provenance question in the defense selection (FR-101) | |
 | FR-026 | FR | If a carried-over figure or the teaching note's conclusion resolves a consequential claim, the claim is neutralized and the scenario returned for a deeper re-skin | §7.2 edge, §7.18 edge | M | Faculty neutralization with reason `adaptation_failed` sets the package version's `review_requested_at` and `review_reason` | Manual judgment by the faculty seat; FR-003 |
 | FR-027 | FR | Re-skin rule: fictional company, market, and people; altered figures so no number in the published case or teaching note resolves a consequential claim; restructured evidence so documents do not mirror the case's exhibits; the disciplinary authority checks the teaching note against the confirmed answer space and claims before confirming | §7.2 Rules, §7.18 | M | Seed record holds a re-skin log (renamed entity, altered number, restructured document entries); package confirmation requires the authority to tick "teaching note checked against answer space and claims" | AI-001 |
-| FR-028 | FR | Any attribution the seed case's license requires appears only in instructor-facing material (authoring record, package view), never in student-facing screens or the record export | §7.2 Rules, §7.18 | M | Seed record fields render on package view (author/instructor roles) and are absent from every student route and from the trace export | |
+| FR-028 | FR | Any attribution the seed case's license requires appears only in instructor-facing material (authoring record, package view), never in student-facing screens or the record export | §7.2 Rules, §7.18 | M | Seed record fields render on package view (Scenario Editor and Platform Admin) and are absent from every student route and from the trace export | |
 
 ### 5.4 Stakeholders (PRD §7.3)
 
@@ -248,7 +250,7 @@ Conventions: `Priority` is MoSCoW for the build: **M** must, **S** should, **C**
 | FR-151 | FR | The debrief walks the run in order: frame beside decision; stance matrix claim by claim with what the student did, what it warranted, and why (per-claim authored rationale); missed defects with the document, the action that would have surfaced each, and its clock cost; the Sycophancy Probe verbatim if it fired; the confidence line; the Turn beside the frozen frame; the clock timeline; a three-sentence authored counterfactual; then the seven bands with evidence, the mapping, this run's weight, and provisional points labeled draft; then two written questions | §7.14 | M | Section order is fixed in the component tree; sections a run cannot support render "not available for this run" with the reason; the counterfactual and per-claim rationale come from the package | |
 | FR-152 | FR | The two questions (which single stance they would change; what they will do differently) are recorded as a `debrief_answer` event; answering them with confirmation complete moves the run to Recorded; in the build there is no next run to lock | §7.14, §12 step 13 | M | `debrief_opened` on first render; `debrief_answer` on submit; state transition `confirmed → recorded` when both exist | |
 | FR-153 | FR | The debrief never uses the word "cheating", never characterizes motives, attributes failures to specific actions and omissions, and always names at least one thing done well | §7.14 Rules | M | Copy review checklist; a unit test asserts the "done well" section is non-empty for every fixture and that generated text is drawn only from authored rationale plus fixed templates | |
-| FR-154 | FR | The debrief is permanently available to the student and to the course's reviewers, never to other students; student and instructor see identical graphs from the same trace | §7.14 Rules | M | Authorization: run owner, section instructors, TAs; graph payloads are the same objects served to both routes | |
+| FR-154 | FR | The debrief is permanently available to the student and to the course's reviewers, never to other students; student and instructor see identical graphs from the same trace | §7.14 Rules | M | Authorization: run owner, the Instructors who run the course, the Platform Admin; graph payloads are the same objects served to both routes | |
 | FR-155 | FR | A partial debrief delivers what exists with missing sections and unavailable graphs named | §7.14 edge | M | Same as FR-004 rendering | |
 | FR-156 | FR | Future-state: next-run lock until the debrief is answered, answers shown back at the next run, harder-variant offer, in-debrief appeal | §7.14 | W | | Deferred by PRD §12 |
 
@@ -331,11 +333,11 @@ Conventions: `Priority` is MoSCoW for the build: **M** must, **S** should, **C**
 
 | ID | Type | Description | PRD | Priority | Acceptance criteria | Notes |
 |---|---|---|---|---|---|---|
-| FR-230 | FR | Roles: Student, Instructor, Teaching Assistant, Scenario Author, Program Lead, Tassl Scenario Editor, with the "can do / cannot do" boundaries of the PRD roles table; plus `admin` (SYS) | §8 Roles | M | Permission matrix in `08-auth-authz.md` implements every row; integration tests assert each "cannot do" | |
+| FR-230 | FR | Roles: Student, Instructor, Teaching Assistant, Scenario Author, Program Lead, Tassl Scenario Editor, with the "can do / cannot do" boundaries of the PRD roles table; plus `admin` (SYS) | §8 Roles | M | Four account roles in `user.platform_role`: Student, Scenario Editor, Instructor, Platform Admin; the permission matrix in `08-auth-authz.md` §4 implements every row; `tests/integration/auth/matrix.json` drives every operation as each role and asserts each "cannot do" | D-748: the Scenario Author is the Scenario Editor role; Teaching Assistant and Program Lead have no role in the build |
 | FR-231 | FR | Run lifecycle states and transitions: Assigned, Readiness, Framing, Working, Paused, Decision Locked, Turn Open, Turn Locked, Defense Pending, Defense Complete, Scored, Confirmed, Recorded, Voided, Adjusted (as a label), with the irreversibility rules; Abandoned, Defense Missed, Confirmed (unreviewed), Under Appeal, Expired exist in the enum and are unreachable in the build | §8 lifecycle, §12 | M | A state machine module with a transition table; illegal transitions throw `ILLEGAL_TRANSITION`; each transition writes a `lifecycle` event; a test enumerates the build path Assigned → Recorded and the void path from every state | |
 | FR-232 | FR | Confirmed or Recorded → Adjusted is live: neutralizing a claim on a confirmed, recorded, exported run recomputes the affected dimension without that claim, raises or leaves the band, and re-exports | §8 lifecycle, §12 step 15 | M | `adjusted_at` set; new export version; FR-005 floor | |
 | FR-233 | FR | Limits: two escalations per run, one Turn, working clock per package or assignment, 12-minute Turn window, 8-minute readiness timer; each a configuration constant marked pilot parameter | §8 Limits | M | Constants in `src/server/modules/runs/limits.ts` with a `pilot_parameter: true` annotation and displayed in the replay header | |
-| FR-234 | FR | The written data agreement's terms (parties, permitted Tassl roles, the three purposes, record types covered and excluded, retention, end-of-pilot obligation) are held per institution and enforced as role access: a platform Tassl Scenario Editor may read identified run records of an institution only when an active agreement row names the role and purpose | §8, §9 | S | `data_agreements` table; authorization check `canReadIdentifiedRecords(user, institution)`; the walkthrough institution has no agreement and the editor seat is a course role, so no agreement is needed for the walkthrough | DATA-052 |
+| FR-234 | FR | The written data agreement's terms (parties, permitted Tassl roles, the three purposes, record types covered and excluded, retention, end-of-pilot obligation) are held per institution and enforced as role access: a platform Tassl Scenario Editor may read identified run records of an institution only when an active agreement row names the role and purpose | §8, §9 | S | `data_agreements` table, recorded and managed by the Platform Admin; no permission reads it, and the Scenario Editor's read of identified records under an agreement is removed (D-748) | DATA-052 |
 | FR-235 | FR | Walkthrough records are labeled walkthrough records, kept or deleted at the builder's discretion, and never enter a pilot dataset | §12 Data | M | `runs.is_walkthrough` boolean set from the assignment's `is_walkthrough`; label rendered on run, replay, record, export; instructors can delete walkthrough runs | |
 | FR-236 | FR | Pricing tiers and plans are hypotheses; no row describes the build; `plan` is a stored label defaulting to `pilot` with no billing | §8 Pricing | C | `institution_settings.plan` enum with the five tiers, default `pilot` | DECISIONS D-011 |
 
@@ -392,7 +394,7 @@ Conventions: `Priority` is MoSCoW for the build: **M** must, **S** should, **C**
 | UI-006 | UI | Privacy policy and Terms | SYS | M | | SYS-007 |
 | UI-007 | UI | Not found (404) and error (500, global error) pages | SYS | M | | SYS-008 |
 | UI-008 | UI | App shell: navigation, institution switcher, notifications bell, account menu | SYS | M | | SYS-010 |
-| UI-009 | UI | Home (role-aware: student runs, instructor courses, author packages, editor generation queue) | §3 | M | | |
+| UI-009 | UI | Home (role-aware: Student and Scenario Editor runs, Instructor courses and review, Scenario Editor packages to confirm) | §3 | M | | |
 | UI-010 | UI | Account settings: profile, password, sessions, data export, delete account | SYS | M | | SYS-003, SYS-004 |
 | UI-011 | UI | Notifications center | SYS | M | | SYS-010 |
 | UI-020 | UI | Student: assignments and runs list (with walkthrough labels) | §12 | M | | FR-235 |
@@ -406,7 +408,7 @@ Conventions: `Priority` is MoSCoW for the build: **M** must, **S** should, **C**
 | UI-028 | UI | Run Debrief (all sections, bands, provisional points, two questions) | §7.14 | M | | FR-150 to FR-155 |
 | UI-029 | UI | Judgment Record (single run; illustrative trajectory) and record export | §7.16 | M | | FR-170 to FR-172 |
 | UI-030 | UI | Instructor: courses list and course detail (sections, assignments, policy, mapping, weights) | §7.19 | M | | FR-200, FR-205, FR-206 |
-| UI-031 | UI | Section roster (members and roles; add by email; invitations) | SYS | M | | SYS-005 |
+| UI-031 | UI | Section roster (members with their account role; add by email; invitations) | SYS | M | | SYS-005 |
 | UI-032 | UI | Assignment configuration (package version, variant, clock, weight, walkthrough flag) and runs list | §7.19, §12 step 8 | M | | FR-200 |
 | UI-033 | UI | Faculty replay (trace, four graphs, defense transcript, bands with evidence drawer, readiness map, package view, claim object view, confirm/override, void, re-offer, neutralize, test control, export) | §7.17, §12 | M | | FR-180 to FR-185, FR-118 |
 | UI-034 | UI | Review queue (illustrative sample data) | §7.17 | S | | FR-186, FR-254 |
@@ -416,7 +418,7 @@ Conventions: `Priority` is MoSCoW for the build: **M** must, **S** should, **C**
 | UI-042 | UI | Generation progress (steps, passes, failures, retry) | §7.18 | M | | FR-191, FR-198 |
 | UI-043 | UI | Element confirmation workspace (documents, stakeholders, answer space, named fields, claims per variant, probe, Turn, question bank, counterfactual, readiness items, clock and difficulty), with edit, confirm, reject, regenerate per element | §7.18 | M | | FR-192 |
 | UI-044 | UI | Package version view (package id, version, status, confirmation record, authoring record, measures, package JSON export, regenerate) | §7.17, §7.18, §12 step 1 | M | | FR-180, FR-195, FR-198 |
-| UI-050 | UI | Admin: users and roles, feature flags view, audit log | SYS | M | | SYS-006 |
+| UI-050 | UI | Admin: users and their platform role, feature flags view, audit log | SYS | M | | SYS-006 |
 | UI-060 | UI | Dev-only component gallery `/dev/components` | Fixed input | M | | SYS-018 |
 
 ### 5.28 Entities (DATA)
@@ -428,11 +430,11 @@ Conventions: `Priority` is MoSCoW for the build: **M** must, **S** should, **C**
 | DATA-003 | DATA | Account (OAuth and credential) | SYS | M | | |
 | DATA-004 | DATA | Verification (email and reset tokens) | SYS | M | | |
 | DATA-005 | DATA | Institution = Better Auth `organization`, plus `institution_settings` (plan, defaults) | §3, §8 | M | | Tenant |
-| DATA-006 | DATA | Member (organization membership with role) | §8 Roles | M | | |
+| DATA-006 | DATA | Member (organization membership; carries no role, D-748) | §8 Roles | M | | |
 | DATA-007 | DATA | Invitation | SYS | M | | |
 | DATA-008 | DATA | Course (policy, mapping, weights, taught concepts) | §7.19 | M | | |
 | DATA-009 | DATA | Section | §8 Roles | M | | |
-| DATA-010 | DATA | Section membership (student, instructor, TA) | §8 Roles | M | | |
+| DATA-010 | DATA | Section membership (roster row; carries no role, D-748) | §8 Roles | M | | |
 | DATA-011 | DATA | Assignment (package version, variant, clock, weight, walkthrough flag) | §7.19 | M | | |
 | DATA-012 | DATA | Scenario package (family) | §7.18 | M | | |
 | DATA-013 | DATA | Scenario package version (status, calibration status, confirmation, working clock, difficulty profile, snapshot) | §7.18 | M | | |
@@ -525,7 +527,7 @@ Conventions: `Priority` is MoSCoW for the build: **M** must, **S** should, **C**
 | SYS-003 | SYS | Account settings: profile, change password, active sessions and revoke | Decision policy | M | | |
 | SYS-004 | SYS | Data export as JSON and account deletion (soft delete, purge after 30 days) | Decision policy | M | | |
 | SYS-005 | SYS | Institution invitations (email) and section roster management | Decision policy | M | | |
-| SYS-006 | SYS | Admin area: users and roles, feature flags view, audit log | Decision policy | M | | |
+| SYS-006 | SYS | Admin area: users and their platform role, feature flags view, audit log | Decision policy | M | | |
 | SYS-007 | SYS | Privacy policy and Terms pages generated from the data model and integrations; human review on the launch checklist | Decision policy | M | | |
 | SYS-008 | SYS | 404, 500, and global error pages | Decision policy | M | | |
 | SYS-009 | SYS | `/api/health` liveness and `/api/ready` readiness (DB check) | Fixed input | M | | |
@@ -726,7 +728,7 @@ sequenceDiagram
   W->>BA: organization.inviteMember
   BA->>E: invitation email
   U->>W: accept invitation (signed in, email must match)
-  BA-->>W: member row with role
+  BA-->>W: member row (no role)
 ```
 
 ## 7. Screen inventory
@@ -756,19 +758,21 @@ The full per-screen specification is in `09-frontend-spec-screens.md`. Summary w
 | UI-027 Run status | `/runs/[runId]` | student | FR-140 |
 | UI-028 Debrief | `/runs/[runId]/debrief` | student, reviewers | FR-150 to FR-155 |
 | UI-029 Judgment Record | `/records/[runId]` | student | FR-170 to FR-172 |
-| UI-030 Courses | `/courses`, `/courses/[courseId]` | instructor, program lead | FR-200, FR-205, FR-206 |
+| UI-030 Courses | `/courses`, `/courses/[courseId]` | instructor | FR-200, FR-205, FR-206 |
 | UI-031 Section roster | `/courses/[courseId]/sections/[sectionId]/roster` | instructor | SYS-005 |
 | UI-032 Assignment configuration + runs | `/assignments/[assignmentId]` | instructor | FR-200 |
-| UI-033 Faculty replay | `/review/runs/[runId]` | instructor, TA | FR-180 to FR-185, FR-118 |
+| UI-033 Faculty replay | `/review/runs/[runId]` | instructor | FR-180 to FR-185, FR-118 |
 | UI-034 Review queue (illustrative) | `/review` | instructor | FR-186, FR-254 |
 | UI-035 Course export | `/assignments/[assignmentId]/exports` | instructor | FR-204, FR-184 |
-| UI-040 Packages list | `/packages` | author, editor | FR-190 |
-| UI-041 New package from seed | `/packages/new` | author, editor | FR-190 |
-| UI-042 Generation progress | `/packages/[packageId]/versions/[versionId]/generation` | author, editor | FR-191 |
-| UI-043 Element confirmation | `/packages/[packageId]/versions/[versionId]/confirm` | author | FR-192 |
-| UI-044 Package version view | `/packages/[packageId]/versions/[versionId]` | author, editor, instructor | FR-180, FR-195 |
+| UI-040 Packages list | `/packages` | scenario editor, instructor (read) | FR-190 |
+| UI-041 New package from seed | `/packages/new` | scenario editor | FR-190 |
+| UI-042 Generation progress | `/packages/[packageId]/versions/[versionId]/generation` | scenario editor | FR-191 |
+| UI-043 Element confirmation | `/packages/[packageId]/versions/[versionId]/confirm` | scenario editor | FR-192 |
+| UI-044 Package version view | `/packages/[packageId]/versions/[versionId]` | scenario editor, instructor | FR-180, FR-195 |
 | UI-050 Admin | `/admin/users`, `/admin/flags`, `/admin/audit` | admin | SYS-006 |
 | UI-060 Component gallery | `/dev/components` | development only | SYS-018 |
+
+"student" is every learner role (Student and Scenario Editor, on a roster they are on); the Platform Admin reaches every screen (D-748, `08-auth-authz.md` §4).
 
 ## 8. Entity inventory
 
@@ -776,7 +780,7 @@ The full per-screen specification is in `09-frontend-spec-screens.md`. Summary w
 |---|---|---|
 | user | identity | has many sessions, accounts, members, section_memberships, runs |
 | organization (institution), institution_settings, data_agreements | tenancy | has many members, courses, scenario_packages |
-| member, invitation | tenancy | user × organization with role |
+| member, invitation | tenancy | user × organization (membership only, no role) |
 | course, section, section_membership, assignment, course_mapping_change | courses | course → sections → memberships; assignment → package_version + variant |
 | scenario_package, scenario_package_version, seed_record, reskin_log_entry | scenarios | package → versions (immutable once confirmed) |
 | scenario_document, stakeholder, answer_space_position, named_field, scenario_claim, scenario_variant, variant_claim_state, sycophancy_probe, scenario_turn, defense_question, readiness_item | scenarios | all keyed by package_version_id |
@@ -819,7 +823,7 @@ Every gap is resolved; the decision record is `DECISIONS.md`. Cross-reference:
 | TypeScript 7 vs typescript-eslint peer range | Pin TypeScript 6.0.3 | D-003 |
 | Impeccable `init` has no product/brand lanes and does not write DESIGN.md | DESIGN.md is authored from `09-frontend-spec.md` §Design system, then reconciled with `/impeccable document` | D-005 |
 | Tenant model | Institution = organization; `tenant_id` on tenant-scoped tables | D-006 |
-| Roles beyond the PRD table | `admin` platform role; course-level roles on section membership | D-007 |
+| Roles beyond the PRD table | One role per account in `user.platform_role`: Student, Scenario Editor, Instructor, Platform Admin; no institution or section role | D-007, D-748 |
 | Seed case input format | Pasted text; no file storage | D-010 |
 | Payments for pricing tiers | None in the build; `plan` label | D-011 |
 | Background work on Vercel | pg-boss with a drain endpoint, `after()` kick, daily cron sweep, local worker | D-012 |
@@ -838,13 +842,13 @@ Every gap is resolved; the decision record is `DECISIONS.md`. Cross-reference:
 | `FEATURE_AI` meaning for a product whose core loop uses AI | False forces the mock provider | D-029 |
 | MiMo endpoint | Official base URL verified; `api-key` header; JSON via `json_object`; thinking disabled for structured calls | D-028 |
 | Preview database branch creation | Neon GitHub Action in the PR workflow, migrations before deploy | D-071 |
-| Seat accounts for the walkthrough | Six seed accounts by seat | D-040 |
+| Seat accounts for the walkthrough | Five seed accounts by seat, one role each | D-040, D-748 |
 | Multiple runs per assignment | `attempt_no` on runs | D-041 |
 | Illustrative sample data | Static fixture behind `FEATURE_SAMPLE_DATA` | D-035 |
 | Export format | JSON only | D-048 |
 | Notifications | In-app center plus email copies | D-015 |
 | Consent and accommodation tables | Not in the build; attachment points recorded | D-056, D-057 |
-| Data agreement enforcement | `data_agreements` table gating platform-role reads | D-055 |
+| Data agreement enforcement | `data_agreements` table per institution, managed by the Platform Admin; no read is gated on it | D-055, D-748 |
 | Rate limit for high-frequency trace writes | Separate 300/min bucket | D-026 |
 | Backups on Neon | PITR plus nightly `pg_dump` artifact | D-069 |
 | Cron frequency on Vercel Hobby | Daily sweep; immediacy via `after()` | D-012 |

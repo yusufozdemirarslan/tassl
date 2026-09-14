@@ -24,7 +24,7 @@ import { AppError, isAppError } from '@/lib/errors'
 import { t } from '@/lib/i18n/t'
 import { runContext } from '@/server/analytics/run-context'
 import { track } from '@/server/analytics/track'
-import { requireRunOwner, requireRunReviewer } from '@/server/auth/permissions'
+import { isPlatformAdmin, requireRunOwner, requireRunReviewer } from '@/server/auth/permissions'
 import { assertNoForbiddenKeys } from '@/server/auth/student-view'
 import type { SessionUser } from '@/server/auth/types'
 import {
@@ -99,8 +99,16 @@ type Reader = { organizationId: string; viewer: 'owner' | 'reviewer' }
  * a student no read of another student's run at all, and a refusal that says "you may not" would say
  * the run exists. It is the same two-step `records.exportRecord` and `trace.listEvents` make, for the
  * same reason.
+ *
+ * The Platform Admin is always a reviewer here (D-748). `requireRunOwner` admits the admin to every
+ * run, and taking the owner's path would hand them the student's form and consume the student's
+ * own first open of the debrief.
  */
 async function requireDebriefReader(actor: SessionUser, runId: string): Promise<Reader> {
+  if (isPlatformAdmin(actor)) {
+    const scope = await requireRunReviewer(actor, runId)
+    return { organizationId: scope.organizationId, viewer: 'reviewer' }
+  }
   try {
     const scope = await requireRunOwner(actor, runId)
     return { organizationId: scope.organizationId, viewer: 'owner' }
@@ -323,7 +331,8 @@ export async function answerDebrief(
       ...runContext(answered, variantKey),
       ms_since_first_open: msSince(openedAt?.occurredAt, at),
     },
-    { userId: actor.id, organizationId: scope.organizationId },
+    // The run's student, not the actor: the admin passes `requireRunOwner` too (D-748).
+    { userId: scope.studentId, organizationId: scope.organizationId },
   )
 
   return toRunSummary(answered)

@@ -82,7 +82,7 @@ async function loadPage(path: string, jar: Jar): Promise<void> {
   await response.arrayBuffer()
 }
 
-type Me = { memberships: { organizationId: string; role: string }[] }
+type Me = { platformRole: string; memberships: { organizationId: string }[] }
 type Courses = { items: { id: string }[] }
 type Packages = {
   items: { id: string; latestVersion: { id?: string; versionId?: string } | null }[]
@@ -105,8 +105,9 @@ async function main(): Promise<void> {
   // The instructor's half of the demo path.
   const instructor = await signIn('instructor@tassl.local')
   const me = await getJson<Me>('/api/v1/me', instructor)
-  const orgId = me.memberships.find((m) => m.role === 'instructor')?.organizationId
-  if (!orgId) throw new Error('instructor@tassl.local has no instructor membership')
+  // One role per account (D-748): the seat is an Instructor, and the institution is where it belongs.
+  const orgId = me.platformRole === 'instructor' ? me.memberships[0]?.organizationId : undefined
+  if (!orgId) throw new Error('instructor@tassl.local is not an Instructor of an institution')
   await loadPage('/home', instructor)
   await loadPage('/courses', instructor)
   const courses = await getJson<Courses>(`/api/v1/institutions/${orgId}/courses`, instructor)
