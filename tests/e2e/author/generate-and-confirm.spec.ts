@@ -1,33 +1,39 @@
-// Step 12.3 — UI-041, UI-042 and UI-043 end to end (FR-190, FR-191, FR-192, FR-194, FR-198,
-// AI-001): a licensed case goes in at one end and a confirmed, frozen package version comes out of
-// the other, with nothing done to the database that an author could not have done with a mouse.
+// UI-041, UI-042 and UI-043 end to end (FR-190, FR-191, FR-192, FR-194, FR-198, AI-001; D-750,
+// D-751, D-752): a case goes in at one end and a published package comes out of the other, with
+// nothing done to the database that an author could not have done with a mouse.
 //
-// One journey, because that is the journey the phase exists to make possible:
+// Three journeys, because the promise D-750 and D-751 make has three edges to it:
 //
-//   "Create and generate" on the seed form → the progress screen, seven steps, every one of them
-//   done → the confirmation workspace → one document rejected and sent back to the pipeline → the
-//   new draft picked up on the screen without a reload → every element decided → the teaching-note
-//   check → the version frozen → the version view, where the measures and the authoring record say
-//   what it cost and how it was made.
+//   1. *The whole road.* Title, family key and a pasted case → Generate → the progress screen →
+//      the review workspace → one document rejected and sent back to the pipeline → the new draft
+//      picked up without a reload and confirmed → one press publishes the version.
+//   2. *The short road.* A title and a family key and nothing else. No concepts, no case text, no
+//      licence record — and the package still publishes, because the concept set has a default and
+//      the completion writes every element the rule table requires (D-750, D-751).
+//   3. *No rule code, anywhere.* The screens an author passes through are checked for the strings
+//      the rule table is spelled with. A rule is a server-side guarantee; its code is this
+//      repository's vocabulary and never the author's.
 //
-// Three things this spec is careful about, because each was a way to write a green test that proved
-// nothing:
+// Four things these specs are careful about, because each was a way to write a green test that
+// proved nothing:
 //
 //   *The pipeline is watched, not waited on blindly.* The generation screen polls; the assertion is
 //   that all seven rows read "Done" and that the package's own rules pass, which is
 //   `validatePackage` over the whole table (10 §4) rather than a spinner going away.
 //
-//   *The element count comes from the screen.* The mock writes a complete package (11 §1.4) and its
-//   element count is a property of that mock, not of this spec. The progress line says "0 of N
-//   confirmed"; N is read from it and the loop runs to it, so a mock that grows a document does not
-//   silently stop being confirmed here.
+//   *The publish is one press from the review screen.* Not sixty. What the dialog says is what is
+//   being signed, and the elements nobody decided on are confirmed by that press (D-752) — so the
+//   spec asserts the confirmation record afterwards rather than trusting the button.
+//
+//   *A rejection still blocks.* An author who sent an element back meant it: the spec rejects D1,
+//   asks for a rewrite, and has to confirm the new draft before the version will publish.
 //
 //   *The regeneration is proved by the record, not by the pixels.* On the mock the regenerated
 //   documents are byte-identical to the ones they replace — it is a pure function of the brief — so
 //   the evidence that the step ran is the eighth generation pass on the version view (FR-198) and
 //   the rejection still standing on the confirmation record, which is what `rejectedShare` counts.
 //
-// The package is created through the UI under a `suiteName` title, so its family key is unique to
+// Each package is created through the UI under a `suiteName` title, so its family key is unique to
 // this run: nothing in the product deletes a package, and a second run writes its own family rather
 // than colliding with the last one's.
 import { suiteName } from '../fixture-package'
@@ -61,12 +67,32 @@ const STEP_NAMES = [
   'Readiness Check items',
 ] as const
 
-test('an author generates a package from a seed case, regenerates one element, and freezes the version', async ({
+/**
+ * The rule table's own vocabulary. Not one of these may reach a screen (D-750): a code is how this
+ * repository names a rule, and an author reading "QUESTION_BANK_INCOMPLETE" is being handed a
+ * grep term instead of a sentence. The validator's *sentences* still appear where a package
+ * genuinely breaks a rule; the codes never do.
+ */
+const RULE_CODES = [
+  'QUESTION_BANK_INCOMPLETE',
+  'READINESS_SPLIT',
+  'DEFECTIVE_VARIANT_PLANT',
+  'COUNTERFACTUAL_SENTENCES',
+  'DOCUMENT_ROLES_MISSING',
+  'PACKAGE_INVALID',
+] as const
+
+/** Nothing on this page is spelled the way a rule code is. */
+async function expectsNoRuleCodes(page: Parameters<typeof axe>[0]): Promise<void> {
+  const body = (await page.locator('body').innerText()).toUpperCase()
+  for (const code of RULE_CODES) expect(body).not.toContain(code)
+}
+
+test('an author generates a package from a case, regenerates one element, and publishes the version in one press', async ({
   page,
 }) => {
-  // Seven generation steps, one regeneration, and a decision per element — each of the last a
-  // server action that revalidates the page it was made on. The assertions are unchanged; only the
-  // patience (D-188).
+  // Seven generation steps, one regeneration, and a publish — each a server action that
+  // revalidates the page it was made on. The assertions are unchanged; only the patience (D-188).
   test.setTimeout(600_000)
 
   const title = suiteName('Generated package')
@@ -75,34 +101,34 @@ test('an author generates a package from a seed case, regenerates one element, a
   await signInAs(page, 'editor')
 
   // ------------------------------------------------------------------------------------------
-  // UI-041: "Create and generate"
+  // UI-041: two fields, a pasted case, and Generate
   // ------------------------------------------------------------------------------------------
 
   await page.goto('/packages/new')
-  await expect(
-    page.getByRole('heading', { level: 1, name: 'New package from a seed case' }),
-  ).toBeVisible()
+  await expect(page.getByRole('heading', { level: 1, name: 'New package' })).toBeVisible()
 
   await page.getByLabel('Title', { exact: true }).fill(title)
   await expect(page.getByLabel('Family key')).toHaveValue(familyKey)
+  await page.getByLabel('Scenario text').fill(SEED_TEXT)
+
+  // The concepts and the licence record are behind one disclosure, because a package needs neither
+  // (D-751). This one adapts a named case, so both are filled.
+  await page.getByText('Concepts and licensing', { exact: true }).click()
   await page.getByLabel('Concepts').fill(CONCEPTS.join(', '))
   await page.getByRole('button', { name: 'Add', exact: true }).click()
-  await expect(page.getByText('4 added. Four is the minimum.')).toBeVisible()
+  await expect(page.getByText('4 added. Add four or more, or leave this empty.')).toBeVisible()
   await page.getByLabel('Case title').fill(CASE_TITLE)
   await page.getByLabel('Publisher').fill(PUBLISHER)
   await page.getByLabel('License terms').fill(LICENSE_TERMS)
-  await page.getByLabel('Seed case text').fill(SEED_TEXT)
   await page.getByRole('checkbox', { name: 'The license permits adaptation' }).check()
 
-  // The control says what it is about to do before it is pressed: the package, then seven steps,
-  // then a draft nothing is part of a package until an author signs it.
+  // The control says what it is about to do before it is pressed.
   await expect(
-    page.getByText(
-      'Create and generate writes the package and then drafts its elements from the seed case in seven steps',
-    ),
+    page.getByText('Generate writes the package and drafts every element it needs'),
   ).toBeVisible()
+  await expectsNoRuleCodes(page)
 
-  await page.getByRole('button', { name: 'Create and generate' }).click()
+  await page.getByRole('button', { name: 'Generate', exact: true }).click()
 
   // ------------------------------------------------------------------------------------------
   // UI-042: the progress screen, and the seven steps on it
@@ -123,13 +149,17 @@ test('an author generates a package from a seed case, regenerates one element, a
 
   // The screen polls every five seconds while a step is running and stops when it is not; what it
   // is waiting for is the package's own rules, which is `validatePackage` over the whole table.
+  // Since D-750 that is a guarantee rather than a hope: the last step completes the package against
+  // the rule table before it reports done, so this heading is the only outcome a finished pipeline
+  // has.
   await expect(
     page.getByRole('heading', { level: 2, name: 'Every package rule is met' }),
-  ).toBeVisible({ timeout: 120_000 })
+  ).toBeVisible({ timeout: 180_000 })
   const done = steps.locator('[data-kind="confirmed"]')
   await expect(done).toHaveCount(7)
   // Each step reports what it cost, so an author can see where the tokens went.
   await expect(steps).toContainText('Tokens')
+  await expectsNoRuleCodes(page)
 
   // UI-042 in the state only a generated package reaches: seven done rows with their numbers, the
   // rule report, and the way into the workspace (NFR-012). The empty twin of this screen is scanned
@@ -137,7 +167,7 @@ test('an author generates a package from a seed case, regenerates one element, a
   await axe(page)
 
   // ------------------------------------------------------------------------------------------
-  // UI-043: the confirmation workspace over what the pipeline wrote
+  // UI-043: the review workspace over what the pipeline wrote
   // ------------------------------------------------------------------------------------------
 
   await page.getByRole('link', { name: 'Open confirmation workspace' }).click()
@@ -148,6 +178,7 @@ test('an author generates a package from a seed case, regenerates one element, a
   const opening = (await progress.textContent()) ?? ''
   const total = Number(/0 of (\d+) confirmed/.exec(opening)?.[1])
   expect(Number.isInteger(total) && total > 40).toBe(true)
+  await expectsNoRuleCodes(page)
 
   const tree = page.getByRole('tree', { name: 'Elements of this version' })
   const documents = tree.getByRole('treeitem', { name: /^Documents/ })
@@ -197,34 +228,31 @@ test('an author generates a package from a seed case, regenerates one element, a
   // The screen waits for the server and picks the new draft up on its own; the client only polls
   // and displays.
   await expect(page.getByText('The new draft of D1 is on the screen.')).toBeVisible({
-    timeout: 90_000,
+    timeout: 120_000,
   })
   await expect(page.getByText('Writing a new draft')).toHaveCount(0)
 
   // ------------------------------------------------------------------------------------------
-  // FR-192: every element decided, the teaching note checked, and the version frozen
+  // FR-192, D-752: a rejection still blocks, and one press publishes everything else
   // ------------------------------------------------------------------------------------------
 
-  const confirmElement = page.getByRole('button', { name: 'Confirm', exact: true })
-  const nextUndecided = page.getByRole('button', { name: 'Next undecided element' })
-  await nextUndecided.click()
+  // D1 still stands rejected, and publishing may not sweep that up: the author meant it.
+  await page.getByRole('button', { name: 'Confirm and publish' }).click()
+  const blocked = page.getByRole('alertdialog')
+  await blocked.getByRole('button', { name: 'Confirm and publish' }).click()
+  await expect(page.getByText('Rejected and waiting to be re-read')).toBeVisible()
+  await expectsNoRuleCodes(page)
 
-  for (let decided = 1; decided <= total; decided += 1) {
-    await confirmElement.click()
-    await expect(progress).toHaveText(`${String(decided)} of ${String(total)} confirmed`)
-  }
-  await expect(page.getByText('Every element has a decision.')).toBeVisible()
+  // Read the new draft and confirm it; everything else is confirmed by the publish itself.
+  await firstDocument.click()
+  await page.getByRole('button', { name: 'Confirm', exact: true }).click()
+  await expect(progress).toContainText('1 of ')
 
-  await page
-    .getByRole('checkbox', {
-      name: 'Teaching note checked against the answer space and claims',
-    })
-    .check()
-  await page.getByRole('button', { name: 'Confirm version' }).click()
+  await page.getByRole('button', { name: 'Confirm and publish' }).click()
   const dialog = page.getByRole('alertdialog')
-  await expect(dialog).toContainText('All met')
-  await dialog.getByRole('button', { name: 'Confirm and freeze' }).click()
-  await expect(page.getByText('Version 1 is confirmed and frozen.')).toBeVisible()
+  await expect(dialog).toContainText('Every element you have not already decided on is confirmed')
+  await dialog.getByRole('button', { name: 'Confirm and publish' }).click()
+  await expect(page.getByText('Version 1 is published.')).toBeVisible({ timeout: 60_000 })
 
   // ------------------------------------------------------------------------------------------
   // UI-044: what it cost, and how it was made (FR-198)
@@ -232,6 +260,7 @@ test('an author generates a package from a seed case, regenerates one element, a
 
   await page.goto(versionPath)
   await expect(page.getByRole('heading', { level: 1, name: title })).toBeVisible()
+  await expect(page.getByText('Published', { exact: true }).first()).toBeVisible()
 
   const record = page.locator('#authoring-record')
   await expect(record).toContainText(CASE_TITLE)
@@ -250,6 +279,61 @@ test('an author generates a package from a seed case, regenerates one element, a
   // Every measure now has something behind it: nothing on this panel reads "No decisions yet".
   await expect(measures).not.toContainText('No decisions yet')
   await expect(measures).not.toContainText('Not confirmed yet')
+  await expectsNoRuleCodes(page)
+
+  await signOut(page)
+})
+
+test('an author generates and publishes a package from a title and a family key alone', async ({
+  page,
+}) => {
+  // The short road (D-751). Nothing is pasted and nothing is declared: the concept set falls back
+  // to four concepts any decision run exercises, the seed record says the material is the author's
+  // own, and the completion writes every element the rule table requires (D-750). What this proves
+  // is that the floor holds — a package with no case text still reaches `Published`.
+  test.setTimeout(600_000)
+
+  const title = suiteName('Title only package')
+  const familyKey = familyKeyOf(title)
+
+  await signInAs(page, 'editor')
+
+  await page.goto('/packages/new')
+  await page.getByLabel('Title', { exact: true }).fill(title)
+  await expect(page.getByLabel('Family key')).toHaveValue(familyKey)
+  // Deliberately nothing else: no concepts, no case, no licence, no scenario text.
+  await page.getByRole('button', { name: 'Generate', exact: true }).click()
+
+  await page.waitForURL(/\/packages\/[0-9a-f-]{36}\/versions\/[0-9a-f-]{36}\/generation$/, {
+    timeout: 60_000,
+  })
+  const versionPath = new URL(page.url()).pathname.replace(/\/generation$/, '')
+
+  await expect(
+    page.getByRole('heading', { level: 2, name: 'Every package rule is met' }),
+  ).toBeVisible({ timeout: 180_000 })
+  await expectsNoRuleCodes(page)
+
+  await page.getByRole('link', { name: 'Open confirmation workspace' }).click()
+  await page.waitForURL(`**${versionPath}/confirm`)
+
+  // One press. Nothing has been decided on, and the publish confirms every one of them (D-752).
+  const progress = page.locator('[data-slot="progress-value"]')
+  await expect(progress).toContainText('0 of ')
+  await page.getByRole('button', { name: 'Confirm and publish' }).click()
+  const dialog = page.getByRole('alertdialog')
+  await dialog.getByRole('button', { name: 'Confirm and publish' }).click()
+  await expect(page.getByText('Version 1 is published.')).toBeVisible({ timeout: 60_000 })
+
+  // The shelf is where an instructor reads the status, so it is where the word has to be right.
+  await page.goto('/packages')
+  const row = page.getByRole('row', { name: new RegExp(title) })
+  await expect(row).toContainText('Published')
+
+  // And the seed record says what the package is: the author's own material, with no outside
+  // licence relied on (FR-028, D-751).
+  await page.goto(versionPath)
+  await expect(page.locator('#authoring-record')).toContainText('Original material authored in')
 
   await signOut(page)
 })

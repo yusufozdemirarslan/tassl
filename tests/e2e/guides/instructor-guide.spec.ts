@@ -545,7 +545,7 @@ test('Task 5: Read a scenario package', async ({ page, shot }) => {
     await rail(page).getByRole('link', { name: 'Packages', exact: true }).click()
     const row = page.getByRole('row').filter({ hasText: 'Meridian Roast (fixture)' })
     await expect(row).toBeVisible()
-    await expect(row).toContainText('Confirmed')
+    await expect(row).toContainText('Published')
     await expect(row).toContainText('Uncalibrated')
     await shot(5, 1)
   })
@@ -562,7 +562,7 @@ test('Task 5: Read a scenario package', async ({ page, shot }) => {
   await test.step('5.3 Read This version.', async () => {
     const identity = page.locator('#version-identity')
     await expect(identity).toContainText('Status')
-    await expect(identity).toContainText('Confirmed')
+    await expect(identity).toContainText('Published')
     await expect(identity).toContainText('Working clock')
     await expect(identity).toContainText('25 min')
     await expect(identity).toContainText('Turn delay')

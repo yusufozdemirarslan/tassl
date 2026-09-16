@@ -61,50 +61,38 @@ import {
 } from './errors'
 import * as repo from './repository'
 import {
+  DEFAULT_CONCEPT_SET,
   ELEMENT_INPUT_SCHEMAS,
   ELEMENT_PATCH_SCHEMAS,
   ImportPackageSchema,
-  PACKAGE_EXPORT_SCHEMA_VERSION,
   SINGLETON_ELEMENT_ID,
-  type AnswerSpacePositionExport,
   type CarriedValue,
   type AuthoringRecordView,
-  type ClaimExport,
   type ClaimObjectView,
   type ClaimStateView,
   type ConfirmVersionInput,
   type CreatePackageFromSeedInput,
   type CreatedPackageView,
-  type DefenseQuestionExport,
-  type DocumentExport,
   type ElementConfirmationView,
   type ElementCounts,
   type ElementDecisionInput,
   type ElementTypeValue,
   type ImportedPackageView,
-  type NamedFieldExport,
   type PackageExport,
   type PackageSummaryView,
   type PackageVersionView,
   type PackageView,
   type PackageWarningValue,
   type PageQuery,
-  type ReadinessItemExport,
   type RegenerateVersionInput,
-  type SeedRecordExport,
   type SeedRecordView,
-  type StakeholderExport,
   type StudentScenarioView,
-  type SycophancyProbeExport,
-  type TurnExport,
   type ValidationResult,
-  type VariantClaimStateExport,
-  type VariantExport,
   type VerificationPaths,
-  type VerificationPathsExport,
   type VersionSummaryView,
 } from './schema'
 import { elementUnits, type ElementUnit } from './units'
+import { buildExport } from './export-document'
 import { validateExport } from './validate-export'
 import { thinlyCarriedConcepts, validatePackage } from './validate'
 
@@ -497,216 +485,6 @@ function toAuthoringRecord(
       name: names.get(userId) ?? '',
       decisions,
     })),
-  }
-}
-
-// ---------------------------------------------------------------------------------------------
-// The portable document (SYS-026): every reference between elements travels as an element key
-// ---------------------------------------------------------------------------------------------
-
-const keyOf = (index: ReadonlyMap<string, string>, id: string | null): string | null =>
-  id === null ? null : (index.get(id) ?? null)
-
-function toVerificationPathsExport(
-  paths: VerificationPaths,
-  documentKeyById: ReadonlyMap<string, string>,
-): VerificationPathsExport {
-  const trace = paths.source_trace
-  const documentKey = trace ? documentKeyById.get(trace.document_id) : undefined
-  return {
-    ...(trace && documentKey
-      ? {
-          source_trace: {
-            document_key: documentKey,
-            passage: trace.passage,
-            dated_on: trace.dated_on,
-            author: trace.author,
-          },
-        }
-      : {}),
-    ...(paths.replication_check ? { replication_check: paths.replication_check } : {}),
-    ...(paths.decomposition_check ? { decomposition_check: paths.decomposition_check } : {}),
-  }
-}
-
-/** The whole version as the export format, built from the rows (10 §4 `exportPackage`). */
-function buildExport(version: repo.VersionFull): PackageExport {
-  const documentKeyById = new Map(version.documents.map((row) => [row.id, row.key]))
-  const stakeholderKeyById = new Map(version.stakeholders.map((row) => [row.id, row.key]))
-  const claimKeyById = new Map(version.claims.map((row) => [row.id, row.key]))
-
-  const documents: DocumentExport[] = version.documents.map((row) => ({
-    key: row.key,
-    title: row.title,
-    author: row.author,
-    datedOn: row.datedOn,
-    role: row.role,
-    position: row.position,
-    body: row.body,
-    supersededByKey: keyOf(documentKeyById, row.supersededByDocumentId),
-    stakeholderKey: keyOf(stakeholderKeyById, row.stakeholderId),
-  }))
-
-  const stakeholders: StakeholderExport[] = version.stakeholders.map((row) => ({
-    key: row.key,
-    name: row.name,
-    roleTitle: row.roleTitle,
-    positionStatement: row.positionStatement,
-    incentives: row.incentives,
-    blindSpots: row.blindSpots,
-    contradictionPoint: row.contradictionPoint,
-    contradictsStakeholderKey: keyOf(stakeholderKeyById, row.contradictsStakeholderId),
-  }))
-
-  const answerSpacePositions: AnswerSpacePositionExport[] = version.answerSpacePositions.map(
-    (row) => ({
-      key: row.key,
-      kind: row.kind,
-      summary: row.summary,
-      ignoredEvidence: row.ignoredEvidence,
-      isMinimumCommitment: row.isMinimumCommitment,
-      position: row.position,
-      supportingDocumentKeys: row.supportingDocumentIds.flatMap((id) => {
-        const key = documentKeyById.get(id)
-        return key ? [key] : []
-      }),
-    }),
-  )
-
-  const namedFields: NamedFieldExport[] = version.namedFields.map((row) => ({
-    key: row.key,
-    label: row.label,
-    unit: row.unit,
-    position: row.position,
-  }))
-
-  const claims: ClaimExport[] = version.claims.map((row) => ({
-    key: row.key,
-    text: row.text,
-    sourceKind: row.sourceKind,
-    sourcePassage: row.sourcePassage,
-    importance: row.importance,
-    consequenceLevel: row.consequenceLevel,
-    verificationCost: row.verificationCost,
-    weaklySourced: row.weaklySourced,
-    volatile: row.volatile,
-    conceptKey: row.conceptKey,
-    carriedValues: row.carriedValues,
-    triggerPhrases: row.triggerPhrases,
-    triggerDescription: row.triggerDescription,
-    escalatable: row.escalatable,
-    escalationReply: row.escalationReply,
-    rationale: row.rationale,
-    position: row.position,
-    sourceDocumentKey: keyOf(documentKeyById, row.sourceDocumentId),
-  }))
-
-  const variants: VariantExport[] = version.variants.map((variant) => ({
-    key: variant.key,
-    label: variant.label,
-    claimStates: variant.claimStates.flatMap((state): VariantClaimStateExport[] => {
-      const claimKey = claimKeyById.get(state.claimId)
-      if (!claimKey) return []
-      return [
-        {
-          claimKey,
-          evidenceStatus: state.evidenceStatus,
-          failureFamily: state.failureFamily,
-          warrantedStance: state.warrantedStance,
-          planted: state.planted,
-          verificationPaths: toVerificationPathsExport(state.verificationPaths, documentKeyById),
-        },
-      ]
-    }),
-  }))
-
-  const probeClaimKey = version.probe ? claimKeyById.get(version.probe.claimId) : undefined
-  const probe: SycophancyProbeExport | null =
-    version.probe && probeClaimKey
-      ? {
-          claimKey: probeClaimKey,
-          originalPosition: version.probe.originalPosition,
-          scriptedReversal: version.probe.scriptedReversal,
-        }
-      : null
-
-  const turn: TurnExport | null = version.turn
-    ? {
-        text: version.turn.text,
-        voice: version.turn.voice,
-        warrantsChange: version.turn.warrantsChange,
-        proportionateResponse: version.turn.proportionateResponse,
-        evidence: version.turn.evidence,
-        disruptedAssumptionKeys: version.turn.disruptedAssumptionKeys,
-        stakeholderKey: keyOf(stakeholderKeyById, version.turn.stakeholderId),
-        windowClaimKeys: version.turn.windowClaimIds.flatMap((id) => {
-          const key = claimKeyById.get(id)
-          return key ? [key] : []
-        }),
-      }
-    : null
-
-  const defenseQuestions: DefenseQuestionExport[] = version.defenseQuestions.map((row) => ({
-    key: row.key,
-    kind: row.kind,
-    assumptionIndex: row.assumptionIndex,
-    template: row.template,
-    condition: row.condition,
-    followUp: row.followUp,
-    expectedAnswerNotes: row.expectedAnswerNotes,
-    isDefault: row.isDefault,
-    position: row.position,
-    claimKey: keyOf(claimKeyById, row.claimId),
-  }))
-
-  const readinessItems: ReadinessItemExport[] = version.readinessItems.map((row) => ({
-    key: row.key,
-    category: row.category,
-    conceptKey: row.conceptKey,
-    stem: row.stem,
-    options: row.options,
-    answerKey: row.answerKey,
-    position: row.position,
-  }))
-
-  const seedRecord: SeedRecordExport | null = version.seedRecord
-    ? {
-        caseTitle: version.seedRecord.caseTitle,
-        publisher: version.seedRecord.publisher,
-        licenseTerms: version.seedRecord.licenseTerms,
-        licensePermitsAdaptation: version.seedRecord.licensePermitsAdaptation,
-        seedText: version.seedRecord.seedText,
-        reskinLog: version.seedRecord.reskinLog,
-      }
-    : null
-
-  return {
-    schemaVersion: PACKAGE_EXPORT_SCHEMA_VERSION,
-    package: {
-      title: version.package.title,
-      familyKey: version.package.familyKey,
-      discipline: version.package.discipline,
-    },
-    version: {
-      conceptSet: version.conceptSet,
-      brief: version.brief,
-      workingClockSeconds: version.workingClockSeconds,
-      turnDelaySeconds: version.turnDelaySeconds,
-      difficultyProfile: version.difficultyProfile,
-      generalEscalationReply: version.generalEscalationReply,
-      debriefCounterfactual: version.debriefCounterfactual,
-    },
-    seedRecord,
-    documents,
-    stakeholders,
-    answerSpacePositions,
-    namedFields,
-    claims,
-    variants,
-    probe,
-    turn,
-    defenseQuestions,
-    readinessItems,
   }
 }
 
@@ -1114,9 +892,22 @@ function toElementRow(
 // ---------------------------------------------------------------------------------------------
 
 /**
- * A package family, its first draft version, the seed record it was re-skinned from, and the two
- * variants every version carries (10 §4). Generation is not started: Phase 12 owns it, and until
- * then the author fills the version by hand or by import (UI-041).
+ * A package family, its first draft version, the seed record it records its origin in, and the two
+ * variants every version carries (10 §4).
+ *
+ * Three of the fields are optional and this is where they get their answers (D-751):
+ *
+ *   *The concept set*, when the author names none, is `DEFAULT_CONCEPT_SET` — four concepts any
+ *   decision run exercises. The version row refuses fewer than four, so there is no "none".
+ *
+ *   *The seed record*, when the author names no source case, records the package as the author's
+ *   own material. FR-190's licence tick is an attestation about somebody *else's* case; a package
+ *   with no third-party case has nothing to attest to, so the tick is required exactly when a case
+ *   title or publisher is named and is otherwise the statement the record already makes.
+ *
+ *   *The seed text* may be empty. Step 1 reads it as the case to re-skin, and a package generated
+ *   from its title alone gives the model the title, the concepts, and nothing it has to honour from
+ *   somebody else's work — which is a sound package, not a lesser one.
  */
 export async function createPackageFromSeed(
   actor: SessionUser,
@@ -1125,11 +916,13 @@ export async function createPackageFromSeed(
 ): Promise<CreatedPackageView> {
   await requireVisibleMembership(actor, orgId, AUTHORING_ROLES)
 
+  const seed = resolveSeed(actor, input)
   // FR-190: a licensed case may only be re-skinned when its license says so, and the author is the
   // one who confirms it. The wire schema takes a plain boolean so this answers the documented code.
-  if (!input.seed.licensePermitsAdaptation) licenseNotConfirmed()
+  if (namesASourceCase(input) && !seed.licensePermitsAdaptation) licenseNotConfirmed()
 
-  const created = await createPackageRows(actor, orgId, input)
+  const conceptSet = input.conceptSet.length === 0 ? [...DEFAULT_CONCEPT_SET] : input.conceptSet
+  const created = await createPackageRows(actor, orgId, input, conceptSet, seed)
 
   track(
     'package_created_from_seed',
@@ -1137,12 +930,38 @@ export async function createPackageFromSeed(
       package_id: created.packageId,
       package_version_id: created.versionId,
       version: 1,
-      seed_chars: input.seed.seedText.length,
-      concept_count: input.conceptSet.length,
+      seed_chars: seed.seedText.length,
+      concept_count: conceptSet.length,
     },
     { userId: actor.id, organizationId: orgId },
   )
   return created
+}
+
+/** True when the author says the package is adapted from somebody else's case (D-751). */
+function namesASourceCase(input: CreatePackageFromSeedInput): boolean {
+  return input.seed.caseTitle !== '' || input.seed.publisher !== ''
+}
+
+/** What `seed_records` is written with: the author's own words, or the record of original material. */
+function resolveSeed(actor: SessionUser, input: CreatePackageFromSeedInput): repo.SeedRecordInsert {
+  const original = !namesASourceCase(input)
+  const { caseTitle, publisher, licenseTerms, licensePermitsAdaptation, seedText } = input.seed
+  return {
+    caseTitle: caseTitle === '' ? input.title : caseTitle,
+    publisher:
+      publisher !== ''
+        ? publisher
+        : actor.name.trim() === ''
+          ? t('packageNew.originalPublisher')
+          : actor.name,
+    licenseTerms: licenseTerms === '' ? t('packageNew.originalLicenseTerms') : licenseTerms,
+    // Nothing is being adapted, so nothing is being attested to; the record says so in its terms.
+    licensePermitsAdaptation: original ? true : licensePermitsAdaptation,
+    // Step 1 reads this as the case. An empty one says so rather than arriving as an empty string,
+    // which the column refuses and which would tell the model nothing about why it is empty.
+    seedText: seedText === '' ? t('packageNew.originalSeedText', { title: input.title }) : seedText,
+  }
 }
 
 /** The write of `createPackageFromSeed`; the family key is unique per institution (07 §6). */
@@ -1150,6 +969,8 @@ async function createPackageRows(
   actor: SessionUser,
   orgId: string,
   input: CreatePackageFromSeedInput,
+  conceptSet: readonly string[],
+  seed: repo.SeedRecordInsert,
 ): Promise<CreatedPackageView> {
   try {
     return await repo.withTransaction(async (tx) => {
@@ -1160,20 +981,10 @@ async function createPackageRows(
       )
       const version = await repo.insertVersion(
         orgId,
-        { packageId: pkg.id, version: 1, status: 'draft', conceptSet: input.conceptSet },
+        { packageId: pkg.id, version: 1, status: 'draft', conceptSet: [...conceptSet] },
         tx,
       )
-      await repo.insertSeedRecord(
-        version.id,
-        {
-          caseTitle: input.seed.caseTitle,
-          publisher: input.seed.publisher,
-          licenseTerms: input.seed.licenseTerms,
-          licensePermitsAdaptation: input.seed.licensePermitsAdaptation,
-          seedText: input.seed.seedText,
-        },
-        tx,
-      )
+      await repo.insertSeedRecord(version.id, seed, tx)
       await repo.insertVariants(version.id, DEFAULT_VARIANTS, tx)
       return { packageId: pkg.id, versionId: version.id }
     })
@@ -1795,14 +1606,24 @@ function trackElementDecision(
 // ---------------------------------------------------------------------------------------------
 
 /**
- * Freezes the version (10 §4). Three things must hold and each answers with its own code, checked
- * in the order that table gives them: every element has a decision that stands, the teaching-note
- * check is ticked, and `validatePackage` passes.
+ * Publishes the version: freezes it and makes it assignable (10 §4, FR-192, FR-027; D-752).
+ *
+ * Three things must hold and each answers with its own code, checked in the order the rule table
+ * gives them: no element stands *rejected*, the attestation is made, and `validatePackage` passes.
+ *
+ * The first of those used to be "every element has a decision that stands", and the difference is
+ * what makes publishing one press. An author reviews a version on one screen and signs for it with
+ * one attestation; requiring a separate tick against each of sixty elements first made the common
+ * case sixty presses long and taught nobody anything the attestation does not already say. So an
+ * element nobody has decided on is confirmed *by this press*, with a confirmation row filed in the
+ * author's name at the moment they publish, and the dialog says so before they press it. What is
+ * not swept up is a rejection: an author who sent an element back meant it, and publishing over
+ * that would be the one thing FR-192 is there to stop.
  *
  * On success the version's status, `confirmed_at/by` and the export-format snapshot are written in
  * one statement — the `package_version_frozen` trigger refuses every later write to the row, so the
- * snapshot must ride with the transition, not follow it — and the audit row and the
- * `package_confirmed` notice commit with them.
+ * snapshot must ride with the transition, not follow it — and the confirmations, the audit row and
+ * the `package_confirmed` notice commit with them.
  */
 export async function confirmVersion(
   actor: SessionUser,
@@ -1817,13 +1638,20 @@ export async function confirmVersion(
   const confirmations = await repo.listConfirmations(versionId)
   const decisions = indexDecisions(confirmations)
   const units = elementUnits(scope.version)
-  const undecided: UnconfirmedElement[] = units
-    .filter((unit) => {
-      const latest = decisions.latest.get(confirmationKey(unit.elementType, unit.elementId))
-      return !latest || !isConfirming(latest.decision)
-    })
+  const latestOf = (unit: ElementUnit): repo.ElementConfirmation | undefined =>
+    decisions.latest.get(confirmationKey(unit.elementType, unit.elementId))
+
+  // An element the author sent back is the one thing this press may not sweep up.
+  const rejected: UnconfirmedElement[] = units
+    .filter((unit) => latestOf(unit)?.decision === 'rejected')
     .map((unit) => ({ elementType: unit.elementType, elementId: unit.elementId, key: unit.key }))
-  if (undecided.length > 0) elementsUnconfirmed(undecided)
+  if (rejected.length > 0) elementsUnconfirmed(rejected)
+
+  // Everything still waiting is confirmed by this press, in the author's name (D-752).
+  const undecided = units.filter((unit) => {
+    const latest = latestOf(unit)
+    return !latest || !isConfirming(latest.decision)
+  })
 
   // FR-027: the author states they have read the teaching note before the package can be used.
   if (!input.teachingNoteChecked) teachingNoteUnchecked()
@@ -1835,6 +1663,24 @@ export async function confirmVersion(
   const confirmedAt = new Date()
 
   await repo.withTransaction(async (tx) => {
+    for (const unit of undecided) {
+      await repo.insertConfirmation(
+        {
+          packageVersionId: versionId,
+          elementType: unit.elementType,
+          elementId: unit.elementId,
+          decision: 'confirmed',
+          // The note is the record of *how* it was confirmed, so a reader of the confirmation
+          // record can tell an element the author opened from one the publish swept up.
+          note: t('confirm.confirmedOnPublishNote'),
+          openedAt: confirmedAt,
+          decidedAt: confirmedAt,
+          decidedBy: actor.id,
+        },
+        tx,
+      )
+    }
+
     const updated = await repo.updateVersionStatus(
       tenantId,
       versionId,
@@ -1883,7 +1729,10 @@ export async function confirmVersion(
   })
 
   const runs = await listGenerationRunsForVersion(versionId)
-  const measured = measureAuthoring({ ...scope.version, confirmedAt }, units, confirmations, runs)
+  // Re-read: the sweep above filed a confirmation per undecided element, and FR-198's edit rate and
+  // rejected share are shares *of the decisions on record*, so they have to count those too.
+  const filed = await repo.listConfirmations(versionId)
+  const measured = measureAuthoring({ ...scope.version, confirmedAt }, units, filed, runs)
   track(
     'package_confirmed',
     {

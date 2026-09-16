@@ -10433,7 +10433,7 @@ paths:
                   type: string
                   pattern: ^[a-z0-9-]{3,60}$
                 conceptSet:
-                  minItems: 4
+                  default: []
                   maxItems: 40
                   type: array
                   items:
@@ -10441,37 +10441,31 @@ paths:
                     minLength: 2
                     maxLength: 60
                 seed:
+                  default: {}
                   type: object
                   properties:
                     caseTitle:
+                      default: ""
                       type: string
-                      minLength: 1
                       maxLength: 200
                     publisher:
+                      default: ""
                       type: string
-                      minLength: 1
                       maxLength: 200
                     licenseTerms:
+                      default: ""
                       type: string
-                      minLength: 1
                       maxLength: 4000
                     licensePermitsAdaptation:
+                      default: false
                       type: boolean
                     seedText:
+                      default: ""
                       type: string
-                      minLength: 200
                       maxLength: 200000
-                  required:
-                    - caseTitle
-                    - publisher
-                    - licenseTerms
-                    - licensePermitsAdaptation
-                    - seedText
               required:
                 - title
                 - familyKey
-                - conceptSet
-                - seed
       responses:
         "201":
           description: OK
@@ -22068,12 +22062,16 @@ paths:
                     - decision
                     - critique
                 workingClockSeconds:
-                  type: integer
-                  minimum: 60
-                  maximum: 9007199254740991
+                  anyOf:
+                    - type: integer
+                      minimum: 60
+                      maximum: 9007199254740991
+                    - type: "null"
                 weight:
-                  type: number
-                  minimum: 0
+                  anyOf:
+                    - type: number
+                      minimum: 0
+                    - type: "null"
                 isWalkthrough:
                   type: boolean
                 opensAt:

@@ -28,7 +28,11 @@ import type {
 } from '@/server/llm/provider'
 import { MOCK_MODEL, estimateTokens, messagesText } from '@/server/llm/provider'
 import { rotate, seedOf } from '@/server/llm/providers/mock/deterministic'
-import { generationReply, isGenerationPrompt } from '@/server/llm/providers/mock/generation'
+import {
+  generationReply,
+  isForcedToThrow,
+  isGenerationPrompt,
+} from '@/server/llm/providers/mock/generation'
 import { isBandReadPrompt, readBand } from '@/server/llm/providers/mock/readers'
 import {
   AssistantReplyMockInput,
@@ -129,6 +133,19 @@ const readsForcedToFail = (): boolean =>
   env.APP_ENV !== 'preview'
 
 async function complete(req: CompleteRequest): Promise<CompleteResult> {
+  // A generation call the test asked not to answer at all (MOCK_GEN_THROW). Since D-750 a model
+  // that breaks a rule is no longer a step failure — the completion repairs it — so a call that
+  // never answers is the only way the retry, the pass number and the generation_failed notice are
+  // still reachable from the double.
+  if (isForcedToThrow(req.promptName, req.promptInput ?? {})) {
+    throw new AppError(
+      'LLM_PROVIDER_ERROR',
+      'The mock provider is failing generation on purpose.',
+      {
+        details: { prompt: req.promptName },
+      },
+    )
+  }
   if (isBandReadPrompt(req.promptName) && readsForcedToFail()) {
     throw new AppError(
       'LLM_PROVIDER_ERROR',

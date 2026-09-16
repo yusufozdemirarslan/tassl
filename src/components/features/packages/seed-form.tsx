@@ -18,7 +18,7 @@ import {
   trim,
   type output,
 } from 'zod/mini'
-import { Loader2Icon, XIcon } from 'lucide-react'
+import { ChevronDownIcon, Loader2Icon, XIcon } from 'lucide-react'
 import { toast } from 'sonner'
 import { FormAlert } from '@/components/features/account/form-feedback'
 import { Panel } from '@/components/layout/panel'
@@ -46,24 +46,30 @@ import { createPackageFromSeedAction } from '@/server/modules/scenarios/actions'
 // own, so `packageImport.trigger` is read on this side of the split (B4).
 const t = scopedT(packageImport, packageNew, ui)
 
-// UI-041 (FR-190). The one way a package family comes into being from a case an institution holds
-// the rights to adapt: the family it belongs to, the concepts a run on it exercises, and the seed
-// record — the case, its publisher, the license terms relied on, the author's confirmation that
-// those terms permit adaptation, and the case text itself.
+// UI-041 (FR-190, D-751). How a package family comes into being.
 //
-// Two controls, and the spec names them in the order an author reaches for them (UI-041). "Create
-// and generate" writes the package and then starts the seven generation steps (AI-001), which is
-// what the seed text was pasted for, so it takes the screen's one accent and goes first; "Create
-// the package" beside it is for the author bringing an export or writing the elements by hand. They
-// are two submits of one form, so both are refused by the same eight rules and one summary.
+// Two fields are required and one is optional, and that is the whole of what an author has to
+// answer: the title, the family key it travels under, and the case it is built from — or nothing,
+// in which case Tassl writes the scenario from the title. Everything else an author *may* set —
+// the concepts a run exercises, and the record of a case somebody else published — sits behind one
+// disclosure, because it is the exception rather than the road.
+//
+// That is a change from the eight required fields this form used to ask for, and the reason is
+// D-751: the four that were about licensing are an attestation about *somebody else's* case, and a
+// package that adapts nobody's case has nothing to attest to. Name a case or a publisher and the
+// tick comes back, refused server-side as `LICENSE_NOT_CONFIRMED` and shown on the checkbox.
+//
+// Two controls. "Generate" writes the package and starts the pipeline (AI-001), which is what the
+// author came for, so it takes the screen's one accent; "Create without generating" beside it is
+// for the author bringing an export or writing the elements by hand. They are two submits of one
+// form, so both are refused by the same rules and one summary.
 //
 // The two calls are deliberately not one. `createPackageFromSeed` and `startGeneration` are
 // separate refusals — a family key already taken, a pipeline already running — and a package that
 // exists with a generation that would not start is a state to *say*, not one to undo the package
 // over. The created panel says it, with the way into the progress screen still open.
 //
-// Three rules hold the form together, because six errors on a form this long are otherwise found
-// only by scrolling:
+// Three rules hold the form together:
 //   1. One measure. The whole column is 72ch — the reading measure DESIGN.md sets — so panel
 //      descriptions, prose and inputs all wrap at the same place, and the two short fields (the
 //      mono family key and the concept entry) share one narrower width instead of inventing two.
@@ -85,7 +91,6 @@ const FAMILY_KEY_MAX = 60
 const CONCEPT_MIN_LENGTH = 2
 const CONCEPT_MAX_LENGTH = 60
 const CONCEPT_MIN_COUNT = 4
-const SEED_TEXT_MIN = 200
 /** 06 §3.3: the column refuses a longer seed text, so the counter counts down to the same number. */
 const SEED_TEXT_MAX = 200_000
 
@@ -127,31 +132,30 @@ const seedSchema = object({
     minLength(1, { error: t('packageNew.validation.familyKey') }),
     regex(FAMILY_KEY_PATTERN, { error: t('packageNew.validation.familyKeyFormat') }),
   ),
+  // Four or none: the version row refuses fewer than four (06 §3.3) and an empty set is the
+  // author saying "use the default", which is what `createPackageFromSeed` reads it as (D-751).
   conceptSet: array(string()).check(
-    minLength(CONCEPT_MIN_COUNT, { error: t('packageNew.validation.concepts') }),
+    refine((value: string[]) => value.length === 0 || value.length >= CONCEPT_MIN_COUNT, {
+      error: t('packageNew.validation.concepts'),
+    }),
   ),
   caseTitle: string().check(
     trim(),
-    minLength(1, { error: t('packageNew.validation.caseTitle') }),
     maxLength(NAME_MAX, { error: t('packageNew.validation.caseTitleTooLong') }),
   ),
   publisher: string().check(
     trim(),
-    minLength(1, { error: t('packageNew.validation.publisher') }),
     maxLength(NAME_MAX, { error: t('packageNew.validation.publisherTooLong') }),
   ),
   licenseTerms: string().check(
     trim(),
-    minLength(1, { error: t('packageNew.validation.licenseTerms') }),
     maxLength(TEXT_MAX, { error: t('packageNew.validation.licenseTermsTooLong') }),
   ),
-  // A plain boolean with a check rather than a literal: the output type stays `boolean`, so the
-  // field starts unticked and the message is the sentence the author has to agree to.
-  licensePermitsAdaptation: boolean().check(
-    refine((value: boolean) => value, { error: t('packageNew.validation.license') }),
-  ),
+  // The tick is required only where a case somebody else published is named, which is a rule about
+  // two other fields; the server holds it and answers `LICENSE_NOT_CONFIRMED`, and this form puts
+  // that answer on the checkbox. Restating it here would be a second copy of a conditional rule.
+  licensePermitsAdaptation: boolean(),
   seedText: string().check(
-    minLength(SEED_TEXT_MIN, { error: t('packageNew.validation.seedText') }),
     maxLength(SEED_TEXT_MAX, { error: t('packageNew.validation.seedTextTooLong') }),
   ),
 })
@@ -229,6 +233,24 @@ export function SeedForm({ orgId }: { orgId: string }) {
   const [refusals, setRefusals] = useState(0)
 
   const summary = useRef<HTMLDivElement>(null)
+  /** The disclosure, so a refusal on a field inside it can open it (see `hasHiddenError`). */
+  const more = useRef<HTMLDetailsElement>(null)
+
+  // A refusal on a field inside the disclosure opens it, so the summary's link has somewhere to
+  // land and the error is read where it was made. The disclosure is otherwise the browser's own:
+  // `<details>` opens and closes itself, and a React-controlled `open` fights the press that made
+  // it — which is what it did, leaving the box shut under a click that had toggled it.
+  const hasHiddenError = Boolean(
+    errors.conceptSet ??
+    errors.caseTitle ??
+    errors.publisher ??
+    errors.licenseTerms ??
+    errors.licensePermitsAdaptation,
+  )
+
+  useEffect(() => {
+    if (hasHiddenError && more.current) more.current.open = true
+  }, [hasHiddenError])
 
   const titleField = register('title')
   const familyKeyField = register('familyKey')
@@ -244,11 +266,13 @@ export function SeedForm({ orgId }: { orgId: string }) {
     const pressed = intent.current
     setRunning(pressed)
     setFormError(null)
+    // An empty concept set is not sent at all: the field is the author asking for their own
+    // vocabulary, and its absence is the author leaving that to `DEFAULT_CONCEPT_SET` (D-751).
     const result = await createPackageFromSeedAction({
       orgId,
       title: values.title,
       familyKey: values.familyKey,
-      conceptSet: values.conceptSet,
+      ...(values.conceptSet.length > 0 ? { conceptSet: values.conceptSet } : {}),
       seed: {
         caseTitle: values.caseTitle,
         publisher: values.publisher,
@@ -302,7 +326,9 @@ export function SeedForm({ orgId }: { orgId: string }) {
 
   if (created !== null) return <CreatedPanel created={created} />
 
-  // Every field the summary can name, in the order the form asks for them.
+  // Every field the summary can name, in the order the form asks for them. The four that sit
+  // behind the disclosure are listed too: a refusal has to be findable even when what it names is
+  // closed, and the link opens the disclosure on the way to the field.
   const listed = [
     { id: 'seed-title', label: t('packageNew.titleLabel'), message: errors.title?.message },
     {
@@ -404,18 +430,6 @@ export function SeedForm({ orgId }: { orgId: string }) {
                 </FieldDescription>
               )}
             </Field>
-
-            <Controller
-              control={control}
-              name="conceptSet"
-              render={({ field }) => (
-                <ConceptField
-                  concepts={field.value}
-                  onChange={field.onChange}
-                  error={errors.conceptSet?.message}
-                />
-              )}
-            />
           </div>
         </Panel>
 
@@ -428,100 +442,12 @@ export function SeedForm({ orgId }: { orgId: string }) {
           headingLevel={2}
         >
           <div className="flex flex-col gap-5">
-            <Field data-invalid={errors.caseTitle ? 'true' : undefined}>
-              <FieldLabel htmlFor="seed-case-title">{t('packageNew.caseTitleLabel')}</FieldLabel>
-              <Input
-                id="seed-case-title"
-                autoComplete="off"
-                aria-invalid={errors.caseTitle ? true : undefined}
-                aria-describedby={errors.caseTitle ? 'seed-case-title-error' : undefined}
-                {...register('caseTitle')}
-              />
-              <FieldError id="seed-case-title-error">{errors.caseTitle?.message}</FieldError>
-            </Field>
-
-            <Field data-invalid={errors.publisher ? 'true' : undefined}>
-              <FieldLabel htmlFor="seed-publisher">{t('packageNew.publisherLabel')}</FieldLabel>
-              <Input
-                id="seed-publisher"
-                autoComplete="off"
-                aria-invalid={errors.publisher ? true : undefined}
-                aria-describedby={errors.publisher ? 'seed-publisher-error' : undefined}
-                {...register('publisher')}
-              />
-              <FieldError id="seed-publisher-error">{errors.publisher?.message}</FieldError>
-            </Field>
-
-            <Field data-invalid={errors.licenseTerms ? 'true' : undefined}>
-              <FieldLabel htmlFor="seed-license-terms">
-                {t('packageNew.licenseTermsLabel')}
-              </FieldLabel>
-              <Textarea
-                id="seed-license-terms"
-                rows={3}
-                aria-invalid={errors.licenseTerms ? true : undefined}
-                aria-describedby={
-                  errors.licenseTerms ? 'seed-license-terms-error' : 'seed-license-terms-hint'
-                }
-                {...register('licenseTerms')}
-              />
-              {errors.licenseTerms ? (
-                <FieldError id="seed-license-terms-error">{errors.licenseTerms.message}</FieldError>
-              ) : (
-                <FieldDescription id="seed-license-terms-hint">
-                  {t('packageNew.licenseTermsHint')}
-                </FieldDescription>
-              )}
-            </Field>
-
-            {/* Base UI names the toggle from the label only after hydration, so the checkbox
-                also points at the label by id (DESIGN.md §Inputs / Fields → Toggles). The error
-                takes the description's place rather than sitting under it: an error indented
-                past the sentence it answers was the one place in this form where the two did not
-                share a left edge. */}
-            <Controller
-              control={control}
-              name="licensePermitsAdaptation"
-              render={({ field }) => (
-                <Field
-                  orientation="horizontal"
-                  data-invalid={errors.licensePermitsAdaptation ? 'true' : undefined}
-                >
-                  <Checkbox
-                    id="seed-license"
-                    name={field.name}
-                    checked={field.value}
-                    aria-labelledby="seed-license-label"
-                    aria-invalid={errors.licensePermitsAdaptation ? true : undefined}
-                    aria-describedby={
-                      errors.licensePermitsAdaptation ? 'seed-license-error' : 'seed-license-hint'
-                    }
-                    onCheckedChange={(next: boolean) => field.onChange(next)}
-                  />
-                  <FieldContent>
-                    <FieldLabel id="seed-license-label" htmlFor="seed-license">
-                      {t('packageNew.licenseCheckboxLabel')}
-                    </FieldLabel>
-                    {errors.licensePermitsAdaptation ? (
-                      <FieldError id="seed-license-error">
-                        {errors.licensePermitsAdaptation.message}
-                      </FieldError>
-                    ) : (
-                      <FieldDescription id="seed-license-hint">
-                        {t('packageNew.licenseCheckboxHint')}
-                      </FieldDescription>
-                    )}
-                  </FieldContent>
-                </Field>
-              )}
-            />
-
             {/* No maxLength on the control: the browser truncates a paste against it silently,
                 and a case that arrives 400 characters short of its ending is worse than one the
                 counter says is too long. The count is read from the value on every change, so a
                 paste moves it in one step. `min-h-64` rather than `rows`: the textarea recipe
                 sizes to its content, so rows never showed, and a field asking for a whole case
-                cannot be the height of the two-line license box. */}
+                cannot be the height of a two-line box. */}
             <Field data-invalid={errors.seedText ? 'true' : undefined}>
               <FieldLabel htmlFor="seed-text">{t('packageNew.seedTextLabel')}</FieldLabel>
               <Textarea
@@ -558,6 +484,143 @@ export function SeedForm({ orgId }: { orgId: string }) {
                 })}
               </FieldDescription>
             </Field>
+
+            {/* Everything an author may set and almost never has to (D-751). `<details>` is
+                native, keyboard-operable and open to a browser's find-in-page, which is what a
+                disclosure holding a field a refusal can name has to be; it is opened above when
+                one of those fields is refused, so the summary's link never points inside a closed
+                box. */}
+            <details
+              ref={more}
+              className="border-line border-t pt-4 [&[open]_summary_svg]:rotate-180"
+            >
+              <summary
+                onClick={(event) => {
+                  // A refusal keeps it open: the press may not close a box holding an error.
+                  if (hasHiddenError) event.preventDefault()
+                }}
+                className="text-primary text-meta focus-visible:outline-focus inline-flex min-h-10 cursor-pointer list-none items-center gap-2 rounded-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-2 [&::-webkit-details-marker]:hidden"
+              >
+                <ChevronDownIcon aria-hidden="true" className="size-4 transition-transform" />
+                {t('packageNew.moreLabel')}
+              </summary>
+
+              <div className="flex flex-col gap-5 pt-4">
+                <p className="text-ink-muted text-body">{t('packageNew.moreHint')}</p>
+
+                <Controller
+                  control={control}
+                  name="conceptSet"
+                  render={({ field }) => (
+                    <ConceptField
+                      concepts={field.value}
+                      onChange={field.onChange}
+                      error={errors.conceptSet?.message}
+                    />
+                  )}
+                />
+
+                <Field data-invalid={errors.caseTitle ? 'true' : undefined}>
+                  <FieldLabel htmlFor="seed-case-title">
+                    {t('packageNew.caseTitleLabel')}
+                  </FieldLabel>
+                  <Input
+                    id="seed-case-title"
+                    autoComplete="off"
+                    aria-invalid={errors.caseTitle ? true : undefined}
+                    aria-describedby={
+                      errors.caseTitle ? 'seed-case-title-error' : 'seed-case-title-hint'
+                    }
+                    {...register('caseTitle')}
+                  />
+                  {errors.caseTitle ? (
+                    <FieldError id="seed-case-title-error">{errors.caseTitle.message}</FieldError>
+                  ) : (
+                    <FieldDescription id="seed-case-title-hint">
+                      {t('packageNew.caseTitleHint')}
+                    </FieldDescription>
+                  )}
+                </Field>
+
+                <Field data-invalid={errors.publisher ? 'true' : undefined}>
+                  <FieldLabel htmlFor="seed-publisher">{t('packageNew.publisherLabel')}</FieldLabel>
+                  <Input
+                    id="seed-publisher"
+                    autoComplete="off"
+                    aria-invalid={errors.publisher ? true : undefined}
+                    aria-describedby={errors.publisher ? 'seed-publisher-error' : undefined}
+                    {...register('publisher')}
+                  />
+                  <FieldError id="seed-publisher-error">{errors.publisher?.message}</FieldError>
+                </Field>
+
+                <Field data-invalid={errors.licenseTerms ? 'true' : undefined}>
+                  <FieldLabel htmlFor="seed-license-terms">
+                    {t('packageNew.licenseTermsLabel')}
+                  </FieldLabel>
+                  <Textarea
+                    id="seed-license-terms"
+                    rows={3}
+                    aria-invalid={errors.licenseTerms ? true : undefined}
+                    aria-describedby={
+                      errors.licenseTerms ? 'seed-license-terms-error' : 'seed-license-terms-hint'
+                    }
+                    {...register('licenseTerms')}
+                  />
+                  {errors.licenseTerms ? (
+                    <FieldError id="seed-license-terms-error">
+                      {errors.licenseTerms.message}
+                    </FieldError>
+                  ) : (
+                    <FieldDescription id="seed-license-terms-hint">
+                      {t('packageNew.licenseTermsHint')}
+                    </FieldDescription>
+                  )}
+                </Field>
+
+                {/* Base UI names the toggle from the label only after hydration, so the checkbox
+                    also points at the label by id (DESIGN.md §Inputs / Fields → Toggles). The
+                    error takes the description's place rather than sitting under it. */}
+                <Controller
+                  control={control}
+                  name="licensePermitsAdaptation"
+                  render={({ field }) => (
+                    <Field
+                      orientation="horizontal"
+                      data-invalid={errors.licensePermitsAdaptation ? 'true' : undefined}
+                    >
+                      <Checkbox
+                        id="seed-license"
+                        name={field.name}
+                        checked={field.value}
+                        aria-labelledby="seed-license-label"
+                        aria-invalid={errors.licensePermitsAdaptation ? true : undefined}
+                        aria-describedby={
+                          errors.licensePermitsAdaptation
+                            ? 'seed-license-error'
+                            : 'seed-license-hint'
+                        }
+                        onCheckedChange={(next: boolean) => field.onChange(next)}
+                      />
+                      <FieldContent>
+                        <FieldLabel id="seed-license-label" htmlFor="seed-license">
+                          {t('packageNew.licenseCheckboxLabel')}
+                        </FieldLabel>
+                        {errors.licensePermitsAdaptation ? (
+                          <FieldError id="seed-license-error">
+                            {errors.licensePermitsAdaptation.message}
+                          </FieldError>
+                        ) : (
+                          <FieldDescription id="seed-license-hint">
+                            {t('packageNew.licenseCheckboxHint')}
+                          </FieldDescription>
+                        )}
+                      </FieldContent>
+                    </Field>
+                  )}
+                />
+              </div>
+            </details>
           </div>
         </Panel>
 

@@ -16,7 +16,10 @@ import { t } from '@/lib/i18n/messages/label'
 
 export type LabelKind =
   | 'draft'
+  /** One element, decided by its author. */
   | 'confirmed'
+  /** One version, frozen and assignable — the status a package shelf and a version header read. */
+  | 'published'
   | 'uncalibrated'
   | 'walkthrough'
   | 'provisional'
@@ -50,6 +53,7 @@ const STYLES: Record<LabelKind, { icon: LucideIcon; className: string }> = {
   uncalibrated: { icon: FlaskConical, className: 'bg-amber-soft border-amber [&_svg]:text-amber' },
   sample: { icon: ScanSearch, className: 'bg-amber-soft border-amber [&_svg]:text-amber' },
   confirmed: { icon: BadgeCheck, className: 'bg-green-soft border-green [&_svg]:text-green' },
+  published: { icon: BadgeCheck, className: 'bg-green-soft border-green [&_svg]:text-green' },
   walkthrough: {
     icon: Footprints,
     className: 'bg-primary-soft border-primary [&_svg]:text-primary',
@@ -66,6 +70,7 @@ const STYLES: Record<LabelKind, { icon: LucideIcon; className: string }> = {
 const TEXT: Record<LabelKind, () => string> = {
   draft: () => t('label.draft'),
   confirmed: () => t('label.confirmed'),
+  published: () => t('label.published'),
   uncalibrated: () => t('label.uncalibrated'),
   walkthrough: () => t('label.walkthrough'),
   provisional: () => t('label.provisional'),

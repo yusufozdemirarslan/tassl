@@ -39,7 +39,13 @@ export function versionFrozen(): never {
   throw new AppError('VERSION_FROZEN')
 }
 
-/** Confirmation refused: these elements have no `confirmed` or `edited` decision yet (FR-192). */
+/**
+ * Publishing refused: these elements stand *rejected* (FR-192, D-752).
+ *
+ * An element nobody has decided on is confirmed by the publish itself; an element the author sent
+ * back is not, because they meant it. The code keeps its name — it is on the wire and in the
+ * OpenAPI document — and what it names is now the narrower of the two cases.
+ */
 export function elementsUnconfirmed(elements: readonly UnconfirmedElement[]): never {
   throw new AppError('ELEMENTS_UNCONFIRMED', undefined, { details: { elements } })
 }

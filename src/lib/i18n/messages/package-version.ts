@@ -7,7 +7,7 @@ export const packageVersion = {
   'packageVersion.backToPackages': 'All packages',
   'packageVersion.export': 'Export package JSON',
   'packageVersion.draftDescription':
-    'Version {version} is a draft. Its elements can still be edited, and no assignment can run on it until every one of them is confirmed.',
+    'Version {version} is a draft. Its elements can still be edited, and no assignment can run on it until it is published.',
   'packageVersion.confirmedDescription':
     'Version {version} was confirmed on {date} and is frozen. An assignment runs on exactly this text; changing anything means a new version.',
   'packageVersion.confirmedDescriptionNoDate':

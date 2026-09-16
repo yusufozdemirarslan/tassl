@@ -771,13 +771,19 @@ describe('importPackage with confirmOnImport', () => {
     expect(normalize(exported)).toEqual(normalize(document()))
   })
 
-  it('confirms nothing when the flag is absent', async () => {
+  it('confirms nothing when the flag is absent, and the publish is what confirms it', async () => {
     const imported = await scenarios.importPackage(fx.author, fx.orgId, document())
     const view = await scenarios.getPackageVersion(fx.author, imported.versionId)
     expect(view.confirmationRecord).toEqual([])
-    await expect(
-      scenarios.confirmVersion(fx.author, imported.versionId, { teachingNoteChecked: true }),
-    ).rejects.toMatchObject({ code: 'ELEMENTS_UNCONFIRMED' })
+
+    // The flag is what signs for the elements *at import*; without it the author reads the version
+    // and publishes it, and the publish files a confirmation for everything they left alone
+    // (D-752). What the flag still buys is a package that arrives already signed for.
+    const published = await scenarios.confirmVersion(fx.author, imported.versionId, {
+      teachingNoteChecked: true,
+    })
+    expect(published.status).toBe('confirmed')
+    expect(published.confirmationRecord.length).toBeGreaterThan(0)
   })
 
   /**

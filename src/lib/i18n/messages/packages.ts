@@ -25,7 +25,7 @@ export const packages = {
   'packages.calibrated': 'Calibrated',
   'packages.warningsNone': 'No warnings',
   'packages.showMore': 'Show more packages',
-  'packages.newPackage': 'New package from a seed case',
+  'packages.newPackage': 'New package',
   'packages.emptyTitle': 'No packages yet',
   'packages.emptyBody':
     'A scenario package holds one decision case: the brief, the documents, the claims the assistant states, and the questions a student answers afterwards. Start one from a seed case you hold the rights to adapt, then confirm every element to freeze a version an assignment can run on.',

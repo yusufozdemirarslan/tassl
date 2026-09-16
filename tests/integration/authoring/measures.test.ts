@@ -110,9 +110,12 @@ describe('computeAuthoringMeasures', () => {
     expect(measures.editRate).toBeCloseTo(EDITED_KEYS.length / elementCount, 6)
     expect(measures.rejectedShare).toBeCloseTo(1 / elementCount, 6)
 
-    // Eight runs across the seven steps, because the documents step needed a second pass.
-    expect(measures.generationPasses).toBe(8)
-    expect(measures.generationMaxPass).toBe(2)
+    // Seven runs across the seven steps. The fixture still forces the documents step to answer
+    // with a room no stakeholder owns a document in; since D-750 that is not a failed pass but a
+    // gap the completion fills inside the same transaction, so the step succeeds first time and
+    // there is no second pass to count.
+    expect(measures.generationPasses).toBe(7)
+    expect(measures.generationMaxPass).toBe(1)
 
     // The review time is the span the browser reported, averaged. The three edits record a span of
     // zero — an edit is the instant it was made (07 §6 has no `openedAt` on a PATCH) — so the mean
@@ -150,7 +153,7 @@ describe('computeAuthoringMeasures', () => {
       generationPasses: measures.generationPasses,
       reviewMsPerElement: measures.reviewMsPerElement,
     })
-    expect(confirmed.authoringRecord.runs).toHaveLength(8)
-    expect(confirmed.authoringRecord.runs.filter((run) => run.status === 'failed')).toHaveLength(1)
+    expect(confirmed.authoringRecord.runs).toHaveLength(7)
+    expect(confirmed.authoringRecord.runs.filter((run) => run.status === 'failed')).toHaveLength(0)
   }, 60_000)
 })

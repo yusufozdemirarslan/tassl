@@ -192,8 +192,6 @@ export default async function ConfirmPage({ params, searchParams }: ConfirmPageP
     versionId,
     version: version.version,
     frozen,
-    teachingNoteChecked: version.teachingNoteChecked,
-    validation: version.validation,
     canEdit: version.capabilities.canEdit,
     canConfirm: version.capabilities.canConfirm,
     canRegenerate: version.capabilities.canRegenerate,

@@ -85,7 +85,7 @@ const WARNINGS: Record<PackageWarningValue, { label: () => string; help: () => s
  */
 function StatusChip({ status }: { status: PackageStatusValue }) {
   if (status === 'draft') return <LabelChip kind="draft" />
-  if (status === 'confirmed') return <LabelChip kind="confirmed" />
+  if (status === 'confirmed') return <LabelChip kind="published" />
   return <Badge variant="secondary">{t('packages.statusRetired')}</Badge>
 }
 
@@ -244,16 +244,17 @@ function RuleFailures({ failures }: { failures: readonly ValidationFailure[] }) 
       <div className="flex min-w-0 flex-1 flex-col gap-3">
         <p>{t('packageVersion.rulesFailing', { count: failures.length })}</p>
         <ul className="text-meta flex flex-col gap-2">
+          {/* The sentence and the elements it names, never the rule's code (D-750): a code is this
+              repository's vocabulary and it only ever restated the sentence in a language the
+              author does not read. */}
           {failures.map((failure) => (
             <li key={failure.code} className="flex flex-col gap-0.5">
               <span className="text-ink">{failure.message}</span>
-              <span className="text-ink text-mono-sm font-mono break-words">
-                {failure.elementIds.length === 0
-                  ? failure.code
-                  : `${failure.code} · ${t('packageVersion.ruleElements', {
-                      keys: elementKeysOf(failure).join(', '),
-                    })}`}
-              </span>
+              {failure.elementIds.length > 0 && (
+                <span className="text-ink text-mono-sm font-mono break-words">
+                  {t('packageVersion.ruleElements', { keys: elementKeysOf(failure).join(', ') })}
+                </span>
+              )}
             </li>
           ))}
         </ul>

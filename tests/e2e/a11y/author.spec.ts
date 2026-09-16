@@ -41,27 +41,27 @@ test('the Phase 5 authoring screens have no axe violations', async ({ page }) =>
     'Packages',
   )
 
-  // UI-041, the seed form in the state an author is in halfway through it: a title, the key derived
-  // from it, four concept chips, and the fields that are still empty saying so. Nothing is
-  // submitted, so the refusals are the browser's own and no package is written.
+  // UI-041, the seed form in a refused state: the disclosure open with three concepts in it, which
+  // is four or none (D-751). Nothing is submitted successfully, so the refusals are the browser's
+  // own and no package is written.
   await page.goto('/packages/new')
-  await expect(
-    page.getByRole('heading', { level: 1, name: 'New package from a seed case' }),
-  ).toBeVisible()
+  await expect(page.getByRole('heading', { level: 1, name: 'New package' })).toBeVisible()
   await page.getByLabel('Title', { exact: true }).fill('Harbourline Grocers')
   await expect(page.getByLabel('Family key')).toHaveValue('harbourline-grocers')
-  await page.getByLabel('Concepts').fill(CONCEPTS)
+  await page.getByText('Concepts and licensing', { exact: true }).click()
+  await page.getByLabel('Concepts').fill(CONCEPTS.split(', ').slice(0, 3).join(', '))
   await page.getByRole('button', { name: 'Add', exact: true }).click()
-  await expect(page.getByText('4 added. Four is the minimum.')).toBeVisible()
-  await page.getByRole('button', { name: 'Create the package' }).click()
+  await expect(page.getByText('3 added. Add four or more, or leave this empty.')).toBeVisible()
+  await page.getByRole('button', { name: 'Create without generating' }).click()
   // A refusal is said twice on purpose: once in the summary at the top of the form, where it is a
   // link to the field, and once under the field itself. The scan below covers both.
   const summary = page.getByRole('alert')
   await expect(
-    summary.getByRole('link', { name: 'Name the case this package is adapted from.' }),
+    summary.getByRole('link', { name: 'Add at least four concepts, or remove them all.' }),
   ).toBeVisible()
-  await expect(page.getByText('Name the case this package is adapted from.').first()).toBeVisible()
-  await expect(page.getByText('Paste at least 200 characters of the case.').first()).toBeVisible()
+  await expect(
+    page.getByText('Add at least four concepts, or remove them all.').first(),
+  ).toBeVisible()
   await axe(page)
 
   // UI-044, a confirmed version: the element-by-element record, the authoring record and the case

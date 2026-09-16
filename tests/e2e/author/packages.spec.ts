@@ -7,7 +7,7 @@
 // have checked it by.
 //
 // "Create the package" is the control this spec presses: the package it makes holds nothing, which
-// is what the version view below has to say honestly. Its sibling "Create and generate" starts the
+// is what the version view below has to say honestly. Its sibling "Generate" starts the
 // seven generation steps and is the subject of ./generate-and-confirm.spec.ts; here it is only
 // asserted to be present, able to act, and honest about what it does.
 //
@@ -135,31 +135,36 @@ test('a scenario editor starts a package from a seed case, imports one whole, an
   await expect(
     seededRow.getByRole('link', { name: 'Open Meridian Roast (fixture), version 1' }),
   ).toBeVisible()
-  await expect(seededRow.getByRole('cell').nth(3)).toHaveText('Confirmed')
+  await expect(seededRow.getByRole('cell').nth(3)).toHaveText('Published')
   await expect(seededRow.getByRole('cell').nth(4)).toHaveText('Uncalibrated')
 
   // ------------------------------------------------------------------------------------------
   // UI-041: a package from a seed case, without generation
   // ------------------------------------------------------------------------------------------
 
-  await page.getByRole('link', { name: 'New package from a seed case' }).click()
+  await page.getByRole('link', { name: 'New package', exact: true }).click()
   await page.waitForURL('**/packages/new')
-  await expect(
-    page.getByRole('heading', { level: 1, name: 'New package from a seed case' }),
-  ).toBeVisible()
+  await expect(page.getByRole('heading', { level: 1, name: 'New package' })).toBeVisible()
 
   const familyKey = page.getByLabel('Family key')
-  await expect(page.getByText('None yet. Four is the minimum.')).toBeVisible()
 
   // The key follows the title until it is touched, so an author who never opens that field still
   // gets one that travels with every export.
   await page.getByLabel('Title', { exact: true }).fill(seedTitle)
   await expect(familyKey).toHaveValue(seedFamilyKey)
 
+  await page.getByLabel('Scenario text').fill(SEED_TEXT)
+  await expect(page.getByText(`${SEED_TEXT.length} of 200,000 characters`)).toBeVisible()
+
+  // The concepts and the licence record are optional and behind one disclosure (D-751). This
+  // package adapts a named case, so both are filled.
+  await page.getByText('Concepts and licensing', { exact: true }).click()
+  await expect(page.getByText('None yet. Add four or more, or leave this empty.')).toBeVisible()
+
   // One field, four concepts: a pasted list separated by commas becomes one chip each.
   await page.getByLabel('Concepts').fill(CONCEPTS.join(', '))
   await page.getByRole('button', { name: 'Add', exact: true }).click()
-  await expect(page.getByText('4 added. Four is the minimum.')).toBeVisible()
+  await expect(page.getByText('4 added. Add four or more, or leave this empty.')).toBeVisible()
   for (const concept of CONCEPTS) {
     await expect(page.getByRole('button', { name: `Remove ${concept}` })).toBeVisible()
   }
@@ -167,33 +172,29 @@ test('a scenario editor starts a package from a seed case, imports one whole, an
   await page.getByLabel('Case title').fill(CASE_TITLE)
   await page.getByLabel('Publisher').fill(PUBLISHER)
   await page.getByLabel('License terms').fill(LICENSE_TERMS)
-  await page.getByLabel('Seed case text').fill(SEED_TEXT)
-  await expect(page.getByText(`${SEED_TEXT.length} of 200,000 characters`)).toBeVisible()
 
   const license = page.getByRole('checkbox', { name: 'The license permits adaptation' })
   await license.check()
   await expect(license).toBeChecked()
 
-  // Both controls are live from step 12.3. This spec presses the one that creates a package and
-  // nothing else; the other — "Create and generate", which starts the seven steps and lands on the
-  // progress screen — is the whole subject of ./generate-and-confirm.spec.ts. What is asserted here
-  // is that it is present, able to act, and says what it does before it is pressed (UI-041).
-  const generate = page.getByRole('button', { name: 'Create and generate' })
+  // Both controls are live. This spec presses the one that creates a package and nothing else; the
+  // other — "Generate", which starts the seven steps and lands on the progress screen — is the whole
+  // subject of ./generate-and-confirm.spec.ts. What is asserted here is that it is present, able to
+  // act, and says what it does before it is pressed (UI-041).
+  const generate = page.getByRole('button', { name: 'Generate', exact: true })
   await expect(generate).not.toHaveAttribute('aria-disabled', 'true')
   await expect(
-    page.getByText(
-      'Create and generate writes the package and then drafts its elements from the seed case in seven steps',
-    ),
+    page.getByText('Generate writes the package and drafts every element it needs'),
   ).toBeVisible()
 
-  await page.getByRole('button', { name: 'Create the package' }).click()
+  await page.getByRole('button', { name: 'Create without generating' }).click()
   await expect(page.getByText(`Created ${seedTitle}.`)).toBeVisible()
   await expect(
     page.getByRole('heading', { level: 2, name: `${seedTitle} is on the shelf` }),
   ).toBeVisible()
   await expect(
     page.getByText(
-      'Version 1 is a draft and holds nothing yet. Draft its elements from the seed case, write them in the confirmation workspace, or bring in a package export. An assignment can only run on a version once every element is confirmed.',
+      'Version 1 is a draft and holds nothing yet. Draft its elements, write them in the review workspace, or bring in a package export. An assignment can only run on a version once it is published.',
     ),
   ).toBeVisible()
 
@@ -206,7 +207,7 @@ test('a scenario editor starts a package from a seed case, imports one whole, an
   await expect(page.getByRole('heading', { level: 1, name: seedTitle })).toBeVisible()
   await expect(
     page.getByText(
-      'Version 1 is a draft. Its elements can still be edited, and no assignment can run on it until every one of them is confirmed.',
+      'Version 1 is a draft. Its elements can still be edited, and no assignment can run on it until it is published.',
     ),
   ).toBeVisible()
 
@@ -266,7 +267,7 @@ test('a scenario editor starts a package from a seed case, imports one whole, an
   const exported = readFileSync(FIXTURE_PATH, 'utf8')
   const document = JSON.parse(exported) as PackageExportDocument
 
-  await page.getByRole('link', { name: 'New package from a seed case' }).click()
+  await page.getByRole('link', { name: 'New package', exact: true }).click()
   await page.waitForURL('**/packages/new')
   const dialog = await openDialog(page, 'Import a package export', 'Import a package export')
   const pasted = dialog.getByLabel('Package JSON')

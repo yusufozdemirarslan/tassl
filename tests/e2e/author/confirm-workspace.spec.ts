@@ -1,27 +1,28 @@
-// Step 5.5, UI-043 (FR-192, FR-027, FR-198): the room where an author signs a scenario package
-// element by element, and the two refusals and one freeze that make the signature mean something.
+// Step 5.5, UI-043 (FR-192, FR-027, FR-198; D-752): the room where an author reads a scenario
+// package, and the refusal and the freeze that make publishing it mean something.
 //
-// One journey, because confirmation is one sitting: a package arrives, every element is read and
-// decided, the teaching note is ticked, and the version is frozen for good. The three states the
-// service answers by name are all on the way through it rather than staged apart —
+// One journey, because a review is one sitting: a package arrives, elements are read, edited and
+// rejected, and one press publishes it. The two states the service answers by name are on the way
+// through it rather than staged apart —
 //
-//   `ELEMENTS_UNCONFIRMED`   pressed with ninety-three elements still undecided,
-//   `TEACHING_NOTE_UNCHECKED` pressed with every one of them decided and the check untouched,
-//   `VERSION_FROZEN`          asked for an edit after the confirmation.
+//   `ELEMENTS_UNCONFIRMED`  pressed while an element the author *rejected* is still waiting,
+//   `VERSION_FROZEN`        asked for an edit after the publish.
 //
 // — and the last is asked of the API rather than the screen, because a frozen screen offers no
 // control to press: `PATCH .../elements/brief/…` is the exchange the editor would have made, and a
 // 409 is the only honest proof that the freeze is the service's and not the page's.
 //
+// What this spec no longer does is press Confirm ninety-three times. D-752 made the publish itself
+// the confirmation of every element nobody decided on, with the attestation stated in the dialog
+// that stands for it — so what is proved here is the *distinction* the press keeps: an element left
+// alone is swept up, an element rejected is not, and an element edited carries the decision its
+// edit already made.
+//
 // The package is the Meridian Roast fixture imported under a family key of this run's own. It is
 // the quickest complete package there is — importing it is the same exchange the import dialog
 // makes, and that dialog is proven in ./packages.spec.ts, so this spec calls the endpoint and
 // spends its time on the workspace instead. `confirmOnImport` is deliberately not sent: an import
-// that signed its own elements would leave nothing here to confirm.
-//
-// Ninety-three elements is not a number this spec invents; it is what `elementUnits` makes of the
-// document, computed below from the document itself, and it is why the timeout is raised: each
-// decision is a server action that revalidates the page it was made on.
+// that signed its own elements would leave nothing here to read.
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type { Page } from '@playwright/test'
@@ -110,14 +111,14 @@ async function importFixture(page: Page, title: string): Promise<ImportedPackage
 
 const NEW_TITLE = 'Quarterly acquisition cohort table (rechecked)'
 
-test('a scenario editor confirms every element of a package and freezes the version', async ({
+test('a scenario editor reads a package, rejects one element, and publishes the version', async ({
   page,
 }) => {
-  // Ninety-three decisions, each one a server action that revalidates the page it was made on.
-  // The assertions are unchanged; only the patience (D-188).
+  // Each decision is a server action that revalidates the page it was made on. The assertions are
+  // unchanged; only the patience (D-188).
   test.setTimeout(300_000)
 
-  // The three outcomes of "Confirm and freeze" get a stated wait of their own (D-730).
+  // The outcomes of "Confirm and publish" get a stated wait of their own (D-730).
   //
   // `confirmVersion` reads the whole version and every confirmation before it can say which of the
   // three answers is the true one, and on the way through it validates the package and builds the
@@ -145,9 +146,9 @@ test('a scenario editor confirms every element of a package and freezes the vers
   await expect(page.getByRole('heading', { level: 1, name: title })).toBeVisible()
   await expect(
     page.getByText(
-      'Read each element, edit what needs it, and record a decision. When every element has a ' +
-        'decision, the teaching-note check is ticked and the package rules pass, version 1 can be ' +
-        'confirmed — and is then frozen for good.',
+      'Read what was drafted, edit what needs it, and reject anything that has to be written ' +
+        'again. Publishing version 1 confirms everything you have not already decided on, makes ' +
+        'it assignable, and freezes it for good.',
     ),
   ).toBeVisible()
 
@@ -155,8 +156,9 @@ test('a scenario editor confirms every element of a package and freezes the vers
   await expect(page.getByRole('heading', { level: 2, name: 'Confirming version 1' })).toBeVisible()
   await expect(progress).toHaveText(`0 of ${String(total)} confirmed`)
   await expect(page.getByText(`${String(total)} left to decide`)).toBeVisible()
-  // The import met every rule, so the workspace has nothing to say about the package itself.
+  // Rules are a server-side guarantee and their codes are not this screen's vocabulary (D-750).
   await expect(page.getByText('Rules this package does not meet yet')).toHaveCount(0)
+  expect((await page.locator('body').innerText()).toUpperCase()).not.toContain('PACKAGE_INVALID')
 
   // The tree is the roster of what has to be decided, group by group, each saying how far it has
   // got. The brief is the first undecided element, so the editor opens on it.
@@ -168,24 +170,41 @@ test('a scenario editor confirms every element of a package and freezes the vers
   await expect(page.getByRole('heading', { level: 2, name: 'Brief' })).toBeVisible()
 
   // ------------------------------------------------------------------------------------------
-  // FR-192: the version cannot be confirmed while an element is undecided
+  // FR-192, D-752: an element the author rejected keeps the version from being published
   // ------------------------------------------------------------------------------------------
 
-  const confirmVersion = page.getByRole('button', { name: 'Confirm version' })
+  if ((await documents.getAttribute('aria-expanded')) === 'false') await documents.click()
+  const openD5 = tree.getByRole('treeitem', { name: /\bD5\b/ }).first()
+  await openD5.click()
+  await expect(page.getByRole('heading', { level: 2, name: 'Document · D5' })).toBeVisible()
+  await page.getByRole('button', { name: 'Reject', exact: true }).click()
+  await page
+    .getByLabel('Why this element is rejected')
+    .fill('The table is a quarterly cohort read; it should say which quarter.')
+  await page.getByRole('button', { name: 'Reject element' }).click()
+  await expect(page.getByText('D5 rejected.')).toBeVisible()
+
+  const confirmVersion = page.getByRole('button', { name: 'Confirm and publish' })
   await confirmVersion.click()
 
-  // The dialog says what is about to be signed before it is signed, and its counts are the ones the
-  // screen is showing: nothing is decided yet, and the rules cannot pass on an untouched draft.
+  // The dialog says what is about to be signed before it is signed: how many elements have a
+  // decision, how many were rejected, and what the press itself attests to.
   const confirmDialog = page.getByRole('alertdialog')
-  await expect(confirmDialog).toContainText('Confirm version 1?')
+  await expect(confirmDialog).toContainText('Publish version 1?')
+  // A rejection is not a decision the progress counts: it is work sent back.
   await expect(confirmDialog).toContainText(`0 of ${String(total)} decided`)
-  await expect(confirmDialog).toContainText('Not checked yet')
-  await confirmDialog.getByRole('button', { name: 'Confirm and freeze' }).click()
+  await expect(confirmDialog).toContainText('1 of them')
+  await expect(confirmDialog).toContainText(
+    'Every element you have not already decided on is confirmed as read by this press',
+  )
+  await confirmDialog.getByRole('button', { name: 'Confirm and publish' }).click()
 
   await expect(
-    page.getByText('Every element needs a decision before the version can be confirmed.'),
+    page.getByText('An element you rejected is still waiting to be re-read.'),
   ).toBeVisible({ timeout: CONFIRM_ANSWER_MS })
-  await expect(page.getByRole('heading', { level: 3, name: 'Waiting on a decision' })).toBeVisible()
+  await expect(
+    page.getByRole('heading', { level: 3, name: 'Rejected and waiting to be re-read' }),
+  ).toBeVisible()
   // The refusal names every element it is refusing for, and each name is the way to that element.
   const waitingForD5 = page.getByRole('button', { name: 'D5', exact: true })
   await expect(waitingForD5).toBeVisible()
@@ -199,6 +218,8 @@ test('a scenario editor confirms every element of a package and freezes the vers
   // An edit is a decision (10 §4): saving one records `edited` against the element
   // ------------------------------------------------------------------------------------------
 
+  // The rejection is answered by re-reading the element and editing it: an edit *is* a decision
+  // (10 §4), so saving one lifts the refusal without a separate press.
   await waitingForD5.click()
   await expect(page.getByRole('heading', { level: 2, name: 'Document · D5' })).toBeVisible()
 
@@ -211,62 +232,29 @@ test('a scenario editor confirms every element of a package and freezes the vers
   // under the key it is filed by — and the package has changed, so the refusal the last press
   // earned is no longer what it would be refused for.
   await expect(tree.getByRole('treeitem', { name: `${NEW_TITLE} D5` })).toBeVisible()
-  await expect(page.getByRole('heading', { level: 3, name: 'Waiting on a decision' })).toHaveCount(
-    0,
-  )
+  await expect(
+    page.getByRole('heading', { level: 3, name: 'Rejected and waiting to be re-read' }),
+  ).toHaveCount(0)
 
   // ------------------------------------------------------------------------------------------
-  // Every remaining element, one decision at a time
+  // One element read on purpose, and then the one press that publishes the rest (D-752)
   // ------------------------------------------------------------------------------------------
 
-  const confirmElement = page.getByRole('button', { name: 'Confirm', exact: true })
   const nextUndecided = page.getByRole('button', { name: 'Next undecided element' })
-
-  // A decision moves to the next element still waiting, so the loop is one press per element: the
-  // author signs sixty-odd of these in a sitting, and returning to the tree between each one was
-  // the difference between a review and a chore. The header button is the way back into the queue
-  // after wandering off it, which is why it is pressed once here and asserted gone at the end.
   await nextUndecided.click()
-  for (let decided = 2; decided <= total; decided += 1) {
-    await confirmElement.click()
-    await expect(progress).toHaveText(`${String(decided)} of ${String(total)} confirmed`)
-  }
+  await page.getByRole('button', { name: 'Confirm', exact: true }).click()
+  await expect(progress).toHaveText(`2 of ${String(total)} confirmed`)
 
-  await expect(page.getByText('Every element has a decision.')).toBeVisible()
-  await expect(nextUndecided).toHaveCount(0)
-  await expect(documents).toContainText('9 of 9')
-
-  // ------------------------------------------------------------------------------------------
-  // FR-027: and not while the teaching-note check is untouched
-  // ------------------------------------------------------------------------------------------
-
-  const teachingNote = page.getByRole('checkbox', {
-    name: 'Teaching note checked against the answer space and claims',
-  })
-  await expect(teachingNote).not.toBeChecked()
   await confirmVersion.click()
-  // Every element is decided now, and the dialog says so — and says the one thing still missing.
-  await expect(confirmDialog).toContainText(`${String(total)} of ${String(total)} decided`)
-  await expect(confirmDialog).toContainText('Not checked yet')
-  await confirmDialog.getByRole('button', { name: 'Confirm and freeze' }).click()
-  await expect(page.getByText('Confirm you have read the teaching note first.')).toBeVisible({
-    timeout: CONFIRM_ANSWER_MS,
-  })
-  // The refusal is about one control, so the refusal puts the author on it.
-  await expect(teachingNote).toBeFocused()
-
-  // ------------------------------------------------------------------------------------------
-  // The confirmation, and the freeze it is
-  // ------------------------------------------------------------------------------------------
-
-  await teachingNote.check()
-  await confirmVersion.click()
-  // The last reading before the version is frozen: everything decided, the note checked, the rules
-  // met. This is the press the screen calls irreversible, and it is asked for twice on purpose.
-  await expect(confirmDialog).toContainText('Checked against the answer space and the claims')
-  await expect(confirmDialog).toContainText('All met')
-  await confirmDialog.getByRole('button', { name: 'Confirm and freeze' }).click()
-  await expect(page.getByText('Version 1 is confirmed and frozen.')).toBeVisible({
+  // The last reading before the version is frozen: what has been decided, and what this press
+  // stands for. It is the press the screen calls irreversible, and it is asked for twice on
+  // purpose.
+  await expect(confirmDialog).toContainText(`2 of ${String(total)} decided`)
+  await expect(confirmDialog).toContainText(
+    'Every element you have not already decided on is confirmed as read by this press',
+  )
+  await confirmDialog.getByRole('button', { name: 'Confirm and publish' }).click()
+  await expect(page.getByText('Version 1 is published.')).toBeVisible({
     timeout: CONFIRM_ANSWER_MS,
   })
 

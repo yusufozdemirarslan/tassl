@@ -856,10 +856,12 @@ export async function createAssignment(
         ...(input.runType === undefined ? {} : { runType: input.runType }),
         packageVersionId: input.packageVersionId,
         variantId: input.variantId,
-        ...(input.workingClockSeconds === undefined
+        // Null and absent are the same answer — "follow the package", "follow the course" — and
+        // both leave the column at its default rather than writing the string "null" into it.
+        ...(input.workingClockSeconds == null
           ? {}
           : { workingClockSeconds: input.workingClockSeconds }),
-        ...(input.weight === undefined ? {} : { weight: String(input.weight) }),
+        ...(input.weight == null ? {} : { weight: String(input.weight) }),
         ...(input.isWalkthrough === undefined ? {} : { isWalkthrough: input.isWalkthrough }),
         ...(input.opensAt === undefined || input.opensAt === null
           ? {}

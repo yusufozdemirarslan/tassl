@@ -169,7 +169,8 @@ export const DEFAULT_MESSAGES: Record<ErrorCode, string> = {
   MEMBER_HAS_RUNS: 'This person has runs in the section, so they cannot be removed.',
   NOT_SECTION_MEMBER: 'That address does not belong to this institution yet.',
   VERSION_FROZEN: 'This version is confirmed, so it can no longer be changed.',
-  ELEMENTS_UNCONFIRMED: 'Every element needs a decision before the version can be confirmed.',
+  ELEMENTS_UNCONFIRMED:
+    'An element you rejected is still waiting to be re-read. Open it, read the draft that replaced it, and confirm it.',
   TEACHING_NOTE_UNCHECKED: 'Confirm you have read the teaching note first.',
   PACKAGE_INVALID: 'This package does not yet meet the scenario rules.',
   LICENSE_NOT_CONFIRMED:

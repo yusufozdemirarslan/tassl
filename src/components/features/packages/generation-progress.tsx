@@ -388,13 +388,17 @@ export function GenerationProgress(props: GenerationProgressProps) {
           {failures.map((failure) => (
             <li key={failure.code} className="flex flex-col items-start gap-2">
               <p className="text-ink text-body max-w-measure">{failure.message}</p>
-              <p className="text-ink-muted text-mono-sm font-mono break-words">
-                {failure.elements.length === 0
-                  ? failure.code
-                  : `${failure.code} · ${t('generation.ruleElements', {
-                      keys: failure.elements.map((element) => element.key).join(', '),
-                    })}`}
-              </p>
+              {/* The sentence, and the elements it names — never the rule's code. A code is this
+                  repository's vocabulary for a rule; the author's is the sentence, and the code
+                  beside it only ever said the same thing twice in a language they do not read
+                  (D-750). The elements stay, because they are where the fix is made. */}
+              {failure.elements.length > 0 && (
+                <p className="text-ink-muted text-mono-sm font-mono break-words">
+                  {t('generation.ruleElements', {
+                    keys: failure.elements.map((element) => element.key).join(', '),
+                  })}
+                </p>
+              )}
               {failure.elements.length > 0 && (
                 <ul className="flex flex-wrap gap-2">
                   {failure.elements.map((element) => (
@@ -517,9 +521,8 @@ export function GenerationProgress(props: GenerationProgressProps) {
                       <Refusal title={t('generation.stepRulesTitle')}>
                         <ul className="flex flex-col gap-2">
                           {rules.map((code) => (
-                            <li key={code} className="flex flex-col gap-0.5">
+                            <li key={code}>
                               <span>{ruleText[code] ?? t('generation.ruleSettled')}</span>
-                              <span className="text-mono-sm font-mono break-words">{code}</span>
                             </li>
                           ))}
                         </ul>
