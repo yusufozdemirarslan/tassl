@@ -154,8 +154,8 @@ async function signIn(page: Page, email: string): Promise<void> {
     await page.getByRole('menuitem', { name: 'Sign out' }).click()
     await page.waitForURL(/\/sign-in/, { timeout: ACTION_MS })
   }
-  await page.getByLabel('Email address').fill(email)
-  await page.getByLabel('Password').fill(PASSWORD)
+  await type(page, page.getByLabel('Email address'), email)
+  await type(page, page.getByLabel('Password'), PASSWORD)
   // Not pressed until React owns the box: the live character count on a field is the component's
   // own state, so waiting for the form to be interactive is what makes the press a submit the
   // component handles rather than the browser's native one (the trap D-182 found in WebKit).
@@ -172,6 +172,24 @@ async function signOut(page: Page): Promise<void> {
   await account.click()
   await page.getByRole('menuitem', { name: 'Sign out' }).click()
   await page.waitForURL(/\/(sign-in)?$/, { timeout: ACTION_MS }).catch(() => undefined)
+}
+
+/**
+ * A field typed the way a person types one: after the page is theirs to type into.
+ *
+ * A `fill` that lands before React has hydrated sets the DOM value and then loses it — the
+ * component mounts with its own empty default over the top — so what reaches the server is an empty
+ * form and a refusal that names a field the screen is showing filled. Observed on production: a
+ * title and a family key typed one second after first paint, both gone by the time Generate was
+ * pressed. So the value is written and then read back, and written again if it did not stick.
+ */
+async function type(page: Page, field: ReturnType<Page['locator']>, value: string): Promise<void> {
+  for (let attempt = 0; attempt < 10; attempt += 1) {
+    await field.fill(value)
+    if ((await field.inputValue()) === value) return
+    await page.waitForTimeout(500)
+  }
+  fail('typing', `the field would not hold "${value.slice(0, 60)}"`)
 }
 
 const rail = (page: Page, name: string) =>
@@ -192,13 +210,13 @@ async function authorThePackage(page: Page): Promise<string> {
   await page.getByRole('heading', { level: 1, name: 'New package' }).waitFor({ timeout: ACTION_MS })
   await assertNoErrorOnScreen(page, '/packages/new')
 
-  await page.getByLabel('Title', { exact: true }).fill(title)
+  await type(page, page.getByLabel('Title', { exact: true }), title)
   const key = page.getByLabel('Family key')
-  if ((await key.inputValue()) !== familyKey) await key.fill(familyKey)
+  if ((await key.inputValue()) !== familyKey) await type(page, key, familyKey)
 
   if (!titleOnly) {
     const scenario = readFileSync(SCENARIO_PATH, 'utf8')
-    await page.getByLabel('Scenario text').fill(scenario)
+    await type(page, page.getByLabel('Scenario text'), scenario)
     step(`pasted ${String(scenario.length)} characters of docs/qa/test-scenario.md`)
   } else {
     step('left the scenario text empty: the title and the family key are the whole form')
