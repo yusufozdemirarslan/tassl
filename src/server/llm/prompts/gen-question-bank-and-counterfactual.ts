@@ -28,9 +28,6 @@ import { stripMarkup } from '@/lib/words'
 import { definePrompt } from '@/server/llm/prompts/define-prompt'
 import {
   GEN_COUNTERFACTUAL_SENTENCE_COUNT,
-  GEN_DEFAULT_QUESTIONS_MIN,
-  GEN_FIGURE_PLACEHOLDER,
-  GEN_FRAME_ASSUMPTION_INDEXES,
   GEN_QUESTION_KINDS,
   GEN_QUESTION_PLACEHOLDERS,
   cappedUntrustedText,
@@ -103,7 +100,13 @@ export const QuestionBankOutputSchema = z
       issue('questions', 'Two questions share the same key.')
     }
 
-    const missing: string[] = []
+    // What this schema still insists on is what only a reader of *this* package can write: a
+    // question about one of its claims has to name that claim. The rest of the bank — the three
+    // frame assumptions, confidence, frame-versus-response, the counterfactual question, the
+    // figure-provenance question and the six defaults — is package-independent by construction, and
+    // `completePackage` writes any of them the model leaves out (D-750). Asking for all twenty-nine
+    // was asking for eight thousand tokens of output the step could not produce inside its own
+    // timeout, and the shape is a guarantee now rather than a request.
     for (const kind of ['provenance', 'verification'] as const) {
       const unattached = ofKind(kind).filter((question) => question.claimKey === null)
       if (unattached.length > 0) {
@@ -112,36 +115,6 @@ export const QuestionBankOutputSchema = z
           `A ${kind} question names no claim; each is asked about one claim the run surfaced.`,
         )
       }
-    }
-    const missingAssumptions = GEN_FRAME_ASSUMPTION_INDEXES.filter(
-      (index) => !ofKind('assumption').some((question) => question.assumptionIndex === index),
-    )
-    if (missingAssumptions.length > 0) {
-      missing.push(
-        `an assumption question for frame assumption ${missingAssumptions.join(' and ')}`,
-      )
-    }
-    if (ofKind('confidence').length === 0) missing.push('a confidence question')
-    if (ofKind('frame_vs_response').length === 0) missing.push('a frame-versus-response question')
-    if (ofKind('counterfactual').length === 0) missing.push('a counterfactual question')
-
-    const figureProvenance = ofKind('figure_provenance').filter(
-      (question) =>
-        question.claimKey === null && question.template.includes(GEN_FIGURE_PLACEHOLDER),
-    )
-    if (figureProvenance.length === 0) {
-      missing.push(
-        `a figure-provenance question carrying a ${GEN_FIGURE_PLACEHOLDER} placeholder and naming no claim`,
-      )
-    }
-    const defaults = questions.filter((question) => question.isDefault)
-    if (defaults.length < GEN_DEFAULT_QUESTIONS_MIN) {
-      missing.push(
-        `${GEN_DEFAULT_QUESTIONS_MIN - defaults.length} more default questions (${defaults.length} of ${GEN_DEFAULT_QUESTIONS_MIN})`,
-      )
-    }
-    if (missing.length > 0) {
-      issue('questions', `The defense question bank is missing ${missing.join(', ')}.`)
     }
 
     // D-369: nothing fills a name the renderer does not know, so it reaches the student as braces.
@@ -174,12 +147,9 @@ const TASK = `THIS STEP
 Write the defense question bank and the debrief counterfactual.
 
 THE BANK
-A student answers six to nine of these at the end of the run, with the assistant gone and the documents closed. Selection is automatic and conditional, so the bank has to cover every shape a run can take.
-- One \`provenance\` and one \`verification\` question for every claim, each naming its claim. Provenance asks where the claim came from and how old it is; verification asks what made the stance they took the right call.
-- One \`assumption\` question for each of the frame's three assumptions, with \`assumptionIndex\` 0, 1 and 2.
-- One \`confidence\` question, one \`frame_vs_response\` question, and one \`counterfactual\` question.
-- One \`figure_provenance\` question that names no claim and carries the placeholder {figure}: it is asked when a student typed a number into the Decision Brief that matches nothing in the room.
-- At least six \`default\` questions with \`isDefault\` set, answerable by any run at all, so a run that surfaced almost nothing still has a defense to give.
+A student answers six to nine of these at the end of the run, with the assistant gone and the documents closed. Write the questions only a reader of this package can write; the generic half of the bank is filled in for you and you do not have to produce it.
+- One \`provenance\` and one \`verification\` question for every claim, each naming its claim in \`claimKey\`. Provenance asks where the claim came from and how old it is; verification asks what made the stance they took the right call. These are the questions this step exists for: they are about this package's own claims, and nothing else can write them.
+- Optionally, and only where you have something better than a generic question would be: an \`assumption\` question for a frame assumption (\`assumptionIndex\` 0, 1 or 2), a \`confidence\` question, a \`frame_vs_response\` question, a \`counterfactual\` question, a \`figure_provenance\` question naming no claim and carrying {figure}, and \`default\` questions answerable by any run at all. Leave any of them out and a generic one is written in its place.
 - Templates may carry only these placeholders: {claim_text}, {figure}, {stance}, {document_title}, {assumption}. Any other name reaches the student as literal braces. A template with no placeholder is fine.
 - \`condition\` says what the run must show for the question to be eligible, as a small object the selector reads.
 - \`followUp\` is the single press if the first answer is thin. \`expectedAnswerNotes\` is what an answer that holds up would contain — it is read by the authority and by the band reader, never by a student.

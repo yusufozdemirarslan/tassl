@@ -571,21 +571,31 @@ describe('the output schemas refuse what validatePackage would refuse', () => {
     expect(genQuestionBankAndCounterfactualPrompt.output.safeParse(output).success).toBe(true)
   })
 
-  it('refuses a bank with fewer than six default questions, or no figure-provenance question', () => {
+  // D-750: the generic half of the bank is no longer asked for, so it is no longer refused. What
+  // only a reader of this package can write is still held to — a question about one of its claims
+  // has to name that claim — and everything package-independent that the model leaves out is
+  // written by `completePackage` before the step reports done.
+  it('accepts a bank with no defaults and no figure-provenance question, and refuses one whose claim question names no claim', () => {
     type Bank = { questions: Record<string, unknown>[] }
     const output = outputOf<Bank>(genQuestionBankAndCounterfactualPrompt)
 
     const thin = {
       ...output,
-      questions: output.questions.map((question) => ({ ...question, isDefault: false })),
+      questions: output.questions.filter(
+        (question) => question.kind === 'provenance' || question.kind === 'verification',
+      ),
     }
-    expect(genQuestionBankAndCounterfactualPrompt.output.safeParse(thin).success).toBe(false)
+    expect(genQuestionBankAndCounterfactualPrompt.output.safeParse(thin).success).toBe(true)
 
-    const noFigure = {
+    const unattached = {
       ...output,
-      questions: output.questions.filter((question) => question.kind !== 'figure_provenance'),
+      questions: output.questions.map((question) =>
+        question.kind === 'provenance' ? { ...question, claimKey: null } : question,
+      ),
     }
-    expect(genQuestionBankAndCounterfactualPrompt.output.safeParse(noFigure).success).toBe(false)
+    const result = genQuestionBankAndCounterfactualPrompt.output.safeParse(unattached)
+    expect(result.success).toBe(false)
+    expect(result.success ? '' : JSON.stringify(result.error.issues)).toContain('names no claim')
   })
 
   it('refuses a template naming a placeholder nothing fills (D-369)', () => {
