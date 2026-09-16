@@ -60,6 +60,16 @@ class QueueTimings {
 const BATCH_SIZE = 5
 
 /**
+ * The headroom a drain keeps over the longest job it has seen on a queue, before starting another.
+ *
+ * A job is not the same length twice — a generation step is a model call — so "the worst so far"
+ * is a floor rather than a bound. Thirty seconds is the difference between a drain that stops one
+ * job early and one that starts a job it cannot finish, and the second costs an author fifteen
+ * minutes of a progress screen reporting a step that has died (`GENERATION_RUN_STALE_AFTER_MS`).
+ */
+const JOB_MARGIN_MS = 30_000
+
+/**
  * How often a drain runs pg-boss's own maintenance, in ms.
  *
  * The queue's `expireInSeconds` is a policy, not a timer: something has to notice that a lease is
@@ -202,6 +212,24 @@ async function countQueueDepth(): Promise<void> {
   }
 }
 
+/**
+ * How many drains this process has open (D-754).
+ *
+ * A job that enqueues the next one kicks a drain of its own, and that drain begins with a whole
+ * fresh budget — so a pipeline of seven model calls ran as seven nested drains inside one
+ * invocation, each politely leaving itself 240 seconds of room that the platform had already spent.
+ * Measured on production: steps of 61, 155 and 25 seconds ran back to back and the fourth was
+ * started 244 seconds into a 300-second function and killed mid-call.
+ *
+ * The budget belongs to the invocation, and the drain that owns it is the outer one — which loops
+ * until its queues are empty anyway, so the job it was about to kick a drain for is the very next
+ * thing it fetches. `enqueue` reads this and does not kick.
+ */
+let openDrains = 0
+
+/** True while this process is inside a drain; an enqueue made here does not start another. */
+export const isDraining = (): boolean => openDrains > 0
+
 export async function drainQueues({
   maxMs,
   trigger = 'manual',
@@ -209,6 +237,15 @@ export async function drainQueues({
   maxMs: number
   trigger?: DrainTrigger
 }): Promise<DrainResult> {
+  openDrains += 1
+  try {
+    return await runDrain(maxMs, trigger)
+  } finally {
+    openDrains -= 1
+  }
+}
+
+async function runDrain(maxMs: number, trigger: DrainTrigger): Promise<DrainResult> {
   const startedAt = Date.now()
   const deadline = startedAt + maxMs
   const boss = await getBoss()
@@ -232,8 +269,19 @@ export async function drainQueues({
   let failed = 0
   const timings = new QueueTimings()
   const remaining = (): number => deadline - Date.now()
-  /** Room for one more job of this queue: always true for the first, measured after that (D-754). */
-  const roomFor = (queue: QueueName): boolean => remaining() > timings.needs(queue)
+  /**
+   * Room for one more job of this queue: always true for the first, measured after that (D-754).
+   *
+   * The margin is for the job that runs longer than every one before it — on production a
+   * sixty-one-second step was followed by a hundred-and-fifty-five-second one — and it is one
+   * `GEN_TIMEOUT_MS` worth of nothing-else-to-do rather than a guess at how much longer.
+   */
+  const roomFor = (queue: QueueName): boolean => {
+    const needs = timings.needs(queue)
+    // Nothing measured yet: the first job of a queue runs whatever the budget, because a drain that
+    // refuses the only job it has is not a drain. Every job after it is held to what that one cost.
+    return needs === 0 ? remaining() > 0 : remaining() > needs + JOB_MARGIN_MS
+  }
   // Each pass restarts from the top so higher-priority queues are always emptied first; the drain
   // ends when a whole pass fetched nothing or nothing left in the budget can be finished.
   let exhausted = active.length === 0
@@ -246,7 +294,8 @@ export async function drainQueues({
         // Only as many jobs as the budget can run to the end. Fetching five and running two leaves
         // three holding a lease nobody is working, which is invisible to the next drain until the
         // lease expires and `supervise()` hands it back.
-        const each = Math.max(timings.needs(queue), 1)
+        const measured = timings.needs(queue)
+        const each = measured === 0 ? 1 : measured + JOB_MARGIN_MS
         const batchSize = Math.max(1, Math.min(BATCH_SIZE, Math.floor(remaining() / each)))
         jobs = await boss.fetch(queue, { batchSize, includeMetadata: true })
       } catch (error) {
