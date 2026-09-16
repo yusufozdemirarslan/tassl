@@ -156,6 +156,12 @@ async function signIn(page: Page, email: string): Promise<void> {
   }
   await page.getByLabel('Email address').fill(email)
   await page.getByLabel('Password').fill(PASSWORD)
+  // Not pressed until React owns the box: the live character count on a field is the component's
+  // own state, so waiting for the form to be interactive is what makes the press a submit the
+  // component handles rather than the browser's native one (the trap D-182 found in WebKit).
+  await page.waitForFunction(() => document.readyState === 'complete', undefined, {
+    timeout: ACTION_MS,
+  })
   await page.getByRole('button', { name: 'Sign in', exact: true }).click()
   await page.waitForURL(/\/home$/, { timeout: ACTION_MS })
 }

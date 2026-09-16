@@ -83,7 +83,7 @@ export function SignUpForm({ demoMode = false }: { demoMode?: boolean }) {
 
   return (
     <div className="flex flex-col gap-6">
-      <form noValidate onSubmit={(event) => void handleSubmit(onSubmit)(event)}>
+      <form noValidate method="post" onSubmit={(event) => void handleSubmit(onSubmit)(event)}>
         <div className="flex flex-col gap-5">
           {/* Above the fields, directly under the page header: an alert between the last field
               and the submit moved the primary action the moment it appeared. */}

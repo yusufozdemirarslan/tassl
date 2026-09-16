@@ -111,7 +111,19 @@ export function SignInForm({ next, googleEnabled }: SignInFormProps) {
 
   return (
     <div className="flex flex-col gap-6">
-      <form noValidate onSubmit={(event) => void handleSubmit(onSubmit)(event)}>
+      {/* `method="post"`, on a form that is never posted anywhere (D-755).
+
+          Every field here reaches the server through `onSubmit`, so the attribute changes nothing
+          once React owns the page. What it changes is the window before that: a press that lands
+          while the bundle is still arriving is a *native* submit, and a form with no method is a
+          GET — the browser puts every field in the query string and navigates. On the sign-in form
+          that is the password, written into the address bar, the history entry, the access log and
+          the `Referer` of everything the page then loads. Observed on production: a click one second
+          after the first paint left `?email=…&password=…` in the URL.
+
+          POST puts them in a body the page has no handler for, so the browser gets a 405 and the
+          person gets the form again. Nothing to read anywhere. */}
+      <form noValidate method="post" onSubmit={(event) => void handleSubmit(onSubmit)(event)}>
         <div className="flex flex-col gap-5">
           {/* The form-level message sits directly under the page header, above the fields: put
               between the last field and the submit it pushed the primary action down the moment
