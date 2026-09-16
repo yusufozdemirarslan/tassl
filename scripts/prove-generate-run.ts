@@ -399,9 +399,9 @@ async function takeTheRun(page: Page, label: string): Promise<void> {
   const assistant = page.locator('#assistant-panel')
   const requests = [
     'What is the headline figure this decision rests on, and what is it stated on?',
-    'What is the payback, the retention and the margin here, and where does each figure come from?',
+    ...(await aboutTheDocuments(page)),
     await aboutTheBrief(page),
-    'Summarise every figure in the Evidence Room that this decision depends on.',
+    'Summarise every figure in the Evidence Room that this decision depends on, and say where each one comes from.',
   ]
 
   let surfaced = 0
@@ -545,6 +545,28 @@ ${text.slice(0, 1500)}`,
     .waitFor({ timeout: ACTION_MS })
   await assertNoErrorOnScreen(page, 'the trace')
   step('the instructor reads the run’s trace')
+}
+
+/**
+ * A question for each of the first few documents in the Evidence Room, by name.
+ *
+ * This is the likeliest thing to reach a claim: a claim's trigger phrases are its author's words
+ * about the figures in this case, and the document titles are where those figures live. A student
+ * who has just read the room asks about what is in it.
+ */
+async function aboutTheDocuments(page: Page): Promise<string[]> {
+  const titles = await page
+    .locator('#evidence-room')
+    .getByRole('button', { name: /^Open / })
+    .evaluateAll((nodes) =>
+      nodes.map((node) => (node.getAttribute('aria-label') ?? node.textContent ?? '').trim()),
+    )
+    .catch(() => [] as string[])
+  return titles
+    .map((label) => label.replace(/^Open\s+/, '').trim())
+    .filter((title) => title !== '')
+    .slice(0, 3)
+    .map((title) => `What does "${title}" say, and what figure does it put on the table?`)
 }
 
 /**
