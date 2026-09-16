@@ -42,8 +42,18 @@ async function drainSafely(maxMs: number): Promise<void> {
   }
 }
 
-/** Inside a request: after(); when Next's request scope is absent (tests, scripts): inline. */
+/**
+ * Inside a request: after(); when Next's request scope is absent (tests, scripts): inline.
+ *
+ * A drain already running in this process is left to do it (D-754). Every job runs under a request
+ * context of its own, so a job that enqueues the next one looked like a request here and started a
+ * drain of its own — with a whole fresh budget inside an invocation that had already spent most of
+ * its. The outer drain loops until its queues are empty, so the job just enqueued is the next thing
+ * it fetches, under the budget it actually has.
+ */
 async function kickDrain(): Promise<void> {
+  const { isDraining } = await import('@/server/jobs/drain')
+  if (isDraining()) return
   if (getRequestContext()) {
     try {
       after(() => drainSafely(REQUEST_DRAIN_MS))
