@@ -536,11 +536,11 @@ test('@smoke the demo path, click by click', async ({
     await capture(1, instructor)
   })
 
-  await test.step('2 Packages → the row Meridian Roast (fixture) shows Confirmed and Uncalibrated → Meridian Roast (fixture) on that row → read This version (Working clock, Turn delay), Confirmation record, Claims.', async () => {
+  await test.step('2 Packages → the row Meridian Roast (fixture) shows Published and Uncalibrated → Meridian Roast (fixture) on that row → read This version (Working clock, Turn delay), Confirmation record, Claims.', async () => {
     await rail(instructor, 'Packages').click()
     await expect(instructor.getByRole('heading', { level: 1, name: 'Packages' })).toBeVisible()
     const row = instructor.getByRole('row').filter({ hasText: PACKAGE })
-    await expect(row).toContainText('Confirmed')
+    await expect(row).toContainText('Published')
     await expect(row).toContainText('Uncalibrated')
     await instructor.getByRole('link', { name: `Open ${PACKAGE}, version 1` }).click()
     await expect(instructor.getByRole('heading', { level: 1, name: PACKAGE })).toBeVisible()

@@ -50,6 +50,8 @@ const GENERATION_TIMEOUT_MS = 900_000
 const ACTION_MS = 120_000
 const REPLY_MS = 180_000
 const SCORING_MS = 300_000
+/** The Turn arrives 60 to 120 seconds after the lock, on the server's clock, in real time. */
+const TURN_WAIT_MS = 300_000
 
 const titleOnly = process.argv.includes('--title-only')
 const named = process.argv.find((argument, index) => index >= 2 && !argument.startsWith('--'))
@@ -88,23 +90,32 @@ function fail(what: string, detail: string): never {
 type Guard = { errors: string[] }
 
 /**
- * Console errors and uncaught page errors, collected for the whole session.
+ * Everything the browser reports as wrong, for the whole session: console errors, uncaught page
+ * errors, and any response the network answered 4xx or 5xx with.
  *
- * Two are ignored and both are the network rather than the product: a request the browser cancels
- * on a navigation, and the favicon a deployment serves as a 404 to a preflight. Everything else is
- * a defect, including a React warning raised as an error.
+ * The console's own line for a failed request is dropped and the *response* is reported instead,
+ * because the console says only "Failed to load resource: 404" while the response says which
+ * resource — and a 404 nobody can name is not evidence of anything. What is ignored is the icon a
+ * browser asks every site for whether or not it has one; everything else is a defect, including a
+ * React warning raised as an error.
  */
 function guard(page: Page): Guard {
   const errors: string[] = []
-  const ignorable =
-    /favicon|net::ERR_ABORTED|Failed to load resource: the server responded with a status of 404 \(\)/i
+  const benign = /favicon|apple-touch-icon|\/_next\/static\/.*\.map$/i
   page.on('console', (message) => {
     if (message.type() !== 'error') return
     const text = message.text()
-    if (ignorable.test(text)) return
+    if (/Failed to load resource|net::ERR_ABORTED/i.test(text)) return
     errors.push(`console: ${text}`)
   })
   page.on('pageerror', (error) => errors.push(`pageerror: ${error.message}`))
+  page.on('response', (response) => {
+    const status = response.status()
+    if (status < 400) return
+    const url = response.url()
+    if (benign.test(url)) return
+    errors.push(`network: ${String(status)} ${url}`)
+  })
   return { errors }
 }
 
@@ -250,13 +261,18 @@ async function assignIt(page: Page, label: string): Promise<void> {
   await form.waitFor({ timeout: ACTION_MS })
   await form.getByLabel('Assignment name').fill(label)
 
-  // The version picker is a listbox, not a native select: the trigger opens it and the option is
-  // named by the package's own title.
-  await form.getByLabel('Scenario package version').click()
-  await page
-    .getByRole('option', { name: new RegExp(escapeForRegExp(title)) })
-    .first()
-    .click()
+  // The version picker is a listbox, not a native select, and it opens on the newest confirmed
+  // version — which is the one that was just published. It is only opened when it is not already
+  // showing the right package, because a listbox left open swallows the next press.
+  const picker = form.getByLabel('Scenario package version')
+  if (!(await picker.innerText()).includes(title)) {
+    await picker.click()
+    await page
+      .getByRole('option', { name: new RegExp(escapeForRegExp(title)) })
+      .first()
+      .click()
+    await page.getByRole('listbox').waitFor({ state: 'hidden', timeout: ACTION_MS })
+  }
   await form.getByRole('radio', { name: 'Defective' }).click()
   await form.getByRole('button', { name: 'Create assignment' }).click()
   await form.waitFor({ state: 'hidden', timeout: ACTION_MS })
@@ -358,30 +374,35 @@ async function takeTheRun(page: Page, label: string): Promise<void> {
   step('the frame is locked and the working clock is running')
 
   // --- the assistant, and a stance on everything it surfaces -----------------------------------
+  //
+  // Nothing here knows the package, so nothing here knows what will trigger a claim: the phrases a
+  // claim is surfaced by are the author's, and this run's author was a model five minutes ago. So
+  // the student asks the questions a student would — one of them built out of the brief in front of
+  // them — until the assistant puts a claim on the table.
   const assistant = page.locator('#assistant-panel')
-  await assistant
-    .getByLabel('Your request')
-    .fill('What is the headline figure this decision rests on, and what is it stated on?')
-  await assistant.getByRole('button', { name: 'Ask the assistant' }).click()
-  await assistant
-    .locator('#assistant-reply-status')
-    .filter({ hasText: /Reply complete/ })
-    .waitFor({ timeout: REPLY_MS })
-  await assertNoErrorOnScreen(page, 'the assistant reply')
-  step('the assistant answered and surfaced its claims')
+  const requests = [
+    'What is the headline figure this decision rests on, and what is it stated on?',
+    'What is the payback, the retention and the margin here, and where does each figure come from?',
+    await aboutTheBrief(page),
+    'Summarise every figure in the Evidence Room that this decision depends on.',
+  ]
 
-  const keys = await surfacedClaimKeys(page)
-  if (keys.length === 0) fail('the assistant', 'the reply surfaced no claim to take a stance on')
-  for (const [index, key] of keys.entries()) {
-    const stance = index === 0 ? 'Verify' : 'Accept'
-    const group = page.getByRole('radiogroup', { name: `Your stance on claim ${key}` })
-    await group.getByRole('radio', { name: stance }).click()
-    await group
-      .getByRole('radio', { name: stance })
-      .and(page.locator('[aria-checked="true"]'))
-      .waitFor({ timeout: ACTION_MS })
+  let surfaced = 0
+  for (const request of requests) {
+    await assistant.getByLabel('Your request').fill(request)
+    await assistant.getByRole('button', { name: 'Ask the assistant' }).click()
+    await assistant
+      .locator('#assistant-reply-status')
+      .filter({ hasText: /Reply complete/ })
+      .waitFor({ timeout: REPLY_MS })
+    await assertNoErrorOnScreen(page, 'the assistant reply')
+    surfaced = await stanceGroups(assistant).count()
+    if (surfaced > 0) break
   }
-  step(`a stance on each of ${String(keys.length)} surfaced claims (${keys.join(', ')})`)
+  step(`the assistant answered and surfaced ${String(surfaced)} claims`)
+
+  const stanced = await takeAStanceOnEach(page, assistant, 'Verify')
+  if (stanced > 0) step(`a stance on each of the ${String(stanced)} claims on the table`)
 
   // --- the delegation log ----------------------------------------------------------------------
   const log = page.locator('#delegation-log')
@@ -408,43 +429,50 @@ async function takeTheRun(page: Page, label: string): Promise<void> {
   }
   await editor.getByLabel('What would change your mind').fill(BRIEF.changeMyMind)
   await editor.getByLabel('Confidence as a number').fill(BRIEF.confidence)
-  // The named fields are the package's own, so they are read off the form rather than named here.
-  const figures = editor.getByRole('spinbutton')
+  // The named fields are the package's own — their labels and their units are whatever its author
+  // wrote — so they are found by the id the editor gives every one of them rather than by a name
+  // this script would have to know.
+  const figures = editor.locator('[id^="brief-named-"]')
   const figureCount = await figures.count()
   for (let index = 0; index < figureCount; index += 1) {
-    const field = figures.nth(index)
-    const name = (await field.getAttribute('aria-label')) ?? ''
-    if (/Confidence as a number/.test(name)) continue
-    await field.fill('12')
+    await figures.nth(index).fill('12')
   }
   await editor.getByText('Saved.', { exact: true }).waitFor({ timeout: ACTION_MS })
-  step(`the decision brief is filled, including ${String(figureCount - 1)} named figures`)
+  step(`the decision brief is filled, including ${String(figureCount)} named figures`)
 
   await lockTheDecision(page, runId, editor)
   step('the decision is locked')
 
   // --- the Turn ----------------------------------------------------------------------------------
-  await page.waitForURL(new RegExp(`/runs/${runId}/turn$`), { timeout: 300_000 })
-  await page.getByRole('heading', { level: 1, name: 'The Turn' }).waitFor({ timeout: ACTION_MS })
+  //
+  // Nothing is pressed: the locked page polls, and it opens the Turn when the clock makes it due.
+  // What is waited for is the heading rather than the address, because the run screens hold a poll
+  // open and a `load` event can be a long way behind a page that is already on the screen.
+  await page.getByRole('heading', { level: 1, name: 'The Turn' }).waitFor({ timeout: TURN_WAIT_MS })
   await assertNoErrorOnScreen(page, 'the Turn')
-  const turnKeys = await turnClaimKeys(page)
-  for (const key of turnKeys) {
-    const group = page.getByRole('radiogroup', { name: `Your stance on claim ${key}` })
-    const checked = await group
-      .getByRole('radio')
-      .and(page.locator('[aria-checked="true"]'))
-      .count()
-    if (checked === 0) await group.getByRole('radio', { name: 'Verify' }).click()
-  }
+  const reStanced = await takeAStanceOnEach(page, page.locator('#turn-claims'), 'Verify')
   const form = page.locator('#turn-response')
   await form.getByRole('radio', { name: 'Revise' }).click()
   await form.getByLabel('Why', { exact: true }).fill(TURN_WHY)
   await form.getByLabel('Confidence as a number').fill('48')
   await form.getByRole('button', { name: 'File the response' }).click()
-  await page.waitForURL(new RegExp(`/runs/${runId}/defense$`), { timeout: ACTION_MS })
-  step(
-    `the Turn arrived, ${String(turnKeys.length)} claims were re-stanced, and the response is filed`,
-  )
+  const opened = await page
+    .getByRole('heading', { level: 1, name: 'The defense' })
+    .waitFor({ timeout: ACTION_MS })
+    .then(() => true)
+    .catch(() => false)
+  if (!opened) {
+    const text = await page
+      .locator('main')
+      .innerText()
+      .catch(() => 'no main')
+    fail(
+      'the Turn response',
+      `at ${page.url()}
+${text.slice(0, 1500)}`,
+    )
+  }
+  step(`the Turn arrived, ${String(reStanced)} claims are stanced, and the response is filed`)
 
   // --- the defense ---------------------------------------------------------------------------------
   await answerTheDefense(page)
@@ -453,7 +481,7 @@ async function takeTheRun(page: Page, label: string): Promise<void> {
     .getByRole('button', { name: 'Finish the defense' })
     .click()
   await page.getByRole('alertdialog').getByRole('button', { name: 'Finish it' }).click()
-  await page.waitForURL(new RegExp(`/runs/${runId}$`), { timeout: ACTION_MS })
+  await page.getByRole('heading', { level: 1, name: 'Run status' }).waitFor({ timeout: ACTION_MS })
   await assertNoErrorOnScreen(page, 'the run status')
   step('the defense is finished')
 
@@ -464,7 +492,6 @@ async function takeTheRun(page: Page, label: string): Promise<void> {
   step('the run is scored')
 
   await page.getByRole('link', { name: 'Read the debrief' }).click()
-  await page.waitForURL(new RegExp(`/runs/${runId}/debrief$`), { timeout: ACTION_MS })
   await page.getByRole('heading', { level: 1, name: 'Run Debrief' }).waitFor({ timeout: ACTION_MS })
   const bands = await page.locator('#debrief-bands').getByText('Draft band').count()
   if (bands !== 7) fail('the debrief', `it shows ${String(bands)} draft bands, not seven`)
@@ -472,68 +499,160 @@ async function takeTheRun(page: Page, label: string): Promise<void> {
   step('the debrief reads seven draft bands')
 
   // --- the trace ------------------------------------------------------------------------------------
-  await page.goto(`${BASE}/runs/${runId}/record`, { waitUntil: 'domcontentloaded' })
-  await assertNoErrorOnScreen(page, 'the judgment record')
-  step('the judgment record opens')
-}
-
-/** The claim keys the assistant panel is showing, in the order it surfaced them. */
-async function surfacedClaimKeys(page: Page): Promise<string[]> {
-  const cards = page.locator('#assistant-panel').getByRole('article')
-  const names = await cards.evaluateAll((nodes) =>
-    nodes.map((node) => node.getAttribute('aria-label') ?? ''),
-  )
-  return names.flatMap((name) => {
-    const match = /^Claim (\S+)$/.exec(name.trim())
-    return match?.[1] ? [match[1]] : []
+  //
+  // The trace is the record of everything the run did, and it is read on the instructor's replay
+  // rather than by the student: it carries the warranted stances and the evidence statuses, which
+  // is exactly what a student may not see before their run is scored (12 §8.1).
+  await signOut(page)
+  await signIn(page, INSTRUCTOR)
+  await rail(page, 'Review').click()
+  await page.getByRole('heading', { level: 2, name: 'Runs waiting for you' }).waitFor({
+    timeout: ACTION_MS,
   })
-}
-
-/** The claim keys the Turn put in front of the student. */
-async function turnClaimKeys(page: Page): Promise<string[]> {
-  const cards = page.locator('#turn-claims').getByRole('article')
-  const names = await cards.evaluateAll((nodes) =>
-    nodes.map((node) => node.getAttribute('aria-label') ?? ''),
-  )
-  return names.flatMap((name) => {
-    const match = /^Claim (\S+)$/.exec(name.trim())
-    return match?.[1] ? [match[1]] : []
-  })
+  await page
+    .getByRole('link', { name: /^Open the replay for / })
+    .first()
+    .click()
+  await page.waitForURL(/\/review\/runs\/[0-9a-f-]{36}/, { timeout: ACTION_MS })
+  await assertNoErrorOnScreen(page, 'the replay')
+  await page
+    .getByRole('navigation', { name: 'Replay views' })
+    .getByRole('link', { name: 'Trace', exact: true })
+    .click()
+  await page
+    .getByRole('heading', { level: 2, name: 'The run’s trace' })
+    .waitFor({ timeout: ACTION_MS })
+  await page
+    .locator('#replay-trace')
+    .getByRole('columnheader', { name: 'Clock left' })
+    .waitFor({ timeout: ACTION_MS })
+  await assertNoErrorOnScreen(page, 'the trace')
+  step('the instructor reads the run’s trace')
 }
 
 /**
- * Locking the decision, including the gate that asks for a stance on a claim the brief leaned on.
- * Whether the gate fires is a property of the run, so both roads are walked.
+ * A question made out of the brief the student is reading.
+ *
+ * A claim is surfaced by the phrases its author wrote on it, and this package's author is a model
+ * that wrote them from this brief — so the brief's own words are the likeliest thing to reach one.
+ */
+async function aboutTheBrief(page: Page): Promise<string> {
+  const brief = await page
+    .locator('#scenario-brief')
+    .innerText()
+    .catch(() => '')
+  const words = brief
+    .replace(/\s+/g, ' ')
+    .split(' ')
+    .filter((word) => word !== '')
+    .slice(2, 26)
+    .join(' ')
+  return words === ''
+    ? 'What does the Evidence Room say about the decision in the brief?'
+    : `What do the documents say about this: ${words}`
+}
+
+/**
+ * The stance controls on a screen, whichever claims they belong to.
+ *
+ * Named by the group rather than by the claim on purpose: a card's key is this package's own — it
+ * was written five minutes ago — and a card's accessible name is not always an `aria-label` this
+ * script could read off the node. The radiogroup is the control, and the control is what a student
+ * presses.
+ */
+const stanceGroups = (scope: ReturnType<Page['locator']>) =>
+  scope.getByRole('radiogroup', { name: /^Your stance on claim / })
+
+/** A stance on every claim in `scope` that has none; answers how many were in front of the student. */
+async function takeAStanceOnEach(
+  page: Page,
+  scope: ReturnType<Page['locator']>,
+  stance: string,
+): Promise<number> {
+  const groups = await stanceGroups(scope).all()
+  for (const group of groups) {
+    if ((await group.locator('[role="radio"][aria-checked="true"]').count()) > 0) continue
+    await group.getByRole('radio', { name: stance }).click()
+    await page.waitForTimeout(250)
+  }
+  return groups.length
+}
+
+/**
+ * Locking the decision, and the gate that asks for a stance on a claim the brief leaned on.
+ *
+ * Whether the gate fires is a property of the run rather than of the flow: a figure typed into a
+ * named field is reliance on whatever claim carries it (D-076), and this script does not know what
+ * the package's claims carry. So both roads are walked — the claim is stanced where the screen can
+ * reach it, and where it cannot the figures come out of the brief, which is a decision a student
+ * may also file.
  */
 async function lockTheDecision(
   page: Page,
   runId: string,
   editor: ReturnType<Page['locator']>,
 ): Promise<void> {
-  for (let attempt = 0; attempt < 3; attempt += 1) {
+  const locked = new RegExp(`/runs/${runId}/locked$`)
+
+  for (let attempt = 0; attempt < 4; attempt += 1) {
     await editor.getByRole('button', { name: 'Lock the decision' }).click()
     const dialog = page.getByRole('alertdialog')
     await dialog.waitFor({ timeout: ACTION_MS })
+    const gate = dialog.getByRole('button', { name: 'Go to the claim' })
     await dialog.getByRole('button', { name: 'File it' }).click()
 
-    const gate = dialog.filter({ hasText: 'A claim you leaned on has no stance' })
-    if (await gate.isVisible().catch(() => false)) {
-      await dialog.getByRole('button', { name: 'Go to the claim' }).click()
-      const open = page.getByRole('radiogroup', { name: /^Your stance on claim / }).filter({
-        hasNot: page.locator('[aria-checked="true"]'),
+    const outcome = await Promise.race([
+      page
+        .waitForURL(locked, { timeout: 30_000 })
+        .then(() => 'locked' as const)
+        .catch(() => 'stuck' as const),
+      gate
+        .waitFor({ timeout: 30_000 })
+        .then(() => 'gate' as const)
+        .catch(() => 'stuck' as const),
+    ])
+
+    if (outcome === 'locked') {
+      await page.getByRole('heading', { level: 1, name: 'Decision locked' }).waitFor({
+        timeout: ACTION_MS,
       })
-      await open.first().getByRole('radio', { name: 'Accept' }).click()
+      await assertNoErrorOnScreen(page, 'the locked decision')
+      return
+    }
+
+    if (outcome === 'gate') {
+      await gate.click()
+      await dialog.waitFor({ state: 'hidden', timeout: ACTION_MS })
+      const open = page
+        .getByRole('radiogroup', { name: /^Your stance on claim / })
+        .filter({ hasNot: page.locator('[aria-checked="true"]') })
+      if ((await open.count()) > 0) {
+        await open.first().getByRole('radio', { name: 'Accept' }).click()
+        step('a stance was taken on the claim the brief leaned on')
+        continue
+      }
+      // The claim is not on the screen to stance: the figure that leaned on it comes out instead.
+      const figures = editor.locator('[id^="brief-named-"]')
+      const count = await figures.count()
+      for (let index = 0; index < count; index += 1) await figures.nth(index).fill('')
+      await editor.getByText('Saved.', { exact: true }).waitFor({ timeout: ACTION_MS })
+      step('the figures came out of the brief: the claim they leaned on was never surfaced')
       continue
     }
 
-    await page.waitForURL(new RegExp(`/runs/${runId}/locked$`), { timeout: ACTION_MS })
-    await page.getByRole('heading', { level: 1, name: 'Decision locked' }).waitFor({
-      timeout: ACTION_MS,
-    })
-    await assertNoErrorOnScreen(page, 'the locked decision')
-    return
+    const said = await dialog.innerText().catch(() => '')
+    const form = await editor.innerText().catch(() => '')
+    fail(
+      'the lock',
+      `the decision would not file.
+Dialog:
+${said}
+
+Editor:
+${form}`,
+    )
   }
-  fail('the lock', 'the decision would not file after three presses')
+  fail('the lock', 'the decision would not file after four presses')
 }
 
 /** Every question the defense asks, answered in turn, follow-ups included. */

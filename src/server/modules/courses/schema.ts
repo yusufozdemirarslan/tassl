@@ -195,13 +195,23 @@ export type CreateSectionInput = z.infer<typeof CreateSectionSchema>
 export const AddSectionMemberSchema = z.object({ email: z.email() })
 export type AddSectionMemberInput = z.infer<typeof AddSectionMemberSchema>
 
+/**
+ * The clock and the weight are `nullish`, not `optional`, and that is the difference between the
+ * form's own promise and a refusal (D-753).
+ *
+ * Both fields mean "follow the package" or "follow the course" when they are left empty, which is
+ * what their hints say and what the columns mean: null. `UpdateAssignmentSchema` below has always
+ * taken null for exactly that reason, and the form sends null on both paths — so a create with an
+ * empty clock was answered `VALIDATION_ERROR` ("The request did not match the expected shape")
+ * while the same empty field saved without complaint one screen later.
+ */
 export const CreateAssignmentSchema = z.object({
   label,
   packageVersionId: z.uuid(),
   variantId: z.uuid(),
   runType: RunTypeSchema.optional(),
-  workingClockSeconds: workingClockSeconds.optional(),
-  weight: weight.optional(),
+  workingClockSeconds: workingClockSeconds.nullish(),
+  weight: weight.nullish(),
   isWalkthrough: z.boolean().optional(),
   opensAt: z.coerce.date().nullish(),
 })

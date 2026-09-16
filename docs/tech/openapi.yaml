@@ -22062,12 +22062,16 @@ paths:
                     - decision
                     - critique
                 workingClockSeconds:
-                  type: integer
-                  minimum: 60
-                  maximum: 9007199254740991
+                  anyOf:
+                    - type: integer
+                      minimum: 60
+                      maximum: 9007199254740991
+                    - type: "null"
                 weight:
-                  type: number
-                  minimum: 0
+                  anyOf:
+                    - type: number
+                      minimum: 0
+                    - type: "null"
                 isWalkthrough:
                   type: boolean
                 opensAt:

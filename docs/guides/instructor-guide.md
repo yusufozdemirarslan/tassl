@@ -179,11 +179,11 @@ Two rail items never appear for an Instructor: **Runs** belongs to Students and 
 
 *Steps:*
 
-1. Click **Packages** in the rail. → You see: the row **Meridian Roast (fixture)** with **Confirmed** and **Uncalibrated**.
+1. Click **Packages** in the rail. → You see: the row **Meridian Roast (fixture)** with **Published** and **Uncalibrated**.
    ![Task 5 step 1](screenshots/instructor/task-05-step-01.png)
 2. Click **Meridian Roast (fixture)** on its row. → You see: the heading **Meridian Roast (fixture)** and **This version**.
    ![Task 5 step 2](screenshots/instructor/task-05-step-02.png)
-3. Read **This version**. → You see: **Status** with **Confirmed**, **Working clock** with **25 min** and **Turn delay** with **1 min 30 s**.
+3. Read **This version**. → You see: **Status** with **Published**, **Working clock** with **25 min** and **Turn delay** with **1 min 30 s**.
    ![Task 5 step 3](screenshots/instructor/task-05-step-03.png)
 4. Read **Confirmation record**. → You see: under the table, the caption **Decisions by element type**, and below it the heading **Decisions that were not a plain confirmation**.
    ![Task 5 step 4](screenshots/instructor/task-05-step-04.png)
