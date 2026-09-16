@@ -92,7 +92,7 @@ export function ChangePasswordForm({ email }: { email: string }) {
   }
 
   return (
-    <form noValidate onSubmit={(event) => void handleSubmit(onSubmit)(event)}>
+    <form noValidate method="post" onSubmit={(event) => void handleSubmit(onSubmit)(event)}>
       {/*
         The account this password belongs to, for the browser's password manager. Without it Safari
         cannot tell which credential the form updates: its heuristics then clear the current-password
