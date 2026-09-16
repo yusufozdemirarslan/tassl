@@ -23,7 +23,7 @@ export const packageConfirm = {
   'confirm.metaTitle': 'Confirm {title}, version {version}',
   'confirm.backToVersion': 'Back to version {version}',
   'confirm.draftDescription':
-    'Read each element, edit what needs it, and record a decision. When every element has a decision, the teaching-note check is ticked and the package rules pass, version {version} can be confirmed — and is then frozen for good.',
+    'Read what was drafted, edit what needs it, and reject anything that has to be written again. Publishing version {version} confirms everything you have not already decided on, makes it assignable, and freezes it for good.',
   'confirm.frozenDescription':
     'Version {version} was confirmed on {date}. This is the record of what was signed, element by element; nothing here can be changed.',
   'confirm.frozenDescriptionNoDate':
@@ -48,31 +48,29 @@ export const packageConfirm = {
   'confirm.progressComplete': 'Every element has a decision.',
   'confirm.progressRejected': '{count} rejected',
   'confirm.nextUndecided': 'Next undecided element',
-  'confirm.teachingNoteLabel': 'Teaching note checked against the answer space and claims',
-  'confirm.teachingNoteHint':
-    'Confirming records that you have read the teaching note and that it matches the positions in the answer space and the claims below. The tick is kept with the confirmation.',
-  'confirm.confirmVersion': 'Confirm version',
-  'confirm.confirmVersionPending': 'Confirming…',
-  'confirm.confirmedToast': 'Version {version} is confirmed and frozen.',
-  'confirm.confirmDialogTitle': 'Confirm version {version}?',
+  'confirm.confirmVersion': 'Confirm and publish',
+  'confirm.confirmVersionPending': 'Publishing…',
+  'confirm.confirmedToast': 'Version {version} is published.',
+  'confirm.confirmDialogTitle': 'Publish version {version}?',
   'confirm.confirmDialogBody':
-    'Confirming freezes version {version} for good. No element in it can be edited afterwards, and a change means a new version.',
+    'Publishing freezes version {version} for good and makes it assignable. No element in it can be edited afterwards, and a change means a new version.',
   'confirm.confirmDialogElements': 'Elements',
   'confirm.confirmDialogElementsValue': '{decided} of {total} decided',
   'confirm.confirmDialogRejected': 'Rejected',
   'confirm.confirmDialogRejectedValue': '{count} of them',
-  'confirm.confirmDialogRules': 'Package rules',
-  'confirm.confirmDialogRulesFailing': '{count} not met yet',
-  'confirm.confirmDialogRulesPass': 'All met',
-  'confirm.confirmDialogTeachingNote': 'Teaching note',
-  'confirm.confirmDialogTeachingNoteChecked':
-    'Checked against the answer space and the claims, and kept with the confirmation',
-  'confirm.confirmDialogTeachingNoteUnchecked': 'Not checked yet',
-  'confirm.confirmDialogSubmit': 'Confirm and freeze',
+  /**
+   * FR-027's attestation, made where it is signed rather than on a tick a scroll above the press
+   * (D-752). Everything an element still waiting on a decision is confirmed as read by this press,
+   * which the second sentence says out loud; an element the author *rejected* is not, and
+   * publishing is refused until it is regenerated or re-read.
+   */
+  'confirm.confirmDialogAttestation':
+    'Publishing records that you have read this version — its teaching note, the positions in its answer space and the claims below — and that you are putting it in front of students. Every element you have not already decided on is confirmed as read by this press.',
+  'confirm.confirmDialogSubmit': 'Confirm and publish',
   'confirm.confirmDialogCancel': 'Not yet',
-  'confirm.unconfirmedTitle': 'Waiting on a decision',
-  'confirm.rulesTitle': 'Rules this package does not meet yet',
-  'confirm.ruleElements': 'elements {keys}',
+  /** The note filed against an element the publish confirmed on the author's behalf (D-752). */
+  'confirm.confirmedOnPublishNote': 'Confirmed as read when the version was published.',
+  'confirm.unconfirmedTitle': 'Rejected and waiting to be re-read',
 
   // ---------------------------------------------------------------------------------------
   // The element list
@@ -108,7 +106,6 @@ export const packageConfirm = {
   'confirm.frozenTitle': 'Frozen',
   'confirm.frozenBody':
     'This element is part of a confirmed version. It is shown as it was signed and cannot be edited.',
-  'confirm.elementRulesTitle': 'Rules this element does not meet',
   'confirm.contextTitle': 'What this element belongs to',
 
   // ---------------------------------------------------------------------------------------

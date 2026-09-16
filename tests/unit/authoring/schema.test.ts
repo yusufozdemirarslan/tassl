@@ -45,7 +45,11 @@ describe('the run statuses the claim decides on', () => {
     expect([...GENERATION_RUN_STATUSES]).toEqual(['queued', 'running', 'succeeded', 'failed'])
   })
 
-  it('gives a step one retry and no more', () => {
-    expect(MAX_GENERATION_PASSES).toBe(2)
+  // D-750 raised the ceiling from two to five. A pass is no longer how a rule gets satisfied — the
+  // deterministic completion is — so what the passes are now for is a call that did not answer at
+  // all, and five of those is a provider outage rather than a package problem. A step that succeeds
+  // still uses one pass, which is why the ceiling costs nothing when nothing is wrong.
+  it('gives a step five passes and no more', () => {
+    expect(MAX_GENERATION_PASSES).toBe(5)
   })
 })

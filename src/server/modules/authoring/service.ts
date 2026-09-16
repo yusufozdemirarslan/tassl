@@ -57,13 +57,21 @@ import type {
   DefenseQuestionCondition,
   ElementTypeValue,
   FailureFamilyValue,
+  PackageExport,
   ReadinessOption,
   ReskinLogEntry,
   StanceValue,
   VerificationPaths,
+  VerificationPathsExport,
 } from '@/server/modules/scenarios/schema'
 import { elementUnits, type ElementUnit } from '@/server/modules/scenarios/units'
-import { validatePackage, type ValidationRuleCode } from '@/server/modules/scenarios/validate'
+import { completePackage } from '@/server/modules/scenarios/complete'
+import { buildExport } from '@/server/modules/scenarios/export-document'
+import {
+  VALIDATION_RULE_CODES,
+  validatePackage,
+  type ValidationRuleCode,
+} from '@/server/modules/scenarios/validate'
 import {
   failedRulesOf,
   generationAlreadyRunning,
@@ -77,6 +85,7 @@ import {
   GENERATION_RUN_STALE_AFTER_MS,
   GENERATION_STEPS,
   GenerationStepSchema,
+  MAX_COMPLETION_ROUNDS,
   MAX_GENERATION_PASSES,
   type AuthoringMeasures,
   type GenerationRunView,
@@ -1123,12 +1132,48 @@ async function writeAndValidate(
     }
     await applyStep(ctx, step, output)
 
-    const written = await scenarioRepo.findVersionFull(tenantId, versionId, tx)
-    if (!written) notFound('package version')
-    const rules = GENERATION_STEP_DEFINITIONS[step].rules
-    return validatePackage(written).failures.filter((failure) => rules.includes(failure.code))
+    // D-750: the model wrote the content, and the completion guarantees the shape.
+    //
+    // A step is held to its own subset of the rule table, and the last step is held to the whole of
+    // it — so the completion runs against the validator in a loop here, over the version as it now
+    // stands, until nothing is left to fix or the rounds run out. Only the element types this step
+    // owns are written back, because a completion run at step 1 invents documents and claims that
+    // steps 2 and 4 are about to write properly; at the last step every type is in scope, which is
+    // what makes the pipeline's end and `validatePackage` passing the same event.
+    const last = nextStep(step) === null
+    const scope = last ? COMPLETION_ELEMENT_TYPES : GENERATION_STEP_DEFINITIONS[step].elementTypes
+    const rules = last
+      ? VALIDATION_RULE_CODES
+      : (GENERATION_STEP_DEFINITIONS[step].rules as readonly ValidationRuleCode[])
+
+    let written = await reread(tenantId, versionId, tx)
+    let failures = validatePackage(written).failures.filter((failure) =>
+      rules.includes(failure.code),
+    )
+    for (let round = 0; round < MAX_COMPLETION_ROUNDS && failures.length > 0; round += 1) {
+      const completed = completePackage(buildExport(written), { baseDate: today() })
+      await applyCompletion({ ...ctx, version: written }, completed, scope)
+      written = await reread(tenantId, versionId, tx)
+      failures = validatePackage(written).failures.filter((failure) => rules.includes(failure.code))
+    }
+
+    return failures
   })
 }
+
+/** The version as it now stands inside the open transaction; it exists, because the lock is held. */
+async function reread(
+  tenantId: string,
+  versionId: string,
+  tx: scenarioRepo.Tx,
+): Promise<scenarioRepo.VersionFull> {
+  const version = await scenarioRepo.findVersionFull(tenantId, versionId, tx)
+  if (!version) notFound('package version')
+  return version
+}
+
+/** Today, as the date any document the completion has to invent is dated from (it is otherwise pure). */
+const today = (): string => new Date().toISOString().slice(0, 10)
 
 type KeyedRow = { id: string; key: string }
 
@@ -1229,6 +1274,434 @@ async function applyStep(
       return writeQuestionBank(ctx, value)
     case 'readiness_items':
       return writeReadinessItems(ctx, value)
+  }
+}
+
+// --- The completion writer (D-750) ---------------------------------------------------------------
+
+/**
+ * Every element type a completed document can carry, in the order the foreign keys allow them to
+ * be written: a document names a stakeholder, a claim names a document, a state names a claim, a
+ * question names a claim.
+ *
+ * The four column-backed elements and the seed record go last because nothing points at them.
+ */
+const COMPLETION_ELEMENT_TYPES: readonly ElementTypeValue[] = [
+  'stakeholder',
+  'document',
+  'answer_space_position',
+  'named_field',
+  'claim',
+  'variant_claim_state',
+  'probe',
+  'turn',
+  'defense_question',
+  'readiness_item',
+  'brief',
+  'counterfactual',
+  'general_escalation_reply',
+  'clock_and_difficulty',
+  'seed_reskin',
+]
+
+/**
+ * Writes a completed document (`completePackage`) back over the version, for the element types in
+ * scope (D-750).
+ *
+ * It is the seven step writers' machinery applied to one document instead of seven model answers,
+ * and it keeps their two rules exactly: ids are allocated for every key before anything is written,
+ * so a reference between two elements resolves in one pass and an element that already existed
+ * keeps the id everything else points at; and a *confirmed* element is never written over, because
+ * the author signed for it (rule 2, FR-192).
+ *
+ * Writes come first and removals second, in opposite orders. A document the completion dropped may
+ * still be named by a claim's `source_document_id` as the transaction opens — the completion nulls
+ * that reference, but the claim row has to be written before the document it pointed at can go.
+ */
+async function applyCompletion(
+  ctx: WriteContext,
+  document: PackageExport,
+  types: readonly ElementTypeValue[],
+): Promise<void> {
+  const wants = (type: ElementTypeValue): boolean => types.includes(type)
+
+  // A claim state is a confirmable element in its own right and cannot outlive its claim, so a
+  // claim carrying a confirmed state is confirmed work too (D-552) — the same reading `writeClaims`
+  // makes, for the same reason.
+  const states = await repo.listClaimStates(ctx.versionId, ctx.tx)
+  const claimsWithConfirmedState = new Set(
+    states.filter((state) => ctx.confirmedIds.has(state.id)).map((state) => state.claimId),
+  )
+
+  const stakeholderPlan = planKeys(
+    ctx,
+    ctx.version.stakeholders,
+    document.stakeholders.map((row) => row.key),
+  )
+  const documentPlan = planKeys(
+    ctx,
+    ctx.version.documents,
+    document.documents.map((row) => row.key),
+  )
+  const positionPlan = planKeys(
+    ctx,
+    ctx.version.answerSpacePositions,
+    document.answerSpacePositions.map((row) => row.key),
+  )
+  const fieldPlan = planKeys(
+    ctx,
+    ctx.version.namedFields,
+    document.namedFields.map((row) => row.key),
+  )
+  const claimPlan = planKeys(
+    ctx,
+    ctx.version.claims,
+    document.claims.map((row) => row.key),
+    claimsWithConfirmedState,
+  )
+  const questionPlan = planKeys(
+    ctx,
+    ctx.version.defenseQuestions,
+    document.defenseQuestions.map((row) => row.key),
+  )
+  const itemPlan = planKeys(
+    ctx,
+    ctx.version.readinessItems,
+    document.readinessItems.map((row) => row.key),
+  )
+
+  /**
+   * The id a reference resolves to, for a key in `plan`.
+   *
+   * A plan allocates an id for every key the *document* names, including one no row carries yet —
+   * that is what lets two elements of the same write refer to each other. So a reference may only
+   * be resolved through the plan when this call is actually writing that type: at step 4 the
+   * completion has a whole Evidence Room in memory, and a claim pointing at a document key the
+   * scope does not write would carry an id no row has, which is a foreign key violation. Outside
+   * the scope, only a row that exists may be pointed at.
+   */
+  const refId = (
+    plan: KeyPlan,
+    type: ElementTypeValue,
+    live: ReadonlyMap<string, string>,
+    key: string | null,
+  ): string | null => {
+    if (key === null) return null
+    if (wants(type)) return plan.idByKey.get(key) ?? null
+    return live.get(key) ?? null
+  }
+
+  const liveIds = <T extends { id: string; key: string }>(rows: readonly T[]) =>
+    new Map(rows.map((row) => [row.key, row.id]))
+
+  const liveStakeholders = liveIds(ctx.version.stakeholders)
+  const liveDocuments = liveIds(ctx.version.documents)
+  const liveClaims = liveIds(ctx.version.claims)
+
+  const stakeholderId = (key: string | null): string | null =>
+    refId(stakeholderPlan, 'stakeholder', liveStakeholders, key)
+  const documentId = (key: string | null): string | null =>
+    refId(documentPlan, 'document', liveDocuments, key)
+  const claimId = (key: string | null): string | null => refId(claimPlan, 'claim', liveClaims, key)
+
+  // ---- stakeholders -------------------------------------------------------------------------
+  if (wants('stakeholder')) {
+    for (const row of document.stakeholders) {
+      if (stakeholderPlan.confirmedKeys.has(row.key)) continue
+      const contradicts = stakeholderId(row.contradictsStakeholderKey)
+      await write(ctx, 'stakeholder', {
+        id: idOf(stakeholderPlan, row.key),
+        key: row.key,
+        name: row.name,
+        roleTitle: row.roleTitle,
+        positionStatement: row.positionStatement,
+        incentives: row.incentives,
+        blindSpots: row.blindSpots,
+        contradictsStakeholderId: contradicts,
+        contradictionPoint: contradicts === null ? null : row.contradictionPoint,
+      })
+    }
+  }
+
+  // ---- documents ----------------------------------------------------------------------------
+  //
+  // Successor-first, in as many passes as the chain is deep: the foreign key needs the successor
+  // row to exist and the table's check refuses a superseded document without one. The completion
+  // guarantees the chain is acyclic, so the walk always makes progress.
+  if (wants('document')) {
+    const done = new Set(ctx.version.documents.map((row) => row.key))
+    let pending = document.documents.filter((row) => !documentPlan.confirmedKeys.has(row.key))
+    while (pending.length > 0) {
+      const ready = pending.filter(
+        (row) => row.supersededByKey === null || done.has(row.supersededByKey),
+      )
+      if (ready.length === 0) {
+        throw new AppError(
+          'INTERNAL_ERROR',
+          'The completed documents supersede each other in a cycle.',
+        )
+      }
+      for (const row of ready) {
+        await write(ctx, 'document', {
+          id: idOf(documentPlan, row.key),
+          key: row.key,
+          title: row.title,
+          author: row.author,
+          datedOn: row.datedOn,
+          body: row.body,
+          wordCount: countWords(row.body),
+          role: row.role,
+          supersededByDocumentId: documentId(row.supersededByKey),
+          stakeholderId: stakeholderId(row.stakeholderKey),
+          position: row.position,
+        })
+        done.add(row.key)
+      }
+      const written = new Set(ready.map((row) => row.key))
+      pending = pending.filter((row) => !written.has(row.key))
+    }
+  }
+
+  // ---- the answer space ---------------------------------------------------------------------
+  if (wants('answer_space_position')) {
+    for (const row of document.answerSpacePositions) {
+      if (positionPlan.confirmedKeys.has(row.key)) continue
+      await write(ctx, 'answer_space_position', {
+        id: idOf(positionPlan, row.key),
+        key: row.key,
+        kind: row.kind,
+        summary: row.summary,
+        supportingDocumentIds: row.supportingDocumentKeys.flatMap((key) => {
+          const id = documentId(key)
+          return id === null ? [] : [id]
+        }),
+        ignoredEvidence: row.ignoredEvidence,
+        isMinimumCommitment: row.isMinimumCommitment,
+        position: row.position,
+      })
+    }
+  }
+
+  if (wants('named_field')) {
+    for (const row of document.namedFields) {
+      if (fieldPlan.confirmedKeys.has(row.key)) continue
+      await write(ctx, 'named_field', {
+        id: idOf(fieldPlan, row.key),
+        key: row.key,
+        label: row.label,
+        unit: row.unit,
+        position: row.position,
+      })
+    }
+  }
+
+  // ---- claims and their states --------------------------------------------------------------
+  if (wants('claim')) {
+    for (const row of document.claims) {
+      if (claimPlan.confirmedKeys.has(row.key)) continue
+      await write(ctx, 'claim', {
+        id: idOf(claimPlan, row.key),
+        key: row.key,
+        text: row.text,
+        sourceKind: row.sourceKind,
+        sourceDocumentId: documentId(row.sourceDocumentKey),
+        sourcePassage: row.sourcePassage,
+        importance: row.importance,
+        consequenceLevel: row.consequenceLevel,
+        verificationCost: row.verificationCost,
+        weaklySourced: row.weaklySourced,
+        volatile: row.volatile,
+        conceptKey: row.conceptKey,
+        carriedValues: row.carriedValues,
+        triggerPhrases: row.triggerPhrases,
+        triggerDescription: row.triggerDescription,
+        escalatable: row.escalatable,
+        escalationReply: row.escalationReply,
+        rationale: row.rationale,
+        position: row.position,
+      })
+    }
+  }
+
+  if (wants('variant_claim_state')) {
+    const stateIdByPair = new Map(
+      states.map((state) => [`${state.variantKey}:${state.claimId}`, state.id] as const),
+    )
+    const variantIdByKey = new Map(ctx.version.variants.map((row) => [row.key, row.id]))
+    for (const variant of document.variants) {
+      const variantId = variantIdByKey.get(variant.key)
+      if (variantId === undefined) continue
+      for (const state of variant.claimStates) {
+        if (claimPlan.confirmedKeys.has(state.claimKey)) continue
+        const stateClaimId = claimId(state.claimKey)
+        if (stateClaimId === null) continue
+        const stateId = stateIdByPair.get(`${variant.key}:${stateClaimId}`)
+        if (stateId !== undefined && ctx.confirmedIds.has(stateId)) continue
+        await write(ctx, 'variant_claim_state', {
+          ...(stateId === undefined ? {} : { id: stateId }),
+          variantId,
+          claimId: stateClaimId,
+          evidenceStatus: state.evidenceStatus,
+          failureFamily: state.failureFamily,
+          warrantedStance: state.warrantedStance,
+          verificationPaths: toStoredPaths(state.verificationPaths, documentId),
+          planted: state.planted,
+        })
+      }
+    }
+  }
+
+  // ---- the probe and the Turn ---------------------------------------------------------------
+  if (wants('probe') && !ctx.confirmedSingletons.has('probe')) {
+    const probeClaimId = document.probe === null ? null : claimId(document.probe.claimKey)
+    if (document.probe !== null && probeClaimId !== null) {
+      await write(ctx, 'probe', {
+        claimId: probeClaimId,
+        originalPosition: document.probe.originalPosition,
+        scriptedReversal: document.probe.scriptedReversal,
+      })
+    } else if (ctx.version.probe) {
+      await removeStale(ctx, 'probe', [ctx.version.probe.id])
+    }
+  }
+
+  if (wants('turn') && document.turn !== null && !ctx.confirmedSingletons.has('turn')) {
+    await write(ctx, 'turn', {
+      text: document.turn.text,
+      voice: document.turn.voice,
+      stakeholderId: stakeholderId(document.turn.stakeholderKey),
+      warrantsChange: document.turn.warrantsChange,
+      proportionateResponse: document.turn.proportionateResponse,
+      evidence: document.turn.evidence,
+      disruptedAssumptionKeys: document.turn.disruptedAssumptionKeys,
+      windowClaimIds: document.turn.windowClaimKeys.flatMap((key) => {
+        const id = claimId(key)
+        return id === null ? [] : [id]
+      }),
+    })
+  }
+
+  // ---- the question bank and the Readiness Check ---------------------------------------------
+  if (wants('defense_question')) {
+    for (const row of document.defenseQuestions) {
+      if (questionPlan.confirmedKeys.has(row.key)) continue
+      await write(ctx, 'defense_question', {
+        id: idOf(questionPlan, row.key),
+        key: row.key,
+        kind: row.kind,
+        claimId: claimId(row.claimKey),
+        assumptionIndex: row.assumptionIndex,
+        template: row.template,
+        condition: row.condition,
+        followUp: row.followUp,
+        expectedAnswerNotes: row.expectedAnswerNotes,
+        isDefault: row.isDefault,
+        position: row.position,
+      })
+    }
+  }
+
+  if (wants('readiness_item')) {
+    for (const row of document.readinessItems) {
+      if (itemPlan.confirmedKeys.has(row.key)) continue
+      await write(ctx, 'readiness_item', {
+        id: idOf(itemPlan, row.key),
+        key: row.key,
+        category: row.category,
+        conceptKey: row.conceptKey,
+        stem: row.stem,
+        options: row.options,
+        answerKey: row.answerKey,
+        position: row.position,
+      })
+    }
+  }
+
+  // ---- the four column-backed elements and the seed record -----------------------------------
+  if (wants('brief') && !ctx.confirmedSingletons.has('brief')) {
+    await write(ctx, 'brief', { brief: document.version.brief })
+  }
+  if (wants('counterfactual') && !ctx.confirmedSingletons.has('counterfactual')) {
+    await write(ctx, 'counterfactual', {
+      debriefCounterfactual: document.version.debriefCounterfactual,
+    })
+  }
+  if (
+    wants('general_escalation_reply') &&
+    !ctx.confirmedSingletons.has('general_escalation_reply')
+  ) {
+    await write(ctx, 'general_escalation_reply', {
+      generalEscalationReply: document.version.generalEscalationReply,
+    })
+  }
+  if (wants('clock_and_difficulty') && !ctx.confirmedSingletons.has('clock_and_difficulty')) {
+    await write(ctx, 'clock_and_difficulty', {
+      turnDelaySeconds: document.version.turnDelaySeconds,
+    })
+  }
+
+  const seed = ctx.version.seedRecord
+  if (
+    wants('seed_reskin') &&
+    seed &&
+    document.seedRecord &&
+    !ctx.confirmedSingletons.has('seed_reskin')
+  ) {
+    // The case title, publisher and licence the author typed are theirs; only the log of what the
+    // adaptation changed is written here (FR-028).
+    await write(ctx, 'seed_reskin', {
+      caseTitle: seed.caseTitle,
+      publisher: seed.publisher,
+      licenseTerms: seed.licenseTerms,
+      licensePermitsAdaptation: seed.licensePermitsAdaptation,
+      seedText: seed.seedText,
+      reskinLog: document.seedRecord.reskinLog,
+    })
+  }
+
+  // ---- removals, in the order the foreign keys allow -------------------------------------------
+  if (wants('readiness_item')) await removeStale(ctx, 'readiness_item', itemPlan.staleIds)
+  if (wants('defense_question')) await removeStale(ctx, 'defense_question', questionPlan.staleIds)
+  if (wants('claim')) {
+    const staleClaimIds = new Set(claimPlan.staleIds)
+    const orphanStates = states.filter(
+      (state) => staleClaimIds.has(state.claimId) && !ctx.confirmedIds.has(state.id),
+    )
+    if (orphanStates.length > 0) {
+      const orphanIds = orphanStates.map((state) => state.id)
+      await repo.deleteConfirmationsForElements(ctx.versionId, orphanIds, ctx.tx)
+      await repo.deleteClaimStates(ctx.versionId, orphanIds, ctx.tx)
+    }
+    await removeStale(ctx, 'claim', claimPlan.staleIds)
+  }
+  if (wants('named_field')) await removeStale(ctx, 'named_field', fieldPlan.staleIds)
+  if (wants('answer_space_position')) {
+    await removeStale(ctx, 'answer_space_position', positionPlan.staleIds)
+  }
+  if (wants('document')) await removeStale(ctx, 'document', documentPlan.staleIds)
+  if (wants('stakeholder')) await removeStale(ctx, 'stakeholder', stakeholderPlan.staleIds)
+}
+
+/** The completion names a Source Trace's document by key; a row names it by id (10 §4). */
+function toStoredPaths(
+  paths: VerificationPathsExport,
+  documentId: (key: string | null) => string | null,
+): VerificationPaths {
+  const trace = paths.source_trace
+  const target = trace ? documentId(trace.document_key) : null
+  return {
+    ...(trace && target !== null
+      ? {
+          source_trace: {
+            document_id: target,
+            passage: trace.passage,
+            dated_on: trace.dated_on,
+            author: trace.author,
+          },
+        }
+      : {}),
+    ...(paths.replication_check ? { replication_check: paths.replication_check } : {}),
+    ...(paths.decomposition_check ? { decomposition_check: paths.decomposition_check } : {}),
   }
 }
 

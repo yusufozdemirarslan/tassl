@@ -1755,29 +1755,30 @@ const PROMPT_FOR_STEP: Readonly<Record<string, GenerationPrompt>> = {
 }
 
 /**
- * `MOCK_GEN_FAIL_ONCE=documents` makes the named step's **first** pass produce a package the step's
- * validation subset refuses, and its retry produce the right one. `MOCK_GEN_FAIL_ONCE=documents:always`
- * makes every pass fail, which is how the second failure — the one that marks the step `failed` and
- * notifies `generation_failed` — is reached.
+ * `MOCK_GEN_FAIL_ONCE=documents` makes the named step's answer break a rule of its validation
+ * subset: the documents come back with no stakeholder attributed to any of them, which the output
+ * schema and every `DOCUMENT_*` rule are happy with and `STAKEHOLDER_NO_DOCUMENT` is not. Since
+ * D-750 that is *not* a step failure — the deterministic completion attributes the documents and
+ * the step succeeds — and what the switch is for now is proving exactly that: a model that misses
+ * a rule costs the author nothing, because the rules are the completion's job rather than the
+ * model's.
  *
- * 10 §5's retry is the hardest path in the pipeline to reach honestly. Every rule the seven output
- * schemas *can* enforce is enforced there, which is the point of D-526, so a mock that always
- * answers correctly leaves the re-enqueue, the pass number and the restated-rule channel untested
- * until the day a real model breaks one. The break is chosen to be schema-valid and rule-invalid:
- * the documents come back with no stakeholder attributed to any of them, which the output schema
- * and every `DOCUMENT_*` rule are happy with and `STAKEHOLDER_NO_DOCUMENT` is not.
+ * `:always` keeps the break on through every pass, which used to be how the second failure was
+ * reached. It is kept because it says the same thing more strongly: a model that never gets the
+ * rule right still produces a package that meets it.
  *
- * The retry is told apart from the first pass by `restatedRules`, which 10 §5 puts in the second
- * prompt — so a pipeline that re-enqueued the step *without* restating the rule would fail the
- * second time too, and the test that asserts one pass-2 success asserts the channel with it.
+ * What *is* still a step failure is a call that does not answer at all, and
+ * `MOCK_GEN_THROW=documents` is that: the provider throws `LLM_PROVIDER_ERROR` for the named step's
+ * first pass, and `MOCK_GEN_THROW=documents:always` for every pass, which is how the retry, the
+ * pass number, the restated-reason channel and the `generation_failed` notice are reached honestly.
  *
- * Read from `process.env` on every call rather than from the parsed `env`, which is frozen at
- * import (D-401), and refused outside development and test, so it can never be a production switch.
+ * Both are read from `process.env` on every call rather than from the parsed `env`, which is frozen
+ * at import (D-401), and both are refused outside development and test, so neither can ever be a
+ * production switch.
  */
 type ForcedFailure = { prompt: GenerationPrompt; always: boolean }
 
-function forcedFailures(): ForcedFailure[] {
-  const raw = process.env.MOCK_GEN_FAIL_ONCE ?? ''
+function parseForced(raw: string): ForcedFailure[] {
   if (raw === '') return []
   if (env.APP_ENV === 'production' || env.APP_ENV === 'preview') return []
   const failures: ForcedFailure[] = []
@@ -1789,10 +1790,26 @@ function forcedFailures(): ForcedFailure[] {
   return failures
 }
 
-const isForcedToFail = (prompt: GenerationPrompt, input: GenerationMockInput): boolean =>
-  forcedFailures().some(
-    (failure) => failure.prompt === prompt && (failure.always || input.restatedRules.length === 0),
+const matches = (
+  failures: readonly ForcedFailure[],
+  prompt: GenerationPrompt,
+  restatedRules: readonly string[],
+): boolean =>
+  failures.some(
+    (failure) => failure.prompt === prompt && (failure.always || restatedRules.length === 0),
   )
+
+const isForcedToFail = (prompt: GenerationPrompt, input: GenerationMockInput): boolean =>
+  matches(parseForced(process.env.MOCK_GEN_FAIL_ONCE ?? ''), prompt, input.restatedRules)
+
+/** True when this call is asked to throw rather than to answer badly. */
+export function isForcedToThrow(prompt: string, rawInput: unknown): boolean {
+  if (!isGenerationPrompt(prompt)) return false
+  const failures = parseForced(process.env.MOCK_GEN_THROW ?? '')
+  if (failures.length === 0) return false
+  const input = readGenerationInput(prompt, rawInput)
+  return matches(failures, prompt, input.restatedRules)
+}
 
 /** The mock's answer to one `gen-*` prompt, as the object the provider serialises to JSON. */
 export function generationReply(prompt: GenerationPrompt, rawInput: unknown): unknown {

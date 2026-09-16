@@ -7,13 +7,19 @@
 //     every rule of `validatePackage` on the mock provider, and the author is told so.
 //   * **The record is real.** One `generation_runs` row per pass, each carrying its provider, its
 //     model, its token counts and its pass number (DATA-027).
-//   * **A failed step retries once, and the retry is told what broke.** `MOCK_GEN_FAIL_ONCE`
-//     makes the documents step's first pass return a room no stakeholder owns a document in, which
-//     the output schema accepts and `STAKEHOLDER_NO_DOCUMENT` refuses. Pass 2 must exist, and the
-//     prompt it was sent must contain the rule's own sentence — a blind retry is not what §5 asks
-//     for, and the assertion is on the rendered prompt, not on the payload.
-//   * **A second failure stops.** Forced to fail both passes, the step is `failed`, the pipeline
-//     goes no further, and `generation_failed` reaches the author.
+//   * **A model that breaks a rule costs the author nothing.** `MOCK_GEN_FAIL_ONCE` makes the
+//     documents step return a room no stakeholder owns a document in, which the output schema
+//     accepts and `STAKEHOLDER_NO_DOCUMENT` refuses. Since D-750 that is not a failure: the
+//     deterministic completion attributes the documents inside the same transaction and the step
+//     succeeds on its first pass. The rules are a guarantee the pipeline keeps, not a conversation
+//     it has with the model.
+//   * **A call that never answers still retries, and the retry is told why.** `MOCK_GEN_THROW`
+//     makes the step's first pass throw. Pass 2 must exist, and the prompt it was sent must carry
+//     the reason — a blind retry is not what §5 asks for, and the assertion is on the rendered
+//     prompt, not on the payload.
+//   * **A step that never answers stops.** Forced to throw on every pass, the step is `failed`
+//     after `MAX_GENERATION_PASSES`, the pipeline goes no further, and `generation_failed` reaches
+//     the author.
 //   * **A second start is refused, and the refusal is the row lock.** Two `startGeneration` calls
 //     raced against each other produce one pipeline — and the same test shows the queue's singleton
 //     key does *not* deduplicate under the `standard` policy (D-400), so the lock is doing it.
@@ -78,6 +84,7 @@ beforeEach(async () => {
   calls.length = 0
   answeredBy.current = null
   delete process.env.MOCK_GEN_FAIL_ONCE
+  delete process.env.MOCK_GEN_THROW
   authoring = await import('@/server/modules/authoring')
   scenarios = await import('@/server/modules/scenarios')
   fx = await setupAuthoringFixture('pipeline')
@@ -85,6 +92,7 @@ beforeEach(async () => {
 
 afterEach(() => {
   delete process.env.MOCK_GEN_FAIL_ONCE
+  delete process.env.MOCK_GEN_THROW
 })
 
 afterAll(async () => {
@@ -263,9 +271,48 @@ describe('startGeneration after a pipeline stopped partway', () => {
 // The retry (10 §5: "re-enqueues the same step with the failed rules in the prompt input")
 // ---------------------------------------------------------------------------------------------
 
-describe('a step that breaks its validation subset', () => {
-  it('re-runs as pass 2 with the failed rule restated in the prompt', async () => {
-    process.env.MOCK_GEN_FAIL_ONCE = 'documents'
+describe('a step whose model answer breaks a rule of its subset', () => {
+  it('completes the answer rather than re-asking, so the step succeeds on its first pass', async () => {
+    // The documents come back with no stakeholder attributed to any of them. That used to be a
+    // failed pass and a retry; since D-750 the completion attributes them inside the same
+    // transaction, and what the author sees is a step that worked.
+    process.env.MOCK_GEN_FAIL_ONCE = 'documents:always'
+    await authoring.startGeneration(fx.author, fx.versionId)
+    await drain()
+
+    const rows = await runRows(fx.versionId)
+    const documents = rows.filter((row) => row.step === 'documents')
+    expect(documents.map((row) => `${row.pass_number}:${row.status}`)).toEqual(['1:succeeded'])
+    expect(documents[0]?.failed_rules).toEqual([])
+
+    // One prompt, and it was never told about a rule: nothing was re-asked.
+    const documentPrompts = calls.filter((call) => call.promptName === 'gen-documents')
+    expect(documentPrompts).toHaveLength(1)
+    expect(documentPrompts[0]?.messages).not.toContain('RULES A PREVIOUS ATTEMPT BROKE')
+
+    // The rule the model broke is met by the rows: every stakeholder owns a document.
+    const orphans = await testSql<{ count: number }[]>`
+      select count(*)::int as count from stakeholders s
+       where s.package_version_id = ${fx.versionId}
+         and not exists (
+           select 1 from scenario_documents d
+            where d.package_version_id = s.package_version_id and d.stakeholder_id = s.id)`
+    expect(orphans[0]?.count ?? -1).toBe(0)
+
+    const status = await authoring.getGenerationStatus(fx.author, fx.versionId)
+    expect(status.state).toBe('complete')
+    expect(status.validation).toEqual({ ok: true, failures: [] })
+
+    // Seven passes, none of them a second: the completion costs no model call (17 §3.2).
+    const measures = await authoring.computeAuthoringMeasures(fx.orgId, fx.versionId)
+    expect(measures.generationPasses).toBe(7)
+    expect(measures.generationMaxPass).toBe(1)
+  })
+})
+
+describe('a step whose call does not answer at all', () => {
+  it('re-runs as pass 2 with the reason restated in the prompt', async () => {
+    process.env.MOCK_GEN_THROW = 'documents'
     await authoring.startGeneration(fx.author, fx.versionId)
     await drain()
 
@@ -275,17 +322,19 @@ describe('a step that breaks its validation subset', () => {
       '1:failed',
       '2:succeeded',
     ])
-    expect(documents[0]?.failed_rules).toEqual(['STAKEHOLDER_NO_DOCUMENT'])
+    // No rule was broken — the call never happened — so the row carries the reason instead.
+    expect(documents[0]?.failed_rules).toEqual([])
+    expect(documents[0]?.error).toContain('failing generation on purpose')
 
-    // The channel, not the intention: the second rendered prompt has to carry the validator's own
-    // sentence. `gen.ts` renders it under this heading and nothing else in the library does, and
-    // the first prompt must not carry it — a step that always restated something would pass this
+    // The channel, not the intention: the second rendered prompt has to carry what stopped the
+    // first. `gen.ts` renders it under this heading and nothing else in the library does, and the
+    // first prompt must not carry it — a step that always restated something would pass this
     // without the retry ever having been told anything.
     const documentPrompts = calls.filter((call) => call.promptName === 'gen-documents')
     expect(documentPrompts).toHaveLength(2)
     expect(documentPrompts[0]?.messages).not.toContain('RULES A PREVIOUS ATTEMPT BROKE')
     expect(documentPrompts[1]?.messages).toContain('RULES A PREVIOUS ATTEMPT BROKE')
-    expect(documentPrompts[1]?.messages).toContain('no document in the Evidence Room')
+    expect(documentPrompts[1]?.messages).toContain('failing generation on purpose')
 
     // The pipeline carried on afterwards, and the package is whole.
     expect(rows[rows.length - 1]).toMatchObject({ step: 'readiness_items', status: 'succeeded' })
@@ -298,10 +347,9 @@ describe('a step that breaks its validation subset', () => {
     expect(measures.generationMaxPass).toBe(2)
   })
 
-  it('is marked failed after the second pass, and the author is told', async () => {
-    // Forced on both passes: the mock only stands down when `restatedRules` is empty, so keeping
-    // the switch on through the retry is what makes the second pass fail too.
-    process.env.MOCK_GEN_FAIL_ONCE = 'documents:always'
+  it('is marked failed once the passes run out, and the author is told', async () => {
+    // Forced on every pass: five of them, which is `MAX_GENERATION_PASSES` (D-750).
+    process.env.MOCK_GEN_THROW = 'documents:always'
     await authoring.startGeneration(fx.author, fx.versionId)
     await drain()
 
@@ -310,26 +358,26 @@ describe('a step that breaks its validation subset', () => {
     expect(documents.map((row) => `${row.pass_number}:${row.status}`)).toEqual([
       '1:failed',
       '2:failed',
+      '3:failed',
+      '4:failed',
+      '5:failed',
     ])
-    expect(documents[1]?.failed_rules).toEqual(['STAKEHOLDER_NO_DOCUMENT'])
+    expect(documents[4]?.error).toContain('failing generation on purpose')
     // The pipeline stops where it broke: nothing downstream of documents ever ran.
     expect(rows.some((row) => row.step === 'answer_space_fields')).toBe(false)
 
     const status = await authoring.getGenerationStatus(fx.author, fx.versionId)
     expect(status.state).toBe('failed')
-    expect(status.steps.find((step) => step.step === 'documents')?.failedRules).toEqual([
-      'STAKEHOLDER_NO_DOCUMENT',
-    ])
 
     const notices = await notificationRows(fx.authorId)
     expect(notices.map((row) => row.type)).toEqual(['generation_failed'])
     expect(notices[0]?.payload).toMatchObject({ step: 'documents' })
 
-    // The elements the failing pass wrote are still there: the author finishes it by hand (FR-194).
-    const documentCount = await testSql<{ count: number }[]>`
-      select count(*)::int as count from scenario_documents
+    // The elements an earlier step wrote are still there: the author finishes it by hand (FR-194).
+    const stakeholderCount = await testSql<{ count: number }[]>`
+      select count(*)::int as count from stakeholders
        where package_version_id = ${fx.versionId}`
-    expect(documentCount[0]?.count ?? 0).toBeGreaterThan(0)
+    expect(stakeholderCount[0]?.count ?? 0).toBeGreaterThan(0)
   })
 })
 
@@ -399,7 +447,7 @@ describe('a redelivered job whose step has already finished', () => {
     // another element set over the author's, a second `generation_failed`, and a breach of
     // `MAX_GENERATION_PASSES`. D-531 stated the guarantee for four statuses and kept it for two
     // (D-551).
-    process.env.MOCK_GEN_FAIL_ONCE = 'documents:always'
+    process.env.MOCK_GEN_THROW = 'documents:always'
     await authoring.startGeneration(fx.author, fx.versionId)
     await drain()
 
@@ -408,13 +456,13 @@ describe('a redelivered job whose step has already finished', () => {
       before
         .filter((row) => row.step === 'documents')
         .map((row) => `${row.pass_number}:${row.status}`),
-    ).toEqual(['1:failed', '2:failed'])
+    ).toEqual(['1:failed', '2:failed', '3:failed', '4:failed', '5:failed'])
     const callsBefore = calls.length
     const noticesBefore = (await notificationRows(fx.authorId)).length
     expect(noticesBefore).toBe(1)
 
-    // The redelivery pg-boss would make: the same payload, for the pass that failed.
-    for (const passNumber of [1, 2]) {
+    // The redelivery pg-boss would make: the same payload, for a pass that failed.
+    for (const passNumber of [1, 2, 3, 4, 5]) {
       await enqueue(
         'generate_package_step',
         {
@@ -580,7 +628,7 @@ describe('the pipeline state after a rewrite that stopped', () => {
     // A standalone document rewrite that fails both passes, on a version whose step 7 succeeded
     // once. `pipelineState` answered on "did the last step ever succeed", so the screen printed
     // "your draft is ready" over a row saying the rewrite stopped.
-    process.env.MOCK_GEN_FAIL_ONCE = 'documents:always'
+    process.env.MOCK_GEN_THROW = 'documents:always'
     const document = await testSql<{ id: string }[]>`
       select id from scenario_documents where package_version_id = ${fx.versionId}
        order by position limit 1`

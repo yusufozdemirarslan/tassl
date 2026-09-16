@@ -445,7 +445,7 @@ Two rail items never appear for an Instructor: **Runs** belongs to Students and 
 
 **Bands are drafts until you decide.** After the defense, Tassl drafts the seven bands — Framing, Delegation, Verification, Calibration, Decision Quality, Adaptation and Ownership — each with the graphs, trace events and quoted words it was read from. Bands that turn on the model's reading of the student's free text carry **Provisional** until you decide them. The student's debrief shows every one as **Draft band** with the sentence **Every band below is a draft. Your instructor reads the run and confirms or changes each one; when they do, this page shows what they decided in place of the draft.** Nothing reaches a gradebook until all seven carry your decision; the seventh decision writes course export version 1. When the model could not place the bands the run is held: the Bands view reads **Nothing could place this run’s bands, so there are no drafts to decide. The seven are yours to set by hand.**, and you either band it by hand or void it. A correction on a claim can raise a band and never lowers one.
 
-**Generation is drafting.** A Scenario Editor's **Create and generate** writes a package from a seed case in seven model steps; every element it writes is a draft until the Scenario Editor reads it and records a decision, and no assignment runs on a version until they publish it.
+**Generation is drafting.** A Scenario Editor's **Generate** writes a package from a title and, where there is one, a pasted case; every element it writes is a draft until the Scenario Editor reads it, and no assignment runs on a version until they publish it.
 
 ## Troubleshooting & FAQ
 
@@ -490,7 +490,7 @@ Two rail items never appear for an Instructor: **Runs** belongs to Students and 
 - **Seed case** — the licensed case a package is adapted from, with its title, publisher, license terms, the re-skin log and the confirmation that the license permits adaptation; no student ever sees it.
 - **Family key** — the lowercase identifier a package keeps across its versions and exports; no two packages in one institution share it.
 - **Generation** — the seven model steps that draft a version from its seed case; every element they write is a draft until a Scenario Editor decides on it.
-- **Confirmation workspace** — the screen where a Scenario Editor reads each element, uses Save edits, Confirm, Reject or Rewrite, ticks the teaching-note check and confirms the version with Confirm and freeze.
+- **Review workspace** — the screen where a Scenario Editor reads each element, uses Save edits, Confirm, Reject or Rewrite, and publishes the version with Confirm and publish. An element they have not decided on is confirmed by that press; one they rejected is not, and keeps the version unpublished until it is re-read.
 - **Variant** — one of the two readings of a package, Defective or Sound, that differ only in the planted claim's evidence status and verification results; the student is never told which one they drew.
 - **Claim** — something the assistant states that a student takes a stance on; each has a key such as C3, a source, an importance, a consequence and a verification cost.
 - **Stance** — the position a student takes on a claim before the outcome is known: Accept, Verify, Challenge, Reject or Escalate.

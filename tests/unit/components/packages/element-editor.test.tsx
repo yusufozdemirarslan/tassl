@@ -159,7 +159,7 @@ type HarnessProps = {
 const noop = (): void => {}
 
 /** The editor as the workspace mounts it: the draft lives above, the editor writes into it. */
-function Harness({ element, errors = {}, failures = [], index }: HarnessProps) {
+function Harness({ element, errors = {}, index }: HarnessProps) {
   const [values, setValues] = useState<Record<string, unknown>>(element.values)
   return (
     <ElementEditor
@@ -168,7 +168,6 @@ function Harness({ element, errors = {}, failures = [], index }: HarnessProps) {
       errors={errors}
       formError={null}
       index={index ?? buildIndex([element], CONCEPTS)}
-      failures={failures}
       frozen={false}
       canEdit
       canDecide
@@ -284,24 +283,13 @@ describe('ElementEditor — a readiness item without four options (UI-043, FR-19
     return failure
   }
 
-  it('states the rule, its code, and the element it names', () => {
-    const failure = optionsFailure()
-    // The split and the count are right, so the only thing the rule has to say is the option count.
-    expect(failure.message).toBe(
-      'Item R1 needs 4 distinctly keyed options and an answer key naming one of them.',
-    )
-    expect(failure.elementIds).toEqual(['item-1'])
-
-    render(<Harness element={readinessDraft(optionRows(3))} failures={[failure]} />)
-
-    expect(screen.getByText(enUS['confirm.elementRulesTitle'])).toBeInTheDocument()
-    expect(screen.getByText(failure.message)).toBeInTheDocument()
-    // The code is on the screen because it is what an author searches the export for.
-    expect(screen.getByText('READINESS_SPLIT')).toBeInTheDocument()
-  })
-
+  // D-750: a rule code is this repository's vocabulary, not an author's, and the editor no longer
+  // shows one. The rules are a server-side guarantee — the generation pipeline completes every one
+  // of them before a version is finished — so what the author reads here is the element, not a
+  // report about it. `validatePackage` still owns the rule and `confirmVersion` still refuses on
+  // it; `tests/unit/scenarios/complete.test.ts` is where the rule table is held to its word.
   it('shows the three options it has, and no fourth', () => {
-    render(<Harness element={readinessDraft(optionRows(3))} failures={[optionsFailure()]} />)
+    render(<Harness element={readinessDraft(optionRows(3))} />)
 
     const option = enUS['confirm.field.option']
     for (const index of [1, 2, 3]) {
@@ -451,8 +439,6 @@ function renderWorkspace() {
       versionId="ver-1"
       version={2}
       frozen={false}
-      teachingNoteChecked={false}
-      validation={{ ok: false, failures: [] }}
       canEdit
       canConfirm
       canRegenerate={false}
@@ -757,21 +743,20 @@ describe('ConfirmWorkspace — the filter and the press that freezes a version (
       name: t('confirm.confirmDialogTitle', { version: 2 }),
     })
 
-    // Four of five elements are undecided and the teaching note is not ticked; the press that
-    // freezes a version for good says so first rather than leaving it up the page.
+    // Four of five elements are undecided; the press that freezes a version for good says so
+    // first, and states the attestation it stands for rather than leaving it on a tick up the
+    // page (D-752).
     expect(
       within(dialog).getByText(t('confirm.confirmDialogElementsValue', { decided: 1, total: 5 })),
     ).toBeInTheDocument()
-    expect(
-      within(dialog).getByText(enUS['confirm.confirmDialogTeachingNoteUnchecked']),
-    ).toBeInTheDocument()
+    expect(within(dialog).getByText(enUS['confirm.confirmDialogAttestation'])).toBeInTheDocument()
     expect(actions.confirmVersionAction).not.toHaveBeenCalled()
 
     await user.click(
       within(dialog).getByRole('button', { name: enUS['confirm.confirmDialogSubmit'] }),
     )
     expect(actions.confirmVersionAction).toHaveBeenCalledWith(
-      expect.objectContaining({ versionId: 'ver-1', teachingNoteChecked: false }),
+      expect.objectContaining({ versionId: 'ver-1', teachingNoteChecked: true }),
     )
     // The trigger the dialog was opened from goes with the rest of the editing block the moment
     // the version freezes, so focus is told where to land rather than falling to the document.

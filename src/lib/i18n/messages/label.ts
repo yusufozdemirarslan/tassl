@@ -4,6 +4,13 @@ import { scopedT } from '../scoped'
 export const label = {
   'label.draft': 'Draft',
   'label.confirmed': 'Confirmed',
+  /**
+   * A *version* that is frozen and assignable. The row's status is still `confirmed` — that is the
+   * column's own vocabulary and the word every element decision uses — but what has happened to
+   * the package from a reader's side is that it has been published: it can be put in front of
+   * students, and nothing about it can change again (D-752).
+   */
+  'label.published': 'Published',
   'label.uncalibrated': 'Uncalibrated',
   'label.walkthrough': 'Walkthrough',
   'label.provisional': 'Provisional',

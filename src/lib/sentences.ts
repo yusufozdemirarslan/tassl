@@ -136,21 +136,38 @@ function endsASentence(before: string, after: string): boolean {
  * function only trims, so that the count is not thrown by a leading or trailing newline.
  */
 export function countSentences(text: string): number {
-  const prose = text.trim()
-  if (prose === '') return 0
+  return splitSentences(text).length
+}
 
-  let sentences = 0
+/**
+ * The same boundaries `countSentences` counts, as the sentences between them.
+ *
+ * It exists because one caller needs the pieces rather than the number: `completePackage` has to
+ * cut a counterfactual down to the three sentences `COUNTERFACTUAL_SENTENCES` asks for, and a
+ * second splitter written beside the counter is exactly the drift this file was made to prevent.
+ * `countSentences` is defined in terms of it, so the two can never disagree: every limit stated in
+ * that function's documentation is a limit of this one.
+ *
+ * Each piece keeps its own terminator and is trimmed; joining them with a single space yields text
+ * this function splits the same way again.
+ */
+export function splitSentences(text: string): string[] {
+  const prose = text.trim()
+  if (prose === '') return []
+
+  const sentences: string[] = []
   let lastBoundary = 0
 
   for (const match of prose.matchAll(CANDIDATE)) {
     const end = match.index + match[0].length
     if (!endsASentence(prose.slice(0, match.index), prose.slice(end).trimStart())) continue
-    sentences += 1
+    sentences.push(prose.slice(lastBoundary, end).trim())
     lastBoundary = end
   }
 
   // A final fragment with no terminator is still a sentence someone wrote.
-  if (HAS_CONTENT.test(prose.slice(lastBoundary))) sentences += 1
+  const tail = prose.slice(lastBoundary)
+  if (HAS_CONTENT.test(tail)) sentences.push(tail.trim())
 
   return sentences
 }

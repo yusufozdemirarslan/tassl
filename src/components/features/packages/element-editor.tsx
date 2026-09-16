@@ -9,11 +9,7 @@ import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/cn'
 import { formatDateTime } from '@/lib/format/date-time'
 import { t } from '@/lib/i18n/messages/package-confirm'
-import type {
-  StanceValue,
-  ValidationFailure,
-  VariantKeyValue,
-} from '@/server/modules/scenarios/schema'
+import type { StanceValue, VariantKeyValue } from '@/server/modules/scenarios/schema'
 import { ConfirmBar, type ConfirmBarPending } from './confirm-bar'
 import {
   readBoolean,
@@ -59,7 +55,6 @@ export type ElementEditorProps = {
   formError: string | null
   index: ElementIndex
   /** The `validatePackage` rules that name this element (FR-194). */
-  failures: readonly ValidationFailure[]
   /** The version is confirmed: everything is the record of what was signed. */
   frozen: boolean
   canEdit: boolean
@@ -226,7 +221,6 @@ export function ElementEditor(props: ElementEditorProps) {
     errors,
     formError,
     index,
-    failures,
     frozen,
     canEdit,
     canDecide,
@@ -275,19 +269,6 @@ export function ElementEditor(props: ElementEditorProps) {
         </div>
 
         {formError !== null && <ServerRefusal key={formError} message={formError} />}
-
-        {failures.length > 0 && (
-          <Refusal title={t('confirm.elementRulesTitle')}>
-            <ul className="flex flex-col gap-2">
-              {failures.map((failure) => (
-                <li key={failure.code} className="flex flex-col gap-0.5">
-                  <span>{failure.message}</span>
-                  <span className="text-mono-sm font-mono break-words">{failure.code}</span>
-                </li>
-              ))}
-            </ul>
-          </Refusal>
-        )}
 
         {frozen ? (
           <p className="text-ink-muted text-body max-w-measure">{t('confirm.frozenBody')}</p>

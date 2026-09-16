@@ -205,7 +205,10 @@ describe('GenerationProgress — a step that did not finish (UI-042)', () => {
       ...over,
     })
 
-  it('shows the rule text for a rule the package still breaks, and the code beside it', () => {
+  // D-750: the sentence and never the code. A rule code is this repository's vocabulary for a
+  // rule, and printing it beside the validator's own sentence said the same thing twice — once in
+  // a language the author does not read.
+  it('shows the rule text for a rule the package still breaks, and not its code', () => {
     stopped()
 
     const row = rows()[1] as HTMLElement
@@ -213,14 +216,14 @@ describe('GenerationProgress — a step that did not finish (UI-042)', () => {
     expect(row).toHaveTextContent(
       'Stakeholders S2 and S3 have no document in the Evidence Room; every stakeholder needs at least one.',
     )
-    expect(row).toHaveTextContent('STAKEHOLDER_NO_DOCUMENT')
+    expect(row).not.toHaveTextContent('STAKEHOLDER_NO_DOCUMENT')
   })
 
   it('says a rule the package no longer breaks was settled rather than printing a bare code', () => {
     stopped()
 
     const row = rows()[1] as HTMLElement
-    expect(row).toHaveTextContent('DOCUMENT_ROLES_MISSING')
+    expect(row).not.toHaveTextContent('DOCUMENT_ROLES_MISSING')
     expect(row).toHaveTextContent(enUS['generation.ruleSettled'])
   })
 

@@ -15,6 +15,7 @@
 import { afterAll, beforeEach, describe, expect, it } from 'vitest'
 import { truncateAll } from '@tests/setup/integration'
 import { isAppError } from '@/lib/errors'
+import { t } from '@/lib/i18n/messages/package-confirm'
 import { countWords } from '@/lib/words'
 import type { SessionUser } from '@/server/auth/types'
 import {
@@ -558,6 +559,9 @@ async function fillDraft(orgId: string, versionId: string): Promise<void> {
  */
 const ELEMENT_COUNT = 79
 
+/** The note the publish files against an element it confirmed on the author's behalf (D-752). */
+const SWEPT_NOTE = t('confirm.confirmedOnPublishNote')
+
 // ---------------------------------------------------------------------------------------------
 // Fixture and helpers
 // ---------------------------------------------------------------------------------------------
@@ -621,13 +625,19 @@ function unconfirmedElements(details: unknown): Unconfirmed[] {
   return elements
 }
 
+/** Every element of the version, as the workspace lists them. */
+async function everyElement(versionId: string): Promise<Unconfirmed[]> {
+  const elements = await scenarios.listVersionElements(fx.author, versionId)
+  return elements.map((element) => ({
+    elementType: element.elementType,
+    elementId: element.elementId,
+    key: element.key,
+  }))
+}
+
 /** Confirms every element still waiting on a decision, as an author working through the list. */
 async function decideEveryElement(versionId: string): Promise<Unconfirmed[]> {
-  const refused = await refusal(
-    scenarios.confirmVersion(fx.author, versionId, { teachingNoteChecked: true }),
-  )
-  expect(refused.code).toBe('ELEMENTS_UNCONFIRMED')
-  const pending = unconfirmedElements(refused.details)
+  const pending = await everyElement(versionId)
   for (const element of pending) {
     await scenarios.decideElement(
       fx.author,
@@ -856,15 +866,9 @@ describe('an Instructor reads a package and writes nothing (08 §4, D-748)', () 
 })
 
 describe('confirmVersion refuses in the order 10 §4 gives', () => {
-  it('names every element still waiting on a decision', async () => {
+  it('confirms every element nobody decided on, in the publishing author name (D-752)', async () => {
     const { versionId } = await draftPackage()
-
-    const refused = await refusal(
-      scenarios.confirmVersion(fx.author, versionId, { teachingNoteChecked: true }),
-    )
-    expect(refused.code).toBe('ELEMENTS_UNCONFIRMED')
-
-    const pending = unconfirmedElements(refused.details)
+    const pending = await everyElement(versionId)
     expect(pending).toHaveLength(ELEMENT_COUNT)
     // The singletons are addressed by type with a null element id (06 §3.3); everything else by id.
     expect(pending.filter((element) => element.elementId === null).map((el) => el.key)).toEqual([
@@ -880,7 +884,7 @@ describe('confirmVersion refuses in the order 10 §4 gives', () => {
       pending.filter((element) => element.elementType === elementType).map((el) => el.key)
     expect(keysOf('claim')).toEqual(['C1', 'C2', 'C3', 'C4', 'C5', 'C6'])
     expect(keysOf('document')).toEqual(['D1', 'D2', 'D3', 'D4', 'D5', 'D6'])
-    // A claim state is named by its variant and its claim, so both readings are confirmed one by one.
+    // A claim state is named by its variant and its claim, and each is its own element.
     expect(keysOf('variant_claim_state').sort()).toEqual([
       'defective:C1',
       'defective:C2',
@@ -896,7 +900,7 @@ describe('confirmVersion refuses in the order 10 §4 gives', () => {
       'sound:C6',
     ])
 
-    // Deciding one element removes exactly that element from the list.
+    // One element read on purpose, with a note of its own; everything else is left alone.
     const first = pending[0]!
     await scenarios.decideElement(
       fx.author,
@@ -905,15 +909,27 @@ describe('confirmVersion refuses in the order 10 §4 gives', () => {
       first.elementId ?? SINGLETON_ELEMENT_ID,
       { decision: 'confirmed', note: 'Reads as written.', openedAt: new Date().toISOString() },
     )
-    const again = await refusal(
-      scenarios.confirmVersion(fx.author, versionId, { teachingNoteChecked: true }),
+
+    const confirmed = await scenarios.confirmVersion(fx.author, versionId, {
+      teachingNoteChecked: true,
+    })
+    expect(confirmed.status).toBe('confirmed')
+
+    // Every element carries a decision afterwards, and the record tells the two apart: the one the
+    // author opened keeps its own note, and the rest carry the note the publish filed.
+    const after = await scenarios.listVersionElements(fx.author, versionId)
+    expect(after).toHaveLength(ELEMENT_COUNT)
+    expect(after.every((element) => element.confirmation?.decision === 'confirmed')).toBe(true)
+    expect(after.find((element) => element.key === first.key)?.confirmation?.note).toBe(
+      'Reads as written.',
     )
-    expect(unconfirmedElements(again.details)).toHaveLength(ELEMENT_COUNT - 1)
+    const swept = after.filter((element) => element.key !== first.key)
+    expect(swept.every((element) => element.confirmation?.note === SWEPT_NOTE)).toBe(true)
+    expect(swept.every((element) => element.confirmation?.decidedBy === fx.editor.id)).toBe(true)
   })
 
   it('still refuses an element the author rejected', async () => {
     const { versionId } = await draftPackage()
-    await decideEveryElement(versionId)
 
     const claims = await claimIdsByKey(versionId)
     await scenarios.decideElement(fx.author, versionId, 'claim', claims.get('C4')!, {
@@ -931,9 +947,8 @@ describe('confirmVersion refuses in the order 10 §4 gives', () => {
     ])
   })
 
-  it('refuses an unticked teaching-note check once every element is decided (FR-027)', async () => {
+  it('refuses an unticked teaching-note check (FR-027)', async () => {
     const { versionId } = await draftPackage()
-    await decideEveryElement(versionId)
 
     const refused = await refusal(
       scenarios.confirmVersion(fx.author, versionId, { teachingNoteChecked: false }),
@@ -947,15 +962,14 @@ describe('confirmVersion refuses in the order 10 §4 gives', () => {
 
   it('refuses a package that breaks a rule, carrying the rule codes', async () => {
     const { versionId } = await draftPackage()
-    await decideEveryElement(versionId)
 
-    // An author's edit is itself a confirmation (10 §4), so C5 stays decided and only the rules
+    // An author's edit is itself a confirmation (10 §4), so C5 is decided and only the rules
     // change: its concept is no longer one the version declares.
     const claims = await claimIdsByKey(versionId)
     const edited = await scenarios.updateElement(fx.author, versionId, 'claim', claims.get('C5')!, {
       conceptKey: 'brand_equity',
     })
-    expect(edited.confirmation).toMatchObject({ decision: 'edited', revision: 2 })
+    expect(edited.confirmation).toMatchObject({ decision: 'edited', revision: 1 })
 
     const refused = await refusal(
       scenarios.confirmVersion(fx.author, versionId, { teachingNoteChecked: true }),
@@ -1155,11 +1169,10 @@ describe('regenerateVersion (FR-195)', () => {
     ])
     expect(family.latestVersion).toMatchObject({ version: 2, status: 'draft' })
 
-    // A copied element is not a decided element: version 2 starts its own confirmation pass.
-    const refused = await refusal(
-      scenarios.confirmVersion(fx.author, next.versionId, { teachingNoteChecked: true }),
-    )
-    expect(refused.code).toBe('ELEMENTS_UNCONFIRMED')
-    expect(unconfirmedElements(refused.details)).toHaveLength(ELEMENT_COUNT)
+    // A copied element is not a decided element: version 2 starts its own review, with every
+    // element still waiting to be read (D-752 — publishing is what confirms them, and nobody has).
+    const copied = await scenarios.listVersionElements(fx.author, next.versionId)
+    expect(copied).toHaveLength(ELEMENT_COUNT)
+    expect(copied.every((element) => element.confirmation === null)).toBe(true)
   })
 })

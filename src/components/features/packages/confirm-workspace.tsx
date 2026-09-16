@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import type { Route } from 'next'
-import { ArrowRightIcon, CircleAlertIcon, Loader2Icon } from 'lucide-react'
+import { ArrowRightIcon, Loader2Icon } from 'lucide-react'
 import { toast } from 'sonner'
 import { Panel } from '@/components/layout/panel'
 import {
@@ -19,8 +19,6 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
-import { Checkbox } from '@/components/ui/checkbox'
-import { Field, FieldContent, FieldDescription, FieldLabel } from '@/components/ui/field'
 import { Progress, ProgressLabel, ProgressValue } from '@/components/ui/progress'
 import { t } from '@/lib/i18n/messages/package-confirm'
 import { countWords } from '@/lib/words'
@@ -30,7 +28,7 @@ import {
   decideElementAction,
   updateElementAction,
 } from '@/server/modules/scenarios/actions'
-import type { ValidationFailure, ValidationResult } from '@/server/modules/scenarios/schema'
+import type { ValidationFailure } from '@/server/modules/scenarios/schema'
 import type { ConfirmBarPending } from './confirm-bar'
 import { ElementEditor } from './element-editor'
 import { ElementList } from './element-list'
@@ -83,8 +81,6 @@ export type ConfirmWorkspaceProps = {
   version: number
   /** The version is confirmed: the whole screen is the record of what was signed. */
   frozen: boolean
-  teachingNoteChecked: boolean
-  validation: ValidationResult
   canEdit: boolean
   canConfirm: boolean
   /** 10 §5: the version is a draft and this seat may send an element back to the pipeline. */
@@ -264,22 +260,15 @@ export function ConfirmWorkspace(props: ConfirmWorkspaceProps) {
    */
   const draftsNow = useRef<Drafts>({})
 
-  const [teachingNote, setTeachingNote] = useState(props.teachingNoteChecked)
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [confirming, setConfirming] = useState(false)
   const [versionError, setVersionError] = useState<string | null>(null)
   const [unconfirmed, setUnconfirmed] = useState<UnconfirmedElement[]>([])
-  // The version's own rules come from the server on every render; a refused confirmation overlays
-  // the list it answered with, and the next write to any element retires that overlay — the
-  // package has changed, so the last refusal is no longer what it is refused for.
-  const [attemptFailures, setAttemptFailures] = useState<ValidationFailure[] | null>(null)
-  const ruleFailures = attemptFailures ?? props.validation.failures
   // The confirmation freezes the version. The revalidated props say so a moment later; this says so
   // now, so nothing on the screen invites an edit the server has already stopped taking.
   const [justConfirmed, setJustConfirmed] = useState(false)
   const isFrozen = frozen || justConfirmed
 
-  const teachingNoteBox = useRef<HTMLButtonElement>(null)
   const backToVersion = useRef<HTMLAnchorElement>(null)
   /**
    * Where focus goes when the confirmation dialog closes and the trigger is not the answer: the
@@ -453,7 +442,6 @@ export function ConfirmWorkspace(props: ConfirmWorkspaceProps) {
 
     const saved = toWorkspaceElement(selected, result.data)
     applyElement(saved)
-    setAttemptFailures(null)
     setUnconfirmed([])
     setDrafts((current) => {
       const copy = { ...current }
@@ -498,7 +486,6 @@ export function ConfirmWorkspace(props: ConfirmWorkspaceProps) {
         return
       }
 
-      setAttemptFailures(null)
       setUnconfirmed([])
       applyElement({
         ...selected,
@@ -623,10 +610,12 @@ export function ConfirmWorkspace(props: ConfirmWorkspaceProps) {
     setConfirming(true)
     setVersionError(null)
     setUnconfirmed([])
+    // The dialog is the attestation: what FR-027 asks the author to state is on the page they just
+    // read and in the dialog they are pressing through, so the press is the tick (D-752).
     const result = await confirmVersionAction({
       packageId,
       versionId,
-      teachingNoteChecked: teachingNote,
+      teachingNoteChecked: true,
     })
     setConfirming(false)
     // Either answer belongs to the screen behind the dialog: the refusal names elements to open and
@@ -634,36 +623,32 @@ export function ConfirmWorkspace(props: ConfirmWorkspaceProps) {
     setConfirmOpen(false)
 
     if (!result.ok) {
-      setVersionError(result.error.message)
+      // A package rule is a sentence about what the version is missing, never its code: the code is
+      // this repository's vocabulary and an author cannot act on it (D-750). Since the generation
+      // pipeline completes every rule server-side, this only ever speaks for a version written or
+      // imported by hand.
+      const failures =
+        result.error.code === 'PACKAGE_INVALID' ? readFailures(result.error.details) : []
+      setVersionError(
+        failures.length > 0
+          ? failures.map((failure) => failure.message).join(' ')
+          : result.error.message,
+      )
       if (result.error.code === 'ELEMENTS_UNCONFIRMED') {
         setUnconfirmed(readUnconfirmed(result.error.details))
       }
-      if (result.error.code === 'PACKAGE_INVALID') {
-        setAttemptFailures(readFailures(result.error.details))
-      }
-      focusOnClose.current =
-        result.error.code === 'TEACHING_NOTE_UNCHECKED' ? teachingNoteBox.current : null
+      focusOnClose.current = null
       return
     }
-    setAttemptFailures([])
     setJustConfirmed(true)
     focusOnClose.current = null
     toast.success(t('confirm.confirmedToast', { version }))
-  }, [packageId, versionId, teachingNote, version])
+  }, [packageId, versionId, version])
 
   const progress = countDecided(nodes)
   const remaining = progress.total - progress.decided
   const rejectedCount = elements.filter((element) => element.decision === 'rejected').length
   const dirtyIds = useMemo(() => new Set(Object.keys(drafts)), [drafts])
-
-  // The rules that name the open element, so a refusal arrives with the element it is about.
-  const failuresForSelected = useMemo(
-    () =>
-      selected === null
-        ? []
-        : ruleFailures.filter((failure) => failure.elementIds.includes(selected.elementId)),
-    [ruleFailures, selected],
-  )
 
   const variantStates = useMemo(
     () =>
@@ -757,29 +742,6 @@ export function ConfirmWorkspace(props: ConfirmWorkspaceProps) {
             )}
           </div>
 
-          {ruleFailures.length > 0 && (
-            <section className="border-red bg-red-soft text-ink text-body max-w-measure flex w-full items-start gap-2 rounded-md border p-3">
-              <CircleAlertIcon aria-hidden="true" className="text-red mt-0.5 size-4 shrink-0" />
-              <div className="flex min-w-0 flex-1 flex-col gap-3">
-                <p className="font-medium">{t('confirm.rulesTitle')}</p>
-                <ul className="text-meta flex flex-col gap-2">
-                  {ruleFailures.map((failure) => (
-                    <li key={failure.code} className="flex flex-col gap-0.5">
-                      <span className="text-ink">{failure.message}</span>
-                      <span className="text-ink text-mono-sm font-mono break-words">
-                        {failure.elementIds.length === 0
-                          ? failure.code
-                          : `${failure.code} · ${t('confirm.ruleElements', {
-                              keys: failure.elementIds.map((id) => keyOf(elements, id)).join(', '),
-                            })}`}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            </section>
-          )}
-
           {unconfirmed.length > 0 && (
             <section className="flex flex-col items-start gap-2">
               <h3 className="text-h4">{t('confirm.unconfirmedTitle')}</h3>
@@ -802,23 +764,6 @@ export function ConfirmWorkspace(props: ConfirmWorkspaceProps) {
 
           {!isFrozen && canEdit && (
             <div className="border-line flex flex-col items-start gap-4 border-t pt-5">
-              <Field orientation="horizontal">
-                <Checkbox
-                  id="confirm-teaching-note"
-                  ref={teachingNoteBox}
-                  checked={teachingNote}
-                  disabled={!canConfirm}
-                  aria-labelledby="confirm-teaching-note-label"
-                  onCheckedChange={(next: boolean) => setTeachingNote(next)}
-                />
-                <FieldContent>
-                  <FieldLabel id="confirm-teaching-note-label" htmlFor="confirm-teaching-note">
-                    {t('confirm.teachingNoteLabel')}
-                  </FieldLabel>
-                  <FieldDescription>{t('confirm.teachingNoteHint')}</FieldDescription>
-                </FieldContent>
-              </Field>
-
               {versionError !== null && (
                 <p role="alert" className="text-red text-body">
                   {versionError}
@@ -868,25 +813,12 @@ export function ConfirmWorkspace(props: ConfirmWorkspaceProps) {
                           mono
                         />
                       )}
-                      <SigningLine
-                        term={t('confirm.confirmDialogRules')}
-                        value={
-                          ruleFailures.length === 0
-                            ? t('confirm.confirmDialogRulesPass')
-                            : t('confirm.confirmDialogRulesFailing', {
-                                count: ruleFailures.length,
-                              })
-                        }
-                      />
-                      <SigningLine
-                        term={t('confirm.confirmDialogTeachingNote')}
-                        value={
-                          teachingNote
-                            ? t('confirm.confirmDialogTeachingNoteChecked')
-                            : t('confirm.confirmDialogTeachingNoteUnchecked')
-                        }
-                      />
                     </dl>
+
+                    {/* FR-027's attestation, where it is being made. It was a tick on the page
+                        above, which put the statement one scroll away from the press that stands
+                        for it; here the words and the button are the same act (D-752). */}
+                    <p className="text-ink text-body">{t('confirm.confirmDialogAttestation')}</p>
 
                     <AlertDialogFooter>
                       <AlertDialogCancel disabled={confirming}>
@@ -980,7 +912,6 @@ export function ConfirmWorkspace(props: ConfirmWorkspaceProps) {
             errors={errors}
             formError={formError}
             index={index}
-            failures={failuresForSelected}
             frozen={isFrozen}
             canEdit={canEdit}
             canDecide={canConfirm}
@@ -1026,11 +957,6 @@ function expandedFor(nodes: readonly TreeNode[], leafId: string | null): string[
   }
   walk(nodes, [])
   return path
-}
-
-/** The key an author knows an element by, from the id a rule failure names. */
-function keyOf(elements: readonly WorkspaceElement[], elementId: string): string {
-  return elements.find((element) => element.elementId === elementId)?.key ?? elementId
 }
 
 /** `updateElement`'s answer, in the shape the workspace holds an element. */

@@ -329,11 +329,11 @@ test.describe('every screen adapts from 360 px to 1440 px', () => {
       async (viewport) => {
         await expect(page.getByRole('heading', { level: 1, name: title })).toBeVisible()
         await expectActionUsable(
-          page.getByRole('button', { name: 'Confirm version' }),
+          page.getByRole('button', { name: 'Confirm and publish' }),
           viewport,
-          'the version confirmation',
+          'the version publish',
         )
-        // The way into the ninety-three decisions, which is a different control at each end of
+        // The way into the ninety-three elements, which is a different control at each end of
         // the range: the tree from `xl`, where the workspace's two columns start (D-628), and
         // under it the one select the tree collapses to. A workspace with neither on the screen
         // has no way into it.

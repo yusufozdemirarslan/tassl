@@ -1672,18 +1672,55 @@ describe('POST /package-versions/{versionId}/confirm', () => {
     expect(errorCode(again)).toBe('VERSION_FROZEN')
   })
 
-  it('refuses undecided elements, an unticked teaching note, an invalid package, and an Instructor', async () => {
-    const undecided = await call(confirmRoute.POST, {
+  it('refuses a rejected element, an unticked teaching note, an invalid package, and an Instructor', async () => {
+    // A version with nothing in it is refused for what it *is* rather than for what nobody
+    // decided: since D-752 an element nobody has read is confirmed by the publish, and an empty
+    // package is one the rule table has plenty to say about.
+    const empty = await call(confirmRoute.POST, {
       method: 'POST',
       path: `/package-versions/${fx.undecided.versionId}/confirm`,
       session: await asAuthor(),
       params: { versionId: fx.undecided.versionId },
       body: { teachingNoteChecked: true },
     })
-    expect(undecided.status).toBe(409)
-    expect(errorCode(undecided)).toBe('ELEMENTS_UNCONFIRMED')
-    const elements = errorDetails(undecided)['elements'] as { elementType: string; key: string }[]
-    expect(elements.map((element) => element.elementType)).toContain('brief')
+    expect(empty.status).toBe(422)
+    expect(errorCode(empty)).toBe('PACKAGE_INVALID')
+
+    // What `ELEMENTS_UNCONFIRMED` names is the narrower thing: an element the author sent back.
+    const rejected = await call(decisionRoute.POST, {
+      method: 'POST',
+      path: `/package-versions/${fx.pkg.versionId}/elements/claim/${claimId('C4')}/decision`,
+      session: await asAuthor(),
+      params: { versionId: fx.pkg.versionId, elementType: 'claim', elementId: claimId('C4') },
+      body: {
+        decision: 'rejected',
+        note: 'Re-author it: it is too close to C5.',
+        openedAt: '2026-09-02T10:00:00.000Z',
+      },
+    })
+    expect(rejected.status).toBe(200)
+
+    const waiting = await call(confirmRoute.POST, {
+      method: 'POST',
+      path: `/package-versions/${fx.pkg.versionId}/confirm`,
+      session: await asAuthor(),
+      params: { versionId: fx.pkg.versionId },
+      body: { teachingNoteChecked: true },
+    })
+    expect(waiting.status).toBe(409)
+    expect(errorCode(waiting)).toBe('ELEMENTS_UNCONFIRMED')
+    const elements = errorDetails(waiting)['elements'] as { elementType: string; key: string }[]
+    expect(elements.map((element) => element.key)).toEqual(['C4'])
+
+    // Read again and confirmed, the version is publishable once more.
+    const reread = await call(decisionRoute.POST, {
+      method: 'POST',
+      path: `/package-versions/${fx.pkg.versionId}/elements/claim/${claimId('C4')}/decision`,
+      session: await asAuthor(),
+      params: { versionId: fx.pkg.versionId, elementType: 'claim', elementId: claimId('C4') },
+      body: { decision: 'confirmed', note: '', openedAt: '2026-09-02T10:05:00.000Z' },
+    })
+    expect(reread.status).toBe(200)
 
     const unticked = await call(confirmRoute.POST, {
       method: 'POST',

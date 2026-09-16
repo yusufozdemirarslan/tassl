@@ -9,15 +9,19 @@ import {
 import { enUS } from '@/lib/i18n/en-US'
 import { t } from '@/lib/i18n/t'
 
-// UI-041 (step 5.4). Two rules of `CreatePackageFromSeedSchema` and `createPackageFromSeed` that
-// the author has to satisfy before the request is worth making: the license tick (FR-190, answered
-// server-side with LICENSE_NOT_CONFIRMED) and four concepts. Both are restated in the browser, so
-// what this file protects is that they are actually enforced there and said in the field they
-// belong to — and that the seed text's counter follows a paste rather than a keystroke.
+// UI-041 (step 5.4; D-751). What the form asks for, and what it no longer asks for.
 //
-// Two of these are about how a refusal reaches a person rather than whether it happens: a form
-// 1,963 px long says everything still wrong in one place beside the button that was pressed, and
-// the concept entry's own notices are tied to the input rather than only shouted at the page.
+// Two fields are required — the title and the family key — and a package can be created from those
+// two alone. The concepts and the licence record are optional, which is the change D-751 made: the
+// licence tick is an attestation about somebody *else's* case, so it is required exactly when a
+// case title or publisher names one, and that rule lives on the server where both of its inputs
+// are. This file protects the shape of that: four concepts or none, a bare title and key being
+// enough, the server's licence refusal landing on the checkbox, and the seed text's counter
+// following a paste rather than a keystroke.
+//
+// Two of these are about how a refusal reaches a person rather than whether it happens: a long
+// form says everything still wrong in one place beside the button that was pressed, and the concept
+// entry's own notices are tied to the input rather than only shouted at the page.
 
 const actions = vi.hoisted(() => ({
   createPackageFromSeedAction: vi.fn(),
@@ -110,7 +114,29 @@ describe('SeedForm (UI-041)', () => {
     actions.startGenerationAction.mockResolvedValue({ ok: true, data: { started: true } })
   })
 
-  it('refuses to create until the license tick is made, and says so at the checkbox', async () => {
+  it('creates a package from a title and a family key alone', async () => {
+    const user = renderForm()
+    await user.type(screen.getByLabelText(enUS['packageNew.titleLabel']), 'Meridian Roast')
+
+    await user.click(generateSubmit())
+
+    await waitFor(() => expect(actions.createPackageFromSeedAction).toHaveBeenCalled())
+    const sent = actions.createPackageFromSeedAction.mock.calls[0]?.[0]
+    expect(sent).toMatchObject({
+      orgId: ORG_ID,
+      title: 'Meridian Roast',
+      familyKey: 'meridian-roast',
+      seed: { caseTitle: '', publisher: '', seedText: '' },
+    })
+    // An empty concept set is not sent at all; the server declares the default (D-751).
+    expect(sent).not.toHaveProperty('conceptSet')
+  })
+
+  it('puts the server refusal of an unticked licence on the checkbox', async () => {
+    actions.createPackageFromSeedAction.mockResolvedValue({
+      ok: false,
+      error: { code: 'LICENSE_NOT_CONFIRMED', message: 'The license was not confirmed.' },
+    })
     const user = renderForm()
     await fill(user, { license: false })
 
@@ -118,7 +144,6 @@ describe('SeedForm (UI-041)', () => {
 
     expect(await screen.findByText(enUS['packageNew.validation.license'])).toBeInTheDocument()
     expect(licenseCheckbox()).toHaveAttribute('aria-invalid', 'true')
-    expect(actions.createPackageFromSeedAction).not.toHaveBeenCalled()
   })
 
   it('creates the package once the license tick is made', async () => {
@@ -138,7 +163,7 @@ describe('SeedForm (UI-041)', () => {
     expect(screen.queryByText(enUS['packageNew.validation.license'])).not.toBeInTheDocument()
   })
 
-  it('refuses to create on three concepts and says how many the set needs', async () => {
+  it('refuses three concepts — four or none — and says so at the input', async () => {
     const user = renderForm()
     await fill(user, { concepts: ['pricing', 'segmentation', 'retention'] })
 
@@ -191,17 +216,26 @@ describe('SeedForm (UI-041)', () => {
     expect(summary).toBeInTheDocument()
     expect(actions.createPackageFromSeedAction).not.toHaveBeenCalled()
 
-    // Every field still to be put right is named once, and its entry is the way to it.
-    const licenseEntry = screen.getByRole('link', {
+    // Every field still to be put right is named once, and its entry is the way to it. An empty
+    // form is refused for the two fields that are required and for nothing else (D-751).
+    const titleEntry = screen.getByRole('link', {
       name: t('packageNew.errorSummaryItem', {
-        label: enUS['packageNew.licenseCheckboxLabel'],
-        message: enUS['packageNew.validation.license'],
+        label: enUS['packageNew.titleLabel'],
+        message: enUS['packageNew.validation.title'],
       }),
     })
-    expect(licenseEntry).toHaveAttribute('href', '#seed-license')
+    expect(titleEntry).toHaveAttribute('href', '#seed-title')
+    expect(
+      screen.queryByRole('link', {
+        name: t('packageNew.errorSummaryItem', {
+          label: enUS['packageNew.licenseCheckboxLabel'],
+          message: enUS['packageNew.validation.license'],
+        }),
+      }),
+    ).not.toBeInTheDocument()
 
-    await user.click(licenseEntry)
-    expect(licenseCheckbox()).toHaveFocus()
+    await user.click(titleEntry)
+    expect(screen.getByLabelText(enUS['packageNew.titleLabel'])).toHaveFocus()
   })
 
   it('derives the family key from the title and stops once the key is edited', async () => {

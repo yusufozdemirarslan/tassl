@@ -73,7 +73,7 @@ const SEED_TEXT =
     6,
   )
 
-/** Fill and submit the New package from a seed case form. Returns the generation screen's URL. */
+/** Fill and submit the New package form. Returns the generation screen's URL. */
 async function createPackage(page: Page, title: string, prefix: string): Promise<void> {
   await page.goto(`${BASE}/packages/new`, { waitUntil: 'domcontentloaded' })
   await page.waitForTimeout(1200)
@@ -83,6 +83,10 @@ async function createPackage(page: Page, title: string, prefix: string): Promise
   await page.waitForTimeout(600)
   await shot(page, `${prefix}-new-family-key`)
 
+  // The concepts and the licence record are optional and behind one disclosure (D-751); the capture
+  // opens it because the shots are of the whole form.
+  await page.getByText('Concepts and licensing', { exact: true }).click()
+  await page.waitForTimeout(300)
   await page.getByLabel('Concepts').fill('payback, retention, acquisition, pricing')
   await page.waitForTimeout(300)
   const add = page.getByRole('button', { name: 'Add', exact: true }).first()
@@ -105,11 +109,11 @@ async function createPackage(page: Page, title: string, prefix: string): Promise
   } else {
     problems.push(`${role}: no "The license permits adaptation" checkbox`)
   }
-  await page.getByLabel('Seed case text').fill(SEED_TEXT)
+  await page.getByLabel('Scenario text').fill(SEED_TEXT)
   await page.waitForTimeout(600)
   await shot(page, `${prefix}-new-filled`)
 
-  await page.getByRole('button', { name: 'Create and generate' }).click()
+  await page.getByRole('button', { name: 'Generate', exact: true }).click()
   await page.waitForURL(/\/generation$/, { timeout: 120_000 })
   await page.waitForTimeout(1500)
   await shot(page, `${prefix}-generation-running`)
@@ -238,13 +242,15 @@ async function confirmWorkspace(page: Page, prefix: string, freeze: boolean): Pr
     await shot(page, `${prefix}-teaching-note-checked`)
   }
 
-  const confirmVersion = page.getByRole('button', { name: 'Confirm version' }).first()
+  const confirmVersion = page.getByRole('button', { name: 'Confirm and publish' }).first()
   if (await confirmVersion.isVisible().catch(() => false)) {
     await confirmVersion.click()
     await page.waitForTimeout(1500)
     await shot(page, `${prefix}-confirm-version-dialog`)
     if (freeze) {
-      const freezeButton = page.getByRole('button', { name: 'Confirm and freeze' })
+      const freezeButton = page
+        .getByRole('alertdialog')
+        .getByRole('button', { name: 'Confirm and publish' })
       if (await freezeButton.isVisible().catch(() => false)) {
         await freezeButton.click()
         await page.waitForTimeout(4000)
@@ -262,7 +268,7 @@ async function confirmWorkspace(page: Page, prefix: string, freeze: boolean): Pr
       await shot(page, `${prefix}-confirm-version-refused`)
     }
   } else {
-    problems.push(`${role}: no "Confirm version" button in the workspace`)
+    problems.push(`${role}: no "Confirm and publish" button in the workspace`)
     await shot(page, `${prefix}-confirm-version-absent`)
   }
 }

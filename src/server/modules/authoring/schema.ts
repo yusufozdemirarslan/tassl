@@ -29,8 +29,27 @@ export const GENERATION_RUN_STATUSES = ['queued', 'running', 'succeeded', 'faile
 export const GenerationRunStatusSchema = z.enum(GENERATION_RUN_STATUSES)
 export type GenerationRunStatusValue = Parsed<typeof GenerationRunStatusSchema>
 
-/** 10 §5: exactly one retry per step, with the failed rules restated in the prompt input. */
-export const MAX_GENERATION_PASSES = 2
+/**
+ * 10 §5: how many times a step may ask the model again, with the failed rules restated in the
+ * prompt input.
+ *
+ * It was one retry, and one retry was the right number while the model was the only thing that
+ * could satisfy a rule: a second pass that misses the sixteenth readiness item will miss it again.
+ * Since D-750 the deterministic completion is what satisfies the rules, and a pass is re-asked for
+ * only when the call itself failed — a provider that did not answer, an output the schema refused.
+ * Five is what the goal of that decision names, and it costs nothing when nothing goes wrong,
+ * because a step that succeeds never uses its second pass.
+ */
+export const MAX_GENERATION_PASSES = 5
+
+/**
+ * How many times a step runs the completion against the validator before giving up (D-750).
+ *
+ * `completePackage` is idempotent and converges in one round by construction — the second round
+ * exists to *prove* that, because the loop stops the moment the validator comes back clean and a
+ * package that still fails after five is a defect in the completion rather than in the package.
+ */
+export const MAX_COMPLETION_ROUNDS = 5
 
 /**
  * How long an unfinished `generation_runs` row may sit before it is treated as abandoned (D-550).

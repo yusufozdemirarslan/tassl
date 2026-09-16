@@ -930,17 +930,60 @@ export type ImportPackageInput = Parsed<typeof ImportPackageSchema>
  */
 export const LicensePermitsAdaptationSchema = z.literal(true)
 
+/**
+ * The concepts a package declares when its author names none (D-751).
+ *
+ * The version row's own check refuses fewer than four (06 §3.3) and every generation prompt reads
+ * the set, so it cannot simply be left empty. These four are what any decision run exercises
+ * whatever the case is about, which is why they are a defensible default rather than a placeholder:
+ * an author who wants their own vocabulary types it, and everything downstream — the claims, the
+ * concept map, the Readiness Check — follows whichever set the version ends up with.
+ */
+export const DEFAULT_CONCEPT_SET = [
+  'evidence quality',
+  'provenance',
+  'consequential reasoning',
+  'assumption testing',
+] as const
+
+/**
+ * Creating a package (FR-190, UI-041; D-751).
+ *
+ * Three fields are the author's: the title, the family key, and — when they have one — the case
+ * text. Everything else has an answer the server can give, so it is optional here and filled in by
+ * `createPackageFromSeed`: the concept set falls back to `DEFAULT_CONCEPT_SET`, and a package with
+ * no source case records itself as original material rather than asking for a licence that is not
+ * being relied on.
+ *
+ * `seedText` may be empty. A package generated from its title alone is the shortest road from an
+ * idea to a run, and the generation pipeline has everything it needs: the title, the concepts, and
+ * the rule table the completion holds the result to (D-750).
+ */
 export const CreatePackageFromSeedSchema = z.object({
   title: z.string().trim().min(1).max(NAME_MAX),
   familyKey: FamilyKeySchema,
-  conceptSet: ConceptSetSchema,
-  seed: z.object({
-    caseTitle: z.string().trim().min(1).max(NAME_MAX),
-    publisher: z.string().trim().min(1).max(NAME_MAX),
-    licenseTerms: z.string().trim().min(1).max(TEXT_MAX),
-    licensePermitsAdaptation: z.boolean(),
-    seedText: z.string().min(200).max(SEED_TEXT_MAX),
-  }),
+  /**
+   * Four or none. The version row refuses fewer than four (06 §3.3), so "none" is the author
+   * leaving the vocabulary to `DEFAULT_CONCEPT_SET` rather than declaring an empty one — which is
+   * why the empty array is the default and not an optional key: an absent field and a present
+   * empty one mean the same thing here, and one shape is easier to hold than two.
+   */
+  conceptSet: z
+    .array(ConceptKeySchema)
+    .max(CONCEPT_SET_MAX)
+    .refine((set) => set.length === 0 || set.length >= CONCEPT_SET_MIN, {
+      error: `Declare at least ${CONCEPT_SET_MIN} concepts, or none at all.`,
+    })
+    .default([]),
+  seed: z
+    .object({
+      caseTitle: z.string().trim().max(NAME_MAX).default(''),
+      publisher: z.string().trim().max(NAME_MAX).default(''),
+      licenseTerms: z.string().trim().max(TEXT_MAX).default(''),
+      licensePermitsAdaptation: z.boolean().default(false),
+      seedText: z.string().max(SEED_TEXT_MAX).default(''),
+    })
+    .prefault({}),
 })
 export type CreatePackageFromSeedInput = Parsed<typeof CreatePackageFromSeedSchema>
 

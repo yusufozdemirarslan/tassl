@@ -56,7 +56,7 @@ function moreHref(cursor: string): Route {
  */
 function StatusChip({ status }: { status: PackageStatusValue }) {
   if (status === 'draft') return <LabelChip kind="draft" />
-  if (status === 'confirmed') return <LabelChip kind="confirmed" />
+  if (status === 'confirmed') return <LabelChip kind="published" />
   return <Badge variant="secondary">{t('packages.statusRetired')}</Badge>
 }
 
