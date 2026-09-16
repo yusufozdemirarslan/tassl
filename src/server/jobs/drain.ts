@@ -25,6 +25,38 @@ export type DrainTrigger = 'after' | 'cron' | 'manual' | 'worker'
 
 export type JobOutcome = { ok: true } | { ok: false; message: string }
 
+/**
+ * What a drain has learned about how long a queue's jobs take, within this one drain (D-754).
+ *
+ * A drain lives inside one invocation and the deadline used to be checked before every *fetch*: a
+ * batch fetched with four seconds left still ran every job in it, and a job started near the end of
+ * the budget was killed by the platform mid-call. For a generation step that leaves a
+ * `generation_runs` row saying `running` with no worker anywhere, which nothing clears for
+ * `GENERATION_RUN_STALE_AFTER_MS` — fifteen minutes of a progress screen reporting a step that
+ * died. Measured on production: five steps of 46, 76, 27, 96 and 21 seconds fitted inside a 240 s
+ * budget with 26 seconds to spare, and the sixth was started in those 26 seconds.
+ *
+ * So a drain does not start a job it has no room to finish, and what "room" means is measured
+ * rather than guessed: the longest job this drain has run on that queue. The first job of a queue
+ * always runs — there is nothing to go on, and refusing it would mean a drain that never drains —
+ * and every job after it is admitted only while the budget still holds the worst one seen. A queue
+ * of instant jobs keeps its whole batch; a queue of model calls stops after the one that does not
+ * fit and leaves the rest to the next drain, which arrives in a fresh invocation with a fresh
+ * budget (D-683).
+ */
+class QueueTimings {
+  private readonly worst = new Map<QueueName, number>()
+
+  /** The room one job of this queue needs; zero until one has been run and timed. */
+  needs(queue: QueueName): number {
+    return this.worst.get(queue) ?? 0
+  }
+
+  record(queue: QueueName, durationMs: number): void {
+    this.worst.set(queue, Math.max(this.needs(queue), durationMs))
+  }
+}
+
 const BATCH_SIZE = 5
 
 /**
@@ -198,16 +230,25 @@ export async function drainQueues({
 
   let processed = 0
   let failed = 0
+  const timings = new QueueTimings()
+  const remaining = (): number => deadline - Date.now()
+  /** Room for one more job of this queue: always true for the first, measured after that (D-754). */
+  const roomFor = (queue: QueueName): boolean => remaining() > timings.needs(queue)
   // Each pass restarts from the top so higher-priority queues are always emptied first; the drain
-  // ends when a whole pass fetched nothing or the deadline passed (checked before every fetch).
+  // ends when a whole pass fetched nothing or nothing left in the budget can be finished.
   let exhausted = active.length === 0
-  while (!exhausted && Date.now() < deadline) {
+  while (!exhausted && remaining() > 0) {
     exhausted = true
     for (const queue of active) {
-      if (Date.now() >= deadline) break
+      if (!roomFor(queue)) continue
       let jobs: JobWithMetadata[]
       try {
-        jobs = await boss.fetch(queue, { batchSize: BATCH_SIZE, includeMetadata: true })
+        // Only as many jobs as the budget can run to the end. Fetching five and running two leaves
+        // three holding a lease nobody is working, which is invisible to the next drain until the
+        // lease expires and `supervise()` hands it back.
+        const each = Math.max(timings.needs(queue), 1)
+        const batchSize = Math.max(1, Math.min(BATCH_SIZE, Math.floor(remaining() / each)))
+        jobs = await boss.fetch(queue, { batchSize, includeMetadata: true })
       } catch (error) {
         rootLogger.error(
           { event: 'drain_fetch_failed', queue, err: error },
@@ -219,7 +260,19 @@ export async function drainQueues({
       if (jobs.length === 0) continue
       exhausted = false
       for (const job of jobs) {
+        if (!roomFor(queue)) {
+          // The batch was sized to fit, so this is the case where a job ran longer than every job
+          // before it on this queue. What is left keeps its lease until `expireInSeconds`, and the
+          // next `supervise()` returns it to the queue rather than to this invocation.
+          rootLogger.warn(
+            { event: 'drain_job_deferred', queue, jobId: job.id, remainingMs: remaining() },
+            'no budget left for this job; leaving it to the next drain',
+          )
+          break
+        }
+        const jobStartedAt = Date.now()
         const outcome = await executeJob(queue, job)
+        timings.record(queue, Date.now() - jobStartedAt)
         try {
           if (outcome.ok) {
             await boss.complete(queue, job.id)

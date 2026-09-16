@@ -199,9 +199,26 @@ async function authorThePackage(page: Page): Promise<string> {
   }
 
   await page.getByRole('button', { name: 'Generate', exact: true }).click()
-  await page.waitForURL(/\/packages\/[0-9a-f-]{36}\/versions\/[0-9a-f-]{36}\/generation$/, {
-    timeout: ACTION_MS,
-  })
+
+  // The generation screen is waited for by what is on it rather than by its address: it holds a
+  // poll open from its first paint, so a `load` event can be minutes behind a page a person is
+  // already reading.
+  const started = await page
+    .getByRole('list', { name: 'The seven steps' })
+    .waitFor({ timeout: ACTION_MS })
+    .then(() => true)
+    .catch(() => false)
+  if (!started) {
+    const said = await page
+      .locator('main')
+      .innerText()
+      .catch(() => '')
+    fail(
+      'Generate',
+      `at ${page.url()}
+${said.slice(0, 1200)}`,
+    )
+  }
   const versionPath = new URL(page.url()).pathname.replace(/\/generation$/, '')
   step(`generation started: ${versionPath}`)
 
